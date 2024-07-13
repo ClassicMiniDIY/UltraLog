@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import type { ECU_TYPES } from '~/types';
   const { isHelpSlideoverOpen } = useDashboard();
   // const { isDashboardSearchModalOpen } = useUIState();
   // const { metaSymbol } = useShortcuts();
@@ -55,6 +56,9 @@
         </template>
 
         <UDivider />
+
+        <SidebarCsvItem fileName="HaltechLog.csv" ecu="Haltech" />
+        <SidebarCsvItem fileName="LinkLog.csv" ecu="Link" />
 
         <div class="flex-1" />
 
