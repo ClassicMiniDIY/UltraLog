@@ -144,7 +144,12 @@ impl Parser<Meta, Channel, Vec<ChannelValue>> for Haltech {
             .split(",")
             .enumerate()
             .map(|(i, v)| {
-              let channel_type = &channels[i].r#type;
+              // The first value is always a timestamp
+              if i == 0 {
+                return ChannelValue::String(v.to_string());
+              }
+
+              let channel_type = &channels[i - 1].r#type;
               match channel_type {
                 _ => ChannelValue::String(v.to_string())
               }
