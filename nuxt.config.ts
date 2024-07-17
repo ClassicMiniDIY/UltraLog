@@ -1,7 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   devtools: { enabled: true },
-  ssr: false, // SSR must be turned off
+
+  // SSR must be turned off
+  ssr: false,
+
   vite: {
     // Better support for Tauri CLI output
     clearScreen: false,
@@ -22,6 +25,7 @@ export default defineNuxtConfig({
       },
     },
   },
+
   extends: ['@nuxt/ui-pro'],
   modules: ['@nuxt/fonts', '@nuxt/ui', '@vueuse/nuxt'],
 
@@ -47,4 +51,6 @@ export default defineNuxtConfig({
   future: {
     compatibilityVersion: 4,
   },
+
+  compatibilityDate: '2024-07-17',
 });

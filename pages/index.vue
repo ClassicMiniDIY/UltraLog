@@ -1,7 +1,11 @@
 <script setup lang="ts">
-  import { sub } from 'date-fns';
-  import type { Period, Range } from '~/types';
+  import { listen } from '@tauri-apps/api/event';
+  import { invoke } from '@tauri-apps/api';
   import html2canvas from 'html2canvas';
+  import { sub } from 'date-fns';
+
+  import type { Period, Range } from '~/types';
+
   const range = ref<Range>({ start: sub(new Date(), { days: 14 }), end: new Date() });
   const period = ref<Period>('daily');
 
@@ -22,6 +26,13 @@
     a.click();
     document.body.removeChild(a);
   }
+
+  listen('tauri://file-drop', (event) => {
+    const [filePath] = event.payload as string[];
+    invoke('add_file', { filePath }).then((channels: any) => {
+      console.log(JSON.parse(channels));
+    });
+  });
 </script>
 
 <template>
