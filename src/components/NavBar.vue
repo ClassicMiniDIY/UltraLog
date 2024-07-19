@@ -35,20 +35,6 @@
     <div class="navbar-center">
       <h1 class="text-4xl text-primary font-logo">UltraLog</h1>
     </div>
-    <div class="navbar-end">
-      <label class="form-control w-full max-w-xs">
-        <select class="select select-bordered">
-          <option disabled selected>Choose your log Channels</option>
-          <option>Star Wars</option>
-          <option>Harry Potter</option>
-          <option>Lord of the Rings</option>
-          <option>Planet of the Apes</option>
-          <option>Star Trek</option>
-        </select>
-        <div class="label">
-          <span class="label-text-alt">Max: 10 Channels</span>
-        </div>
-      </label>
-    </div>
+    <div class="navbar-end"></div>
   </div>
 </template>

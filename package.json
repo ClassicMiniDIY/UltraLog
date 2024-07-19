@@ -16,6 +16,7 @@
     "@fontsource/fugaz-one": "^5.0.19",
     "@fontsource/lobster": "^5.0.20",
     "@fontsource/press-start-2p": "^5.0.20",
+    "@heroicons/vue": "^2.1.5",
     "@primevue/themes": "^4.0.0",
     "@tauri-apps/api": "^1",
     "autoprefixer": "^10.4.19",
