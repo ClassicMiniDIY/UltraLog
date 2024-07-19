@@ -12,7 +12,11 @@
   "dependencies": {
     "@primevue/themes": "^4.0.0",
     "@tauri-apps/api": "^1",
-    "primevue": "^4.0.0",
+    "autoprefixer": "^10.4.19",
+    "chart.js": "^4.3.0",
+    "daisyui": "^4.12.10",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.6",
     "vue": "^3.4.32"
   },
   "devDependencies": {
@@ -20,6 +24,8 @@
     "typescript": "^5.2.2",
     "vite": "^5.3.4",
     "vue-tsc": "^2.0.26",
+    "prettier": "^3.0.3",
+    "sass": "^1.62.1",
     "@tauri-apps/cli": "^1"
   }
 }
