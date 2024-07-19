@@ -23,7 +23,9 @@
         "height": 1080,
         "resizable": true,
         "title": "Ultra Log",
-        "width": 1920
+        "width": 1920,
+        "minWidth": 1000,
+        "minHeight": 900
       }
     ],
     "security": {

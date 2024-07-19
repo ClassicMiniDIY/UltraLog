@@ -1,6 +1,8 @@
 <script setup lang="ts">
   import type { LogChannel } from './types';
+  import NavBar from './components/NavBar.vue';
   import ChannelCard from './components/ChannelCard.vue';
+  import PlaybackChart from './components/PlaybackChart.vue';
 
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api';
@@ -18,29 +20,30 @@
 </script>
 
 <template>
-  <div class="flex h-screen">
-    <!-- Sidebar -->
-    <div class="w-64 bg-gray-800 text-white">
-      <div class="p-5">Sidebar Content</div>
-    </div>
-    <!-- Main Content -->
-    <div class="flex-1 p-10">
-      <div class="grid grid-cols-5 gap-4">
-        <!-- Dashboard Widgets -->
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <ChannelCard></ChannelCard>
-        <!-- Additional widgets can be added here -->
+  <NavBar></NavBar>
+  <!-- Sidebar -->
+  <!-- <div class="w-64 bg-gray-800 text-white">
+      <div class="p-5 text-xl">UltraLog</div>
+    </div> -->
+  <!-- Main Content -->
+
+  <div class="p-5">
+    <div class="grid grid-cols-5 gap-4">
+      <div class="h-full col-span-4">
+        <PlaybackChart></PlaybackChart>
       </div>
-      <div class="grid grid-cols-1 gap-4 pt-3">
-        <div class="bg-white p-6 rounded-lg shadow">Widget 3</div>
+      <div class="grid grid-cols-subgrid gap-4">
+        <ChannelCard></ChannelCard>
+        <ChannelCard></ChannelCard>
       </div>
     </div>
   </div>
+
+  <!-- <div class="flex-1 p-10">
+      <div class="grid grid-cols-5 gap-4">
+      </div>
+      <div class="grid grid-cols-1 gap-4 pt-3">
+        <PlaybackChart></PlaybackChart>
+      </div>
+    </div> -->
 </template>

@@ -5,19 +5,6 @@ export interface Range {
   end: Date;
 }
 
-export enum GraphColors {
-  0 = '#84A98C',
-  1 = '#52796F',
-  2 = '#D0F4EA',
-  3 = '#EFF2C0',
-  4 = '#A52422',
-  5 = '#58A4B0',
-  6 = '#F06449',
-  7 = '#E8985E',
-  8 = '#CEE7E6',
-  9 = '#384E77',
-}
-
 export interface LogChannel {
   display_max?: string | number;
   display_min?: string | number;

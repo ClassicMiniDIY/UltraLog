@@ -10,6 +10,12 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource-variable/comfortaa": "^5.0.20",
+    "@fontsource-variable/teko": "^5.0.5",
+    "@fontsource/fredoka-one": "^5.0.5",
+    "@fontsource/fugaz-one": "^5.0.19",
+    "@fontsource/lobster": "^5.0.20",
+    "@fontsource/press-start-2p": "^5.0.20",
     "@primevue/themes": "^4.0.0",
     "@tauri-apps/api": "^1",
     "autoprefixer": "^10.4.19",
@@ -17,7 +23,8 @@
     "daisyui": "^4.12.10",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.6",
-    "vue": "^3.4.32"
+    "vue": "^3.4.32",
+    "vue-chartjs": "^5.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.5",
