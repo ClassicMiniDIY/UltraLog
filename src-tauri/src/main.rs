@@ -13,6 +13,7 @@ use parsers::types::{Channel, ChannelValue, Log, Parseable};
 
 fn main() {
     tauri::Builder::default()
+      .manage(Store::default())
       .invoke_handler(tauri::generate_handler![add_file, get_channel_data])
       .run(tauri::generate_context!())
       .expect("error while running tauri application");

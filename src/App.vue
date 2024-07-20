@@ -5,9 +5,10 @@
   import PlaybackChart from './components/PlaybackChart.vue';
   import { PlusIcon } from '@heroicons/vue/24/solid';
 
-  import { listen } from '@tauri-apps/api/event';
+  import { Event, listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api';
   import { ref } from 'vue';
+  import { debounce } from 'lodash';
 
   const channels = ref<LogChannel[]>([]);
   const channelToAdd = ref<string>('');
@@ -20,18 +21,21 @@
     noChannel: false,
   });
 
-  listen('tauri://file-drop', (event) => {
+  const dropHandler = async (event: Event<string[]>) => {
     loading.value = true;
-    const [filePath] = event.payload as string[];
-    invoke('add_file', { filePath }).then((rawChannels: any) => {
-      channels.value = JSON.parse(rawChannels);
-      channelToAdd.value = channels.value[0].name;
-      console.log(channels.value);
-      loading.value = false;
-    });
-  });
+    const [filePath] = event.payload;
+    const rawChannels: { Haltech: LogChannel }[] = await invoke('add_file', { filePath });
 
-  function addChannel() {
+    channels.value = rawChannels.map((channel) => channel.Haltech);
+    channelToAdd.value = channels.value[0].name;
+    loading.value = false;
+  }
+  listen('tauri://file-drop', debounce(dropHandler, 5_000, {
+    leading: true,
+    trailing: false,
+  }));
+
+  async function addChannel() {
     if (channelToAdd.value) {
       if (selectedChannels.value.length > 10) {
         triggerToast('maxReached');
@@ -47,6 +51,8 @@
       const channel = channels.value.find((channel) => channel.name === channelToAdd.value);
       if (channel) {
         selectedChannels.value.push(channel);
+        const channelData = await invoke('get_channel_data', { channelName: channel.name });
+        console.log(channelData);
       } else {
         triggerToast('notFound');
         console.error('Channel not found');
