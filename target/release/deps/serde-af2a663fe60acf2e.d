@@ -1,0 +1,14 @@
+/Users/colegentry/Development/UltraLog/target/release/deps/serde-af2a663fe60acf2e.d: /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/colegentry/Development/UltraLog/target/release/build/serde-d0c9111a84bfbac0/out/private.rs
+
+/Users/colegentry/Development/UltraLog/target/release/deps/libserde-af2a663fe60acf2e.rlib: /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/colegentry/Development/UltraLog/target/release/build/serde-d0c9111a84bfbac0/out/private.rs
+
+/Users/colegentry/Development/UltraLog/target/release/deps/libserde-af2a663fe60acf2e.rmeta: /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/colegentry/Development/UltraLog/target/release/build/serde-d0c9111a84bfbac0/out/private.rs
+
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/colegentry/Development/UltraLog/target/release/build/serde-d0c9111a84bfbac0/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/colegentry/Development/UltraLog/target/release/build/serde-d0c9111a84bfbac0/out

@@ -1,0 +1,14 @@
+/Users/colegentry/Development/UltraLog/target/release/deps/thiserror-fb161fb28305e1f7.d: /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/lib.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/aserror.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/display.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/var.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/private.rs /Users/colegentry/Development/UltraLog/target/release/build/thiserror-808dfce16a0e345d/out/private.rs
+
+/Users/colegentry/Development/UltraLog/target/release/deps/libthiserror-fb161fb28305e1f7.rlib: /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/lib.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/aserror.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/display.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/var.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/private.rs /Users/colegentry/Development/UltraLog/target/release/build/thiserror-808dfce16a0e345d/out/private.rs
+
+/Users/colegentry/Development/UltraLog/target/release/deps/libthiserror-fb161fb28305e1f7.rmeta: /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/lib.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/aserror.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/display.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/var.rs /Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/private.rs /Users/colegentry/Development/UltraLog/target/release/build/thiserror-808dfce16a0e345d/out/private.rs
+
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/lib.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/aserror.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/display.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/var.rs:
+/Users/colegentry/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.17/src/private.rs:
+/Users/colegentry/Development/UltraLog/target/release/build/thiserror-808dfce16a0e345d/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/colegentry/Development/UltraLog/target/release/build/thiserror-808dfce16a0e345d/out

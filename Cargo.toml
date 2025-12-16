@@ -1,0 +1,40 @@
+[package]
+name = "ultralog"
+version = "0.1.0"
+edition = "2021"
+description = "A high-performance ECU log viewer written in Rust"
+authors = ["Cole Gentry"]
+
+[dependencies]
+# GUI Framework
+eframe = { version = "0.29", default-features = false, features = [
+    "default_fonts",
+    "glow",
+    "persistence",
+] }
+egui_plot = "0.29"
+egui_extras = { version = "0.29", features = ["image"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Parsing
+regex = "1.10"
+strum = { version = "0.26", features = ["derive"] }
+
+# File handling
+rfd = "0.15"  # Native file dialogs
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
