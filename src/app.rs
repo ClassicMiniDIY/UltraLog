@@ -1,5 +1,5 @@
 use eframe::egui;
-use egui_plot::{Line, Plot, PlotPoints};
+use egui_plot::{Line, Plot, PlotPoints, VLine};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -85,6 +85,12 @@ pub struct UltraLogApp {
     loading_state: LoadingState,
     /// Cache for downsampled chart data
     downsample_cache: HashMap<CacheKey, Vec<[f64; 2]>>,
+    /// Current cursor position in seconds (timeline feature)
+    cursor_time: Option<f64>,
+    /// Total time range across all loaded files (min, max)
+    time_range: Option<(f64, f64)>,
+    /// Current data record index at cursor position
+    cursor_record: Option<usize>,
 }
 
 impl Default for UltraLogApp {
@@ -99,6 +105,9 @@ impl Default for UltraLogApp {
             load_receiver: None,
             loading_state: LoadingState::Idle,
             downsample_cache: HashMap::new(),
+            cursor_time: None,
+            time_range: None,
+            cursor_record: None,
         }
     }
 }
@@ -167,6 +176,7 @@ impl UltraLogApp {
                     LoadResult::Success(file) => {
                         self.files.push(file);
                         self.selected_file = Some(self.files.len() - 1);
+                        self.update_time_range();
                         self.show_toast("File loaded successfully");
                     }
                     LoadResult::Error(e) => {
@@ -177,6 +187,74 @@ impl UltraLogApp {
                 self.loading_state = LoadingState::Idle;
             }
         }
+    }
+
+    /// Update the total time range based on all loaded files
+    fn update_time_range(&mut self) {
+        let mut min_time = f64::MAX;
+        let mut max_time = f64::MIN;
+
+        for file in &self.files {
+            let times = file.log.get_times_as_f64();
+            if let (Some(&first), Some(&last)) = (times.first(), times.last()) {
+                min_time = min_time.min(first);
+                max_time = max_time.max(last);
+            }
+        }
+
+        if min_time <= max_time {
+            self.time_range = Some((min_time, max_time));
+            // Set cursor to start if not already set
+            if self.cursor_time.is_none() {
+                self.cursor_time = Some(min_time);
+                self.cursor_record = Some(0);
+            }
+        } else {
+            self.time_range = None;
+            self.cursor_time = None;
+            self.cursor_record = None;
+        }
+    }
+
+    /// Find the record index closest to the given time
+    fn find_record_at_time(&self, time: f64) -> Option<usize> {
+        // Use the first file with data for record indexing
+        if let Some(file) = self.files.first() {
+            let times = file.log.get_times_as_f64();
+            if times.is_empty() {
+                return None;
+            }
+            // Binary search for closest time
+            let mut low = 0;
+            let mut high = times.len() - 1;
+            while low < high {
+                let mid = (low + high) / 2;
+                if times[mid] < time {
+                    low = mid + 1;
+                } else {
+                    high = mid;
+                }
+            }
+            // Check if low or low-1 is closer
+            if low > 0 && (times[low] - time).abs() > (times[low - 1] - time).abs() {
+                Some(low - 1)
+            } else {
+                Some(low)
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get value at a specific record index for a channel
+    fn get_value_at_record(&self, file_index: usize, channel_index: usize, record: usize) -> Option<f64> {
+        if file_index < self.files.len() {
+            let file = &self.files[file_index];
+            if record < file.log.data.len() && channel_index < file.log.data[record].len() {
+                return Some(file.log.data[record][channel_index].as_f64());
+            }
+        }
+        None
     }
 
     /// Remove a loaded file
@@ -227,6 +305,9 @@ impl UltraLogApp {
                     self.selected_file = Some(selected - 1);
                 }
             }
+
+            // Update time range after file removal
+            self.update_time_range();
         }
     }
 
@@ -617,15 +698,43 @@ impl UltraLogApp {
             }
         }
 
-        // Now render the chart using cached data
+        // Pre-compute legend names with current values at cursor position
+        let legend_names: Vec<String> = self.selected_channels.iter().map(|selected| {
+            let base_name = selected.channel.name();
+            if let Some(record) = self.cursor_record {
+                if let Some(value) = self.get_value_at_record(
+                    selected.file_index,
+                    selected.channel_index,
+                    record,
+                ) {
+                    let unit = selected.channel.unit();
+                    if unit.is_empty() {
+                        format!("{}: {:.2}", base_name, value)
+                    } else {
+                        format!("{}: {:.2} {}", base_name, value, unit)
+                    }
+                } else {
+                    base_name.to_string()
+                }
+            } else {
+                base_name.to_string()
+            }
+        }).collect();
+
+        // Prepare data for the plot closure (can't borrow self mutably inside)
         let cache = &self.downsample_cache;
         let files = &self.files;
         let selected_channels = &self.selected_channels;
+        let cursor_time = self.cursor_time;
 
-        Plot::new("log_chart")
+        let response = Plot::new("log_chart")
             .legend(egui_plot::Legend::default())
+            .allow_drag(true)
+            .allow_zoom(true)
+            .allow_scroll(true)
             .show(ui, |plot_ui| {
-                for selected in selected_channels {
+                // Draw channel data lines with values in legend
+                for (i, selected) in selected_channels.iter().enumerate() {
                     if selected.file_index >= files.len() {
                         continue;
                     }
@@ -639,15 +748,122 @@ impl UltraLogApp {
                         let plot_points: PlotPoints = points.iter().copied().collect();
                         let color = CHART_COLORS[selected.color_index % CHART_COLORS.len()];
 
+                        // Use legend name with value if available
+                        let name = &legend_names[i];
+
                         plot_ui.line(
                             Line::new(plot_points)
-                                .name(&selected.channel.name())
+                                .name(name)
                                 .color(egui::Color32::from_rgb(color[0], color[1], color[2]))
                                 .width(1.5),
                         );
                     }
                 }
+
+                // Draw vertical cursor line
+                if let Some(time) = cursor_time {
+                    plot_ui.vline(
+                        VLine::new(time)
+                            .color(egui::Color32::from_rgb(0, 255, 255)) // Cyan cursor
+                            .width(2.0)
+                            .name("Cursor"),
+                    );
+                }
+
+                // Return pointer position if hovering for click detection
+                plot_ui.pointer_coordinate()
             });
+
+        // Handle click on chart to set cursor position
+        if response.response.clicked() {
+            if let Some(pos) = response.inner {
+                let clicked_time = pos.x;
+                // Clamp to time range
+                if let Some((min, max)) = self.time_range {
+                    let clamped_time = clicked_time.clamp(min, max);
+                    self.cursor_time = Some(clamped_time);
+                    self.cursor_record = self.find_record_at_time(clamped_time);
+                }
+            }
+        }
+    }
+
+    /// Render the timeline scrubber bar
+    fn render_timeline_scrubber(&mut self, ui: &mut egui::Ui) {
+        let Some((min_time, max_time)) = self.time_range else {
+            return;
+        };
+
+        let total_duration = max_time - min_time;
+        if total_duration <= 0.0 {
+            return;
+        }
+
+        // Time labels row
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(format!("{:.3}s", min_time))
+                    .small()
+                    .color(egui::Color32::LIGHT_GRAY),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(format!("{:.3}s", max_time))
+                        .small()
+                        .color(egui::Color32::LIGHT_GRAY),
+                );
+            });
+        });
+
+        // Full-width slider - set slider_width to use available space
+        let current_time = self.cursor_time.unwrap_or(min_time);
+        let mut slider_value = current_time;
+        let available_width = ui.available_width();
+
+        // Temporarily set slider width to fill available space
+        let old_slider_width = ui.spacing().slider_width;
+        ui.spacing_mut().slider_width = available_width - 10.0; // Small margin for aesthetics
+
+        let slider = egui::Slider::new(&mut slider_value, min_time..=max_time)
+            .show_value(false)
+            .clamping(egui::SliderClamping::Always);
+
+        let slider_response = ui.add(slider);
+
+        // Restore original slider width
+        ui.spacing_mut().slider_width = old_slider_width;
+
+        if slider_response.changed() {
+            self.cursor_time = Some(slider_value);
+            self.cursor_record = self.find_record_at_time(slider_value);
+        }
+    }
+
+    /// Render the record/time indicator bar
+    fn render_record_indicator(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            // Current time display
+            if let Some(time) = self.cursor_time {
+                ui.label(
+                    egui::RichText::new(format!("Time: {:.3}s", time))
+                        .strong()
+                        .color(egui::Color32::from_rgb(0, 255, 255)), // Cyan to match cursor
+                );
+            }
+
+            ui.separator();
+
+            // Record indicator
+            if let Some(record) = self.cursor_record {
+                if let Some(file) = self.files.first() {
+                    let total_records = file.log.data.len();
+                    ui.label(
+                        egui::RichText::new(format!("Record {} of {}", record + 1, total_records))
+                            .color(egui::Color32::LIGHT_GRAY),
+                    );
+                }
+            }
+        });
     }
 
     /// Render toast notifications
@@ -739,6 +955,20 @@ impl eframe::App for UltraLogApp {
             .show(ctx, |ui| {
                 self.render_channel_selection(ui);
             });
+
+        // Bottom panel for timeline scrubber (render before central to claim space)
+        if self.time_range.is_some() && !self.selected_channels.is_empty() {
+            egui::TopBottomPanel::bottom("timeline_panel")
+                .resizable(false)
+                .min_height(60.0)
+                .show(ctx, |ui| {
+                    ui.add_space(5.0);
+                    self.render_record_indicator(ui);
+                    ui.separator();
+                    self.render_timeline_scrubber(ui);
+                    ui.add_space(5.0);
+                });
+        }
 
         // Main content area
         egui::CentralPanel::default().show(ctx, |ui| {

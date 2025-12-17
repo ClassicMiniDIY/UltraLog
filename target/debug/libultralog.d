@@ -1,0 +1,1 @@
+/Users/colegentry/Development/UltraLog/target/debug/libultralog.rlib: /Users/colegentry/Development/UltraLog/src/app.rs /Users/colegentry/Development/UltraLog/src/lib.rs /Users/colegentry/Development/UltraLog/src/parsers/haltech.rs /Users/colegentry/Development/UltraLog/src/parsers/mod.rs /Users/colegentry/Development/UltraLog/src/parsers/types.rs
