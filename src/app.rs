@@ -10,16 +10,16 @@ use crate::parsers::{Channel, EcuType, Haltech, Log, Parseable};
 
 /// Color palette for chart lines (matches original theme)
 const CHART_COLORS: &[[u8; 3]] = &[
-    [113, 120, 78],   // Olive green (primary)
-    [191, 78, 48],    // Rust orange (accent)
-    [71, 108, 155],   // Blue (info)
-    [159, 166, 119],  // Sage green (success)
-    [253, 193, 73],   // Amber (warning)
-    [135, 30, 28],    // Dark red (error)
-    [246, 247, 235],  // Cream
-    [100, 149, 237],  // Cornflower blue
-    [255, 127, 80],   // Coral
-    [144, 238, 144],  // Light green
+    [113, 120, 78],  // Olive green (primary)
+    [191, 78, 48],   // Rust orange (accent)
+    [71, 108, 155],  // Blue (info)
+    [159, 166, 119], // Sage green (success)
+    [253, 193, 73],  // Amber (warning)
+    [135, 30, 28],   // Dark red (error)
+    [246, 247, 235], // Cream
+    [100, 149, 237], // Cornflower blue
+    [255, 127, 80],  // Coral
+    [144, 238, 144], // Light green
 ];
 
 /// Maximum number of channels that can be selected
@@ -254,7 +254,12 @@ impl UltraLogApp {
     }
 
     /// Get value at a specific record index for a channel
-    fn get_value_at_record(&self, file_index: usize, channel_index: usize, record: usize) -> Option<f64> {
+    fn get_value_at_record(
+        &self,
+        file_index: usize,
+        channel_index: usize,
+        record: usize,
+    ) -> Option<f64> {
         if file_index < self.files.len() {
             let file = &self.files[file_index];
             if record < file.log.data.len() && channel_index < file.log.data[record].len() {
@@ -303,11 +308,7 @@ impl UltraLogApp {
             // Update selected file
             if let Some(selected) = self.selected_file {
                 if selected == index {
-                    self.selected_file = if self.files.is_empty() {
-                        None
-                    } else {
-                        Some(0)
-                    };
+                    self.selected_file = if self.files.is_empty() { None } else { Some(0) };
                 } else if selected > index {
                     self.selected_file = Some(selected - 1);
                 }
@@ -376,7 +377,11 @@ impl UltraLogApp {
 
         if n <= target_points || target_points < 3 {
             // No downsampling needed
-            return times.iter().zip(values.iter()).map(|(t, v)| [*t, *v]).collect();
+            return times
+                .iter()
+                .zip(values.iter())
+                .map(|(t, v)| [*t, *v])
+                .collect();
         }
 
         let mut result = Vec::with_capacity(target_points);
@@ -418,9 +423,8 @@ impl UltraLogApp {
 
             for j in bucket_start..bucket_end {
                 // Calculate triangle area
-                let area = ((a_x - avg_x) * (values[j] - a_y)
-                    - (a_x - times[j]) * (avg_y - a_y))
-                    .abs();
+                let area =
+                    ((a_x - avg_x) * (values[j] - a_y) - (a_x - times[j]) * (avg_y - a_y)).abs();
 
                 if area > max_area {
                     max_area = area;
@@ -545,7 +549,11 @@ impl UltraLogApp {
                                 );
                             });
 
-                        if button_response.response.interact(egui::Sense::click()).clicked() {
+                        if button_response
+                            .response
+                            .interact(egui::Sense::click())
+                            .clicked()
+                        {
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("Log Files", &["csv", "log", "txt"])
                                 .pick_file()
@@ -560,11 +568,7 @@ impl UltraLogApp {
 
                         ui.add_space(12.0);
 
-                        ui.label(
-                            egui::RichText::new("or")
-                                .color(text_gray)
-                                .size(12.0),
-                        );
+                        ui.label(egui::RichText::new("or").color(text_gray).size(12.0));
 
                         ui.add_space(8.0);
 
@@ -666,17 +670,15 @@ impl UltraLogApp {
                         let name = channel.name();
 
                         // Filter by search
-                        if !search_lower.is_empty()
-                            && !name.to_lowercase().contains(&search_lower)
+                        if !search_lower.is_empty() && !name.to_lowercase().contains(&search_lower)
                         {
                             continue;
                         }
 
                         // Check if already selected
-                        let is_selected = self
-                            .selected_channels
-                            .iter()
-                            .any(|c| c.file_index == file_index && c.channel_index == channel_index);
+                        let is_selected = self.selected_channels.iter().any(|c| {
+                            c.file_index == file_index && c.channel_index == channel_index
+                        });
 
                         // Build the label with checkmark prefix if selected
                         let label_text = if is_selected {
@@ -748,9 +750,10 @@ impl UltraLogApp {
                                     .color(egui::Color32::GRAY),
                                 );
 
-                                if let (Some(min), Some(max)) =
-                                    (selected.channel.display_min(), selected.channel.display_max())
-                                {
+                                if let (Some(min), Some(max)) = (
+                                    selected.channel.display_min(),
+                                    selected.channel.display_max(),
+                                ) {
                                     ui.label(
                                         egui::RichText::new(format!(
                                             "Range: {:.0} - {:.0}",
@@ -869,27 +872,31 @@ impl UltraLogApp {
         }
 
         // Pre-compute legend names with current values at cursor position
-        let legend_names: Vec<String> = self.selected_channels.iter().map(|selected| {
-            let base_name = selected.channel.name();
-            if let Some(record) = self.cursor_record {
-                if let Some(value) = self.get_value_at_record(
-                    selected.file_index,
-                    selected.channel_index,
-                    record,
-                ) {
-                    let unit = selected.channel.unit();
-                    if unit.is_empty() {
-                        format!("{}: {:.2}", base_name, value)
+        let legend_names: Vec<String> = self
+            .selected_channels
+            .iter()
+            .map(|selected| {
+                let base_name = selected.channel.name();
+                if let Some(record) = self.cursor_record {
+                    if let Some(value) = self.get_value_at_record(
+                        selected.file_index,
+                        selected.channel_index,
+                        record,
+                    ) {
+                        let unit = selected.channel.unit();
+                        if unit.is_empty() {
+                            format!("{}: {:.2}", base_name, value)
+                        } else {
+                            format!("{}: {:.2} {}", base_name, value, unit)
+                        }
                     } else {
-                        format!("{}: {:.2} {}", base_name, value, unit)
+                        base_name.to_string()
                     }
                 } else {
                     base_name.to_string()
                 }
-            } else {
-                base_name.to_string()
-            }
-        }).collect();
+            })
+            .collect();
 
         // Prepare data for the plot closure (can't borrow self mutably inside)
         let cache = &self.downsample_cache;
@@ -910,68 +917,65 @@ impl UltraLogApp {
             .allow_scroll(!cursor_tracking); // Disable scroll in tracking mode
 
         let response = plot.show(ui, |plot_ui| {
-                // In cursor tracking mode, force X bounds while preserving Y zoom
-                if cursor_tracking {
-                    if let (Some(cursor), Some((min_t, max_t))) = (cursor_time, time_range) {
-                        // Calculate view window centered on cursor
-                        let half_window = view_window / 2.0;
-                        let view_min = (cursor - half_window).max(min_t);
-                        let view_max = (cursor + half_window).min(max_t);
+            // In cursor tracking mode, force X bounds while preserving Y zoom
+            if cursor_tracking {
+                if let (Some(cursor), Some((min_t, max_t))) = (cursor_time, time_range) {
+                    // Calculate view window centered on cursor
+                    let half_window = view_window / 2.0;
+                    let view_min = (cursor - half_window).max(min_t);
+                    let view_max = (cursor + half_window).min(max_t);
 
-                        // Get current bounds to preserve Y zoom level
-                        let current_bounds = plot_ui.plot_bounds();
-                        let y_min = current_bounds.min()[1];
-                        let y_max = current_bounds.max()[1];
+                    // Get current bounds to preserve Y zoom level
+                    let current_bounds = plot_ui.plot_bounds();
+                    let y_min = current_bounds.min()[1];
+                    let y_max = current_bounds.max()[1];
 
-                        // Force X bounds centered on cursor, but keep Y bounds from user's zoom
-                        let new_bounds = PlotBounds::from_min_max(
-                            [view_min, y_min],
-                            [view_max, y_max],
-                        );
-                        plot_ui.set_plot_bounds(new_bounds);
-                    }
+                    // Force X bounds centered on cursor, but keep Y bounds from user's zoom
+                    let new_bounds = PlotBounds::from_min_max([view_min, y_min], [view_max, y_max]);
+                    plot_ui.set_plot_bounds(new_bounds);
+                }
+            }
+
+            // Draw channel data lines with values in legend
+            for (i, selected) in selected_channels.iter().enumerate() {
+                if selected.file_index >= files.len() {
+                    continue;
                 }
 
-                // Draw channel data lines with values in legend
-                for (i, selected) in selected_channels.iter().enumerate() {
-                    if selected.file_index >= files.len() {
-                        continue;
-                    }
+                let cache_key = CacheKey {
+                    file_index: selected.file_index,
+                    channel_index: selected.channel_index,
+                };
 
-                    let cache_key = CacheKey {
-                        file_index: selected.file_index,
-                        channel_index: selected.channel_index,
-                    };
+                if let Some(points) = cache.get(&cache_key) {
+                    let plot_points: PlotPoints = points.iter().copied().collect();
+                    let color = CHART_COLORS[selected.color_index % CHART_COLORS.len()];
 
-                    if let Some(points) = cache.get(&cache_key) {
-                        let plot_points: PlotPoints = points.iter().copied().collect();
-                        let color = CHART_COLORS[selected.color_index % CHART_COLORS.len()];
+                    // Use legend name with value if available
+                    let name = &legend_names[i];
 
-                        // Use legend name with value if available
-                        let name = &legend_names[i];
-
-                        plot_ui.line(
-                            Line::new(plot_points)
-                                .name(name)
-                                .color(egui::Color32::from_rgb(color[0], color[1], color[2]))
-                                .width(1.5),
-                        );
-                    }
-                }
-
-                // Draw vertical cursor line
-                if let Some(time) = cursor_time {
-                    plot_ui.vline(
-                        VLine::new(time)
-                            .color(egui::Color32::from_rgb(0, 255, 255)) // Cyan cursor
-                            .width(2.0)
-                            .name("Cursor"),
+                    plot_ui.line(
+                        Line::new(plot_points)
+                            .name(name)
+                            .color(egui::Color32::from_rgb(color[0], color[1], color[2]))
+                            .width(1.5),
                     );
                 }
+            }
 
-                // Return pointer position if hovering for click detection
-                plot_ui.pointer_coordinate()
-            });
+            // Draw vertical cursor line
+            if let Some(time) = cursor_time {
+                plot_ui.vline(
+                    VLine::new(time)
+                        .color(egui::Color32::from_rgb(0, 255, 255)) // Cyan cursor
+                        .width(2.0)
+                        .name("Cursor"),
+                );
+            }
+
+            // Return pointer position if hovering for click detection
+            plot_ui.pointer_coordinate()
+        });
 
         // Handle click on chart to set cursor position
         if response.response.clicked() {
@@ -1088,11 +1092,17 @@ impl UltraLogApp {
         // Arrow head
         let head_size = arrow_size * 0.4;
         painter.line_segment(
-            [arrow_top, egui::pos2(arrow_top.x - head_size, arrow_top.y + head_size)],
+            [
+                arrow_top,
+                egui::pos2(arrow_top.x - head_size, arrow_top.y + head_size),
+            ],
             egui::Stroke::new(2.0, color),
         );
         painter.line_segment(
-            [arrow_top, egui::pos2(arrow_top.x + head_size, arrow_top.y + head_size)],
+            [
+                arrow_top,
+                egui::pos2(arrow_top.x + head_size, arrow_top.y + head_size),
+            ],
             egui::Stroke::new(2.0, color),
         );
     }

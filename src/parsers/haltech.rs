@@ -128,9 +128,9 @@ impl ChannelType {
             ChannelType::AngularVelocity => raw / 10.0,
 
             // Current types
-            ChannelType::Current => raw / 1000.0,                    // mA to A
+            ChannelType::Current => raw / 1000.0, // mA to A
             ChannelType::CurrentMicroampsAsMilliamps => raw / 1000.0, // μA to mA
-            ChannelType::CurrentMilliampsAsAmps => raw / 1000.0,     // mA to A
+            ChannelType::CurrentMilliampsAsAmps => raw / 1000.0, // mA to A
 
             // Density: y = x/10 (g/m³)
             ChannelType::Density => raw / 10.0,
@@ -204,8 +204,7 @@ impl ChannelType {
             ChannelType::TimeSeconds => "s",
             ChannelType::Acceleration => "m/s²",
             ChannelType::AngularVelocity => "°/s",
-            ChannelType::Current
-            | ChannelType::CurrentMilliampsAsAmps => "A",
+            ChannelType::Current | ChannelType::CurrentMilliampsAsAmps => "A",
             ChannelType::CurrentMicroampsAsMilliamps => "mA",
             ChannelType::Density => "g/m³",
             ChannelType::Flow => "cc/min",
@@ -345,11 +344,12 @@ impl Parseable for Haltech {
 
                             raw_value.map(|raw| {
                                 // Apply conversion based on channel type if available
-                                let converted = if let Some(Channel::Haltech(ch)) = channels.get(idx) {
-                                    ch.r#type.convert_value(raw)
-                                } else {
-                                    raw
-                                };
+                                let converted =
+                                    if let Some(Channel::Haltech(ch)) = channels.get(idx) {
+                                        ch.r#type.convert_value(raw)
+                                    } else {
+                                        raw
+                                    };
                                 Value::Float(converted)
                             })
                         })
@@ -373,9 +373,7 @@ impl Parseable for Haltech {
                         "DataLogVersion" => meta.data_log_version = value,
                         "Software" => meta.software = value,
                         "SoftwareVersion" => meta.software_version = value,
-                        "DownloadDateTime" | "DownloadDate/Time" => {
-                            meta.download_date_time = value
-                        }
+                        "DownloadDateTime" | "DownloadDate/Time" => meta.download_date_time = value,
                         "Log Source" => meta.log_source = value,
                         "Log Number" => meta.log_number = value,
                         "Log" => meta.log_date_time = value,
@@ -487,7 +485,11 @@ Log : 20250718 02:15:46
 
         // Pressure: y = x/10 - 101.3 (gauge kPa) - raw 1013 -> 0.0 kPa
         let pressure_value = log.data[0][1].as_f64();
-        assert!((pressure_value - 0.0).abs() < 0.01, "Expected ~0.0, got {}", pressure_value);
+        assert!(
+            (pressure_value - 0.0).abs() < 0.01,
+            "Expected ~0.0, got {}",
+            pressure_value
+        );
 
         // Check units
         assert_eq!(log.channels[0].unit(), "RPM");

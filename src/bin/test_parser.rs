@@ -46,11 +46,16 @@ fn main() {
 
             println!("\n=== Sample Data (first 5 rows, first 8 channels) ===");
             // Print channel headers
-            let header: Vec<String> = log.channels.iter().take(8).map(|c| {
-                let name = c.name();
-                let short_name = if name.len() > 12 { &name[..12] } else { &name };
-                format!("{:>12}", short_name)
-            }).collect();
+            let header: Vec<String> = log
+                .channels
+                .iter()
+                .take(8)
+                .map(|c| {
+                    let name = c.name();
+                    let short_name = if name.len() > 12 { &name[..12] } else { &name };
+                    format!("{:>12}", short_name)
+                })
+                .collect();
             println!("  Time      | {}", header.join(" | "));
             println!("  ----------+-{}", vec!["-------------"; 8].join("-+-"));
 
@@ -69,11 +74,7 @@ fn main() {
                         }
                     })
                     .collect();
-                println!(
-                    "  {:>8}s | {}",
-                    time,
-                    values.join(" | ")
-                );
+                println!("  {:>8}s | {}", time, values.join(" | "));
             }
 
             // Show some key channels with converted values
