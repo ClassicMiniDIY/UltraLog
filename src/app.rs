@@ -22,6 +22,21 @@ const CHART_COLORS: &[[u8; 3]] = &[
     [144, 238, 144], // Light green
 ];
 
+/// Colorblind-friendly palette (based on Wong's optimized palette)
+/// Designed to be distinguishable for deuteranopia, protanopia, and tritanopia
+const COLORBLIND_COLORS: &[[u8; 3]] = &[
+    [0, 114, 178],   // Blue
+    [230, 159, 0],   // Orange
+    [0, 158, 115],   // Bluish green
+    [204, 121, 167], // Reddish purple
+    [86, 180, 233],  // Sky blue
+    [213, 94, 0],    // Vermillion
+    [240, 228, 66],  // Yellow
+    [0, 0, 0],       // Black (for contrast on light backgrounds, shows as white on dark)
+    [136, 204, 238], // Light blue
+    [153, 153, 153], // Gray
+];
+
 /// Maximum number of channels that can be selected
 const MAX_CHANNELS: usize = 10;
 
@@ -96,6 +111,21 @@ pub struct UltraLogApp {
     cursor_tracking: bool,
     /// Visible time window width in seconds (for cursor tracking mode)
     view_window_seconds: f64,
+    // === Playback ===
+    /// Whether playback is active
+    is_playing: bool,
+    /// Last frame time for calculating delta
+    last_frame_time: Option<std::time::Instant>,
+    /// Playback speed multiplier (1.0 = real-time)
+    playback_speed: f64,
+    // === Accessibility ===
+    /// When true, use colorblind-friendly color palette
+    color_blind_mode: bool,
+    // === Chart View State ===
+    /// Whether user has interacted with chart zoom/pan (false = use initial zoomed view)
+    chart_interacted: bool,
+    /// Initial view window in seconds (shown before user interacts with chart)
+    initial_view_seconds: f64,
 }
 
 impl Default for UltraLogApp {
@@ -115,13 +145,61 @@ impl Default for UltraLogApp {
             cursor_record: None,
             cursor_tracking: false,
             view_window_seconds: 30.0, // Default 30 second window
+            is_playing: false,
+            last_frame_time: None,
+            playback_speed: 1.0,
+            color_blind_mode: false,
+            chart_interacted: false,
+            initial_view_seconds: 60.0, // Start with 60 second view
         }
     }
 }
 
 impl UltraLogApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Load custom Outfit font
+        let mut fonts = egui::FontDefinitions::default();
+
+        // Load Outfit Regular
+        fonts.font_data.insert(
+            "Outfit-Regular".to_owned(),
+            egui::FontData::from_static(include_bytes!("../assets/Outfit-Regular.ttf")),
+        );
+
+        // Load Outfit Bold
+        fonts.font_data.insert(
+            "Outfit-Bold".to_owned(),
+            egui::FontData::from_static(include_bytes!("../assets/Outfit-Bold.ttf")),
+        );
+
+        // Set Outfit as the primary proportional font
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "Outfit-Regular".to_owned());
+
+        // Add bold variant for strong text
+        fonts
+            .families
+            .entry(egui::FontFamily::Name("Bold".into()))
+            .or_default()
+            .insert(0, "Outfit-Bold".to_owned());
+
+        // Apply fonts
+        cc.egui_ctx.set_fonts(fonts);
+
         Self::default()
+    }
+
+    /// Get color for a channel based on color blind mode setting
+    fn get_channel_color(&self, color_index: usize) -> [u8; 3] {
+        let palette = if self.color_blind_mode {
+            COLORBLIND_COLORS
+        } else {
+            CHART_COLORS
+        };
+        palette[color_index % palette.len()]
     }
 
     /// Start loading a file in the background
@@ -184,6 +262,8 @@ impl UltraLogApp {
                         self.files.push(*file);
                         self.selected_file = Some(self.files.len() - 1);
                         self.update_time_range();
+                        // Reset chart interaction so new file shows initial zoomed view
+                        self.chart_interacted = false;
                         self.show_toast("File loaded successfully");
                     }
                     LoadResult::Error(e) => {
@@ -619,6 +699,18 @@ impl UltraLogApp {
                                     .logarithmic(true),
                             );
                         }
+
+                        ui.add_space(8.0);
+                        ui.separator();
+                        ui.add_space(4.0);
+
+                        // Color blind mode checkbox
+                        ui.checkbox(&mut self.color_blind_mode, "Color Blind Mode");
+                        ui.label(
+                            egui::RichText::new("Use accessible color palette")
+                                .small()
+                                .color(egui::Color32::GRAY),
+                        );
                     });
 
                 ui.add_space(5.0);
@@ -720,7 +812,7 @@ impl UltraLogApp {
         egui::ScrollArea::horizontal().show(ui, |ui| {
             ui.horizontal(|ui| {
                 for (i, selected) in self.selected_channels.iter().enumerate() {
-                    let color = CHART_COLORS[selected.color_index % CHART_COLORS.len()];
+                    let color = self.get_channel_color(selected.color_index);
                     let color32 = egui::Color32::from_rgb(color[0], color[1], color[2]);
 
                     egui::Frame::none()
@@ -906,35 +998,69 @@ impl UltraLogApp {
         let cursor_tracking = self.cursor_tracking;
         let view_window = self.view_window_seconds;
         let time_range = self.time_range;
+        let color_blind_mode = self.color_blind_mode;
+        let chart_interacted = self.chart_interacted;
+        let initial_view_seconds = self.initial_view_seconds;
 
-        // Build the plot - allow zoom always, but control drag/scroll based on tracking mode
+        // Fixed Y bounds for normalized data (0-1 with small padding)
+        const Y_MIN: f64 = -0.05;
+        const Y_MAX: f64 = 1.05;
+
+        // Build the plot - X-axis zoom only, Y fixed
         let plot = Plot::new("log_chart")
             .legend(egui_plot::Legend::default())
             .y_axis_label("") // Hide Y axis label since values are normalized
             .show_axes([true, false]) // Show X axis (time), hide Y axis (normalized 0-1)
-            .allow_zoom(true)
-            .allow_drag(!cursor_tracking) // Disable drag in tracking mode
-            .allow_scroll(!cursor_tracking); // Disable scroll in tracking mode
+            .allow_zoom([true, false]) // Only allow X-axis zoom
+            .allow_drag([!cursor_tracking, false]) // Only allow X-axis drag, never Y
+            .allow_scroll([!cursor_tracking, false]); // Only allow X-axis scroll, never Y
 
         let response = plot.show(ui, |plot_ui| {
-            // In cursor tracking mode, force X bounds while preserving Y zoom
+            // Get current bounds
+            let current_bounds = plot_ui.plot_bounds();
+            let mut x_min = current_bounds.min()[0];
+            let mut x_max = current_bounds.max()[0];
+
+            // In cursor tracking mode, center on cursor
             if cursor_tracking {
                 if let (Some(cursor), Some((min_t, max_t))) = (cursor_time, time_range) {
-                    // Calculate view window centered on cursor
                     let half_window = view_window / 2.0;
-                    let view_min = (cursor - half_window).max(min_t);
-                    let view_max = (cursor + half_window).min(max_t);
+                    x_min = (cursor - half_window).max(min_t);
+                    x_max = (cursor + half_window).min(max_t);
+                }
+            } else if let Some((min_t, max_t)) = time_range {
+                let data_width = max_t - min_t;
 
-                    // Get current bounds to preserve Y zoom level
-                    let current_bounds = plot_ui.plot_bounds();
-                    let y_min = current_bounds.min()[1];
-                    let y_max = current_bounds.max()[1];
+                // If chart hasn't been interacted with yet, use initial zoomed view
+                if !chart_interacted && data_width > initial_view_seconds {
+                    // Show initial view window starting from the beginning
+                    x_min = min_t;
+                    x_max = min_t + initial_view_seconds;
+                } else {
+                    // Clamp X bounds to data range - prevent zooming out beyond data
+                    let current_width = x_max - x_min;
 
-                    // Force X bounds centered on cursor, but keep Y bounds from user's zoom
-                    let new_bounds = PlotBounds::from_min_max([view_min, y_min], [view_max, y_max]);
-                    plot_ui.set_plot_bounds(new_bounds);
+                    // Don't allow view wider than data range
+                    if current_width > data_width {
+                        x_min = min_t;
+                        x_max = max_t;
+                    } else {
+                        // Keep view within data bounds
+                        if x_min < min_t {
+                            x_min = min_t;
+                            x_max = min_t + current_width;
+                        }
+                        if x_max > max_t {
+                            x_max = max_t;
+                            x_min = max_t - current_width;
+                        }
+                    }
                 }
             }
+
+            // Always enforce bounds: X clamped to data, Y fixed to normalized range
+            let new_bounds = PlotBounds::from_min_max([x_min, Y_MIN], [x_max, Y_MAX]);
+            plot_ui.set_plot_bounds(new_bounds);
 
             // Draw channel data lines with values in legend
             for (i, selected) in selected_channels.iter().enumerate() {
@@ -949,7 +1075,12 @@ impl UltraLogApp {
 
                 if let Some(points) = cache.get(&cache_key) {
                     let plot_points: PlotPoints = points.iter().copied().collect();
-                    let color = CHART_COLORS[selected.color_index % CHART_COLORS.len()];
+                    let palette = if color_blind_mode {
+                        COLORBLIND_COLORS
+                    } else {
+                        CHART_COLORS
+                    };
+                    let color = palette[selected.color_index % palette.len()];
 
                     // Use legend name with value if available
                     let name = &legend_names[i];
@@ -977,12 +1108,26 @@ impl UltraLogApp {
             plot_ui.pointer_coordinate()
         });
 
+        // Detect user interaction with chart (drag, zoom, scroll)
+        // This marks the chart as "interacted" so we stop using the initial zoomed view
+        if response.response.dragged()
+            || response.response.drag_started()
+            || ui.input(|i| i.zoom_delta() != 1.0)
+            || ui.input(|i| i.smooth_scroll_delta.x != 0.0)
+        {
+            self.chart_interacted = true;
+        }
+
         // Handle click on chart to set cursor position
         if response.response.clicked() {
             if let Some(pos) = response.inner {
                 let clicked_time = pos.x;
                 // Clamp to time range
                 if let Some((min, max)) = self.time_range {
+                    // Stop playback when user clicks on chart
+                    self.is_playing = false;
+                    self.last_frame_time = None;
+
                     let clamped_time = clicked_time.clamp(min, max);
                     self.cursor_time = Some(clamped_time);
                     self.cursor_record = self.find_record_at_time(clamped_time);
@@ -1039,6 +1184,10 @@ impl UltraLogApp {
         ui.spacing_mut().slider_width = old_slider_width;
 
         if slider_response.changed() {
+            // Stop playback when user manually scrubs
+            self.is_playing = false;
+            self.last_frame_time = None;
+
             self.cursor_time = Some(slider_value);
             self.cursor_record = self.find_record_at_time(slider_value);
             // Force repaint to update legend values
@@ -1046,9 +1195,77 @@ impl UltraLogApp {
         }
     }
 
-    /// Render the record/time indicator bar
+    /// Render the record/time indicator bar with playback controls
     fn render_record_indicator(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            // Playback controls
+            let button_size = egui::vec2(28.0, 28.0);
+
+            // Play/Pause button
+            let play_text = if self.is_playing { "⏸" } else { "▶" };
+            let play_button = egui::Button::new(egui::RichText::new(play_text).size(16.0).color(
+                if self.is_playing {
+                    egui::Color32::from_rgb(253, 193, 73) // Amber when playing
+                } else {
+                    egui::Color32::from_rgb(144, 238, 144) // Light green when paused
+                },
+            ))
+            .min_size(button_size);
+
+            if ui.add(play_button).clicked() {
+                self.is_playing = !self.is_playing;
+                if self.is_playing {
+                    // Reset frame time when starting playback
+                    self.last_frame_time = Some(std::time::Instant::now());
+                    // Initialize cursor if not set
+                    if self.cursor_time.is_none() {
+                        if let Some((min, _)) = self.time_range {
+                            self.cursor_time = Some(min);
+                            self.cursor_record = self.find_record_at_time(min);
+                        }
+                    }
+                }
+            }
+
+            // Stop button (resets to beginning)
+            let stop_button = egui::Button::new(
+                egui::RichText::new("⏹")
+                    .size(16.0)
+                    .color(egui::Color32::from_rgb(191, 78, 48)), // Rust orange
+            )
+            .min_size(button_size);
+
+            if ui.add(stop_button).clicked() {
+                self.is_playing = false;
+                self.last_frame_time = None;
+                // Reset cursor to beginning
+                if let Some((min, _)) = self.time_range {
+                    self.cursor_time = Some(min);
+                    self.cursor_record = self.find_record_at_time(min);
+                }
+            }
+
+            ui.separator();
+
+            // Playback speed selector
+            ui.label(
+                egui::RichText::new("Speed:")
+                    .small()
+                    .color(egui::Color32::GRAY),
+            );
+
+            let speed_options = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0];
+            egui::ComboBox::from_id_salt("playback_speed")
+                .selected_text(format!("{}x", self.playback_speed))
+                .width(60.0)
+                .show_ui(ui, |ui| {
+                    for speed in speed_options {
+                        ui.selectable_value(&mut self.playback_speed, speed, format!("{}x", speed));
+                    }
+                });
+
+            ui.separator();
+
             // Current time display
             if let Some(time) = self.cursor_time {
                 ui.label(
@@ -1071,6 +1288,49 @@ impl UltraLogApp {
                 }
             }
         });
+    }
+
+    /// Update playback state - advances cursor based on elapsed time
+    fn update_playback(&mut self, ctx: &egui::Context) {
+        if !self.is_playing {
+            return;
+        }
+
+        let Some((min_time, max_time)) = self.time_range else {
+            self.is_playing = false;
+            return;
+        };
+
+        let now = std::time::Instant::now();
+        let delta = if let Some(last) = self.last_frame_time {
+            now.duration_since(last).as_secs_f64()
+        } else {
+            0.0
+        };
+        self.last_frame_time = Some(now);
+
+        // Advance cursor by delta * playback_speed
+        if let Some(current_time) = self.cursor_time {
+            let new_time = current_time + (delta * self.playback_speed);
+
+            if new_time >= max_time {
+                // Reached end - stop playback
+                self.cursor_time = Some(max_time);
+                self.cursor_record = self.find_record_at_time(max_time);
+                self.is_playing = false;
+                self.last_frame_time = None;
+            } else {
+                self.cursor_time = Some(new_time);
+                self.cursor_record = self.find_record_at_time(new_time);
+            }
+        } else {
+            // No cursor set, start from beginning
+            self.cursor_time = Some(min_time);
+            self.cursor_record = self.find_record_at_time(min_time);
+        }
+
+        // Request continuous repaint during playback
+        ctx.request_repaint();
     }
 
     /// Draw an upload icon (circle with arrow pointing up)
@@ -1168,6 +1428,9 @@ impl eframe::App for UltraLogApp {
 
         // Handle file drops
         self.handle_dropped_files(ctx);
+
+        // Update playback (advances cursor if playing)
+        self.update_playback(ctx);
 
         // Apply dark theme
         ctx.set_visuals(egui::Visuals::dark());

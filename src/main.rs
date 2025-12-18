@@ -8,7 +8,28 @@
 
 use ultralog::app::UltraLogApp;
 
+/// Set the macOS application name for the dock
+#[cfg(target_os = "macos")]
+fn set_macos_app_name() {
+    use objc2::{class, msg_send};
+    use objc2_foundation::NSString;
+
+    unsafe {
+        let app_name = NSString::from_str("UltraLog");
+        let process_info_class = class!(NSProcessInfo);
+        let process_info: *mut objc2::runtime::AnyObject =
+            msg_send![process_info_class, processInfo];
+        let _: () = msg_send![process_info, setProcessName: &*app_name];
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_macos_app_name() {}
+
 fn main() -> eframe::Result<()> {
+    // Set macOS app name before anything else
+    set_macos_app_name();
+
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -18,6 +39,7 @@ fn main() -> eframe::Result<()> {
             .with_inner_size([1920.0, 1080.0])
             .with_min_inner_size([1000.0, 900.0])
             .with_title("UltraLog - ECU Log Viewer")
+            .with_app_id("UltraLog")
             .with_drag_and_drop(true),
         ..Default::default()
     };

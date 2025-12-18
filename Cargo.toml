@@ -52,6 +52,11 @@ tracing-subscriber = "0.3"
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 
+# macOS-specific: set app name in dock
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-foundation = "0.2"
+
 [profile.release]
 opt-level = 3
 lto = true
