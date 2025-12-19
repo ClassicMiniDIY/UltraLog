@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
-use crate::parsers::{EcuType, Haltech, Parseable};
+use crate::parsers::{EcuMaster, EcuType, Haltech, Parseable};
 use crate::state::{
     CacheKey, LoadResult, LoadedFile, LoadingState, SelectedChannel, CHART_COLORS,
     COLORBLIND_COLORS, MAX_CHANNELS,
@@ -188,10 +188,23 @@ impl UltraLogApp {
             Err(e) => return LoadResult::Error(format!("Failed to read file: {}", e)),
         };
 
-        let parser = Haltech;
-        let log = match parser.parse(&contents) {
-            Ok(l) => l,
-            Err(e) => return LoadResult::Error(format!("Failed to parse file: {}", e)),
+        // Auto-detect file format and parse
+        let (log, ecu_type) = if EcuMaster::detect(&contents) {
+            // ECUMaster format detected
+            let parser = EcuMaster;
+            match parser.parse(&contents) {
+                Ok(l) => (l, EcuType::EcuMaster),
+                Err(e) => {
+                    return LoadResult::Error(format!("Failed to parse ECUMaster file: {}", e))
+                }
+            }
+        } else {
+            // Default to Haltech format
+            let parser = Haltech;
+            match parser.parse(&contents) {
+                Ok(l) => (l, EcuType::Haltech),
+                Err(e) => return LoadResult::Error(format!("Failed to parse file: {}", e)),
+            }
         };
 
         let name = path
@@ -202,7 +215,7 @@ impl UltraLogApp {
         LoadResult::Success(Box::new(LoadedFile {
             path,
             name,
-            ecu_type: EcuType::Haltech,
+            ecu_type,
             log,
         }))
     }

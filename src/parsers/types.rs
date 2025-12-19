@@ -1,12 +1,14 @@
 use serde::Serialize;
 use std::error::Error;
 
+use super::ecumaster::{EcuMasterChannel, EcuMasterMeta};
 use super::haltech::{HaltechChannel, HaltechMeta};
 
 /// Metadata enum supporting different ECU formats
 #[derive(Clone, Debug, Serialize, Default)]
 pub enum Meta {
     Haltech(HaltechMeta),
+    EcuMaster(EcuMasterMeta),
     #[default]
     Empty,
 }
@@ -15,6 +17,7 @@ pub enum Meta {
 #[derive(Clone, Debug)]
 pub enum Channel {
     Haltech(HaltechChannel),
+    EcuMaster(EcuMasterChannel),
 }
 
 impl Serialize for Channel {
@@ -24,6 +27,7 @@ impl Serialize for Channel {
     {
         match self {
             Channel::Haltech(h) => h.serialize(serializer),
+            Channel::EcuMaster(e) => e.serialize(serializer),
         }
     }
 }
@@ -32,6 +36,7 @@ impl Channel {
     pub fn name(&self) -> String {
         match self {
             Channel::Haltech(h) => h.name.clone(),
+            Channel::EcuMaster(e) => e.name.clone(),
         }
     }
 
@@ -39,30 +44,35 @@ impl Channel {
     pub fn id(&self) -> String {
         match self {
             Channel::Haltech(h) => h.id.clone(),
+            Channel::EcuMaster(e) => e.path.clone(),
         }
     }
 
     pub fn type_name(&self) -> String {
         match self {
             Channel::Haltech(h) => h.r#type.as_ref().to_string(),
+            Channel::EcuMaster(e) => e.path.clone(),
         }
     }
 
     pub fn display_min(&self) -> Option<f64> {
         match self {
             Channel::Haltech(h) => h.display_min,
+            Channel::EcuMaster(_) => None,
         }
     }
 
     pub fn display_max(&self) -> Option<f64> {
         match self {
             Channel::Haltech(h) => h.display_max,
+            Channel::EcuMaster(_) => None,
         }
     }
 
-    pub fn unit(&self) -> &'static str {
+    pub fn unit(&self) -> &str {
         match self {
             Channel::Haltech(h) => h.unit(),
+            Channel::EcuMaster(e) => e.unit(),
         }
     }
 }
@@ -154,6 +164,7 @@ pub trait Parseable {
 pub enum EcuType {
     #[default]
     Haltech,
+    EcuMaster,
     MegaSquirt,
     Aem,
     MaxxEcu,
@@ -167,6 +178,7 @@ impl EcuType {
     pub fn name(&self) -> &'static str {
         match self {
             EcuType::Haltech => "Haltech",
+            EcuType::EcuMaster => "ECUMaster",
             EcuType::MegaSquirt => "MegaSquirt",
             EcuType::Aem => "AEM",
             EcuType::MaxxEcu => "MaxxECU",

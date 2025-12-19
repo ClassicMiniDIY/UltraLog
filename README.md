@@ -25,6 +25,10 @@ UltraLog is a cross-platform desktop application for viewing and analyzing ECU (
 ## Supported ECU Formats
 
 - **Haltech** - Full support for Haltech CAN protocol log files with automatic unit conversion
+- **ECUMaster** - Support for EMU Pro CSV exports with automatic unit inference
+  - CSV files (semicolon or tab-delimited) exported from EMU Pro software
+  - Automatic unit detection based on channel paths (RPM, temperature, pressure, lambda, etc.)
+  - Note: The native `.emuprolog` binary format is not currently supported; please use CSV export from EMU Pro software
 - More formats planned (MegaSquirt, AEM, Speeduino, etc.)
 
 ## Installation
