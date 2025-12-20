@@ -5,12 +5,14 @@
 //! - `channels` - Channel selection and display
 //! - `chart` - Main chart rendering and legends
 //! - `timeline` - Timeline scrubber and playback controls
-//! - `menu` - Menu bar (Units, Help)
+//! - `menu` - Menu bar (File, Units, Help)
 //! - `toast` - Toast notification system
 //! - `icons` - Custom icon drawing utilities
+//! - `export` - Chart export functionality (PNG, PDF)
 
 pub mod channels;
 pub mod chart;
+pub mod export;
 pub mod icons;
 pub mod menu;
 pub mod sidebar;

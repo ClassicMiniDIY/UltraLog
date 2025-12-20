@@ -41,6 +41,12 @@ strum = { version = "0.26", features = ["derive"] }
 rfd = "0.15"  # Native file dialogs
 open = "5"    # Open URLs in default browser
 
+# Image loading (for app icon and PNG export)
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# PDF generation for chart export
+printpdf = "0.7"
+
 # Error handling
 thiserror = "2.0"
 anyhow = "1.0"

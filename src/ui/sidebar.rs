@@ -97,7 +97,6 @@ impl UltraLogApp {
             .fill(card_bg)
             .rounding(12.0)
             .inner_margin(20.0)
-            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(70, 70, 70)))
             .show(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     // Upload icon

@@ -492,6 +492,36 @@ impl UltraLogApp {
             }
         }
     }
+
+    // ========================================================================
+    // Keyboard Shortcuts
+    // ========================================================================
+
+    /// Handle keyboard shortcuts
+    fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
+        // Only handle shortcuts when we have data loaded
+        if self.files.is_empty() || self.selected_channels.is_empty() {
+            return;
+        }
+
+        // Spacebar to toggle play/pause
+        ctx.input(|i| {
+            if i.key_pressed(egui::Key::Space) {
+                self.is_playing = !self.is_playing;
+                if self.is_playing {
+                    // Reset frame time when starting playback
+                    self.last_frame_time = Some(std::time::Instant::now());
+                    // Initialize cursor if not set
+                    if self.cursor_time.is_none() {
+                        if let Some((min, _)) = self.time_range {
+                            self.cursor_time = Some(min);
+                            self.cursor_record = self.find_record_at_time(min);
+                        }
+                    }
+                }
+            }
+        });
+    }
 }
 
 // ============================================================================
@@ -509,6 +539,9 @@ impl eframe::App for UltraLogApp {
         // Update playback (advances cursor if playing)
         self.update_playback(ctx);
 
+        // Handle keyboard shortcuts
+        self.handle_keyboard_shortcuts(ctx);
+
         // Apply dark theme
         ctx.set_visuals(egui::Visuals::dark());
 
@@ -520,15 +553,32 @@ impl eframe::App for UltraLogApp {
         // Toast notifications
         self.render_toast(ctx);
 
-        // Menu bar at top
-        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            self.render_menu_bar(ui);
-        });
+        // Menu bar at top with padding
+        let menu_frame = egui::Frame::none()
+            .inner_margin(egui::Margin {
+                left: 10.0,
+                right: 10.0,
+                top: 8.0,
+                bottom: 8.0,
+            });
+
+        egui::TopBottomPanel::top("menu_bar")
+            .frame(menu_frame)
+            .show(ctx, |ui| {
+                self.render_menu_bar(ui);
+            });
+
+        // Panel background color (matches drop zone card)
+        let panel_bg = egui::Color32::from_rgb(45, 45, 45);
+        let panel_frame = egui::Frame::none()
+            .fill(panel_bg)
+            .inner_margin(egui::Margin::symmetric(10.0, 10.0));
 
         // Left sidebar panel
         egui::SidePanel::left("files_panel")
             .default_width(200.0)
             .resizable(true)
+            .frame(panel_frame)
             .show(ctx, |ui| {
                 self.render_sidebar(ui);
             });
@@ -538,6 +588,7 @@ impl eframe::App for UltraLogApp {
             .default_width(300.0)
             .min_width(200.0)
             .resizable(true)
+            .frame(panel_frame)
             .show(ctx, |ui| {
                 self.render_channel_selection(ui);
             });

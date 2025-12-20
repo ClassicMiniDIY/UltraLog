@@ -1,8 +1,9 @@
-//! Menu bar UI components (Units, Help menus).
+//! Menu bar UI components (File, Units, Help menus).
 
 use eframe::egui;
 
 use crate::app::UltraLogApp;
+use crate::state::LoadingState;
 use crate::units::{
     AccelerationUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit, SpeedUnit,
     TemperatureUnit, VolumeUnit,
@@ -12,12 +13,86 @@ impl UltraLogApp {
     /// Render the application menu bar
     pub fn render_menu_bar(&mut self, ui: &mut egui::Ui) {
         egui::menu::bar(ui, |ui| {
+            // Increase font size for menu items
+            ui.style_mut().text_styles.insert(
+                egui::TextStyle::Button,
+                egui::FontId::proportional(15.0),
+            );
+
+            // File menu
+            ui.menu_button("File", |ui| {
+                ui.set_min_width(180.0);
+
+                // Increase font size for dropdown items
+                ui.style_mut().text_styles.insert(
+                    egui::TextStyle::Button,
+                    egui::FontId::proportional(14.0),
+                );
+                ui.style_mut().text_styles.insert(
+                    egui::TextStyle::Body,
+                    egui::FontId::proportional(14.0),
+                );
+
+                let is_loading = matches!(self.loading_state, LoadingState::Loading(_));
+
+                // Open file option
+                if ui
+                    .add_enabled(!is_loading, egui::Button::new("📂  Open Log File..."))
+                    .clicked()
+                {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Log Files", &["csv", "log", "txt"])
+                        .pick_file()
+                    {
+                        self.start_loading_file(path);
+                    }
+                    ui.close_menu();
+                }
+
+                ui.separator();
+
+                // Export submenu
+                let has_chart_data = !self.files.is_empty() && !self.selected_channels.is_empty();
+                ui.add_enabled_ui(has_chart_data, |ui| {
+                    ui.menu_button("📤  Export", |ui| {
+                        // Increase font size for submenu items
+                        ui.style_mut().text_styles.insert(
+                            egui::TextStyle::Button,
+                            egui::FontId::proportional(14.0),
+                        );
+                        if ui.button("Export as PNG...").clicked() {
+                            self.export_chart_png();
+                            ui.close_menu();
+                        }
+                        if ui.button("Export as PDF...").clicked() {
+                            self.export_chart_pdf();
+                            ui.close_menu();
+                        }
+                    });
+                });
+            });
+
             // Units menu
             ui.menu_button("Units", |ui| {
                 ui.set_min_width(180.0);
 
+                // Increase font size for dropdown items
+                ui.style_mut().text_styles.insert(
+                    egui::TextStyle::Button,
+                    egui::FontId::proportional(14.0),
+                );
+                ui.style_mut().text_styles.insert(
+                    egui::TextStyle::Body,
+                    egui::FontId::proportional(14.0),
+                );
+
                 // Temperature submenu
-                ui.menu_button("🌡️  Temperature", |ui| {
+                ui.menu_button("♨️  Temperature", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.temperature,
@@ -52,6 +127,11 @@ impl UltraLogApp {
 
                 // Pressure submenu
                 ui.menu_button("💨  Pressure", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.pressure,
@@ -85,7 +165,12 @@ impl UltraLogApp {
                 });
 
                 // Speed submenu
-                ui.menu_button("🏎️  Speed", |ui| {
+                ui.menu_button("🚗  Speed", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.speed,
@@ -110,6 +195,11 @@ impl UltraLogApp {
 
                 // Distance submenu
                 ui.menu_button("📏  Distance", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.distance,
@@ -136,6 +226,11 @@ impl UltraLogApp {
 
                 // Fuel Economy submenu
                 ui.menu_button("⛽  Fuel Economy", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.fuel_economy,
@@ -169,7 +264,12 @@ impl UltraLogApp {
                 });
 
                 // Volume submenu
-                ui.menu_button("🪣  Volume", |ui| {
+                ui.menu_button("📊  Volume", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.volume,
@@ -194,6 +294,11 @@ impl UltraLogApp {
 
                 // Flow submenu
                 ui.menu_button("💧  Flow Rate", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.flow,
@@ -216,6 +321,11 @@ impl UltraLogApp {
 
                 // Acceleration submenu
                 ui.menu_button("📈  Acceleration", |ui| {
+                    // Increase font size for submenu items
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(14.0),
+                    );
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.acceleration,
@@ -241,6 +351,16 @@ impl UltraLogApp {
 
             ui.menu_button("Help", |ui| {
                 ui.set_min_width(200.0);
+
+                // Increase font size for dropdown items
+                ui.style_mut().text_styles.insert(
+                    egui::TextStyle::Button,
+                    egui::FontId::proportional(14.0),
+                );
+                ui.style_mut().text_styles.insert(
+                    egui::TextStyle::Body,
+                    egui::FontId::proportional(14.0),
+                );
 
                 if ui.button("📖  Documentation").clicked() {
                     let _ = open::that("https://github.com/SomethingNew71/UltraLog#readme");
