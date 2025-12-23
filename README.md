@@ -1,4 +1,5 @@
 # UltraLog
+<img width="500"  alt="socialWide1" src="https://github.com/user-attachments/assets/9924e8ae-ace8-4b16-a8d6-cbf456a8bc62" />
 
 A high-performance ECU log viewer written in Rust.
 
