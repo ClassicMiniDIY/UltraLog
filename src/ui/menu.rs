@@ -14,24 +14,21 @@ impl UltraLogApp {
     pub fn render_menu_bar(&mut self, ui: &mut egui::Ui) {
         egui::menu::bar(ui, |ui| {
             // Increase font size for menu items
-            ui.style_mut().text_styles.insert(
-                egui::TextStyle::Button,
-                egui::FontId::proportional(15.0),
-            );
+            ui.style_mut()
+                .text_styles
+                .insert(egui::TextStyle::Button, egui::FontId::proportional(15.0));
 
             // File menu
             ui.menu_button("File", |ui| {
                 ui.set_min_width(180.0);
 
                 // Increase font size for dropdown items
-                ui.style_mut().text_styles.insert(
-                    egui::TextStyle::Button,
-                    egui::FontId::proportional(14.0),
-                );
-                ui.style_mut().text_styles.insert(
-                    egui::TextStyle::Body,
-                    egui::FontId::proportional(14.0),
-                );
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
 
                 let is_loading = matches!(self.loading_state, LoadingState::Loading(_));
 
@@ -41,7 +38,7 @@ impl UltraLogApp {
                     .clicked()
                 {
                     if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Log Files", &["csv", "log", "txt", "mlg", "hlgzip"])
+                        .add_filter("Log Files", &["csv", "mlg"])
                         .pick_file()
                     {
                         self.start_loading_file(path);
@@ -56,10 +53,9 @@ impl UltraLogApp {
                 ui.add_enabled_ui(has_chart_data, |ui| {
                     ui.menu_button("📤  Export", |ui| {
                         // Increase font size for submenu items
-                        ui.style_mut().text_styles.insert(
-                            egui::TextStyle::Button,
-                            egui::FontId::proportional(14.0),
-                        );
+                        ui.style_mut()
+                            .text_styles
+                            .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                         if ui.button("Export as PNG...").clicked() {
                             self.export_chart_png();
                             ui.close_menu();
@@ -77,22 +73,19 @@ impl UltraLogApp {
                 ui.set_min_width(180.0);
 
                 // Increase font size for dropdown items
-                ui.style_mut().text_styles.insert(
-                    egui::TextStyle::Button,
-                    egui::FontId::proportional(14.0),
-                );
-                ui.style_mut().text_styles.insert(
-                    egui::TextStyle::Body,
-                    egui::FontId::proportional(14.0),
-                );
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
 
                 // Temperature submenu
                 ui.menu_button("♨️  Temperature", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.temperature,
@@ -128,10 +121,9 @@ impl UltraLogApp {
                 // Pressure submenu
                 ui.menu_button("💨  Pressure", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.pressure,
@@ -167,10 +159,9 @@ impl UltraLogApp {
                 // Speed submenu
                 ui.menu_button("🚗  Speed", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.speed,
@@ -196,10 +187,9 @@ impl UltraLogApp {
                 // Distance submenu
                 ui.menu_button("📏  Distance", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.distance,
@@ -227,10 +217,9 @@ impl UltraLogApp {
                 // Fuel Economy submenu
                 ui.menu_button("⛽  Fuel Economy", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.fuel_economy,
@@ -266,10 +255,9 @@ impl UltraLogApp {
                 // Volume submenu
                 ui.menu_button("📊  Volume", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.volume,
@@ -295,10 +283,9 @@ impl UltraLogApp {
                 // Flow submenu
                 ui.menu_button("💧  Flow Rate", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.flow,
@@ -322,10 +309,9 @@ impl UltraLogApp {
                 // Acceleration submenu
                 ui.menu_button("📈  Acceleration", |ui| {
                     // Increase font size for submenu items
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(14.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.acceleration,
@@ -353,14 +339,12 @@ impl UltraLogApp {
                 ui.set_min_width(200.0);
 
                 // Increase font size for dropdown items
-                ui.style_mut().text_styles.insert(
-                    egui::TextStyle::Button,
-                    egui::FontId::proportional(14.0),
-                );
-                ui.style_mut().text_styles.insert(
-                    egui::TextStyle::Body,
-                    egui::FontId::proportional(14.0),
-                );
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
 
                 if ui.button("📖  Documentation").clicked() {
                     let _ = open::that("https://github.com/SomethingNew71/UltraLog#readme");

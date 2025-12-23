@@ -106,14 +106,22 @@ impl Speeduino {
         let is_v2 = format_version == 2;
         let field_length = if is_v2 { 89 } else { 55 };
 
-        eprintln!("DEBUG: MLG format version: {}, field_length: {}", format_version, field_length);
+        eprintln!(
+            "DEBUG: MLG format version: {}, field_length: {}",
+            format_version, field_length
+        );
 
         // Read timestamp (int32, big-endian)
         offset += 4;
 
         // Read info_data_start (int16 for v1, int32 for v2, big-endian)
         let info_data_start = if is_v2 {
-            u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]) as usize
+            u32::from_be_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]) as usize
         } else {
             u16::from_be_bytes([data[offset], data[offset + 1]]) as usize
         };
@@ -135,7 +143,10 @@ impl Speeduino {
         let num_fields = u16::from_be_bytes([data[offset], data[offset + 1]]) as usize;
         offset += 2;
 
-        eprintln!("DEBUG: num_fields: {}, data_begin_index: {}", num_fields, data_begin_index);
+        eprintln!(
+            "DEBUG: num_fields: {}, data_begin_index: {}",
+            num_fields, data_begin_index
+        );
 
         // Validate bounds before parsing
         if num_fields > 1000 {
@@ -230,8 +241,10 @@ impl Speeduino {
 
         eprintln!("DEBUG: Parsed {} channels", channels.len());
         for (idx, ch) in channels.iter().enumerate() {
-            eprintln!("  [{}] {} ({}) type={} scale={} transform={}",
-                idx, ch.name, ch.unit, ch.field_type, ch.scale, ch.transform);
+            eprintln!(
+                "  [{}] {} ({}) type={} scale={} transform={}",
+                idx, ch.name, ch.unit, ch.field_type, ch.scale, ch.transform
+            );
         }
 
         // Extract metadata from info section
@@ -280,7 +293,9 @@ impl Speeduino {
             offset += 2;
 
             // Detect wraparound: if current timestamp is much smaller than previous, it wrapped
-            if raw_timestamp < prev_raw_timestamp && (prev_raw_timestamp - raw_timestamp) > WRAP_THRESHOLD {
+            if raw_timestamp < prev_raw_timestamp
+                && (prev_raw_timestamp - raw_timestamp) > WRAP_THRESHOLD
+            {
                 wrap_count += 1;
             }
             prev_raw_timestamp = raw_timestamp;
@@ -380,7 +395,9 @@ impl Speeduino {
                                 offset += 8;
                                 Value::Float((v + channel.transform as f64) * channel.scale as f64)
                             }
-                            FieldType::U08Bitfield | FieldType::U16Bitfield | FieldType::U32Bitfield => {
+                            FieldType::U08Bitfield
+                            | FieldType::U16Bitfield
+                            | FieldType::U32Bitfield => {
                                 offset += field_type.byte_size();
                                 Value::Float(0.0) // Bitfields not fully supported yet
                             }
@@ -409,7 +426,11 @@ impl Speeduino {
                 }
                 offset += 50;
             } else {
-                eprintln!("DEBUG: Unknown block type {} at offset {}", block_type, offset - 3);
+                eprintln!(
+                    "DEBUG: Unknown block type {} at offset {}",
+                    block_type,
+                    offset - 3
+                );
                 break; // Unknown block type
             }
         }
@@ -427,8 +448,13 @@ impl Speeduino {
                     if i > 0 && t < prev_time {
                         non_monotonic_count += 1;
                         if non_monotonic_count <= 5 {
-                            eprintln!("  Non-monotonic at index {}: {} -> {} (delta: {:.3})",
-                                i, prev_time, t, t - prev_time);
+                            eprintln!(
+                                "  Non-monotonic at index {}: {} -> {} (delta: {:.3})",
+                                i,
+                                prev_time,
+                                t,
+                                t - prev_time
+                            );
                         }
                     }
                     prev_time = t;
@@ -505,7 +531,6 @@ impl Speeduino {
             data: data_records,
         })
     }
-
 }
 
 impl Parseable for Speeduino {

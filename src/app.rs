@@ -200,13 +200,42 @@ impl UltraLogApp {
             );
         }
 
+        // Check for AEM .daq format - proprietary format (starts with "EMERALD")
+        if binary_data.len() >= 7 && &binary_data[0..7] == b"EMERALD" {
+            return LoadResult::Error(
+                "This is an AEM .daq file which uses a proprietary format.\n\n\
+                To use this log in UltraLog, please export it as CSV from AEM's software:\n\
+                1. Open the .daq file in AEMdata or AEM Pro\n\
+                2. Go to File → Export → CSV\n\
+                3. Load the exported .csv file in UltraLog"
+                    .to_string(),
+            );
+        }
+
+        // Check for Link .llg format - proprietary format (check by extension since header varies)
+        if let Some(ext) = path.extension() {
+            if ext.to_string_lossy().to_lowercase() == "llg" {
+                return LoadResult::Error(
+                    "This is a Link .llg file which uses a proprietary format.\n\n\
+                    To use this log in UltraLog, please export it as CSV from Link's software:\n\
+                    1. Open the .llg file in PCLink or G4+ software\n\
+                    2. Go to File → Export → CSV\n\
+                    3. Load the exported .csv file in UltraLog"
+                        .to_string(),
+                );
+            }
+        }
+
         // Auto-detect file format and parse
         let (log, ecu_type) = if Speeduino::detect(&binary_data) {
             // Speeduino/rusEFI MLG format detected (binary)
             match Speeduino::parse_binary(&binary_data) {
                 Ok(l) => (l, EcuType::Speeduino),
                 Err(e) => {
-                    return LoadResult::Error(format!("Failed to parse Speeduino/rusEFI MLG file: {}", e))
+                    return LoadResult::Error(format!(
+                        "Failed to parse Speeduino/rusEFI MLG file: {}",
+                        e
+                    ))
                 }
             }
         } else {
@@ -591,13 +620,12 @@ impl eframe::App for UltraLogApp {
         self.render_toast(ctx);
 
         // Menu bar at top with padding
-        let menu_frame = egui::Frame::none()
-            .inner_margin(egui::Margin {
-                left: 10.0,
-                right: 10.0,
-                top: 8.0,
-                bottom: 8.0,
-            });
+        let menu_frame = egui::Frame::none().inner_margin(egui::Margin {
+            left: 10.0,
+            right: 10.0,
+            top: 8.0,
+            bottom: 8.0,
+        });
 
         egui::TopBottomPanel::top("menu_bar")
             .frame(menu_frame)
