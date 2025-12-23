@@ -9,39 +9,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  APP_NAME: UltraLog
 
 jobs:
-  build:
-    name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # macOS Intel
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            artifact_name: ultralog
-            asset_name: ultralog-macos-intel
-
-          # macOS Apple Silicon
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            artifact_name: ultralog
-            asset_name: ultralog-macos-arm64
-
-          # Windows
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            artifact_name: ultralog.exe
-            asset_name: ultralog-windows
-
-          # Linux
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact_name: ultralog
-            asset_name: ultralog-linux
-
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,10 +22,9 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-unknown-linux-gnu
 
       - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -69,29 +41,199 @@ jobs:
             libgdk-pixbuf2.0-dev
 
       - name: Build release binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Package Linux binary
+        run: |
+          mkdir -p output
+          cp target/x86_64-unknown-linux-gnu/release/ultralog output/ultralog-linux
+          chmod +x output/ultralog-linux
+          cd output
+          tar -czvf ultralog-linux.tar.gz ultralog-linux
+          rm ultralog-linux
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultralog-linux
+          path: output/
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build release binary
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Package Windows binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path output
+          Copy-Item "target/x86_64-pc-windows-msvc/release/ultralog.exe" -Destination "output/ultralog-windows.exe"
+          Compress-Archive -Path "output/ultralog-windows.exe" -DestinationPath "output/ultralog-windows.zip"
+          Remove-Item "output/ultralog-windows.exe"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultralog-windows
+          path: output/
+
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            arch: intel
+            asset_name: ultralog-macos-intel
+          - target: aarch64-apple-darwin
+            arch: arm64
+            asset_name: ultralog-macos-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*\"\(.*\)\".*/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Create output directory
-        shell: bash
-        run: mkdir -p output
+      - name: Create app bundle and DMG
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          mkdir -p output
 
-      - name: Copy binary (Unix)
-        if: matrix.os != 'windows-latest'
-        run: cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} output/${{ matrix.asset_name }}
+          # Create app bundle structure
+          APP_DIR="output/${{ env.APP_NAME }}-${{ matrix.arch }}.app"
+          mkdir -p "$APP_DIR/Contents/MacOS"
+          mkdir -p "$APP_DIR/Contents/Resources"
 
-      - name: Copy binary (Windows)
-        if: matrix.os == 'windows-latest'
-        run: cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} output/${{ matrix.asset_name }}.exe
+          # Copy binary
+          cp target/${{ matrix.target }}/release/ultralog "$APP_DIR/Contents/MacOS/ultralog"
+          chmod +x "$APP_DIR/Contents/MacOS/ultralog"
+
+          # Create Info.plist
+          cat > "$APP_DIR/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>${{ env.APP_NAME }}</string>
+              <key>CFBundleDisplayName</key>
+              <string>${{ env.APP_NAME }}</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.ultralog.app</string>
+              <key>CFBundleVersion</key>
+              <string>${VERSION}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${VERSION}</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleExecutable</key>
+              <string>ultralog</string>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.15</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSSupportsAutomaticGraphicsSwitching</key>
+              <true/>
+              <key>CFBundleDocumentTypes</key>
+              <array>
+                  <dict>
+                      <key>CFBundleTypeExtensions</key>
+                      <array>
+                          <string>csv</string>
+                          <string>log</string>
+                          <string>txt</string>
+                          <string>mlg</string>
+                      </array>
+                      <key>CFBundleTypeName</key>
+                      <string>ECU Log File</string>
+                      <key>CFBundleTypeRole</key>
+                      <string>Viewer</string>
+                  </dict>
+              </array>
+          </dict>
+          </plist>
+          EOF
+
+          # Create PkgInfo
+          echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
+
+          # Create icon from PNG if exists
+          if [ -f "assets/icons/mac.png" ]; then
+            ICONSET_DIR=$(mktemp -d)/AppIcon.iconset
+            mkdir -p "$ICONSET_DIR"
+            sips -z 16 16     "assets/icons/mac.png" --out "$ICONSET_DIR/icon_16x16.png"
+            sips -z 32 32     "assets/icons/mac.png" --out "$ICONSET_DIR/icon_16x16@2x.png"
+            sips -z 32 32     "assets/icons/mac.png" --out "$ICONSET_DIR/icon_32x32.png"
+            sips -z 64 64     "assets/icons/mac.png" --out "$ICONSET_DIR/icon_32x32@2x.png"
+            sips -z 128 128   "assets/icons/mac.png" --out "$ICONSET_DIR/icon_128x128.png"
+            sips -z 256 256   "assets/icons/mac.png" --out "$ICONSET_DIR/icon_128x128@2x.png"
+            sips -z 256 256   "assets/icons/mac.png" --out "$ICONSET_DIR/icon_256x256.png"
+            sips -z 512 512   "assets/icons/mac.png" --out "$ICONSET_DIR/icon_256x256@2x.png"
+            sips -z 512 512   "assets/icons/mac.png" --out "$ICONSET_DIR/icon_512x512.png"
+            sips -z 1024 1024 "assets/icons/mac.png" --out "$ICONSET_DIR/icon_512x512@2x.png"
+            iconutil -c icns "$ICONSET_DIR" -o "$APP_DIR/Contents/Resources/AppIcon.icns"
+          fi
+
+          # Ad-hoc sign the app bundle
+          codesign --force --deep --sign - "$APP_DIR"
+
+          # Create DMG
+          create-dmg \
+            --volname "${{ env.APP_NAME }}" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "${{ env.APP_NAME }}-${{ matrix.arch }}.app" 150 190 \
+            --hide-extension "${{ env.APP_NAME }}-${{ matrix.arch }}.app" \
+            --app-drop-link 450 190 \
+            "output/${{ matrix.asset_name }}.dmg" \
+            "$APP_DIR" || \
+            hdiutil create -volname "${{ env.APP_NAME }}" -srcfolder "$APP_DIR" -ov -format UDZO "output/${{ matrix.asset_name }}.dmg"
+
+          # Also create tar.gz of the app bundle
+          cd output
+          tar -czvf "${{ matrix.asset_name }}.tar.gz" "${{ env.APP_NAME }}-${{ matrix.arch }}.app"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: output/
+          path: |
+            output/*.dmg
+            output/*.tar.gz
 
   release:
     name: Create Release
-    needs: build
+    needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -104,18 +246,46 @@ jobs:
           path: artifacts
 
       - name: Display structure
-        run: ls -la artifacts/
+        run: |
+          echo "Artifacts structure:"
+          ls -laR artifacts/
 
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/ultralog-macos-intel/*
-            artifacts/ultralog-macos-arm64/*
-            artifacts/ultralog-windows/*
-            artifacts/ultralog-linux/*
+            artifacts/ultralog-macos-intel/*.dmg
+            artifacts/ultralog-macos-intel/*.tar.gz
+            artifacts/ultralog-macos-arm64/*.dmg
+            artifacts/ultralog-macos-arm64/*.tar.gz
+            artifacts/ultralog-windows/*.zip
+            artifacts/ultralog-linux/*.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### macOS (Recommended: DMG)
+            1. Download the appropriate `.dmg` file for your Mac:
+               - **Intel Mac**: `ultralog-macos-intel.dmg`
+               - **Apple Silicon (M1/M2/M3/M4)**: `ultralog-macos-arm64.dmg`
+            2. Open the DMG and drag UltraLog to your Applications folder
+            3. On first run, right-click the app and select "Open" to bypass Gatekeeper
+
+            ### macOS (Alternative: tar.gz)
+            1. Download and extract the `.tar.gz` file
+            2. Move the `.app` to your Applications folder
+            3. Remove quarantine: `xattr -cr /Applications/UltraLog*.app`
+
+            ### Windows
+            1. Download `ultralog-windows.zip`
+            2. Extract the zip file
+            3. Run `ultralog-windows.exe`
+
+            ### Linux
+            1. Download `ultralog-linux.tar.gz`
+            2. Extract: `tar -xzf ultralog-linux.tar.gz`
+            3. Run: `./ultralog-linux`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

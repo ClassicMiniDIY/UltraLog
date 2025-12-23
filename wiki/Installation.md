@@ -10,10 +10,10 @@ Download the latest release for your platform from the [Releases page](https://g
 
 | Platform | Filename | Notes |
 |----------|----------|-------|
-| Windows x64 | `ultralog-windows.exe` | Windows 10/11 |
-| macOS Intel | `ultralog-macos-intel` | macOS 10.15+ (Catalina and later) |
-| macOS Apple Silicon | `ultralog-macos-arm64` | M1/M2/M3/M4 Macs |
-| Linux x64 | `ultralog-linux` | Most distributions (Ubuntu, Fedora, etc.) |
+| Windows x64 | `ultralog-windows.zip` | Windows 10/11 |
+| macOS Intel | `ultralog-macos-intel.tar.gz` | macOS 10.15+ (Catalina and later) |
+| macOS Apple Silicon | `ultralog-macos-arm64.tar.gz` | M1/M2/M3/M4 Macs |
+| Linux x64 | `ultralog-linux.tar.gz` | Most distributions (Ubuntu, Fedora, etc.) |
 
 ---
 
@@ -21,8 +21,9 @@ Download the latest release for your platform from the [Releases page](https://g
 
 ### Steps
 
-1. Download `ultralog-windows.exe` from the [Releases page](https://github.com/SomethingNew71/UltraLog/releases)
-2. Double-click the downloaded file to run
+1. Download `ultralog-windows.zip` from the [Releases page](https://github.com/SomethingNew71/UltraLog/releases)
+2. Right-click the zip file and select **"Extract All..."**
+3. Run `ultralog-windows.exe` from the extracted folder
 
 ### SmartScreen Warning
 
@@ -46,26 +47,29 @@ To run UltraLog from anywhere in the command line:
 
 ### Steps
 
-1. Download the appropriate file for your Mac:
-   - **Intel Mac:** `ultralog-macos-intel`
-   - **Apple Silicon (M1/M2/M3/M4):** `ultralog-macos-arm64`
-2. Open Terminal and navigate to Downloads: `cd ~/Downloads`
-3. Make the file executable: `chmod +x ultralog-macos-*`
-4. Run the application: `./ultralog-macos-intel` or `./ultralog-macos-arm64`
+1. Download the appropriate `.tar.gz` file for your Mac:
+   - **Intel Mac:** `ultralog-macos-intel.tar.gz`
+   - **Apple Silicon (M1/M2/M3/M4):** `ultralog-macos-arm64.tar.gz`
+2. Extract the archive (double-click or use Terminal):
+   ```bash
+   cd ~/Downloads
+   tar -xzf ultralog-macos-arm64.tar.gz
+   ```
+3. Run the application: `./ultralog-macos-arm64` (or `ultralog-macos-intel`)
 
 ### Gatekeeper Warning
 
 macOS may block the application because it's from an "unidentified developer":
 
-**Method 1: Right-click to Open**
-1. Right-click (or Control-click) the file
+**Method 1: Right-click to Open (Recommended)**
+1. Right-click (or Control-click) the extracted file
 2. Select **"Open"** from the context menu
 3. Click **"Open"** in the dialog
 
 **Method 2: System Preferences**
-1. Go to **System Preferences** → **Security & Privacy**
-2. Click the **General** tab
-3. Click **"Open Anyway"** next to the UltraLog message
+1. Try to open the app (it will be blocked)
+2. Go to **System Settings** → **Privacy & Security**
+3. Scroll down and click **"Open Anyway"** next to the UltraLog message
 
 **Method 3: Remove Quarantine Attribute**
 ```bash
@@ -85,10 +89,10 @@ mv ~/Downloads/ultralog-macos-arm64 /Applications/UltraLog
 
 ### Steps
 
-1. Download `ultralog-linux` from the [Releases page](https://github.com/SomethingNew71/UltraLog/releases)
-2. Make it executable:
+1. Download `ultralog-linux.tar.gz` from the [Releases page](https://github.com/SomethingNew71/UltraLog/releases)
+2. Extract the archive:
    ```bash
-   chmod +x ultralog-linux
+   tar -xzf ultralog-linux.tar.gz
    ```
 3. Run the application:
    ```bash

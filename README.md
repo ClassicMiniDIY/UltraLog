@@ -131,16 +131,25 @@ Download the latest release for your platform from the [Releases](https://github
 
 | Platform | Download | Notes |
 |----------|----------|-------|
-| Windows x64 | `ultralog-windows.exe` | Windows 10/11 |
-| macOS Intel | `ultralog-macos-intel` | macOS 10.15+ |
-| macOS Apple Silicon | `ultralog-macos-arm64` | M1/M2/M3 Macs |
-| Linux x64 | `ultralog-linux` | Most distributions |
+| Windows x64 | `ultralog-windows.zip` | Windows 10/11 |
+| macOS Intel | `ultralog-macos-intel.tar.gz` | macOS 10.15+ |
+| macOS Apple Silicon | `ultralog-macos-arm64.tar.gz` | M1/M2/M3/M4 Macs |
+| Linux x64 | `ultralog-linux.tar.gz` | Most distributions |
 
-**Windows:** Simply download and run the `.exe` file. You may see a SmartScreen warning on first run - click "More info" → "Run anyway".
+**Windows:**
+1. Download and extract `ultralog-windows.zip`
+2. Run `ultralog-windows.exe`
+3. You may see a SmartScreen warning on first run - click "More info" → "Run anyway"
 
-**macOS:** After downloading, you may need to right-click → Open the first time to bypass Gatekeeper. Grant any requested permissions for file access.
+**macOS:**
+1. Download the appropriate `.tar.gz` for your Mac
+2. Extract: `tar -xzf ultralog-macos-*.tar.gz`
+3. On first run, right-click the file and select "Open" to bypass Gatekeeper
+4. Or remove quarantine attribute: `xattr -d com.apple.quarantine ultralog-macos-*`
 
-**Linux:** Make the binary executable with `chmod +x ultralog-linux`, then run `./ultralog-linux`.
+**Linux:**
+1. Download and extract: `tar -xzf ultralog-linux.tar.gz`
+2. Run: `./ultralog-linux`
 
 ### Building from Source
 
