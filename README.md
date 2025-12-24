@@ -6,34 +6,56 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/SomethingNew71/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.0.3-green.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-green.svg)
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Supported ECU Formats](#supported-ecu-formats)
-- [Installation](#installation)
-  - [Pre-built Binaries](#pre-built-binaries)
-  - [Building from Source](#building-from-source)
-- [Quick Start Guide](#quick-start-guide)
-- [User Guide](#user-guide)
-  - [Loading Log Files](#loading-log-files)
-  - [Visualizing Data](#visualizing-data)
-  - [Timeline and Playback](#timeline-and-playback)
-  - [Unit Preferences](#unit-preferences)
-  - [Field Normalization](#field-normalization)
-  - [Exporting Charts](#exporting-charts)
-  - [Scatter Plot Tool](#scatter-plot-tool)
-  - [Accessibility Features](#accessibility-features)
-- [Keyboard Shortcuts](#keyboard-shortcuts)
-- [Tech Stack](#tech-stack)
-- [Development](#development)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
-- [Author](#author)
+- [UltraLog](#ultralog)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Features](#features)
+    - [Data Visualization](#data-visualization)
+    - [Timeline and Playback](#timeline-and-playback)
+    - [Multi-File Support](#multi-file-support)
+    - [Unit Conversion](#unit-conversion)
+    - [Export Options](#export-options)
+    - [Additional Tools](#additional-tools)
+    - [Accessibility](#accessibility)
+  - [Supported ECU Formats](#supported-ecu-formats)
+    - [Haltech - Full Support](#haltech---full-support)
+    - [ECUMaster EMU Pro - Full Support](#ecumaster-emu-pro---full-support)
+    - [Speeduino / rusEFI - Full Support](#speeduino--rusefi---full-support)
+    - [Coming Soon](#coming-soon)
+  - [Installation](#installation)
+    - [Pre-built Binaries](#pre-built-binaries)
+    - [Building from Source](#building-from-source)
+  - [Quick Start Guide](#quick-start-guide)
+  - [User Guide](#user-guide)
+    - [Loading Log Files](#loading-log-files)
+    - [Visualizing Data](#visualizing-data)
+    - [Timeline and Playback](#timeline-and-playback-1)
+    - [Unit Preferences](#unit-preferences)
+    - [Field Normalization](#field-normalization)
+    - [Exporting Charts](#exporting-charts)
+    - [Scatter Plot Tool](#scatter-plot-tool)
+    - [Accessibility Features](#accessibility-features)
+  - [Keyboard Shortcuts](#keyboard-shortcuts)
+  - [Tech Stack](#tech-stack)
+  - [Development](#development)
+    - [Project Structure](#project-structure)
+  - [Troubleshooting](#troubleshooting)
+    - ["File format not recognized"](#file-format-not-recognized)
+    - ["Application won't start on macOS"](#application-wont-start-on-macos)
+    - ["Chart is slow or laggy"](#chart-is-slow-or-laggy)
+    - ["Channels show wrong units"](#channels-show-wrong-units)
+    - ["My ECU format isn't supported"](#my-ecu-format-isnt-supported)
+  - [License](#license)
+  - [Author](#author)
+  - [Related Projects](#related-projects)
+  - [Contributing](#contributing)
+  - [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -129,12 +151,12 @@ Configurable units for 8 measurement categories:
 
 Download the latest release for your platform from the [Releases](https://github.com/SomethingNew71/UltraLog/releases) page:
 
-| Platform | Download | Notes |
-|----------|----------|-------|
-| Windows x64 | `ultralog-windows.zip` | Windows 10/11 |
-| macOS Intel | `ultralog-macos-intel.tar.gz` | macOS 10.15+ |
-| macOS Apple Silicon | `ultralog-macos-arm64.tar.gz` | M1/M2/M3/M4 Macs |
-| Linux x64 | `ultralog-linux.tar.gz` | Most distributions |
+| Platform            | Download                      | Notes              |
+| ------------------- | ----------------------------- | ------------------ |
+| Windows x64         | `ultralog-windows.zip`        | Windows 10/11      |
+| macOS Intel         | `ultralog-macos-intel.tar.gz` | macOS 10.15+       |
+| macOS Apple Silicon | `ultralog-macos-arm64.tar.gz` | M1/M2/M3/M4 Macs   |
+| Linux x64           | `ultralog-linux.tar.gz`       | Most distributions |
 
 **Windows:**
 1. Download and extract `ultralog-windows.zip`
@@ -278,16 +300,16 @@ When enabled (View menu → Cursor Tracking), the chart automatically scrolls to
 
 Access via **Units** menu. Changes apply immediately to all displayed values.
 
-| Category | Options |
-|----------|---------|
-| Temperature | Kelvin, Celsius, Fahrenheit |
-| Pressure | kPa, PSI, Bar |
-| Speed | km/h, mph |
-| Distance | km, miles |
-| Fuel Economy | L/100km, MPG |
-| Volume | Liters, Gallons |
-| Flow Rate | L/min, GPM |
-| Acceleration | m/s², g |
+| Category     | Options                     |
+| ------------ | --------------------------- |
+| Temperature  | Kelvin, Celsius, Fahrenheit |
+| Pressure     | kPa, PSI, Bar               |
+| Speed        | km/h, mph                   |
+| Distance     | km, miles                   |
+| Fuel Economy | L/100km, MPG                |
+| Volume       | Liters, Gallons             |
+| Flow Rate    | L/min, GPM                  |
+| Acceleration | m/s², g                     |
 
 **Note:** Unit conversion is applied at display time only - original data is never modified.
 
@@ -351,29 +373,29 @@ Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
 
 ## Keyboard Shortcuts
 
-| Action | Shortcut |
-|--------|----------|
-| Open file | `Ctrl/Cmd + O` |
-| Close tab | `Ctrl/Cmd + W` |
+| Action     | Shortcut       |
+| ---------- | -------------- |
+| Open file  | `Ctrl/Cmd + O` |
+| Close tab  | `Ctrl/Cmd + W` |
 | Export PNG | `Ctrl/Cmd + E` |
-| Play/Pause | `Space` |
-| Stop | `Escape` |
+| Play/Pause | `Space`        |
+| Stop       | `Escape`       |
 
 ---
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| Language | Rust (Edition 2021) |
-| GUI Framework | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.29 |
-| Charting | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.29 |
-| File Dialogs | [rfd](https://github.com/PolyMeilex/rfd) 0.15 |
-| Image Processing | [image](https://github.com/image-rs/image) 0.25 |
-| PDF Generation | [printpdf](https://github.com/fschutt/printpdf) 0.7 |
-| Serialization | serde / serde_json 1.0 |
-| Error Handling | thiserror 2.0 / anyhow 1.0 |
-| Logging | tracing / tracing-subscriber 0.3 |
+| Component        | Technology                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| Language         | Rust (Edition 2021)                                                                                            |
+| GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.29 |
+| Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.29                                   |
+| File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.15                                                                  |
+| Image Processing | [image](https://github.com/image-rs/image) 0.25                                                                |
+| PDF Generation   | [printpdf](https://github.com/fschutt/printpdf) 0.7                                                            |
+| Serialization    | serde / serde_json 1.0                                                                                         |
+| Error Handling   | thiserror 2.0 / anyhow 1.0                                                                                     |
+| Logging          | tracing / tracing-subscriber 0.3                                                                               |
 
 ---
 
