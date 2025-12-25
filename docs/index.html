@@ -56,6 +56,85 @@
             color: #ffffff;
             min-height: 100vh;
             overflow-x: hidden;
+            padding-top: 60px;
+        }
+
+        /* Floating Header */
+        .site-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .header-brand img {
+            height: 32px;
+            width: auto;
+        }
+
+        .header-nav {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .header-nav a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #a0a0b0;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .header-nav a:hover {
+            color: var(--neon-cyan);
+        }
+
+        .header-nav a i {
+            font-size: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .site-header {
+                padding: 0 1rem;
+            }
+
+            .header-brand span {
+                display: none;
+            }
+
+            .header-nav {
+                gap: 1rem;
+            }
+
+            .header-nav a span {
+                display: none;
+            }
+
+            .header-nav a i {
+                font-size: 1.2rem;
+            }
         }
 
         /* Synthwave grid background */
@@ -143,6 +222,15 @@
             line-height: 1.6;
         }
 
+        .hero-badges {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 3rem;
+        }
+
         .version-badge {
             display: inline-block;
             padding: 0.5rem 1.5rem;
@@ -151,7 +239,30 @@
             border-radius: 50px;
             font-size: 0.9rem;
             color: var(--neon-cyan);
-            margin-bottom: 3rem;
+        }
+
+        .opensource-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            font-size: 0.9rem;
+            color: #fff;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .opensource-badge:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--neon-cyan);
+            color: var(--neon-cyan);
+        }
+
+        .subtitle strong {
+            color: var(--neon-green);
         }
 
         /* Download Section */
@@ -411,6 +522,28 @@
 </head>
 
 <body>
+    <!-- Floating Header -->
+    <header class="site-header">
+        <a href="#" class="header-brand">
+            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/banner.png" alt="UltraLog">
+            <span>UltraLog</span>
+        </a>
+        <nav class="header-nav">
+            <a href="https://github.com/SomethingNew71/UltraLog" target="_blank">
+                <i class="fa-brands fa-github"></i>
+                <span>Source Code</span>
+            </a>
+            <a href="https://github.com/SomethingNew71/UltraLog/wiki" target="_blank">
+                <i class="fa-solid fa-book"></i>
+                <span>Wiki</span>
+            </a>
+            <a href="https://github.com/SomethingNew71/UltraLog/issues/new/choose" target="_blank">
+                <i class="fa-solid fa-bug"></i>
+                <span>Report Issue</span>
+            </a>
+        </nav>
+    </header>
+
     <div class="grid-bg"></div>
     <div class="grid-lines"></div>
 
@@ -425,8 +558,14 @@
             <p class="subtitle">
                 A high-performance, cross-platform ECU log viewer built with Rust.
                 Analyze your datalog files with blazing speed and beautiful visualizations.
+                <strong>Free and open source</strong> — no subscriptions, no licenses, just download and go.
             </p>
-            <span class="version-badge">v1.2.2</span>
+            <div class="hero-badges">
+                <span class="version-badge">v1.2.2</span>
+                <a href="https://github.com/SomethingNew71/UltraLog" class="opensource-badge" target="_blank">
+                    <i class="fa-brands fa-github"></i> Open Source
+                </a>
+            </div>
         </section>
 
         <!-- Downloads -->
