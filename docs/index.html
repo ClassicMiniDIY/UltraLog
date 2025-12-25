@@ -1,25 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UltraLog - Unlock Your Performance Data</title>
-    <meta name="description" content="A high-performance, cross-platform ECU log viewer. Analyze your Haltech, MegaSquirt, Speeduino, and more.">
+    <meta name="description"
+        content="A high-performance, cross-platform ECU log viewer. Analyze your Haltech, MegaSquirt, Speeduino, and more.">
     <meta name="keywords" content="ECU, datalog, log viewer, Haltech, MegaSquirt, Speeduino, automotive, tuning">
 
     <!-- Open Graph -->
     <meta property="og:title" content="UltraLog - ECU Log Viewer">
-    <meta property="og:description" content="A high-performance, cross-platform ECU log viewer. Unlock your performance data.">
-    <meta property="og:image" content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
+    <meta property="og:description"
+        content="A high-performance, cross-platform ECU log viewer. Unlock your performance data.">
+    <meta property="og:image"
+        content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
     <meta property="og:type" content="website">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="UltraLog - ECU Log Viewer">
     <meta name="twitter:description" content="A high-performance, cross-platform ECU log viewer.">
-    <meta name="twitter:image" content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
+    <meta name="twitter:image"
+        content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
 
-    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png">
+    <link rel="icon" type="image/png"
+        href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png">
+
+    <script src="https://kit.fontawesome.com/517b58dc6f.js" crossorigin="anonymous"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
@@ -62,8 +70,7 @@
                 linear-gradient(to bottom,
                     rgba(138, 43, 226, 0.1) 0%,
                     rgba(255, 0, 128, 0.05) 50%,
-                    transparent 100%
-                );
+                    transparent 100%);
             pointer-events: none;
             z-index: -2;
         }
@@ -75,20 +82,16 @@
             width: 100%;
             height: 50%;
             background:
-                repeating-linear-gradient(
-                    90deg,
+                repeating-linear-gradient(90deg,
                     transparent,
                     transparent 60px,
                     rgba(255, 0, 255, 0.1) 60px,
-                    rgba(255, 0, 255, 0.1) 61px
-                ),
-                repeating-linear-gradient(
-                    0deg,
+                    rgba(255, 0, 255, 0.1) 61px),
+                repeating-linear-gradient(0deg,
                     transparent,
                     transparent 60px,
                     rgba(0, 255, 255, 0.1) 60px,
-                    rgba(0, 255, 255, 0.1) 61px
-                );
+                    rgba(0, 255, 255, 0.1) 61px);
             transform: perspective(500px) rotateX(60deg);
             transform-origin: bottom;
             pointer-events: none;
@@ -207,6 +210,19 @@
         .platform-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        .platform-icon.apple {
+            color: #a0a0b0;
+        }
+
+        .platform-icon.windows {
+            color: #00a4ef;
+        }
+
+        .platform-icon.linux {
+            color: #fcc624;
         }
 
         .platform-name {
@@ -222,7 +238,9 @@
         }
 
         .download-btn {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
             padding: 0.8rem 2rem;
             background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
             color: #000;
@@ -266,6 +284,10 @@
         .feature-icon {
             font-size: 2rem;
             margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .feature-card h3 {
@@ -304,6 +326,9 @@
         }
 
         .ecu-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
             padding: 0.6rem 1.2rem;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -337,6 +362,9 @@
         }
 
         .footer-links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
             color: #a0a0b0;
             text-decoration: none;
             transition: color 0.3s ease;
@@ -372,6 +400,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="grid-bg"></div>
     <div class="grid-lines"></div>
@@ -380,7 +409,8 @@
         <!-- Hero -->
         <section class="hero">
             <div class="logo-container">
-                <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/banner.png" alt="UltraLog" class="logo">
+                <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/banner.png"
+                    alt="UltraLog" class="logo">
             </div>
             <p class="tagline">Unlock Your Performance Data</p>
             <p class="subtitle">
@@ -395,31 +425,43 @@
             <h2>Download UltraLog</h2>
             <div class="download-grid">
                 <div class="download-card">
-                    <div class="platform-icon">🍎</div>
+                    <div class="platform-icon apple"><i class="fa-brands fa-apple"></i></div>
                     <div class="platform-name">macOS</div>
                     <div class="platform-detail">Apple Silicon (M1/M2/M3/M4)</div>
-                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-arm64.dmg" class="download-btn">Download DMG</a>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-arm64.dmg"
+                        class="download-btn">
+                        <i class="fa-solid fa-download"></i> Download DMG
+                    </a>
                 </div>
 
                 <div class="download-card">
-                    <div class="platform-icon">🍏</div>
+                    <div class="platform-icon apple"><i class="fa-brands fa-apple"></i></div>
                     <div class="platform-name">macOS</div>
                     <div class="platform-detail">Intel Macs</div>
-                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-intel.dmg" class="download-btn">Download DMG</a>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-intel.dmg"
+                        class="download-btn">
+                        <i class="fa-solid fa-download"></i> Download DMG
+                    </a>
                 </div>
 
                 <div class="download-card">
-                    <div class="platform-icon">🪟</div>
+                    <div class="platform-icon windows"><i class="fa-brands fa-windows"></i></div>
                     <div class="platform-name">Windows</div>
                     <div class="platform-detail">Windows 10/11 (64-bit)</div>
-                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-windows.zip" class="download-btn">Download ZIP</a>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-windows.zip"
+                        class="download-btn">
+                        <i class="fa-solid fa-download"></i> Download ZIP
+                    </a>
                 </div>
 
                 <div class="download-card">
-                    <div class="platform-icon">🐧</div>
+                    <div class="platform-icon linux"><i class="fa-brands fa-linux"></i></div>
                     <div class="platform-name">Linux</div>
                     <div class="platform-detail">x86_64 Binary</div>
-                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-linux.tar.gz" class="download-btn">Download TAR.GZ</a>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-linux.tar.gz"
+                        class="download-btn">
+                        <i class="fa-solid fa-download"></i> Download TAR.GZ
+                    </a>
                 </div>
             </div>
         </section>
@@ -429,49 +471,49 @@
             <h2>Features</h2>
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">📊</div>
+                    <div class="feature-icon"><i class="fa-solid fa-chart-line"></i></div>
                     <h3>Interactive Charts</h3>
                     <p>Beautiful, responsive charts with zoom, pan, and multi-channel overlay support.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
+                    <div class="feature-icon"><i class="fa-solid fa-bolt"></i></div>
                     <h3>Blazing Fast</h3>
                     <p>Built with Rust for maximum performance. Load and analyze large log files instantly.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🎯</div>
+                    <div class="feature-icon"><i class="fa-solid fa-chart-scatter"></i></div>
                     <h3>Scatter Plots</h3>
                     <p>Visualize relationships between any two channels with interactive scatter plots.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">▶️</div>
+                    <div class="feature-icon"><i class="fa-solid fa-play"></i></div>
                     <h3>Playback Mode</h3>
                     <p>Play through your logs in real-time with adjustable speed controls.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">📁</div>
+                    <div class="feature-icon"><i class="fa-solid fa-folders"></i></div>
                     <h3>Multi-File Support</h3>
                     <p>Open multiple log files in tabs for easy comparison and analysis.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">📤</div>
+                    <div class="feature-icon"><i class="fa-solid fa-file-export"></i></div>
                     <h3>Export Options</h3>
                     <p>Export charts as PNG images or PDF documents for reports and sharing.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🔄</div>
+                    <div class="feature-icon"><i class="fa-solid fa-arrows-rotate"></i></div>
                     <h3>Unit Conversion</h3>
                     <p>Toggle between metric and imperial units on the fly.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🆕</div>
+                    <div class="feature-icon"><i class="fa-solid fa-cloud-arrow-down"></i></div>
                     <h3>Auto Updates</h3>
                     <p>Stay up to date with automatic update notifications.</p>
                 </div>
@@ -483,23 +525,26 @@
             <h2>Supported ECUs</h2>
             <p>UltraLog supports a growing list of ECU manufacturers and formats</p>
             <div class="ecu-grid">
-                <span class="ecu-badge supported">Haltech</span>
-                <span class="ecu-badge supported">ECUMaster EMU Pro</span>
-                <span class="ecu-badge supported">Speeduino</span>
-                <span class="ecu-badge supported">rusEFI</span>
-                <span class="ecu-badge coming">MegaSquirt (Coming Soon)</span>
-                <span class="ecu-badge coming">AEM (Coming Soon)</span>
-                <span class="ecu-badge coming">Link ECU (Coming Soon)</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Haltech</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> ECUMaster EMU Pro</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Speeduino</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> rusEFI</span>
+                <span class="ecu-badge coming"><i class="fa-solid fa-clock"></i> MegaSquirt</span>
+                <span class="ecu-badge coming"><i class="fa-solid fa-clock"></i> AEM</span>
+                <span class="ecu-badge coming"><i class="fa-solid fa-clock"></i> Link ECU</span>
             </div>
         </section>
 
         <!-- Footer -->
         <footer>
             <div class="footer-links">
-                <a href="https://github.com/SomethingNew71/UltraLog">GitHub</a>
-                <a href="https://github.com/SomethingNew71/UltraLog/releases">All Releases</a>
-                <a href="https://github.com/SomethingNew71/UltraLog/issues">Report Issue</a>
-                <a href="https://github.com/SomethingNew71/UltraLog/discussions">Discussions</a>
+                <a href="https://github.com/SomethingNew71/UltraLog"><i class="fa-brands fa-github"></i> GitHub</a>
+                <a href="https://github.com/SomethingNew71/UltraLog/releases"><i class="fa-solid fa-tags"></i> All
+                    Releases</a>
+                <a href="https://github.com/SomethingNew71/UltraLog/issues"><i class="fa-solid fa-bug"></i> Report
+                    Issue</a>
+                <a href="https://github.com/SomethingNew71/UltraLog/discussions"><i class="fa-solid fa-comments"></i>
+                    Discussions</a>
             </div>
             <p class="copyright">
                 MIT License &copy; 2024 Cole Gentry
@@ -516,7 +561,8 @@
                     document.querySelector('.version-badge').textContent = data.tag_name;
                 }
             })
-            .catch(() => {});
+            .catch(() => { });
     </script>
 </body>
+
 </html>
