@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UltraLog - Unlock Your Performance Data</title>
+    <meta name="description" content="A high-performance, cross-platform ECU log viewer. Analyze your Haltech, MegaSquirt, Speeduino, and more.">
+    <meta name="keywords" content="ECU, datalog, log viewer, Haltech, MegaSquirt, Speeduino, automotive, tuning">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="UltraLog - ECU Log Viewer">
+    <meta property="og:description" content="A high-performance, cross-platform ECU log viewer. Unlock your performance data.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
+    <meta property="og:type" content="website">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="UltraLog - ECU Log Viewer">
+    <meta name="twitter:description" content="A high-performance, cross-platform ECU log viewer.">
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
+
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --neon-cyan: #00ffff;
+            --neon-magenta: #ff00ff;
+            --neon-pink: #ff6ec7;
+            --neon-yellow: #ffff00;
+            --neon-green: #39ff14;
+            --neon-orange: #ff6600;
+            --dark-bg: #0a0a0f;
+            --dark-surface: #12121a;
+            --grid-color: rgba(255, 0, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--dark-bg);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Synthwave grid background */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                linear-gradient(to bottom, transparent 0%, var(--dark-bg) 100%),
+                linear-gradient(to bottom,
+                    rgba(138, 43, 226, 0.1) 0%,
+                    rgba(255, 0, 128, 0.05) 50%,
+                    transparent 100%
+                );
+            pointer-events: none;
+            z-index: -2;
+        }
+
+        .grid-lines {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background:
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 60px,
+                    rgba(255, 0, 255, 0.1) 60px,
+                    rgba(255, 0, 255, 0.1) 61px
+                ),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 60px,
+                    rgba(0, 255, 255, 0.1) 60px,
+                    rgba(0, 255, 255, 0.1) 61px
+                );
+            transform: perspective(500px) rotateX(60deg);
+            transform-origin: bottom;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+        }
+
+        .logo-container {
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            max-width: 500px;
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 0 30px rgba(0, 255, 255, 0.5));
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: #a0a0b0;
+            max-width: 600px;
+            margin: 0 auto 3rem;
+            line-height: 1.6;
+        }
+
+        .version-badge {
+            display: inline-block;
+            padding: 0.5rem 1.5rem;
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 50px;
+            font-size: 0.9rem;
+            color: var(--neon-cyan);
+            margin-bottom: 3rem;
+        }
+
+        /* Download Section */
+        .download-section {
+            margin-bottom: 4rem;
+        }
+
+        .download-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 2rem;
+            color: #fff;
+        }
+
+        .download-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .download-card {
+            background: var(--dark-surface);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .download-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .download-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(0, 255, 255, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 255, 255, 0.1);
+        }
+
+        .download-card:hover::before {
+            opacity: 1;
+        }
+
+        .platform-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .platform-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .platform-detail {
+            font-size: 0.85rem;
+            color: #808090;
+            margin-bottom: 1.5rem;
+        }
+
+        .download-btn {
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
+            color: #000;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .download-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Features Section */
+        .features-section {
+            margin-bottom: 4rem;
+        }
+
+        .features-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: var(--neon-cyan);
+        }
+
+        .feature-card p {
+            font-size: 0.9rem;
+            color: #a0a0b0;
+            line-height: 1.5;
+        }
+
+        /* ECU Support */
+        .ecu-section {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .ecu-section h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .ecu-section p {
+            color: #a0a0b0;
+            margin-bottom: 2rem;
+        }
+
+        .ecu-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .ecu-badge {
+            padding: 0.6rem 1.2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .ecu-badge.supported {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+        }
+
+        .ecu-badge.coming {
+            border-color: var(--neon-orange);
+            color: var(--neon-orange);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: #a0a0b0;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--neon-cyan);
+        }
+
+        .copyright {
+            color: #606070;
+            font-size: 0.85rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero {
+                padding: 2rem 0;
+            }
+
+            .logo {
+                max-width: 300px;
+            }
+
+            .tagline {
+                font-size: 1.2rem;
+                letter-spacing: 2px;
+            }
+
+            .download-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="grid-lines"></div>
+
+    <div class="container">
+        <!-- Hero -->
+        <section class="hero">
+            <div class="logo-container">
+                <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/banner.png" alt="UltraLog" class="logo">
+            </div>
+            <p class="tagline">Unlock Your Performance Data</p>
+            <p class="subtitle">
+                A high-performance, cross-platform ECU log viewer built with Rust.
+                Analyze your datalog files with blazing speed and beautiful visualizations.
+            </p>
+            <span class="version-badge">v1.2.2</span>
+        </section>
+
+        <!-- Downloads -->
+        <section class="download-section">
+            <h2>Download UltraLog</h2>
+            <div class="download-grid">
+                <div class="download-card">
+                    <div class="platform-icon">🍎</div>
+                    <div class="platform-name">macOS</div>
+                    <div class="platform-detail">Apple Silicon (M1/M2/M3/M4)</div>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-arm64.dmg" class="download-btn">Download DMG</a>
+                </div>
+
+                <div class="download-card">
+                    <div class="platform-icon">🍏</div>
+                    <div class="platform-name">macOS</div>
+                    <div class="platform-detail">Intel Macs</div>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-intel.dmg" class="download-btn">Download DMG</a>
+                </div>
+
+                <div class="download-card">
+                    <div class="platform-icon">🪟</div>
+                    <div class="platform-name">Windows</div>
+                    <div class="platform-detail">Windows 10/11 (64-bit)</div>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-windows.zip" class="download-btn">Download ZIP</a>
+                </div>
+
+                <div class="download-card">
+                    <div class="platform-icon">🐧</div>
+                    <div class="platform-name">Linux</div>
+                    <div class="platform-detail">x86_64 Binary</div>
+                    <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-linux.tar.gz" class="download-btn">Download TAR.GZ</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features-section">
+            <h2>Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Interactive Charts</h3>
+                    <p>Beautiful, responsive charts with zoom, pan, and multi-channel overlay support.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Blazing Fast</h3>
+                    <p>Built with Rust for maximum performance. Load and analyze large log files instantly.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Scatter Plots</h3>
+                    <p>Visualize relationships between any two channels with interactive scatter plots.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">▶️</div>
+                    <h3>Playback Mode</h3>
+                    <p>Play through your logs in real-time with adjustable speed controls.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📁</div>
+                    <h3>Multi-File Support</h3>
+                    <p>Open multiple log files in tabs for easy comparison and analysis.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📤</div>
+                    <h3>Export Options</h3>
+                    <p>Export charts as PNG images or PDF documents for reports and sharing.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Unit Conversion</h3>
+                    <p>Toggle between metric and imperial units on the fly.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🆕</div>
+                    <h3>Auto Updates</h3>
+                    <p>Stay up to date with automatic update notifications.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ECU Support -->
+        <section class="ecu-section">
+            <h2>Supported ECUs</h2>
+            <p>UltraLog supports a growing list of ECU manufacturers and formats</p>
+            <div class="ecu-grid">
+                <span class="ecu-badge supported">Haltech</span>
+                <span class="ecu-badge supported">ECUMaster EMU Pro</span>
+                <span class="ecu-badge supported">Speeduino</span>
+                <span class="ecu-badge supported">rusEFI</span>
+                <span class="ecu-badge coming">MegaSquirt (Coming Soon)</span>
+                <span class="ecu-badge coming">AEM (Coming Soon)</span>
+                <span class="ecu-badge coming">Link ECU (Coming Soon)</span>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <div class="footer-links">
+                <a href="https://github.com/SomethingNew71/UltraLog">GitHub</a>
+                <a href="https://github.com/SomethingNew71/UltraLog/releases">All Releases</a>
+                <a href="https://github.com/SomethingNew71/UltraLog/issues">Report Issue</a>
+                <a href="https://github.com/SomethingNew71/UltraLog/discussions">Discussions</a>
+            </div>
+            <p class="copyright">
+                MIT License &copy; 2024 Cole Gentry
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Update version badge from GitHub API
+        fetch('https://api.github.com/repos/SomethingNew71/UltraLog/releases/latest')
+            .then(response => response.json())
+            .then(data => {
+                if (data.tag_name) {
+                    document.querySelector('.version-badge').textContent = data.tag_name;
+                }
+            })
+            .catch(() => {});
+    </script>
+</body>
+</html>
