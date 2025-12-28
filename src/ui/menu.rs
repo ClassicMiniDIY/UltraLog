@@ -2,6 +2,7 @@
 
 use eframe::egui;
 
+use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::state::LoadingState;
 use crate::units::{
@@ -90,10 +91,14 @@ impl UltraLogApp {
                 }
 
                 // Color Blind Mode toggle
+                let old_color_blind_mode = self.color_blind_mode;
                 if ui
                     .checkbox(&mut self.color_blind_mode, "👁  Color Blind Mode")
                     .clicked()
                 {
+                    if self.color_blind_mode != old_color_blind_mode {
+                        analytics::track_colorblind_mode_toggled(self.color_blind_mode);
+                    }
                     ui.close();
                 }
 

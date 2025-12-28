@@ -69,6 +69,9 @@ fn main() -> eframe::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
+    // Track app startup for analytics
+    ultralog::analytics::track_app_started();
+
     // Load platform-specific app icon
     let icon = load_app_icon();
 

@@ -18,6 +18,7 @@
 
 - [[Troubleshooting]]
 - [[FAQ]]
+- [[Privacy]]
 
 ### Development
 

@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
+use crate::analytics;
 use crate::parsers::{EcuMaster, EcuType, Haltech, Parseable, RomRaider, Speeduino};
 use crate::state::{
     ActiveTool, CacheKey, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
@@ -423,6 +424,13 @@ impl UltraLogApp {
                         let file_index = self.files.len();
                         let file_name = file.name.clone();
 
+                        // Track file load for analytics
+                        let ecu_type_str = format!("{:?}", file.ecu_type);
+                        let file_size = std::fs::metadata(&file.path)
+                            .map(|m| m.len())
+                            .unwrap_or(0);
+                        analytics::track_file_loaded(&ecu_type_str, file_size);
+
                         // Compute time range for this file
                         let times = file.log.get_times_as_f64();
                         let file_time_range =
@@ -703,6 +711,9 @@ impl UltraLogApp {
             channel,
             color_index,
         });
+
+        // Track channel selection for analytics
+        analytics::track_channel_selected(self.tabs[tab_idx].selected_channels.len());
     }
 
     /// Remove a channel from the active tab's selection
@@ -934,9 +945,11 @@ impl UltraLogApp {
                     UpdateCheckResult::UpdateAvailable(info) => {
                         self.update_state = UpdateState::UpdateAvailable(info);
                         self.show_update_dialog = true;
+                        analytics::track_update_checked(true);
                     }
                     UpdateCheckResult::UpToDate => {
                         self.update_state = UpdateState::Idle;
+                        analytics::track_update_checked(false);
                         // Only show toast for manual checks (not startup)
                         if self.startup_check_done {
                             self.show_toast_success("You're running the latest version");

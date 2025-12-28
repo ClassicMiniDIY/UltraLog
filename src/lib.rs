@@ -11,6 +11,7 @@
 //! - [`units`] - Unit preference types and conversion utilities
 //! - [`normalize`] - Field name normalization for standardizing channel names
 //! - [`updater`] - Auto-update functionality for checking and downloading updates
+//! - [`analytics`] - Anonymous usage analytics via PostHog
 //! - [`ui`] - User interface components
 //!   - `sidebar` - File list and view options
 //!   - `channels` - Channel selection and display
@@ -20,6 +21,7 @@
 //!   - `toast` - Toast notification system
 //!   - `icons` - Custom icon drawing utilities
 
+pub mod analytics;
 pub mod app;
 pub mod normalize;
 pub mod parsers;

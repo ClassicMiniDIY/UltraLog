@@ -7,6 +7,7 @@ use std::io::BufWriter;
 // Use fully qualified path to disambiguate from printpdf's image module
 use ::image::{Rgba, RgbaImage};
 
+use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
 
@@ -24,7 +25,10 @@ impl UltraLogApp {
 
         // Create a simple chart representation as image
         match self.render_chart_to_png(&path) {
-            Ok(_) => self.show_toast_success("Chart exported as PNG"),
+            Ok(_) => {
+                analytics::track_export("png");
+                self.show_toast_success("Chart exported as PNG");
+            }
             Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
         }
     }
@@ -41,7 +45,10 @@ impl UltraLogApp {
         };
 
         match self.render_chart_to_pdf(&path) {
-            Ok(_) => self.show_toast_success("Chart exported as PDF"),
+            Ok(_) => {
+                analytics::track_export("pdf");
+                self.show_toast_success("Chart exported as PDF");
+            }
             Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
         }
     }

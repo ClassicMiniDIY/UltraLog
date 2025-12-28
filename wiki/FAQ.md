@@ -220,7 +220,20 @@ Yes! Contributions are welcome. See [[Development]] for information on building 
 
 ### Does UltraLog send any data to the internet?
 
-No. UltraLog is completely offline. No data is sent anywhere. All processing happens locally on your computer.
+UltraLog sends **anonymous usage analytics** to help improve the application. This includes:
+
+- App version and platform (Windows/macOS/Linux)
+- ECU type when loading files (e.g., "Haltech")
+- Feature usage (exports, tool switches, playback)
+
+**What is NOT sent:**
+
+- Your log file data or contents
+- File names or paths
+- Any personal information
+- Channel names or values
+
+All analytics are anonymous with no persistent identifiers. See [[Privacy]] for complete details.
 
 ### Where does UltraLog store settings?
 

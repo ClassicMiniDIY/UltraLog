@@ -5,6 +5,7 @@
 
 use eframe::egui;
 
+use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::state::ActiveTool;
 
@@ -54,6 +55,7 @@ impl UltraLogApp {
 
                 if response.clicked() {
                     self.active_tool = tool;
+                    analytics::track_tool_switched(tool.name());
                 }
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);

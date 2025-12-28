@@ -2,6 +2,7 @@
 
 use eframe::egui;
 
+use crate::analytics;
 use crate::app::UltraLogApp;
 
 impl UltraLogApp {
@@ -80,6 +81,8 @@ impl UltraLogApp {
             if ui.add(play_button).clicked() {
                 self.is_playing = !self.is_playing;
                 if self.is_playing {
+                    // Track playback start for analytics
+                    analytics::track_playback_started(self.playback_speed);
                     // Reset frame time when starting playback
                     self.last_frame_time = Some(std::time::Instant::now());
                     // Initialize cursor if not set
