@@ -105,6 +105,18 @@ fn capture_event(event: AnalyticsEvent) {
     }
 }
 
+/// Track when a channel is selected
+pub fn track_channel_selected(channel_count: usize) {
+    let mut event = create_event("channel_selected");
+
+    event.properties.insert(
+        "total_channels".to_string(),
+        serde_json::json!(channel_count),
+    );
+
+    capture_event(event);
+}
+
 // ============================================================================
 // Public Analytics Functions
 // ============================================================================
