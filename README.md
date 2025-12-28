@@ -26,6 +26,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
   - [Supported ECU Formats](#supported-ecu-formats)
     - [Haltech - Full Support](#haltech---full-support)
     - [ECUMaster EMU Pro - Full Support](#ecumaster-emu-pro---full-support)
+    - [RomRaider - Full Support](#romraider---full-support)
     - [Speeduino / rusEFI - Full Support](#speeduino--rusefi---full-support)
     - [Coming Soon](#coming-soon)
   - [Installation](#installation)
@@ -130,6 +131,11 @@ Configurable units for 8 measurement categories:
 - **File type:** CSV exports (semicolon or tab-delimited) from EMU Pro software
 - **Features:** Hierarchical channel paths, automatic unit inference
 - **Note:** Native `.emuprolog` binary format not supported; export to CSV from EMU Pro
+
+### RomRaider - Full Support
+- **File type:** CSV exports from RomRaider ECU logging software
+- **Features:** Automatic unit extraction from column headers, Subaru ECU parameter support
+- **Supported data:** Engine speed, load, AFR corrections, timing, knock, temperatures, and all standard Subaru ECU parameters
 
 ### Speeduino / rusEFI - Full Support
 - **File type:** MegaLogViewer binary format (`.mlg`)
@@ -255,7 +261,8 @@ cargo build --release
 
 UltraLog automatically detects the ECU format based on file contents:
 - **Haltech:** Identified by `%DataLog%` header
-- **ECUMaster:** Identified by semicolon/tab-delimited CSV with channel paths
+- **ECUMaster:** Identified by semicolon/tab-delimited CSV with `TIME` column
+- **RomRaider:** Identified by comma-delimited CSV starting with `Time` column
 - **Speeduino/rusEFI:** Identified by `MLVLG` binary header
 
 **Loading multiple files:**
@@ -434,6 +441,7 @@ UltraLog/
 │   ├── parsers/         # ECU format parsers
 │   │   ├── haltech.rs   # Haltech CSV parser
 │   │   ├── ecumaster.rs # ECUMaster CSV parser
+│   │   ├── romraider.rs # RomRaider CSV parser
 │   │   └── speeduino.rs # Speeduino MLG parser
 │   └── ui/              # User interface components
 │       ├── sidebar.rs   # File list and options

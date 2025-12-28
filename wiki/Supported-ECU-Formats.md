@@ -8,6 +8,7 @@ UltraLog supports multiple ECU systems. This page details each format's capabili
 |------------|--------|-----------|-----------------|
 | Haltech | Full Support | `.csv` | Yes (from NSP) |
 | ECUMaster EMU Pro | Full Support | `.csv` | Yes (from EMU Pro) |
+| RomRaider | Full Support | `.csv` | Yes (from RomRaider Logger) |
 | Speeduino | Full Support | `.mlg` | No (native format) |
 | rusEFI | Full Support | `.mlg` | No (native format) |
 | MegaSquirt | Coming Soon | - | - |
@@ -173,6 +174,97 @@ UltraLog infers units from channel naming patterns:
 
 ---
 
+## RomRaider
+
+### Overview
+
+Full support for RomRaider ECU log files. RomRaider is an open-source tuning suite primarily used for Subaru ECUs, providing comprehensive logging capabilities for OEM and modified ECU parameters.
+
+### Supported File Format
+
+- **Type:** CSV text file (comma-delimited)
+- **Extension:** `.csv`
+- **Source:** Exported from RomRaider Logger
+- **Identifier:** File begins with `Time` column header
+
+### How to Export from RomRaider
+
+1. Open RomRaider Logger
+2. Start logging your parameters
+3. When complete, go to **File → Save Log**
+4. Choose CSV format and save location
+5. The file is ready to load in UltraLog
+
+### CSV Format Details
+
+RomRaider logs use a straightforward CSV format:
+
+```csv
+Time (msec),Engine Speed (rpm),Engine Load (%),A/F Correction #1 (%)
+0,850,15.2,1.5
+20,855,15.4,1.6
+40,860,15.3,1.5
+```
+
+**Key characteristics:**
+- First column is always timestamp in milliseconds
+- Column headers include units in parentheses
+- Comma-separated values
+- Timestamps are converted to relative seconds automatically
+
+### Automatic Unit Extraction
+
+UltraLog automatically extracts units from column headers:
+
+| Header Example | Extracted Name | Extracted Unit |
+|----------------|----------------|----------------|
+| `Engine Speed (rpm)` | Engine Speed | rpm |
+| `A/F Correction #1 (%)` | A/F Correction #1 | % |
+| `Manifold Relative Pressure (psi)` | Manifold Relative Pressure | psi |
+| `Coolant Temperature (C)` | Coolant Temperature | C |
+
+For columns without units in parentheses, UltraLog infers units from common patterns.
+
+### Supported Channels
+
+**Engine Parameters**
+- Engine Speed (RPM)
+- Engine Load
+- Manifold Absolute/Relative Pressure
+- Throttle Position
+- Mass Airflow
+
+**Fuel System**
+- A/F Correction #1 and #2
+- A/F Learning #1 and #2
+- A/F Sensor readings
+- Fuel Injector timing
+
+**Ignition System**
+- Ignition Timing
+- Knock Correction
+- Fine Knock Learning
+- Feedback Knock Correction
+
+**Temperatures**
+- Coolant Temperature
+- Intake Air Temperature
+
+**Subaru-Specific**
+- IAM (Ignition Advance Multiplier)
+- DAM (Dynamic Advance Multiplier)
+- Fine Learning tables
+- Various OEM diagnostic parameters
+
+### Timestamp Handling
+
+RomRaider logs time in milliseconds. UltraLog:
+- Converts milliseconds to seconds for display
+- Calculates relative time from the first record
+- Supports precise cursor positioning and playback
+
+---
+
 ## Speeduino / rusEFI
 
 ### Overview
@@ -247,8 +339,9 @@ MLG files include precise timestamps for each record, which UltraLog uses for:
 UltraLog automatically detects the ECU format based on file contents:
 
 1. **Haltech:** Looks for `%DataLog%` header
-2. **ECUMaster:** Identifies semicolon/tab-delimited CSV with hierarchical paths
-3. **Speeduino/rusEFI:** Identifies `MLVLG` binary header
+2. **ECUMaster:** Identifies semicolon/tab-delimited CSV with `TIME` column
+3. **RomRaider:** Identifies comma-delimited CSV starting with `Time` column
+4. **Speeduino/rusEFI:** Identifies `MLVLG` binary header
 
 You don't need to specify the format - just load the file.
 

@@ -14,7 +14,7 @@ UltraLog is a high-performance, cross-platform desktop application for viewing a
 
 - **Multi-channel visualization** - Plot up to 10 data channels simultaneously
 - **High-performance** - LTTB downsampling handles millions of data points smoothly
-- **Multiple ECU support** - Haltech, ECUMaster EMU Pro, Speeduino/rusEFI
+- **Multiple ECU support** - Haltech, ECUMaster EMU Pro, RomRaider, Speeduino/rusEFI
 - **Cross-platform** - Windows, macOS, and Linux
 - **Unit conversion** - Metric/Imperial for temperature, pressure, speed, and more
 - **Accessibility** - Colorblind-friendly color palette
@@ -25,6 +25,7 @@ UltraLog is a high-performance, cross-platform desktop application for viewing a
 |------------|--------|-------------|
 | Haltech | Full Support | CSV from NSP |
 | ECUMaster EMU Pro | Full Support | CSV export |
+| RomRaider | Full Support | CSV from Logger |
 | Speeduino / rusEFI | Full Support | MLG binary |
 | MegaSquirt | Coming Soon | - |
 | AEM | Coming Soon | - |
