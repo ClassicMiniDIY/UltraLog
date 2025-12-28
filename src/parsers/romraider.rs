@@ -4,7 +4,7 @@
 //! commonly used for Subaru ECUs. Format is comma-delimited CSV with
 //! channel names and units in the header row.
 //!
-//! Reference: https://github.com/RomRaider/RomRaider
+//! Reference: <https://github.com/RomRaider/RomRaider>
 
 use serde::Serialize;
 use std::error::Error;
