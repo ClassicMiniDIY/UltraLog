@@ -9,6 +9,19 @@ use ultralog::parsers::romraider::RomRaider;
 use ultralog::parsers::speeduino::Speeduino;
 use ultralog::parsers::types::Parseable;
 
+/// Helper function to read a file, panicking with a clear message if not found.
+/// This ensures CI catches missing example files instead of silently skipping tests.
+fn read_example_file(file_path: &str) -> String {
+    std::fs::read_to_string(file_path)
+        .unwrap_or_else(|e| panic!("Failed to read example file '{}': {}", file_path, e))
+}
+
+/// Helper function to read a binary file, panicking with a clear message if not found.
+fn read_example_binary(file_path: &str) -> Vec<u8> {
+    std::fs::read(file_path)
+        .unwrap_or_else(|e| panic!("Failed to read example file '{}': {}", file_path, e))
+}
+
 // ============================================
 // Haltech Integration Tests
 // ============================================
@@ -16,13 +29,7 @@ use ultralog::parsers::types::Parseable;
 #[test]
 fn test_haltech_example_log_parsing() {
     let file_path = "exampleLogs/haltech/2025-07-18_0215pm_Log1118.csv";
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let content = read_example_file(file_path);
 
     let parser = Haltech;
     let log = parser.parse(&content).expect("Should parse Haltech log");
@@ -72,13 +79,7 @@ fn test_haltech_example_log_parsing() {
 fn test_haltech_multi_log_file() {
     // This file contains multiple logs
     let file_path = "exampleLogs/haltech/2025-03-06_0937pm_Logs658to874.csv";
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let content = read_example_file(file_path);
 
     let parser = Haltech;
     let log = parser
@@ -102,13 +103,7 @@ fn test_haltech_multi_log_file() {
 #[test]
 fn test_ecumaster_example_log_parsing() {
     let file_path = "exampleLogs/ecumaster/2025_1218_1903.csv";
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let content = read_example_file(file_path);
 
     // First verify detection
     assert!(
@@ -140,18 +135,14 @@ fn test_ecumaster_example_log_parsing() {
 #[test]
 fn test_ecumaster_large_file() {
     let file_path = "exampleLogs/ecumaster/Largest.csv";
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let content = read_example_file(file_path);
 
-    if !EcuMaster::detect(&content) {
-        eprintln!("File doesn't match ECUMaster format, skipping");
-        return;
-    }
+    // Format detection should always succeed for known ECUMaster files
+    assert!(
+        EcuMaster::detect(&content),
+        "File '{}' should be detected as ECUMaster format",
+        file_path
+    );
 
     let parser = EcuMaster;
     let log = parser
@@ -174,9 +165,22 @@ fn test_ecumaster_large_file() {
 
 #[test]
 fn test_romraider_detection() {
-    // Test that RomRaider format is correctly detected vs others
+    // Test positive detection - valid RomRaider samples
+    let valid_romraider_simple = "Time,RPM,Load\n0,1000,50\n";
+    let valid_romraider_with_units = "Time (msec),Engine Speed (rpm),Engine Load (%)\n0,1000,50\n";
+
+    assert!(
+        RomRaider::detect(valid_romraider_simple),
+        "Should detect simple RomRaider format"
+    );
+    assert!(
+        RomRaider::detect(valid_romraider_with_units),
+        "Should detect RomRaider format with units in headers"
+    );
+
+    // Test negative detection - other formats should not be detected as RomRaider
     let haltech_sample = "%DataLog%\nDataLogVersion : 1.1\n";
-    let ecumaster_sample = "Time;RPM;MAP\n0.0;1000;50\n";
+    let ecumaster_sample = "TIME;RPM;MAP\n0.0;1000;50\n";
 
     assert!(
         !RomRaider::detect(haltech_sample),
@@ -188,6 +192,83 @@ fn test_romraider_detection() {
     );
 }
 
+#[test]
+fn test_romraider_parsing() {
+    // Test with synthetic RomRaider data since no example file exists
+    let sample_data =
+        "Time (msec),Engine Speed (rpm),Engine Load (%),Coolant Temp (C),Battery Voltage (V)\n\
+                       0,850,15.5,85.0,14.2\n\
+                       20,900,18.0,85.5,14.1\n\
+                       40,950,20.5,86.0,14.3\n\
+                       60,1000,22.0,86.5,14.2\n";
+
+    // Verify detection
+    assert!(
+        RomRaider::detect(sample_data),
+        "Should detect as RomRaider format"
+    );
+
+    // Parse the data
+    let parser = RomRaider;
+    let log = parser
+        .parse(sample_data)
+        .expect("Should parse RomRaider log");
+
+    // Verify structure
+    assert_eq!(log.channels.len(), 4, "Should have 4 channels");
+    assert_eq!(log.times.len(), 4, "Should have 4 timestamps");
+    assert_eq!(log.data.len(), 4, "Should have 4 data records");
+
+    // Verify channel names (units should be stripped)
+    assert_eq!(log.channels[0].name(), "Engine Speed");
+    assert_eq!(log.channels[1].name(), "Engine Load");
+    assert_eq!(log.channels[2].name(), "Coolant Temp");
+    assert_eq!(log.channels[3].name(), "Battery Voltage");
+
+    // Verify timestamps (converted from ms to seconds)
+    let times = log.get_times_as_f64();
+    assert!(
+        (times[0] - 0.0).abs() < 0.001,
+        "First timestamp should be 0"
+    );
+    assert!(
+        (times[1] - 0.020).abs() < 0.001,
+        "Second timestamp should be 0.020"
+    );
+    assert!(
+        (times[3] - 0.060).abs() < 0.001,
+        "Fourth timestamp should be 0.060"
+    );
+
+    // Verify data values
+    assert_eq!(log.data[0][0].as_f64(), 850.0);
+    assert_eq!(log.data[3][0].as_f64(), 1000.0);
+
+    // Verify data integrity
+    assert_eq!(
+        log.times.len(),
+        log.data.len(),
+        "Times and data should have same length"
+    );
+
+    let channel_count = log.channels.len();
+    for (i, record) in log.data.iter().enumerate() {
+        assert_eq!(
+            record.len(),
+            channel_count,
+            "Record {} should have {} values",
+            i,
+            channel_count
+        );
+    }
+
+    eprintln!(
+        "RomRaider log: {} channels, {} records",
+        log.channels.len(),
+        log.data.len()
+    );
+}
+
 // ============================================
 // Speeduino/rusEFI Integration Tests
 // ============================================
@@ -195,13 +276,7 @@ fn test_romraider_detection() {
 #[test]
 fn test_speeduino_mlg_parsing() {
     let file_path = "exampleLogs/speeduino/speeduino.mlg";
-    let data = match std::fs::read(file_path) {
-        Ok(d) => d,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let data = read_example_binary(file_path);
 
     assert!(Speeduino::detect(&data), "Should detect as MLG format");
 
@@ -240,13 +315,7 @@ fn test_speeduino_mlg_parsing() {
 #[test]
 fn test_rusefi_mlg_parsing() {
     let file_path = "exampleLogs/rusefi/rusefilog.mlg";
-    let data = match std::fs::read(file_path) {
-        Ok(d) => d,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let data = read_example_binary(file_path);
 
     assert!(Speeduino::detect(&data), "Should detect as MLG format");
 
@@ -278,6 +347,9 @@ fn test_format_detection_mutual_exclusion() {
     // ECUMaster uses semicolon-separated CSV starting with "TIME"
     let ecumaster_data = "TIME;Engine speed\n0.0;1000\n";
 
+    // RomRaider uses comma-separated CSV starting with "Time"
+    let romraider_data = "Time,RPM,Load\n0,1000,50\n";
+
     // MLG binary format
     let mlg_data = b"MLVLG\x00\x00\x01";
 
@@ -296,6 +368,24 @@ fn test_format_detection_mutual_exclusion() {
         !EcuMaster::detect(haltech_data),
         "Haltech should not be detected as ECUMaster"
     );
+    assert!(
+        !EcuMaster::detect(romraider_data),
+        "RomRaider should not be detected as ECUMaster"
+    );
+
+    // RomRaider detection
+    assert!(
+        RomRaider::detect(romraider_data),
+        "RomRaider format should be detected"
+    );
+    assert!(
+        !RomRaider::detect(haltech_data),
+        "Haltech should not be detected as RomRaider"
+    );
+    assert!(
+        !RomRaider::detect(ecumaster_data),
+        "ECUMaster should not be detected as RomRaider"
+    );
 
     // Speeduino/MLG detection
     assert!(Speeduino::detect(mlg_data), "MLG format should be detected");
@@ -312,13 +402,7 @@ fn test_format_detection_mutual_exclusion() {
 #[test]
 fn test_channel_data_extraction() {
     let file_path = "exampleLogs/haltech/2025-07-18_0215pm_Log1118.csv";
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let content = read_example_file(file_path);
 
     let parser = Haltech;
     let log = parser.parse(&content).expect("Should parse log");
@@ -346,13 +430,7 @@ fn test_channel_data_extraction() {
 #[test]
 fn test_find_channel_index() {
     let file_path = "exampleLogs/haltech/2025-07-18_0215pm_Log1118.csv";
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let content = read_example_file(file_path);
 
     let parser = Haltech;
     let log = parser.parse(&content).expect("Should parse log");
@@ -379,13 +457,7 @@ fn test_find_channel_index() {
 #[test]
 fn test_time_range_validity() {
     let file_path = "exampleLogs/speeduino/speeduino.mlg";
-    let data = match std::fs::read(file_path) {
-        Ok(d) => d,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let data = read_example_binary(file_path);
 
     let log = Speeduino::parse_binary(&data).expect("Should parse log");
     let times = log.get_times_as_f64();
@@ -408,13 +480,7 @@ fn test_time_range_validity() {
 #[test]
 fn test_data_values_are_finite() {
     let file_path = "exampleLogs/haltech/2025-07-18_0215pm_Log1118.csv";
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Skipping test: {} not found", file_path);
-            return;
-        }
-    };
+    let content = read_example_file(file_path);
 
     let parser = Haltech;
     let log = parser.parse(&content).expect("Should parse log");
