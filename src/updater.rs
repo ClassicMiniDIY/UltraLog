@@ -1,7 +1,7 @@
 //! Auto-update functionality for UltraLog.
 //!
 //! Checks GitHub releases for new versions, downloads updates,
-//! and provides installation assistance.
+//! and handles installation with proper extraction and replacement.
 
 use serde::Deserialize;
 use std::io::Write;
@@ -281,9 +281,316 @@ pub fn download_update(url: &str) -> DownloadResult {
     DownloadResult::Success(download_path)
 }
 
-/// Open the downloaded update file using system default handler.
-pub fn install_update(path: &std::path::Path) -> Result<(), String> {
-    open::that(path).map_err(|e| format!("Failed to open update file: {}", e))
+/// Result of the installation preparation
+#[derive(Debug, Clone)]
+pub enum InstallResult {
+    /// Installation is ready - app should exit so the updater script can run
+    ReadyToRestart { message: String },
+    /// macOS: DMG opened, user needs to complete installation manually
+    ManualInstallRequired { message: String },
+    /// Error during installation
+    Error(String),
+}
+
+/// Prepare and execute the update installation.
+/// On Windows/Linux: Extracts the archive and creates an update script.
+/// On macOS: Opens the DMG for manual installation.
+pub fn install_update(archive_path: &std::path::Path) -> InstallResult {
+    let platform = match Platform::current() {
+        Some(p) => p,
+        None => return InstallResult::Error("Unsupported platform".to_string()),
+    };
+
+    match platform {
+        Platform::WindowsX64 => install_windows(archive_path),
+        Platform::LinuxX64 => install_linux(archive_path),
+        Platform::MacOSIntel | Platform::MacOSArm => install_macos(archive_path),
+    }
+}
+
+/// Windows: Extract ZIP and create a batch script to replace the executable
+#[cfg(target_os = "windows")]
+fn install_windows(archive_path: &std::path::Path) -> InstallResult {
+    use std::fs::File;
+
+    // Get the current executable path
+    let current_exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => return InstallResult::Error(format!("Failed to get current exe path: {}", e)),
+    };
+
+    let exe_dir = match current_exe.parent() {
+        Some(d) => d,
+        None => return InstallResult::Error("Failed to get exe directory".to_string()),
+    };
+
+    // Create extraction directory in temp
+    let temp_dir = std::env::temp_dir();
+    let extract_dir = temp_dir.join("ultralog-update");
+
+    // Clean up any previous extraction
+    let _ = std::fs::remove_dir_all(&extract_dir);
+    if let Err(e) = std::fs::create_dir_all(&extract_dir) {
+        return InstallResult::Error(format!("Failed to create extraction directory: {}", e));
+    }
+
+    // Open and extract ZIP
+    let file = match File::open(archive_path) {
+        Ok(f) => f,
+        Err(e) => return InstallResult::Error(format!("Failed to open archive: {}", e)),
+    };
+
+    let mut archive = match zip::ZipArchive::new(file) {
+        Ok(a) => a,
+        Err(e) => return InstallResult::Error(format!("Failed to read ZIP archive: {}", e)),
+    };
+
+    // Extract all files
+    for i in 0..archive.len() {
+        let mut file = match archive.by_index(i) {
+            Ok(f) => f,
+            Err(e) => {
+                return InstallResult::Error(format!("Failed to read file from archive: {}", e))
+            }
+        };
+
+        let outpath = match file.enclosed_name() {
+            Some(p) => extract_dir.join(p),
+            None => continue,
+        };
+
+        if file.is_dir() {
+            let _ = std::fs::create_dir_all(&outpath);
+        } else {
+            if let Some(parent) = outpath.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let mut outfile = match File::create(&outpath) {
+                Ok(f) => f,
+                Err(e) => return InstallResult::Error(format!("Failed to create file: {}", e)),
+            };
+            if let Err(e) = std::io::copy(&mut file, &mut outfile) {
+                return InstallResult::Error(format!("Failed to extract file: {}", e));
+            }
+        }
+    }
+
+    // Find the new executable in extracted files
+    let new_exe = extract_dir.join("ultralog.exe");
+    if !new_exe.exists() {
+        // Try looking in a subdirectory
+        let entries: Vec<_> = std::fs::read_dir(&extract_dir)
+            .ok()
+            .map(|rd| rd.filter_map(|e| e.ok()).collect())
+            .unwrap_or_default();
+
+        for entry in entries {
+            let path = entry.path();
+            if path.is_dir() {
+                let nested_exe = path.join("ultralog.exe");
+                if nested_exe.exists() {
+                    return create_windows_updater_script(&nested_exe, &current_exe, exe_dir);
+                }
+            }
+        }
+        return InstallResult::Error("Could not find ultralog.exe in extracted files".to_string());
+    }
+
+    create_windows_updater_script(&new_exe, &current_exe, exe_dir)
+}
+
+#[cfg(target_os = "windows")]
+fn create_windows_updater_script(
+    new_exe: &std::path::Path,
+    current_exe: &std::path::Path,
+    exe_dir: &std::path::Path,
+) -> InstallResult {
+    let script_path = std::env::temp_dir().join("ultralog_update.bat");
+
+    // Create batch script that waits for the app to close, then replaces files
+    let script_content = format!(
+        r#"@echo off
+echo UltraLog Updater
+echo Waiting for application to close...
+:wait
+timeout /t 1 /nobreak >nul
+tasklist /FI "IMAGENAME eq ultralog.exe" 2>NUL | find /I /N "ultralog.exe">NUL
+if "%ERRORLEVEL%"=="0" goto wait
+
+echo Updating UltraLog...
+copy /Y "{new_exe}" "{target_exe}"
+if errorlevel 1 (
+    echo Update failed! Please try again or download manually.
+    pause
+    exit /b 1
+)
+
+echo Update complete! Starting UltraLog...
+start "" "{target_exe}"
+del "%~f0"
+"#,
+        new_exe = new_exe.display(),
+        target_exe = current_exe.display(),
+    );
+
+    if let Err(e) = std::fs::write(&script_path, script_content) {
+        return InstallResult::Error(format!("Failed to create update script: {}", e));
+    }
+
+    // Start the update script
+    match std::process::Command::new("cmd")
+        .args(["/C", "start", "", "/MIN", script_path.to_str().unwrap_or("")])
+        .spawn()
+    {
+        Ok(_) => InstallResult::ReadyToRestart {
+            message: "Update downloaded and ready. The application will now close to complete the update.".to_string(),
+        },
+        Err(e) => InstallResult::Error(format!("Failed to start update script: {}", e)),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn install_windows(_archive_path: &std::path::Path) -> InstallResult {
+    InstallResult::Error("Windows installation not supported on this platform".to_string())
+}
+
+/// Linux: Extract tar.gz and create a shell script to replace the executable
+#[cfg(target_os = "linux")]
+fn install_linux(archive_path: &std::path::Path) -> InstallResult {
+    use flate2::read::GzDecoder;
+    use std::fs::File;
+
+    // Get the current executable path
+    let current_exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => return InstallResult::Error(format!("Failed to get current exe path: {}", e)),
+    };
+
+    // Create extraction directory in temp
+    let temp_dir = std::env::temp_dir();
+    let extract_dir = temp_dir.join("ultralog-update");
+
+    // Clean up any previous extraction
+    let _ = std::fs::remove_dir_all(&extract_dir);
+    if let Err(e) = std::fs::create_dir_all(&extract_dir) {
+        return InstallResult::Error(format!("Failed to create extraction directory: {}", e));
+    }
+
+    // Open and extract tar.gz
+    let file = match File::open(archive_path) {
+        Ok(f) => f,
+        Err(e) => return InstallResult::Error(format!("Failed to open archive: {}", e)),
+    };
+
+    let gz = GzDecoder::new(file);
+    let mut archive = tar::Archive::new(gz);
+
+    if let Err(e) = archive.unpack(&extract_dir) {
+        return InstallResult::Error(format!("Failed to extract archive: {}", e));
+    }
+
+    // Find the new executable
+    let new_exe = find_executable_in_dir(&extract_dir, "ultralog");
+    let new_exe = match new_exe {
+        Some(p) => p,
+        None => {
+            return InstallResult::Error(
+                "Could not find ultralog executable in extracted files".to_string(),
+            )
+        }
+    };
+
+    // Create shell script to replace the executable
+    let script_path = temp_dir.join("ultralog_update.sh");
+    let script_content = format!(
+        r#"#!/bin/bash
+echo "UltraLog Updater"
+echo "Waiting for application to close..."
+
+# Wait for the application to exit
+while pgrep -x "ultralog" > /dev/null; do
+    sleep 1
+done
+
+echo "Updating UltraLog..."
+cp "{new_exe}" "{target_exe}"
+chmod +x "{target_exe}"
+
+if [ $? -eq 0 ]; then
+    echo "Update complete! Starting UltraLog..."
+    nohup "{target_exe}" > /dev/null 2>&1 &
+else
+    echo "Update failed! Please try again or download manually."
+fi
+
+rm -- "$0"
+"#,
+        new_exe = new_exe.display(),
+        target_exe = current_exe.display(),
+    );
+
+    if let Err(e) = std::fs::write(&script_path, &script_content) {
+        return InstallResult::Error(format!("Failed to create update script: {}", e));
+    }
+
+    // Make script executable
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755));
+    }
+
+    // Start the update script
+    match std::process::Command::new("bash")
+        .arg(&script_path)
+        .spawn()
+    {
+        Ok(_) => InstallResult::ReadyToRestart {
+            message: "Update downloaded and ready. The application will now close to complete the update.".to_string(),
+        },
+        Err(e) => InstallResult::Error(format!("Failed to start update script: {}", e)),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn install_linux(_archive_path: &std::path::Path) -> InstallResult {
+    InstallResult::Error("Linux installation not supported on this platform".to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn find_executable_in_dir(dir: &std::path::Path, name: &str) -> Option<PathBuf> {
+    // First check directly in the directory
+    let direct = dir.join(name);
+    if direct.exists() && direct.is_file() {
+        return Some(direct);
+    }
+
+    // Check subdirectories
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(found) = find_executable_in_dir(&path, name) {
+                    return Some(found);
+                }
+            } else if path.file_name().map(|n| n == name).unwrap_or(false) {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+/// macOS: Open the DMG for manual installation
+fn install_macos(archive_path: &std::path::Path) -> InstallResult {
+    // On macOS, we open the DMG which will mount it
+    // The user needs to drag the app to Applications
+    match open::that(archive_path) {
+        Ok(_) => InstallResult::ManualInstallRequired {
+            message: "The update disk image has been opened. Please drag UltraLog to your Applications folder to complete the update, then restart the application.".to_string(),
+        },
+        Err(e) => InstallResult::Error(format!("Failed to open update file: {}", e)),
+    }
 }
 
 #[cfg(test)]

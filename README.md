@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/SomethingNew71/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.3.0-green.svg)
+![Version](https://img.shields.io/badge/version-1.4.0-green.svg)
 
 ---
 

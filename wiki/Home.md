@@ -53,7 +53,7 @@ UltraLog is a high-performance, cross-platform desktop application for viewing a
 
 ## Version Information
 
-- **Current Version:** 1.3.0
+- **Current Version:** 1.4.0
 - **License:** MIT
 - **Author:** Cole Gentry
 

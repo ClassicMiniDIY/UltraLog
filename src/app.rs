@@ -105,6 +105,8 @@ pub struct UltraLogApp {
     pub(crate) auto_check_updates: bool,
     /// Whether the startup check has been performed
     startup_check_done: bool,
+    /// Set to true when the app should exit for an update to be applied
+    pub(crate) should_exit_for_update: bool,
 }
 
 impl Default for UltraLogApp {
@@ -145,6 +147,7 @@ impl Default for UltraLogApp {
             show_update_dialog: false,
             auto_check_updates: true, // Enabled by default
             startup_check_done: false,
+            should_exit_for_update: false,
         }
     }
 }
@@ -1085,6 +1088,12 @@ impl UltraLogApp {
 
 impl eframe::App for UltraLogApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Exit if update installation requires it (updater script is waiting)
+        if self.should_exit_for_update {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+
         // Check for updates on startup (runs once)
         self.check_startup_update();
 

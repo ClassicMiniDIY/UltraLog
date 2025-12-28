@@ -5,7 +5,7 @@
 use eframe::egui;
 
 use crate::app::UltraLogApp;
-use crate::updater::{UpdateInfo, UpdateState};
+use crate::updater::{InstallResult, UpdateInfo, UpdateState};
 
 impl UltraLogApp {
     /// Render the update available dialog window
@@ -164,23 +164,23 @@ impl UltraLogApp {
 
             ui.add_space(15.0);
 
-            ui.label("Click Install to open the update file.");
+            ui.label("Click Install to apply the update.");
 
             #[cfg(target_os = "windows")]
             ui.label(
-                egui::RichText::new("Extract the ZIP and replace the application.")
+                egui::RichText::new("The application will close and restart automatically.")
                     .color(egui::Color32::GRAY),
             );
 
             #[cfg(target_os = "macos")]
             ui.label(
-                egui::RichText::new("Open the DMG and drag the app to Applications.")
+                egui::RichText::new("The DMG will open - drag UltraLog to Applications.")
                     .color(egui::Color32::GRAY),
             );
 
             #[cfg(target_os = "linux")]
             ui.label(
-                egui::RichText::new("Extract the archive and replace the binary.")
+                egui::RichText::new("The application will close and restart automatically.")
                     .color(egui::Color32::GRAY),
             );
 
@@ -188,14 +188,22 @@ impl UltraLogApp {
 
             ui.horizontal(|ui| {
                 if ui.button("Install Now").clicked() {
-                    if let Err(e) = crate::updater::install_update(path) {
-                        self.show_toast_error(&e);
-                    } else {
-                        self.show_toast_success(
-                            "Update file opened. Follow the installer instructions.",
-                        );
-                        *should_close = true;
-                        self.update_state = UpdateState::Idle;
+                    match crate::updater::install_update(path) {
+                        InstallResult::ReadyToRestart { message } => {
+                            self.show_toast_success(&message);
+                            *should_close = true;
+                            self.update_state = UpdateState::Idle;
+                            // Request app exit so the updater script can run
+                            self.should_exit_for_update = true;
+                        }
+                        InstallResult::ManualInstallRequired { message } => {
+                            self.show_toast_success(&message);
+                            *should_close = true;
+                            self.update_state = UpdateState::Idle;
+                        }
+                        InstallResult::Error(e) => {
+                            self.show_toast_error(&e);
+                        }
                     }
                 }
 
