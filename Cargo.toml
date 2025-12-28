@@ -66,9 +66,6 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
-# Analytics
-posthog-rs = "0.3"
-
 # UUID generation for anonymous user IDs
 uuid = { version = "1.0", features = ["v4"] }
 

@@ -3,12 +3,16 @@
 //! This module provides anonymous usage analytics to help improve UltraLog.
 //! All data is anonymous - we only track feature usage, not personal information.
 
-use posthog_rs::Event;
-use std::sync::OnceLock;
+use serde::Serialize;
+use std::collections::HashMap;
+use std::sync::{mpsc, OnceLock};
 use uuid::Uuid;
 
 /// PostHog API key for UltraLog analytics
 const POSTHOG_API_KEY: &str = "phc_jrZkZhkhoHXknLz7djnuBR8s4tl9mZnR00UAWVl2GHO";
+
+/// PostHog API endpoint
+const POSTHOG_API_URL: &str = "https://us.i.posthog.com/capture/";
 
 /// Application version for tracking
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -16,26 +20,43 @@ const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Global distinct ID for this session
 static DISTINCT_ID: OnceLock<String> = OnceLock::new();
 
-/// Flag to track if global client is initialized
-static INITIALIZED: OnceLock<bool> = OnceLock::new();
+/// Channel sender for the analytics background thread
+static EVENT_SENDER: OnceLock<mpsc::Sender<AnalyticsEvent>> = OnceLock::new();
 
-/// Get or generate the session's distinct ID
-fn get_distinct_id() -> &'static str {
-    DISTINCT_ID.get_or_init(|| Uuid::new_v4().to_string())
+/// Event structure for PostHog API
+#[derive(Serialize, Clone)]
+struct AnalyticsEvent {
+    api_key: &'static str,
+    event: String,
+    distinct_id: String,
+    properties: HashMap<String, serde_json::Value>,
 }
 
-/// Initialize the global PostHog client (call once at startup)
-fn ensure_initialized() {
-    INITIALIZED.get_or_init(|| {
-        // Initialize the global PostHog client using builder pattern
-        if let Ok(options) = posthog_rs::ClientOptionsBuilder::default()
-            .api_key(POSTHOG_API_KEY.to_string())
-            .build()
-        {
-            let _ = posthog_rs::init_global(options);
-        }
-        true
-    });
+/// Get or generate the session's distinct ID
+fn get_distinct_id() -> String {
+    DISTINCT_ID
+        .get_or_init(|| Uuid::new_v4().to_string())
+        .clone()
+}
+
+/// Initialize the analytics background thread
+fn get_sender() -> &'static mpsc::Sender<AnalyticsEvent> {
+    EVENT_SENDER.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<AnalyticsEvent>();
+
+        // Spawn a long-lived background thread that processes events
+        std::thread::spawn(move || {
+            // Process events as they arrive
+            while let Ok(event) = rx.recv() {
+                // Send to PostHog via HTTP POST - ignore errors
+                let _ = ureq::post(POSTHOG_API_URL)
+                    .header("Content-Type", "application/json")
+                    .send_json(&event);
+            }
+        });
+
+        tx
+    })
 }
 
 /// Get the current platform as a string
@@ -54,24 +75,34 @@ fn get_platform() -> &'static str {
 }
 
 /// Create a base event with common properties
-fn create_event(event_name: &str) -> Event {
-    let mut event = Event::new(event_name, get_distinct_id());
+fn create_event(event_name: &str) -> AnalyticsEvent {
+    let mut properties = HashMap::new();
+    properties.insert(
+        "app_version".to_string(),
+        serde_json::Value::String(APP_VERSION.to_string()),
+    );
+    properties.insert(
+        "platform".to_string(),
+        serde_json::Value::String(get_platform().to_string()),
+    );
 
-    // Add common properties
-    let _ = event.insert_prop("app_version", APP_VERSION);
-    let _ = event.insert_prop("platform", get_platform());
-
-    event
+    AnalyticsEvent {
+        api_key: POSTHOG_API_KEY,
+        event: event_name.to_string(),
+        distinct_id: get_distinct_id(),
+        properties,
+    }
 }
 
-/// Capture an event using the global client (fire and forget - errors are silently ignored)
-fn capture_event(event: Event) {
-    ensure_initialized();
-
-    // Spawn in background thread to avoid blocking UI
-    std::thread::spawn(move || {
-        let _ = posthog_rs::capture(event);
-    });
+/// Capture an event (fire and forget - errors are silently ignored)
+fn capture_event(event: AnalyticsEvent) {
+    // Send event to background thread for processing
+    if let Some(sender) = EVENT_SENDER.get() {
+        let _ = sender.send(event);
+    } else {
+        // Initialize on first use and send
+        let _ = get_sender().send(event);
+    }
 }
 
 // ============================================================================
@@ -88,17 +119,14 @@ pub fn track_app_started() {
 pub fn track_file_loaded(ecu_type: &str, file_size_bytes: u64) {
     let mut event = create_event("file_loaded");
 
-    let _ = event.insert_prop("ecu_type", ecu_type);
-    let _ = event.insert_prop("file_size_kb", file_size_bytes / 1024);
-
-    capture_event(event);
-}
-
-/// Track when a channel is selected
-pub fn track_channel_selected(channel_count: usize) {
-    let mut event = create_event("channel_selected");
-
-    let _ = event.insert_prop("total_channels", channel_count);
+    event.properties.insert(
+        "ecu_type".to_string(),
+        serde_json::Value::String(ecu_type.to_string()),
+    );
+    event.properties.insert(
+        "file_size_kb".to_string(),
+        serde_json::json!(file_size_bytes / 1024),
+    );
 
     capture_event(event);
 }
@@ -107,7 +135,10 @@ pub fn track_channel_selected(channel_count: usize) {
 pub fn track_export(format: &str) {
     let mut event = create_event("chart_exported");
 
-    let _ = event.insert_prop("format", format);
+    event.properties.insert(
+        "format".to_string(),
+        serde_json::Value::String(format.to_string()),
+    );
 
     capture_event(event);
 }
@@ -116,7 +147,10 @@ pub fn track_export(format: &str) {
 pub fn track_tool_switched(tool_name: &str) {
     let mut event = create_event("tool_switched");
 
-    let _ = event.insert_prop("tool", tool_name);
+    event.properties.insert(
+        "tool".to_string(),
+        serde_json::Value::String(tool_name.to_string()),
+    );
 
     capture_event(event);
 }
@@ -125,18 +159,9 @@ pub fn track_tool_switched(tool_name: &str) {
 pub fn track_playback_started(speed: f64) {
     let mut event = create_event("playback_started");
 
-    let _ = event.insert_prop("speed", speed);
-
-    capture_event(event);
-}
-
-/// Track unit preference changes
-#[allow(dead_code)]
-pub fn track_unit_changed(unit_category: &str, new_unit: &str) {
-    let mut event = create_event("unit_changed");
-
-    let _ = event.insert_prop("category", unit_category);
-    let _ = event.insert_prop("new_unit", new_unit);
+    event
+        .properties
+        .insert("speed".to_string(), serde_json::json!(speed));
 
     capture_event(event);
 }
@@ -145,7 +170,10 @@ pub fn track_unit_changed(unit_category: &str, new_unit: &str) {
 pub fn track_update_checked(update_available: bool) {
     let mut event = create_event("update_checked");
 
-    let _ = event.insert_prop("update_available", update_available);
+    event.properties.insert(
+        "update_available".to_string(),
+        serde_json::json!(update_available),
+    );
 
     capture_event(event);
 }
@@ -154,17 +182,9 @@ pub fn track_update_checked(update_available: bool) {
 pub fn track_colorblind_mode_toggled(enabled: bool) {
     let mut event = create_event("colorblind_mode_toggled");
 
-    let _ = event.insert_prop("enabled", enabled);
-
-    capture_event(event);
-}
-
-/// Track file format detection errors (helps prioritize new format support)
-#[allow(dead_code)]
-pub fn track_file_format_error(error_type: &str) {
-    let mut event = create_event("file_format_error");
-
-    let _ = event.insert_prop("error_type", error_type);
+    event
+        .properties
+        .insert("enabled".to_string(), serde_json::json!(enabled));
 
     capture_event(event);
 }

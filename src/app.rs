@@ -709,9 +709,6 @@ impl UltraLogApp {
             channel,
             color_index,
         });
-
-        // Track channel selection for analytics
-        analytics::track_channel_selected(self.tabs[tab_idx].selected_channels.len());
     }
 
     /// Remove a channel from the active tab's selection
