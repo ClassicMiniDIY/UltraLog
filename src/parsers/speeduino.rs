@@ -547,3 +547,270 @@ impl Parseable for Speeduino {
         Err("Speeduino/rusEFI MLG files are binary format. Use parse_binary() instead.".into())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ============================================
+    // FieldType Tests
+    // ============================================
+
+    #[test]
+    fn test_field_type_from_u8() {
+        assert!(matches!(FieldType::from_u8(0), Some(FieldType::U08)));
+        assert!(matches!(FieldType::from_u8(1), Some(FieldType::S08)));
+        assert!(matches!(FieldType::from_u8(2), Some(FieldType::U16)));
+        assert!(matches!(FieldType::from_u8(3), Some(FieldType::S16)));
+        assert!(matches!(FieldType::from_u8(4), Some(FieldType::U32)));
+        assert!(matches!(FieldType::from_u8(5), Some(FieldType::S32)));
+        assert!(matches!(FieldType::from_u8(6), Some(FieldType::S64)));
+        assert!(matches!(FieldType::from_u8(7), Some(FieldType::F32)));
+        assert!(matches!(
+            FieldType::from_u8(10),
+            Some(FieldType::U08Bitfield)
+        ));
+        assert!(matches!(
+            FieldType::from_u8(11),
+            Some(FieldType::U16Bitfield)
+        ));
+        assert!(matches!(
+            FieldType::from_u8(12),
+            Some(FieldType::U32Bitfield)
+        ));
+        // Invalid types
+        assert!(FieldType::from_u8(8).is_none());
+        assert!(FieldType::from_u8(9).is_none());
+        assert!(FieldType::from_u8(13).is_none());
+        assert!(FieldType::from_u8(255).is_none());
+    }
+
+    #[test]
+    fn test_field_type_byte_size() {
+        assert_eq!(FieldType::U08.byte_size(), 1);
+        assert_eq!(FieldType::S08.byte_size(), 1);
+        assert_eq!(FieldType::U08Bitfield.byte_size(), 1);
+        assert_eq!(FieldType::U16.byte_size(), 2);
+        assert_eq!(FieldType::S16.byte_size(), 2);
+        assert_eq!(FieldType::U16Bitfield.byte_size(), 2);
+        assert_eq!(FieldType::U32.byte_size(), 4);
+        assert_eq!(FieldType::S32.byte_size(), 4);
+        assert_eq!(FieldType::F32.byte_size(), 4);
+        assert_eq!(FieldType::U32Bitfield.byte_size(), 4);
+        assert_eq!(FieldType::S64.byte_size(), 8);
+    }
+
+    // ============================================
+    // Detection Tests
+    // ============================================
+
+    #[test]
+    fn test_detect_valid_mlg_header() {
+        let valid_header = b"MLVLG\x00\x00\x01";
+        assert!(Speeduino::detect(valid_header));
+    }
+
+    #[test]
+    fn test_detect_invalid_header() {
+        // Wrong magic bytes
+        assert!(!Speeduino::detect(b"WRONG"));
+        assert!(!Speeduino::detect(b"MLV"));
+        assert!(!Speeduino::detect(b""));
+        // Too short
+        assert!(!Speeduino::detect(b"MLVL"));
+        // Completely different format
+        assert!(!Speeduino::detect(b"DataLog"));
+        assert!(!Speeduino::detect(b"%DataLog%"));
+    }
+
+    #[test]
+    fn test_detect_exact_header_length() {
+        // Exactly 5 bytes with correct header should work
+        assert!(Speeduino::detect(b"MLVLG"));
+    }
+
+    // ============================================
+    // SpeeduinoChannel Tests
+    // ============================================
+
+    #[test]
+    fn test_speeduino_channel_unit() {
+        let channel = SpeeduinoChannel {
+            name: "RPM".to_string(),
+            unit: "rpm".to_string(),
+            scale: 1.0,
+            transform: 0.0,
+            field_type: 2,
+        };
+        assert_eq!(channel.unit(), "rpm");
+    }
+
+    // ============================================
+    // Binary Parsing Error Tests
+    // ============================================
+
+    #[test]
+    fn test_parse_binary_invalid_header() {
+        let invalid_data = b"NOT_MLG_FORMAT";
+        let result = Speeduino::parse_binary(invalid_data);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid MLG file header"));
+    }
+
+    #[test]
+    fn test_parse_binary_too_short() {
+        // Valid header but truncated
+        let short_data = b"MLVLG";
+        let result = Speeduino::parse_binary(short_data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_binary_unreasonable_field_count() {
+        // Create a minimal header with unreasonable field count
+        let mut data = Vec::new();
+        data.extend_from_slice(b"MLVLG\x00"); // Header (6 bytes)
+        data.extend_from_slice(&1_i16.to_be_bytes()); // Format version
+        data.extend_from_slice(&0_i32.to_be_bytes()); // Timestamp
+        data.extend_from_slice(&100_u16.to_be_bytes()); // info_data_start
+        data.extend_from_slice(&200_u32.to_be_bytes()); // data_begin_index
+        data.extend_from_slice(&10_u16.to_be_bytes()); // record_length
+        data.extend_from_slice(&5000_u16.to_be_bytes()); // num_fields (unreasonable)
+
+        let result = Speeduino::parse_binary(&data);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unreasonable field count"));
+    }
+
+    // ============================================
+    // Text Parser Error Test
+    // ============================================
+
+    #[test]
+    fn test_text_parser_returns_error() {
+        let parser = Speeduino;
+        let result = parser.parse("some text data");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("binary format"));
+    }
+
+    // ============================================
+    // Integration Test with Example File
+    // ============================================
+
+    #[test]
+    fn test_parse_speeduino_example_file() {
+        // Read the example Speeduino MLG file
+        let file_path = "exampleLogs/speeduino/speeduino.mlg";
+        let data = match std::fs::read(file_path) {
+            Ok(d) => d,
+            Err(_) => {
+                // Skip test if example file is not available
+                eprintln!("Skipping test: {} not found", file_path);
+                return;
+            }
+        };
+
+        // Verify detection
+        assert!(Speeduino::detect(&data), "Should detect as MLG format");
+
+        // Parse the file
+        let log = Speeduino::parse_binary(&data).expect("Should parse successfully");
+
+        // Verify basic structure
+        assert!(!log.channels.is_empty(), "Should have channels");
+        assert!(!log.times.is_empty(), "Should have timestamps");
+        assert!(!log.data.is_empty(), "Should have data records");
+
+        // Verify data integrity
+        assert_eq!(
+            log.times.len(),
+            log.data.len(),
+            "Times and data should have same length"
+        );
+
+        // Verify all records have correct channel count
+        let channel_count = log.channels.len();
+        for (i, record) in log.data.iter().enumerate() {
+            assert_eq!(
+                record.len(),
+                channel_count,
+                "Record {} should have {} values",
+                i,
+                channel_count
+            );
+        }
+
+        // Verify timestamps are monotonically increasing (after wraparound handling)
+        for window in log.times.windows(2) {
+            assert!(
+                window[1] >= window[0],
+                "Timestamps should be monotonically increasing"
+            );
+        }
+
+        // Print some debug info
+        eprintln!("Parsed {} channels", log.channels.len());
+        eprintln!("Parsed {} data records", log.data.len());
+        if !log.times.is_empty() {
+            eprintln!(
+                "Time range: {:.3}s to {:.3}s",
+                log.times[0],
+                log.times[log.times.len() - 1]
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_rusefi_example_file() {
+        // Read the example rusEFI MLG file
+        let file_path = "exampleLogs/rusefi/rusefilog.mlg";
+        let data = match std::fs::read(file_path) {
+            Ok(d) => d,
+            Err(_) => {
+                // Skip test if example file is not available
+                eprintln!("Skipping test: {} not found", file_path);
+                return;
+            }
+        };
+
+        // Verify detection
+        assert!(Speeduino::detect(&data), "Should detect as MLG format");
+
+        // Parse the file
+        let log = Speeduino::parse_binary(&data).expect("Should parse successfully");
+
+        // Verify basic structure
+        assert!(!log.channels.is_empty(), "Should have channels");
+        assert!(!log.times.is_empty(), "Should have timestamps");
+        assert!(!log.data.is_empty(), "Should have data records");
+
+        // Verify data integrity
+        assert_eq!(
+            log.times.len(),
+            log.data.len(),
+            "Times and data should have same length"
+        );
+
+        // Verify channel names are parsed correctly (not empty/garbage)
+        for channel in &log.channels {
+            let name = channel.name();
+            assert!(!name.is_empty(), "Channel name should not be empty");
+            // Check that name contains printable characters
+            assert!(
+                name.chars().all(|c| c.is_ascii_graphic() || c == ' '),
+                "Channel name should contain valid characters: {}",
+                name
+            );
+        }
+
+        eprintln!("Parsed {} channels from rusEFI log", log.channels.len());
+        eprintln!("Parsed {} data records", log.data.len());
+    }
+}

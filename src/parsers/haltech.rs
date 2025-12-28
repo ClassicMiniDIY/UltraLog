@@ -73,7 +73,7 @@ pub enum ChannelType {
 
 impl ChannelType {
     /// Convert raw value to human-readable unit based on Haltech CAN protocol spec
-    /// Reference: https://support.haltech.com/portal/en/kb/articles/haltech-can-ecu-broadcast-protocol
+    /// Reference: <https://support.haltech.com/portal/en/kb/articles/haltech-can-ecu-broadcast-protocol>
     pub fn convert_value(&self, raw: f64) -> f64 {
         match self {
             // RPM: y = x (no conversion)
