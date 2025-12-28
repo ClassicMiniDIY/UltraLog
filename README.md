@@ -5,7 +5,7 @@
 A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/SomethingNew71/UltraLog/actions/workflows/ci.yml/badge.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Version](https://img.shields.io/badge/version-1.4.0-green.svg)
 
 ---
@@ -488,7 +488,7 @@ UltraLog/
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0) - see the [LICENSE](LICENSE.md) file for details.
 
 ---
 

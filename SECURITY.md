@@ -212,4 +212,4 @@ For security concerns, contact the maintainer:
 
 ## License
 
-This security policy is part of the UltraLog project and is covered under the MIT License.
+This security policy is part of the UltraLog project and is covered under the GNU Affero General Public License v3.0 (AGPL-3.0).

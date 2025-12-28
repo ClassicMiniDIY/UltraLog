@@ -12,7 +12,7 @@ UltraLog is a high-performance, cross-platform desktop application for viewing a
 
 ### Is UltraLog free?
 
-Yes, UltraLog is free and open source under the MIT license. You can use it for personal or commercial purposes.
+Yes, UltraLog is free and open source under the AGPL-3.0 license. You can use it for personal or commercial purposes, with the requirement that modifications must be shared under the same license.
 
 ### What platforms does UltraLog support?
 
@@ -212,7 +212,7 @@ UltraLog is written in Rust using the egui/eframe GUI framework.
 
 ### Is UltraLog open source?
 
-Yes, UltraLog is open source under the MIT license. The source code is available at [GitHub](https://github.com/SomethingNew71/UltraLog).
+Yes, UltraLog is open source under the AGPL-3.0 license. The source code is available at [GitHub](https://github.com/SomethingNew71/UltraLog).
 
 ### Can I contribute to UltraLog?
 
