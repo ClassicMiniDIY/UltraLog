@@ -8,7 +8,14 @@
       "Bash(cargo build:*)",
       "Bash(cargo test:*)",
       "Bash(cargo fmt:*)",
-      "Bash(cargo clippy:*)"
+      "Bash(cargo clippy:*)",
+      "Bash(cargo install:*)",
+      "Bash(cargo tarpaulin:*)",
+      "Bash(RUSTDOCFLAGS=\"-D warnings\" cargo doc:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)"
     ]
   }
 }
