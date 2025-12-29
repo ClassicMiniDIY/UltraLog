@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 
 // Import from the library
-use ultralog::parsers::{EcuMaster, EcuType, Haltech, Parseable};
+use ultralog::parsers::{EcuMaster, EcuType, Haltech, Link, Parseable, Speeduino};
 
 fn main() {
     // Get file path from command line or use default
@@ -14,30 +14,58 @@ fn main() {
     };
 
     println!("Reading file: {}", path);
-    let contents = fs::read_to_string(path).expect("Failed to read file");
-    println!("File size: {} bytes", contents.len());
+    let binary_data = fs::read(path).expect("Failed to read file");
+    println!("File size: {} bytes", binary_data.len());
 
-    // Auto-detect file format
-    let (ecu_type, log) = if EcuMaster::detect(&contents) {
-        println!("\nDetected: ECUMaster format");
-        println!("Parsing ECUMaster log...");
-        let parser = EcuMaster;
-        match parser.parse(&contents) {
-            Ok(log) => (EcuType::EcuMaster, log),
+    // Auto-detect file format - try binary formats first
+    let (ecu_type, log) = if Speeduino::detect(&binary_data) {
+        println!("\nDetected: Speeduino/rusEFI MLG format");
+        println!("Parsing Speeduino/rusEFI log...");
+        match Speeduino::parse_binary(&binary_data) {
+            Ok(log) => (EcuType::Speeduino, log),
+            Err(e) => {
+                eprintln!("Parse error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else if Link::detect(&binary_data) {
+        println!("\nDetected: Link ECU LLG format");
+        println!("Parsing Link ECU log...");
+        match Link::parse_binary(&binary_data) {
+            Ok(log) => (EcuType::Link, log),
             Err(e) => {
                 eprintln!("Parse error: {}", e);
                 std::process::exit(1);
             }
         }
     } else {
-        println!("\nDetected: Haltech format");
-        println!("Parsing Haltech log...");
-        let parser = Haltech;
-        match parser.parse(&contents) {
-            Ok(log) => (EcuType::Haltech, log),
-            Err(e) => {
-                eprintln!("Parse error: {}", e);
-                std::process::exit(1);
+        // Try text-based formats
+        let contents = match std::str::from_utf8(&binary_data) {
+            Ok(c) => c.to_string(),
+            Err(_) => String::from_utf8_lossy(&binary_data).to_string(),
+        };
+
+        if EcuMaster::detect(&contents) {
+            println!("\nDetected: ECUMaster format");
+            println!("Parsing ECUMaster log...");
+            let parser = EcuMaster;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::EcuMaster, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            println!("\nDetected: Haltech format");
+            println!("Parsing Haltech log...");
+            let parser = Haltech;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::Haltech, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
     };

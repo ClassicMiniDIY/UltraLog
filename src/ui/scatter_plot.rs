@@ -352,7 +352,9 @@ impl UltraLogApp {
         let cell_height = plot_rect.height() / HEATMAP_BINS as f32;
 
         // Draw heatmap cells
+        #[allow(clippy::needless_range_loop)]
         for y_bin in 0..HEATMAP_BINS {
+            #[allow(clippy::needless_range_loop)]
             for x_bin in 0..HEATMAP_BINS {
                 let hits = histogram[y_bin][x_bin];
                 if hits > 0 {
@@ -445,7 +447,7 @@ impl UltraLogApp {
             let sel_rel_x = ((selected.x_value - x_min) / x_range) as f32;
             let sel_rel_y = ((selected.y_value - y_min) / y_range) as f32;
 
-            if sel_rel_x >= 0.0 && sel_rel_x <= 1.0 && sel_rel_y >= 0.0 && sel_rel_y <= 1.0 {
+            if (0.0..=1.0).contains(&sel_rel_x) && (0.0..=1.0).contains(&sel_rel_y) {
                 let sel_x = plot_rect.left() + sel_rel_x * plot_rect.width();
                 let sel_y = plot_rect.bottom() - sel_rel_y * plot_rect.height();
 
@@ -478,7 +480,7 @@ impl UltraLogApp {
                 let rel_x = (pos.x - plot_rect.left()) / plot_rect.width();
                 let rel_y = 1.0 - (pos.y - plot_rect.top()) / plot_rect.height();
 
-                if rel_x >= 0.0 && rel_x <= 1.0 && rel_y >= 0.0 && rel_y <= 1.0 {
+                if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
                     let x_val = x_min + rel_x as f64 * x_range;
                     let y_val = y_min + rel_y as f64 * y_range;
 
@@ -554,6 +556,7 @@ impl UltraLogApp {
     }
 
     /// Render the heatmap legend with color scale and selected point info
+    #[allow(clippy::too_many_arguments)]
     fn render_heatmap_legend(
         &mut self,
         ui: &mut egui::Ui,

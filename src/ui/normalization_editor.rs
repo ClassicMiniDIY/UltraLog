@@ -27,14 +27,14 @@ impl UltraLogApp {
                 ui.horizontal(|ui| {
                     ui.heading("Field Name Mappings");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if !self.custom_normalizations.is_empty() {
-                            if ui.button("Reset to Defaults").clicked() {
-                                self.custom_normalizations.clear();
-                                self.norm_editor_extend_source.clear();
-                                self.norm_editor_selected_target = None;
-                                self.norm_editor_custom_source.clear();
-                                self.norm_editor_custom_target.clear();
-                            }
+                        if !self.custom_normalizations.is_empty()
+                            && ui.button("Reset to Defaults").clicked()
+                        {
+                            self.custom_normalizations.clear();
+                            self.norm_editor_extend_source.clear();
+                            self.norm_editor_selected_target = None;
+                            self.norm_editor_custom_source.clear();
+                            self.norm_editor_custom_target.clear();
                         }
                     });
                 });
@@ -83,15 +83,15 @@ impl UltraLogApp {
                             }
                         });
 
-                    if ui.button("Add").clicked() {
-                        if !self.norm_editor_extend_source.is_empty() {
-                            if let Some(target) = &self.norm_editor_selected_target {
-                                self.custom_normalizations.insert(
-                                    self.norm_editor_extend_source.to_lowercase(),
-                                    target.clone(),
-                                );
-                                self.norm_editor_extend_source.clear();
-                            }
+                    if ui.button("Add").clicked()
+                        && !self.norm_editor_extend_source.is_empty()
+                    {
+                        if let Some(target) = &self.norm_editor_selected_target {
+                            self.custom_normalizations.insert(
+                                self.norm_editor_extend_source.to_lowercase(),
+                                target.clone(),
+                            );
+                            self.norm_editor_extend_source.clear();
                         }
                     }
                 });
@@ -124,17 +124,16 @@ impl UltraLogApp {
                             .hint_text("e.g., Custom Sensor")
                             .desired_width(150.0),
                     );
-                    if ui.button("Add").clicked() {
-                        if !self.norm_editor_custom_source.is_empty()
-                            && !self.norm_editor_custom_target.is_empty()
-                        {
-                            self.custom_normalizations.insert(
-                                self.norm_editor_custom_source.to_lowercase(),
-                                self.norm_editor_custom_target.clone(),
-                            );
-                            self.norm_editor_custom_source.clear();
-                            self.norm_editor_custom_target.clear();
-                        }
+                    if ui.button("Add").clicked()
+                        && !self.norm_editor_custom_source.is_empty()
+                        && !self.norm_editor_custom_target.is_empty()
+                    {
+                        self.custom_normalizations.insert(
+                            self.norm_editor_custom_source.to_lowercase(),
+                            self.norm_editor_custom_target.clone(),
+                        );
+                        self.norm_editor_custom_source.clear();
+                        self.norm_editor_custom_target.clear();
                     }
                 });
 
