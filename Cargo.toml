@@ -40,6 +40,12 @@ regex = "1.12"
 strum = { version = "0.27", features = ["derive"] }
 rayon = "1.11"  # Parallel iteration for parsing
 
+# Expression evaluation (for computed channels)
+meval = "0.2"
+
+# Platform-specific directories
+dirs = "5.0"
+
 # File handling
 rfd = "0.16"  # Native file dialogs
 open = "5"    # Open URLs in default browser

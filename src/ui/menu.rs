@@ -401,6 +401,24 @@ impl UltraLogApp {
                 });
             });
 
+            // Channels menu
+            ui.menu_button("Channels", |ui| {
+                ui.set_min_width(200.0);
+
+                // Increase font size for dropdown items
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+
+                if ui.button("ƒ(x)  Computed Channels...").clicked() {
+                    self.show_computed_channels_manager = true;
+                    ui.close();
+                }
+            });
+
             ui.menu_button("Help", |ui| {
                 ui.set_min_width(200.0);
 

@@ -21,6 +21,17 @@ pub enum Meta {
     Empty,
 }
 
+/// Information for a computed channel
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ComputedChannelInfo {
+    /// Display name for the channel
+    pub name: String,
+    /// The formula expression
+    pub formula: String,
+    /// Unit to display
+    pub unit: String,
+}
+
 /// Channel enum supporting different ECU formats
 #[derive(Clone, Debug)]
 pub enum Channel {
@@ -30,6 +41,8 @@ pub enum Channel {
     Link(LinkChannel),
     RomRaider(RomRaiderChannel),
     Speeduino(SpeeduinoChannel),
+    /// A computed/virtual channel derived from a formula
+    Computed(ComputedChannelInfo),
 }
 
 impl Serialize for Channel {
@@ -44,6 +57,7 @@ impl Serialize for Channel {
             Channel::Link(l) => l.serialize(serializer),
             Channel::RomRaider(r) => r.serialize(serializer),
             Channel::Speeduino(s) => s.serialize(serializer),
+            Channel::Computed(c) => c.serialize(serializer),
         }
     }
 }
@@ -57,6 +71,7 @@ impl Channel {
             Channel::Link(l) => l.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
+            Channel::Computed(c) => c.name.clone(),
         }
     }
 
@@ -69,6 +84,7 @@ impl Channel {
             Channel::Link(l) => l.channel_id.to_string(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
+            Channel::Computed(c) => format!("computed_{}", c.name),
         }
     }
 
@@ -80,6 +96,7 @@ impl Channel {
             Channel::Link(_) => "Link".to_string(),
             Channel::RomRaider(_) => "RomRaider".to_string(),
             Channel::Speeduino(_) => "Speeduino/rusEFI".to_string(),
+            Channel::Computed(_) => "Computed".to_string(),
         }
     }
 
@@ -91,6 +108,7 @@ impl Channel {
             Channel::Link(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
+            Channel::Computed(_) => None,
         }
     }
 
@@ -102,6 +120,7 @@ impl Channel {
             Channel::Link(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
+            Channel::Computed(_) => None,
         }
     }
 
@@ -113,7 +132,13 @@ impl Channel {
             Channel::Link(l) => l.unit(),
             Channel::RomRaider(r) => r.unit(),
             Channel::Speeduino(s) => s.unit(),
+            Channel::Computed(c) => &c.unit,
         }
+    }
+
+    /// Check if this is a computed channel
+    pub fn is_computed(&self) -> bool {
+        matches!(self, Channel::Computed(_))
     }
 }
 
