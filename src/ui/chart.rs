@@ -38,7 +38,8 @@ impl UltraLogApp {
             if !self.downsample_cache.contains_key(&cache_key) {
                 let file = &self.files[selected.file_index];
                 let times = file.log.get_times_as_f64();
-                let data = file.log.get_channel_data(selected.channel_index);
+                // Use app method to get channel data (handles both regular and computed channels)
+                let data = self.get_channel_data(selected.file_index, selected.channel_index);
 
                 if times.len() == data.len() && !times.is_empty() {
                     let downsampled = Self::downsample_lttb(times, &data, MAX_CHART_POINTS);

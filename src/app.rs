@@ -12,7 +12,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::analytics;
-
+use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
 use crate::state::{
     ActiveTool, CacheKey, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
@@ -109,6 +109,15 @@ pub struct UltraLogApp {
     startup_check_done: bool,
     /// Set to true when the app should exit for an update to be applied
     pub(crate) should_exit_for_update: bool,
+    // === Computed Channels ===
+    /// Global library of computed channel templates
+    pub(crate) computed_library: ComputedChannelLibrary,
+    /// Computed channels applied per file (file_index -> Vec<ComputedChannel>)
+    pub(crate) file_computed_channels: HashMap<usize, Vec<ComputedChannel>>,
+    /// Whether to show the computed channels manager dialog
+    pub(crate) show_computed_channels_manager: bool,
+    /// State for the formula editor dialog
+    pub(crate) formula_editor_state: FormulaEditorState,
 }
 
 impl Default for UltraLogApp {
@@ -150,6 +159,10 @@ impl Default for UltraLogApp {
             auto_check_updates: true, // Enabled by default
             startup_check_done: false,
             should_exit_for_update: false,
+            computed_library: ComputedChannelLibrary::load(),
+            file_computed_channels: HashMap::new(),
+            show_computed_channels_manager: false,
+            formula_editor_state: FormulaEditorState::default(),
         }
     }
 }
@@ -533,23 +546,68 @@ impl UltraLogApp {
         }
     }
 
-    /// Get value at a specific record index for a channel
+    /// Get value at a specific record index for a channel (handles computed channels)
     pub fn get_value_at_record(
         &self,
         file_index: usize,
         channel_index: usize,
         record: usize,
     ) -> Option<f64> {
-        if file_index < self.files.len() {
-            let file = &self.files[file_index];
+        if file_index >= self.files.len() {
+            return None;
+        }
+
+        let file = &self.files[file_index];
+        let regular_count = file.log.channels.len();
+
+        if channel_index < regular_count {
+            // Regular channel
             if record < file.log.data.len() && channel_index < file.log.data[record].len() {
                 return Some(file.log.data[record][channel_index].as_f64());
+            }
+        } else {
+            // Computed channel
+            let computed_idx = channel_index - regular_count;
+            if let Some(computed_channels) = self.file_computed_channels.get(&file_index) {
+                if let Some(computed) = computed_channels.get(computed_idx) {
+                    if let Some(cached_data) = &computed.cached_data {
+                        if record < cached_data.len() {
+                            return Some(cached_data[record]);
+                        }
+                    }
+                }
             }
         }
         None
     }
 
-    /// Get min and max values for a channel across all records (cached)
+    /// Get all data for a channel (handles computed channels)
+    pub fn get_channel_data(&self, file_index: usize, channel_index: usize) -> Vec<f64> {
+        if file_index >= self.files.len() {
+            return Vec::new();
+        }
+
+        let file = &self.files[file_index];
+        let regular_count = file.log.channels.len();
+
+        if channel_index < regular_count {
+            // Regular channel
+            file.log.get_channel_data(channel_index)
+        } else {
+            // Computed channel
+            let computed_idx = channel_index - regular_count;
+            if let Some(computed_channels) = self.file_computed_channels.get(&file_index) {
+                if let Some(computed) = computed_channels.get(computed_idx) {
+                    if let Some(cached_data) = &computed.cached_data {
+                        return cached_data.clone();
+                    }
+                }
+            }
+            Vec::new()
+        }
+    }
+
+    /// Get min and max values for a channel across all records (cached, handles computed channels)
     pub fn get_channel_min_max(
         &mut self,
         file_index: usize,
@@ -568,9 +626,8 @@ impl UltraLogApp {
             return Some(cached);
         }
 
-        // Compute min/max
-        let file = &self.files[file_index];
-        let data = file.log.get_channel_data(channel_index);
+        // Compute min/max (handles both regular and computed channels)
+        let data = self.get_channel_data(file_index, channel_index);
 
         if data.is_empty() {
             return None;
@@ -636,6 +693,18 @@ impl UltraLogApp {
                 }
             }
             self.minmax_cache = new_minmax_cache;
+
+            // Clear computed channels for this file and update indices
+            self.file_computed_channels.remove(&index);
+            let mut new_computed_channels = HashMap::new();
+            for (key, value) in self.file_computed_channels.drain() {
+                if key > index {
+                    new_computed_channels.insert(key - 1, value);
+                } else {
+                    new_computed_channels.insert(key, value);
+                }
+            }
+            self.file_computed_channels = new_computed_channels;
 
             // Update file indices for remaining tabs and their channels
             for tab in &mut self.tabs {
@@ -904,6 +973,81 @@ impl UltraLogApp {
     }
 
     // ========================================================================
+    // Computed Channels
+    // ========================================================================
+
+    /// Get the list of available channel names for the active file
+    pub fn get_available_channel_names(&self) -> Vec<String> {
+        if let Some(tab_idx) = self.active_tab {
+            let file_idx = self.tabs[tab_idx].file_index;
+            if file_idx < self.files.len() {
+                return self.files[file_idx]
+                    .log
+                    .channels
+                    .iter()
+                    .map(|c| c.name())
+                    .collect();
+            }
+        }
+        Vec::new()
+    }
+
+    /// Get computed channels for the active file
+    pub fn get_file_computed_channels(&self) -> &[ComputedChannel] {
+        if let Some(tab_idx) = self.active_tab {
+            let file_idx = self.tabs[tab_idx].file_index;
+            if let Some(channels) = self.file_computed_channels.get(&file_idx) {
+                return channels;
+            }
+        }
+        &[]
+    }
+
+    /// Get mutable computed channels for the active file
+    pub fn get_file_computed_channels_mut(&mut self) -> Option<&mut Vec<ComputedChannel>> {
+        if let Some(tab_idx) = self.active_tab {
+            let file_idx = self.tabs[tab_idx].file_index;
+            return self.file_computed_channels.get_mut(&file_idx);
+        }
+        None
+    }
+
+    /// Add a computed channel to the active file
+    pub fn add_computed_channel(&mut self, computed: ComputedChannel) {
+        let Some(tab_idx) = self.active_tab else {
+            self.show_toast_warning("No active tab");
+            return;
+        };
+
+        let file_idx = self.tabs[tab_idx].file_index;
+        self.file_computed_channels
+            .entry(file_idx)
+            .or_default()
+            .push(computed);
+    }
+
+    /// Remove a computed channel from the active file
+    pub fn remove_computed_channel(&mut self, index: usize) {
+        if let Some(tab_idx) = self.active_tab {
+            let file_idx = self.tabs[tab_idx].file_index;
+            if let Some(channels) = self.file_computed_channels.get_mut(&file_idx) {
+                if index < channels.len() {
+                    channels.remove(index);
+                }
+            }
+        }
+    }
+
+    /// Save the computed channel library to disk
+    pub fn save_computed_library(&mut self) {
+        if let Err(e) = self.computed_library.save() {
+            self.show_toast_error(&format!("Failed to save library: {}", e));
+        } else {
+            self.show_toast_success("Library saved");
+        }
+    }
+
+    // ========================================================================
     // Auto-Update System
     // ========================================================================
 
@@ -1149,6 +1293,8 @@ impl eframe::App for UltraLogApp {
         // Modal windows
         self.render_normalization_editor(ctx);
         self.render_update_dialog(ctx);
+        self.render_computed_channels_manager(ctx);
+        self.render_formula_editor(ctx);
 
         // Menu bar at top with padding
         let menu_frame = egui::Frame::NONE.inner_margin(egui::Margin {

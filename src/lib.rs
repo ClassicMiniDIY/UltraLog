@@ -23,6 +23,8 @@
 
 pub mod analytics;
 pub mod app;
+pub mod computed;
+pub mod expression;
 pub mod normalize;
 pub mod parsers;
 pub mod state;

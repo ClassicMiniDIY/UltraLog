@@ -17,7 +17,9 @@
 
 pub mod channels;
 pub mod chart;
+pub mod computed_channels_manager;
 pub mod export;
+pub mod formula_editor;
 pub mod icons;
 pub mod menu;
 pub mod normalization_editor;
