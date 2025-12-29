@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# Pre-commit hook that runs cargo fmt to check formatting
+# Install with: git config core.hooksPath .githooks
+
+set -e
+
+echo "Running cargo fmt --check..."
+
+if ! cargo fmt --all -- --check; then
+    echo ""
+    echo "ERROR: Code is not formatted correctly."
+    echo "Run 'cargo fmt' to fix formatting issues."
+    echo ""
+    exit 1
+fi
+
+echo "Formatting check passed!"

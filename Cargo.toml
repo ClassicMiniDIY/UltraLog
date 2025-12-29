@@ -84,6 +84,10 @@ winresource = "0.1"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 
+[dev-dependencies]
+# Note: cargo-tarpaulin is installed as a cargo subcommand, not a library dependency
+# Run coverage with: cargo tarpaulin --out Html --exclude-files "src/ui/*" "src/main.rs"
+
 [profile.release]
 opt-level = 3
 lto = true

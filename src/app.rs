@@ -112,7 +112,7 @@ pub struct UltraLogApp {
     // === Computed Channels ===
     /// Global library of computed channel templates
     pub(crate) computed_library: ComputedChannelLibrary,
-    /// Computed channels applied per file (file_index -> Vec<ComputedChannel>)
+    /// Computed channels applied per file (file_index -> `Vec<ComputedChannel>`)
     pub(crate) file_computed_channels: HashMap<usize, Vec<ComputedChannel>>,
     /// Whether to show the computed channels manager dialog
     pub(crate) show_computed_channels_manager: bool,
