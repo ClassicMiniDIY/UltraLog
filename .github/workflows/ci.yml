@@ -165,6 +165,8 @@ jobs:
 
       - name: Run tests
         run: cargo test --all-features -- --nocapture
+        env:
+          LD_LIBRARY_PATH: /usr/lib/x86_64-linux-gnu:${{ github.workspace }}/target/debug/build
 
   # ============================================
   # Build - Verify release builds work
