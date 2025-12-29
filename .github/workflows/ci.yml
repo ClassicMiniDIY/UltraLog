@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
 
 env:
   CARGO_TERM_COLOR: always
@@ -46,6 +46,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "lint"
 
       - name: Install Linux dependencies
         run: |
@@ -110,6 +115,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-${{ matrix.os }}"
+
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -133,32 +143,25 @@ jobs:
             libx11-xcb-dev \
             libxml2-dev
 
+      - name: Cache vcpkg
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
       - name: Install Windows dependencies (vcpkg)
         if: matrix.os == 'windows-latest'
         run: |
-          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-          C:\vcpkg\bootstrap-vcpkg.bat
+          if (!(Test-Path C:\vcpkg)) {
+            git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+            C:\vcpkg\bootstrap-vcpkg.bat
+          }
           C:\vcpkg\vcpkg install libxml2:x64-windows
           echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
           echo "C:\vcpkg\installed\x64-windows\bin" >> $env:GITHUB_PATH
-
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      - name: Cache Cargo build
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-test-
 
       - name: Run cargo check
         run: cargo check --all-targets
@@ -188,6 +191,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "build-${{ matrix.os }}"
+
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -211,32 +219,25 @@ jobs:
             libx11-xcb-dev \
             libxml2-dev
 
+      - name: Cache vcpkg
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
       - name: Install Windows dependencies (vcpkg)
         if: matrix.os == 'windows-latest'
         run: |
-          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-          C:\vcpkg\bootstrap-vcpkg.bat
+          if (!(Test-Path C:\vcpkg)) {
+            git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+            C:\vcpkg\bootstrap-vcpkg.bat
+          }
           C:\vcpkg\vcpkg install libxml2:x64-windows
           echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
           echo "C:\vcpkg\installed\x64-windows\bin" >> $env:GITHUB_PATH
-
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      - name: Cache Cargo build
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-release-
 
       - name: Build release binary
         run: cargo build --release
@@ -266,6 +267,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "docs"
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -287,16 +293,6 @@ jobs:
             libxcb-xkb-dev \
             libx11-xcb-dev \
             libxml2-dev
-
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
 
       - name: Build documentation
         run: cargo doc --no-deps --all-features

@@ -247,19 +247,8 @@ impl UltraLogApp {
             Err(e) => return LoadResult::Error(format!("Failed to read file metadata: {}", e)),
         };
 
-        // Check for Link .llg format - proprietary format (check by extension since header varies)
-        if let Some(ext) = path.extension() {
-            if ext.to_string_lossy().to_lowercase() == "llg" {
-                return LoadResult::Error(
-                    "This is a Link .llg file which uses a proprietary format.\n\n\
-                    To use this log in UltraLog, please export it as CSV from Link's software:\n\
-                    1. Open the .llg file in PCLink or G4+ software\n\
-                    2. Go to File → Export → CSV\n\
-                    3. Load the exported .csv file in UltraLog"
-                        .to_string(),
-                );
-            }
-        }
+        // Link .llg files are now supported via the Link parser
+        // No need to reject them early - let the parser handle detection
 
         // Load file data - use mmap for large files, regular read for small files
         let (log, ecu_type) = if file_size > MMAP_THRESHOLD {
