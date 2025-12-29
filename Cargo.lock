@@ -3550,7 +3550,7 @@ dependencies = [
 
 [[package]]
 name = "ultralog"
-version = "1.4.1"
+version = "1.4.3"
 dependencies = [
  "anyhow",
  "eframe",
