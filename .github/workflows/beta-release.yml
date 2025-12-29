@@ -50,7 +50,8 @@ jobs:
             libxcb1-dev \
             libxcb-randr0-dev \
             libxcb-xkb-dev \
-            libx11-xcb-dev
+            libx11-xcb-dev \
+            libxml2-dev
 
       - name: Build release binary
         run: cargo build --release --target x86_64-unknown-linux-gnu

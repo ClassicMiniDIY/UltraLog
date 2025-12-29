@@ -465,6 +465,13 @@ impl Aim {
     }
 
     /// Find a byte pattern in data starting from offset
+    #[cfg(any(
+        not(all(
+            any(target_os = "windows", target_os = "linux"),
+            target_arch = "x86_64"
+        )),
+        test
+    ))]
     fn find_pattern(data: &[u8], pattern: &[u8], start: usize) -> Option<usize> {
         if start >= data.len() || pattern.is_empty() {
             return None;
@@ -479,6 +486,13 @@ impl Aim {
     }
 
     /// Read a null-terminated string from a byte slice, up to max_len bytes
+    #[cfg(any(
+        not(all(
+            any(target_os = "windows", target_os = "linux"),
+            target_arch = "x86_64"
+        )),
+        test
+    ))]
     fn read_null_terminated_string(data: &[u8], max_len: usize) -> String {
         let max = max_len.min(data.len());
         let end = data[..max].iter().position(|&b| b == 0).unwrap_or(max);
