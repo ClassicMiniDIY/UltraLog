@@ -5,8 +5,7 @@
 
 use std::collections::HashMap;
 use ultralog::computed::{
-    ComputedChannel, ComputedChannelLibrary, ComputedChannelTemplate, FormulaEditorState,
-    TimeShift,
+    ComputedChannel, ComputedChannelLibrary, ComputedChannelTemplate, FormulaEditorState, TimeShift,
 };
 use ultralog::expression::{
     build_channel_bindings, evaluate_all_records, extract_channel_references, generate_preview,
@@ -99,7 +98,9 @@ fn test_extract_mixed_time_shifts() {
     assert_eq!(refs.len(), 3);
 
     // Find each reference by name and time shift
-    let rpm_current = refs.iter().find(|r| r.name == "RPM" && r.time_shift == TimeShift::None);
+    let rpm_current = refs
+        .iter()
+        .find(|r| r.name == "RPM" && r.time_shift == TimeShift::None);
     let rpm_prev = refs
         .iter()
         .find(|r| r.name == "RPM" && r.time_shift == TimeShift::IndexOffset(-1));
@@ -280,10 +281,7 @@ fn test_evaluate_multiplication() {
 
 #[test]
 fn test_evaluate_with_constants() {
-    let data = vec![
-        vec![Value::Float(100.0)],
-        vec![Value::Float(200.0)],
-    ];
+    let data = vec![vec![Value::Float(100.0)], vec![Value::Float(200.0)]];
     let times = vec![0.0, 0.1];
     let mut bindings = HashMap::new();
     bindings.insert("X".to_string(), 0);
@@ -446,11 +444,7 @@ fn test_generate_preview() {
 
 #[test]
 fn test_build_channel_bindings() {
-    let channels = vec![
-        "RPM".to_string(),
-        "Boost".to_string(),
-        "TPS".to_string(),
-    ];
+    let channels = vec!["RPM".to_string(), "Boost".to_string(), "TPS".to_string()];
     let refs = extract_channel_references("RPM + Boost");
     let bindings = build_channel_bindings(&refs, &channels).unwrap();
 

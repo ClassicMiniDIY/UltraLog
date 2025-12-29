@@ -124,7 +124,9 @@ impl UltraLogApp {
                                                     } else {
                                                         name.clone()
                                                     };
-                                                    self.formula_editor_state.formula.push_str(&insert);
+                                                    self.formula_editor_state
+                                                        .formula
+                                                        .push_str(&insert);
                                                     self.validate_current_formula();
                                                 }
                                             }

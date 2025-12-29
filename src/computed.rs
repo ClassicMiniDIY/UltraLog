@@ -206,7 +206,9 @@ impl ComputedChannelLibrary {
         let path = match Self::get_library_path() {
             Some(p) => p,
             None => {
-                tracing::warn!("Could not determine config directory for computed channels library");
+                tracing::warn!(
+                    "Could not determine config directory for computed channels library"
+                );
                 return Self::new();
             }
         };

@@ -437,8 +437,7 @@ impl UltraLogApp {
         let file = &self.files[file_idx];
 
         // Get available channel names
-        let available_channels: Vec<String> =
-            file.log.channels.iter().map(|c| c.name()).collect();
+        let available_channels: Vec<String> = file.log.channels.iter().map(|c| c.name()).collect();
 
         // Extract channel references and build bindings
         let refs = extract_channel_references(&template.formula);
@@ -451,14 +450,18 @@ impl UltraLogApp {
         };
 
         // Evaluate the formula
-        let cached_data =
-            match evaluate_all_records(&template.formula, &bindings, &file.log.data, &file.log.times) {
-                Ok(data) => Some(data),
-                Err(e) => {
-                    self.show_toast_error(&format!("Evaluation failed: {}", e));
-                    return;
-                }
-            };
+        let cached_data = match evaluate_all_records(
+            &template.formula,
+            &bindings,
+            &file.log.data,
+            &file.log.times,
+        ) {
+            Ok(data) => Some(data),
+            Err(e) => {
+                self.show_toast_error(&format!("Evaluation failed: {}", e));
+                return;
+            }
+        };
 
         // Create the computed channel
         let mut channel = ComputedChannel::from_template(template.clone());

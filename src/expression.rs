@@ -13,8 +13,7 @@ use std::sync::LazyLock;
 /// Regex for parsing quoted channel references with optional time shifts
 /// Pattern: "Channel Name" (anything in quotes) with optional time shift
 static QUOTED_CHANNEL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#""([^"]+)"(?:\[([+-]?\d+)\]|@([+-]?\d+\.?\d*)s)?"#)
-        .expect("Invalid regex pattern")
+    Regex::new(r#""([^"]+)"(?:\[([+-]?\d+)\]|@([+-]?\d+\.?\d*)s)?"#).expect("Invalid regex pattern")
 });
 
 /// Regex for parsing unquoted channel references with optional time shifts
@@ -181,7 +180,12 @@ fn sanitize_var_name(full_match: &str) -> String {
         .map(|c| if c.is_alphanumeric() { c } else { '_' })
         .collect();
 
-    if sanitized.chars().next().map(|c| c.is_numeric()).unwrap_or(true) {
+    if sanitized
+        .chars()
+        .next()
+        .map(|c| c.is_numeric())
+        .unwrap_or(true)
+    {
         format!("v_{}", sanitized)
     } else {
         sanitized
@@ -302,7 +306,10 @@ fn find_record_at_time(times: &[f64], target_time: f64) -> usize {
     );
 
     // Binary search for closest time
-    match times.binary_search_by(|t| t.partial_cmp(&clamped_time).unwrap_or(std::cmp::Ordering::Equal)) {
+    match times.binary_search_by(|t| {
+        t.partial_cmp(&clamped_time)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }) {
         Ok(idx) => idx,
         Err(idx) => {
             // idx is where we'd insert to maintain order
