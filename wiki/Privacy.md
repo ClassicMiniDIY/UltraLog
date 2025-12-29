@@ -6,7 +6,7 @@ UltraLog respects your privacy while collecting minimal, anonymous usage data to
 
 ## Overview
 
-Starting with version 1.5.0, UltraLog includes optional anonymous analytics powered by [PostHog](https://posthog.com/). This data helps the development team understand how the application is used and prioritize new features.
+Starting with version 1.5.1, UltraLog includes optional anonymous analytics powered by [PostHog](https://posthog.com/). This data helps the development team understand how the application is used and prioritize new features.
 
 **Key Privacy Principles:**
 
@@ -22,21 +22,21 @@ Starting with version 1.5.0, UltraLog includes optional anonymous analytics powe
 
 UltraLog collects the following anonymous usage events:
 
-| Event | Data Collected | Purpose |
-|-------|----------------|---------|
-| `app_started` | App version, platform (Windows/macOS/Linux) | Track active installations |
-| `file_loaded` | ECU type (e.g., "Haltech"), file size in KB | Understand which ECU formats are popular |
-| `channel_selected` | Number of channels selected | Understand typical usage patterns |
-| `chart_exported` | Export format (PNG or PDF) | Track feature usage |
-| `tool_switched` | Tool name (Log Viewer or Scatter Plot) | Understand which features are used |
-| `playback_started` | Playback speed multiplier | Track playback feature usage |
-| `colorblind_mode_toggled` | Enabled/disabled | Track accessibility feature usage |
-| `update_checked` | Whether update was available | Track update adoption |
+| Event                     | Data Collected                              | Purpose                                  |
+| ------------------------- | ------------------------------------------- | ---------------------------------------- |
+| `app_started`             | App version, platform (Windows/macOS/Linux) | Track active installations               |
+| `file_loaded`             | ECU type (e.g., "Haltech"), file size in KB | Understand which ECU formats are popular |
+| `channel_selected`        | Number of channels selected                 | Understand typical usage patterns        |
+| `chart_exported`          | Export format (PNG or PDF)                  | Track feature usage                      |
+| `tool_switched`           | Tool name (Log Viewer or Scatter Plot)      | Understand which features are used       |
+| `playback_started`        | Playback speed multiplier                   | Track playback feature usage             |
+| `colorblind_mode_toggled` | Enabled/disabled                            | Track accessibility feature usage        |
+| `update_checked`          | Whether update was available                | Track update adoption                    |
 
 ### Common Properties
 
 Every event includes:
-- **App version** (e.g., "1.5.0")
+- **App version** (e.g., "1.5.1")
 - **Platform** (windows, macos, or linux)
 - **Anonymous session ID** (random UUID, not persistent)
 
