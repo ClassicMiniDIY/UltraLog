@@ -12,7 +12,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::analytics;
-use crate::parsers::{EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
+
+use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
 use crate::state::{
     ActiveTool, CacheKey, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
     ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS,
@@ -280,12 +281,7 @@ impl UltraLogApp {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "Unknown".to_string());
 
-        LoadResult::Success(Box::new(LoadedFile {
-            path,
-            name,
-            ecu_type,
-            log,
-        }))
+        LoadResult::Success(Box::new(LoadedFile::new(path, name, ecu_type, log)))
     }
 
     /// Load file using memory-mapped I/O for better performance with large files
@@ -347,6 +343,19 @@ impl UltraLogApp {
                 3. Load the exported .csv file in UltraLog"
                     .to_string(),
             ));
+        }
+
+        // Check for AIM XRK format - parse using xdrk library (requires file path)
+        if Aim::detect(binary_data) {
+            match Aim::parse_file(path) {
+                Ok(l) => return Ok((l, EcuType::Aim)),
+                Err(e) => {
+                    return Err(LoadResult::Error(format!(
+                        "Failed to parse AIM XRK file: {}",
+                        e
+                    )))
+                }
+            }
         }
 
         // Auto-detect file format and parse

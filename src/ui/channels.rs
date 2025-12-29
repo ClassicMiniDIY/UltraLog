@@ -74,52 +74,138 @@ impl UltraLogApp {
                 .map(|idx| file.log.channels[idx].name())
                 .collect();
 
+            // Use cached channel data flags from the loaded file
+            let channels_with_data = &file.channels_with_data;
+
+            // Split channels into two groups: with data and without data
+            let (channels_with, channels_without): (Vec<_>, Vec<_>) = sorted_channels
+                .into_iter()
+                .partition(|(idx, _, _)| channels_with_data[*idx]);
+
             // Get selected channels for comparison
             let selected_channels = self.get_selected_channels().to_vec();
+
+            // Count how many channels match search in each group
+            let count_matching = |channels: &[(usize, String, bool)]| -> usize {
+                if search_lower.is_empty() {
+                    channels.len()
+                } else {
+                    channels
+                        .iter()
+                        .filter(|(idx, display_name, _)| {
+                            let original_name = &channel_names[*idx];
+                            original_name.to_lowercase().contains(&search_lower)
+                                || display_name.to_lowercase().contains(&search_lower)
+                        })
+                        .count()
+                }
+            };
+
+            let with_data_count = count_matching(&channels_with);
+            let without_data_count = count_matching(&channels_without);
 
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
 
-                    for (channel_index, display_name, _is_normalized) in &sorted_channels {
-                        let original_name = &channel_names[*channel_index];
+                    // Helper closure to render a channel item
+                    let render_channel =
+                        |ui: &mut egui::Ui,
+                         channel_index: usize,
+                         display_name: &str,
+                         channel_to_add: &mut Option<(usize, usize)>,
+                         channel_to_remove: &mut Option<usize>| {
+                            let original_name = &channel_names[channel_index];
 
-                        // Filter by search (search both original and normalized names)
-                        if !search_lower.is_empty()
-                            && !original_name.to_lowercase().contains(&search_lower)
-                            && !display_name.to_lowercase().contains(&search_lower)
-                        {
-                            continue;
-                        }
+                            // Filter by search (search both original and normalized names)
+                            if !search_lower.is_empty()
+                                && !original_name.to_lowercase().contains(&search_lower)
+                                && !display_name.to_lowercase().contains(&search_lower)
+                            {
+                                return;
+                            }
 
-                        // Check if already selected and get its index in selected_channels
-                        let selected_idx = selected_channels.iter().position(|c| {
-                            c.file_index == file_index && c.channel_index == *channel_index
-                        });
-                        let is_selected = selected_idx.is_some();
+                            // Check if already selected and get its index in selected_channels
+                            let selected_idx = selected_channels.iter().position(|c| {
+                                c.file_index == file_index && c.channel_index == channel_index
+                            });
+                            let is_selected = selected_idx.is_some();
 
-                        // Build the label with checkmark prefix if selected
-                        let label_text = if is_selected {
-                            format!("[*] {}", display_name)
-                        } else {
-                            format!("[ ] {}", display_name)
+                            // Build the label with checkmark prefix if selected
+                            let label_text = if is_selected {
+                                format!("[*] {}", display_name)
+                            } else {
+                                format!("[ ] {}", display_name)
+                            };
+
+                            let response = ui.selectable_label(is_selected, label_text);
+
+                            if response.clicked() {
+                                if let Some(idx) = selected_idx {
+                                    // Already selected - remove it
+                                    *channel_to_remove = Some(idx);
+                                } else {
+                                    // Not selected - add it
+                                    *channel_to_add = Some((file_index, channel_index));
+                                }
+                            }
+                            if response.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
                         };
 
-                        let response = ui.selectable_label(is_selected, label_text);
-
-                        if response.clicked() {
-                            if let Some(idx) = selected_idx {
-                                // Already selected - remove it
-                                channel_to_remove = Some(idx);
-                            } else {
-                                // Not selected - add it
-                                channel_to_add = Some((file_index, *channel_index));
+                    // Section 1: Channels with Data
+                    if with_data_count > 0 || search_lower.is_empty() {
+                        let header = egui::CollapsingHeader::new(
+                            egui::RichText::new(format!(
+                                "📊 Channels with Data ({})",
+                                channels_with.len()
+                            ))
+                            .strong(),
+                        )
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            for (channel_index, display_name, _is_normalized) in &channels_with {
+                                render_channel(
+                                    ui,
+                                    *channel_index,
+                                    display_name,
+                                    &mut channel_to_add,
+                                    &mut channel_to_remove,
+                                );
                             }
+                        });
+
+                        // Show count of filtered results when searching
+                        if !search_lower.is_empty() && header.body_returned.is_some() {
+                            // Already showing filtered results inside
                         }
-                        if response.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
+                    }
+
+                    ui.add_space(5.0);
+
+                    // Section 2: Channels without Data
+                    if without_data_count > 0 || search_lower.is_empty() {
+                        egui::CollapsingHeader::new(
+                            egui::RichText::new(format!(
+                                "📭 Empty Channels ({})",
+                                channels_without.len()
+                            ))
+                            .color(egui::Color32::GRAY),
+                        )
+                        .default_open(false) // Collapsed by default
+                        .show(ui, |ui| {
+                            for (channel_index, display_name, _is_normalized) in &channels_without {
+                                render_channel(
+                                    ui,
+                                    *channel_index,
+                                    display_name,
+                                    &mut channel_to_add,
+                                    &mut channel_to_remove,
+                                );
+                            }
+                        });
                     }
                 });
 

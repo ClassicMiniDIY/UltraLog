@@ -4,11 +4,11 @@ UltraLog is a high-performance, cross-platform desktop application for viewing a
 
 ## Quick Links
 
-| Getting Started | Reference | Support |
-|-----------------|-----------|---------|
-| [[Installation]] | [[Supported-ECU-Formats]] | [[Troubleshooting]] |
-| [[Getting-Started]] | [[Unit-Conversion]] | [[FAQ]] |
-| [[User-Guide]] | [[Field-Normalization]] | [[Development]] |
+| Getting Started     | Reference                 | Support             |
+| ------------------- | ------------------------- | ------------------- |
+| [[Installation]]    | [[Supported-ECU-Formats]] | [[Troubleshooting]] |
+| [[Getting-Started]] | [[Unit-Conversion]]       | [[FAQ]]             |
+| [[User-Guide]]      | [[Field-Normalization]]   | [[Development]]     |
 
 ## Key Features
 
@@ -21,15 +21,15 @@ UltraLog is a high-performance, cross-platform desktop application for viewing a
 
 ## Supported ECU Systems
 
-| ECU System | Status | File Format |
-|------------|--------|-------------|
-| Haltech | Full Support | CSV from NSP |
-| ECUMaster EMU Pro | Full Support | CSV export |
-| RomRaider | Full Support | CSV from Logger |
-| Speeduino / rusEFI | Full Support | MLG binary |
-| MegaSquirt | Coming Soon | - |
-| AEM | Coming Soon | - |
-| MoTeC | Coming Soon | - |
+| ECU System         | Status       | File Format     |
+| ------------------ | ------------ | --------------- |
+| Haltech            | Full Support | CSV from NSP    |
+| ECUMaster EMU Pro  | Full Support | CSV export      |
+| RomRaider          | Full Support | CSV from Logger |
+| Speeduino / rusEFI | Full Support | MLG binary      |
+| MegaSquirt         | Coming Soon  | -               |
+| AEM                | Coming Soon  | -               |
+| MoTeC              | Coming Soon  | -               |
 
 ## System Requirements
 
@@ -53,7 +53,7 @@ UltraLog is a high-performance, cross-platform desktop application for viewing a
 
 ## Version Information
 
-- **Current Version:** 1.4.3
+- **Current Version:** 1.5.0
 - **License:** AGPL-3.0
 - **Author:** Cole Gentry
 

@@ -61,6 +61,39 @@ pub struct LoadedFile {
     pub ecu_type: EcuType,
     /// Parsed log data
     pub log: Log,
+    /// Cached flag for each channel: true if channel has non-zero data
+    /// Computed once on load for UI performance
+    pub channels_with_data: Vec<bool>,
+}
+
+impl LoadedFile {
+    /// Create a new LoadedFile, computing channel data flags
+    pub fn new(path: PathBuf, name: String, ecu_type: EcuType, log: Log) -> Self {
+        // Pre-compute which channels have data (any non-zero values)
+        let channels_with_data: Vec<bool> = (0..log.channels.len())
+            .map(|idx| {
+                let data = log.get_channel_data(idx);
+                data.iter().any(|&v| v.abs() > 0.0001)
+            })
+            .collect();
+
+        Self {
+            path,
+            name,
+            ecu_type,
+            log,
+            channels_with_data,
+        }
+    }
+
+    /// Check if a channel has meaningful data (cached)
+    #[inline]
+    pub fn channel_has_data(&self, channel_index: usize) -> bool {
+        self.channels_with_data
+            .get(channel_index)
+            .copied()
+            .unwrap_or(false)
+    }
 }
 
 /// A channel selected for visualization on the chart
