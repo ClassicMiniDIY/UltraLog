@@ -29,6 +29,17 @@ impl UltraLogApp {
         if let Some((file_index, current_search, selected_count)) = tab_info {
             let channel_count = self.files[file_index].log.channels.len();
 
+            // Computed Channels button
+            if ui
+                .button("+ Computed Channels")
+                .on_hover_text("Create virtual channels from mathematical formulas")
+                .clicked()
+            {
+                self.show_computed_channels_manager = true;
+            }
+
+            ui.add_space(4.0);
+
             // Search box - use a temporary string that we'll update
             let mut search_text = current_search;
             let mut search_changed = false;

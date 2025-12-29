@@ -284,11 +284,118 @@ impl UltraLogApp {
                     );
                 }
 
-                // Syntax help section
+                // Examples section
                 ui.add_space(12.0);
                 ui.separator();
 
-                egui::CollapsingHeader::new("Formula Syntax Help")
+                egui::CollapsingHeader::new("Example Formulas")
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new("Common computed channel examples:")
+                                .color(egui::Color32::GRAY),
+                        );
+                        ui.add_space(4.0);
+
+                        // Rate of Change examples
+                        ui.label(egui::RichText::new("Rate of Change:").strong());
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("  RPM - RPM[-1]")
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                egui::RichText::new("— RPM change per sample")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("  TPS - TPS@-0.1s")
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                egui::RichText::new("— TPS change over 100ms")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new("Engine Calculations:").strong());
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("  (AFR - 14.7) / 14.7 * 100")
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                egui::RichText::new("— AFR % deviation from stoich")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("  MAP / 101.325 * 100")
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                egui::RichText::new("— MAP as % of atmosphere")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new("Averaging / Smoothing:").strong());
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("  (RPM + RPM[-1] + RPM[-2]) / 3")
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                egui::RichText::new("— 3-sample moving average")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new("Unit Conversions:").strong());
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("  MAP * 0.145038")
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                egui::RichText::new("— kPa to PSI")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("  (ECT - 32) * 5 / 9")
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                egui::RichText::new("— Fahrenheit to Celsius")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                    });
+
+                // Syntax help section
+                egui::CollapsingHeader::new("Formula Syntax Reference")
                     .default_open(false)
                     .show(ui, |ui| {
                         ui.label(egui::RichText::new("Channel References:").strong());

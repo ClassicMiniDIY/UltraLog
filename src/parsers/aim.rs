@@ -207,6 +207,7 @@ impl Aim {
     }
 
     /// Parse channel data samples from )(G records
+    #[allow(clippy::type_complexity)]
     fn parse_channel_data(
         data: &[u8],
         channel_count: usize,
@@ -236,7 +237,7 @@ impl Aim {
 
                 // Process records in the typical telemetry size range (100-200 bytes)
                 // Different AIM devices/configs produce different record sizes (143, 151, etc.)
-                if record_size >= 100 && record_size <= 200 {
+                if (100..=200).contains(&record_size) {
                     // Read float32 values starting at offset 9
                     let data_start = pos + 9;
                     let num_floats = (record_size - 9) / 4; // ~35 floats
@@ -271,11 +272,9 @@ impl Aim {
                         // Create data row for all channels
                         let mut row = Vec::with_capacity(channel_count);
                         for ch_idx in 0..channel_count {
-                            // Map channel to value - use modular indexing for excess channels
+                            // Map channel to value - use 0.0 for channels beyond available values
                             let value = if ch_idx < values.len() {
                                 values[ch_idx] as f64
-                            } else if !values.is_empty() {
-                                0.0
                             } else {
                                 0.0
                             };

@@ -413,7 +413,7 @@ impl UltraLogApp {
                     .text_styles
                     .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
 
-                if ui.button("🧮  Computed Channels...").clicked() {
+                if ui.button("ƒ(x)  Computed Channels...").clicked() {
                     self.show_computed_channels_manager = true;
                     ui.close();
                 }
