@@ -538,4 +538,127 @@ mod tests {
         assert!(prompt.contains("10.00s to 20.00s"));
         assert!(prompt.contains("What do you see?"));
     }
+
+    #[test]
+    fn test_config_validation_edge_cases() {
+        // Test temperature bounds
+        let mut config = LlmConfig::openai_preset();
+
+        config.temperature = -0.1;
+        assert!(config.validate().is_err());
+
+        config.temperature = 2.1;
+        assert!(config.validate().is_err());
+
+        config.temperature = 0.0;
+        assert!(config.validate().is_ok());
+
+        config.temperature = 2.0;
+        assert!(config.validate().is_ok());
+
+        // Test max_tokens
+        config.max_tokens = 0;
+        assert!(config.validate().is_err());
+
+        config.max_tokens = 1;
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_analysis_context_with_anomalies() {
+        use crate::anomaly::{Anomaly, AnomalyResults, AnomalySeverity, AnomalyType};
+
+        let mut anomaly_results = AnomalyResults::default();
+        anomaly_results.channels_analyzed = 2;
+        anomaly_results.points_analyzed = 500;
+        anomaly_results.critical_count = 1;
+        anomaly_results.anomalies = vec![Anomaly {
+            channel_name: "AFR".to_string(),
+            data_index: 10,
+            time: 5.0,
+            value: 8.0,
+            anomaly_type: AnomalyType::RangeViolation {
+                value: 8.0,
+                expected_min: 10.0,
+                expected_max: 20.0,
+            },
+            severity: AnomalySeverity::Critical,
+        }];
+
+        let context = AnalysisContext {
+            time_range: (0.0, 10.0),
+            channels: vec![ChannelSummary {
+                name: "AFR".to_string(),
+                min: 8.0,
+                max: 15.0,
+                avg: 14.0,
+                current: 14.5,
+                unit: None,
+            }],
+            anomalies: Some(anomaly_results),
+            chart_image: None,
+            user_prompt: "Analyze".to_string(),
+        };
+
+        let prompt = context.to_prompt_text();
+        assert!(prompt.contains("ANOMALY DETECTION RESULTS"));
+        assert!(prompt.contains("2 channels"));
+        assert!(prompt.contains("1 critical"));
+    }
+
+    #[test]
+    fn test_channel_summary_formatting() {
+        let context = AnalysisContext {
+            time_range: (0.0, 60.0),
+            channels: vec![
+                ChannelSummary {
+                    name: "Boost Pressure".to_string(),
+                    min: 0.0,
+                    max: 22.5,
+                    avg: 15.0,
+                    current: 18.0,
+                    unit: Some(" psi".to_string()),
+                },
+                ChannelSummary {
+                    name: "RPM".to_string(),
+                    min: 800.0,
+                    max: 7200.0,
+                    avg: 4500.0,
+                    current: 6000.0,
+                    unit: None,
+                },
+            ],
+            anomalies: None,
+            chart_image: None,
+            user_prompt: "Check boost".to_string(),
+        };
+
+        let prompt = context.to_prompt_text();
+        assert!(prompt.contains("Boost Pressure"));
+        assert!(prompt.contains("RPM"));
+        assert!(prompt.contains("22.50"));
+        assert!(prompt.contains("psi"));
+    }
+
+    #[test]
+    fn test_severity_strings() {
+        use crate::anomaly::AnomalySeverity;
+
+        assert_eq!(AnomalySeverity::Info.as_str(), "info");
+        assert_eq!(AnomalySeverity::Warning.as_str(), "warning");
+        assert_eq!(AnomalySeverity::Critical.as_str(), "critical");
+
+        // Emoji tests
+        assert!(!AnomalySeverity::Info.emoji().is_empty());
+        assert!(!AnomalySeverity::Warning.emoji().is_empty());
+        assert!(!AnomalySeverity::Critical.emoji().is_empty());
+    }
+
+    #[test]
+    fn test_warning_constants_not_empty() {
+        assert!(!PRIVACY_WARNING.is_empty());
+        assert!(!ACCURACY_WARNING.is_empty());
+        assert!(!COST_WARNING.is_empty());
+        assert!(!API_KEY_WARNING.is_empty());
+    }
 }

@@ -704,4 +704,164 @@ mod tests {
         // Should detect 5.0 and 25.0 as out of range (10.0-20.0 for AFR)
         assert!(violations.len() >= 2);
     }
+
+    #[test]
+    fn test_rate_of_change_detection() {
+        let config = AnomalyConfig {
+            rate_of_change_threshold: 0.3, // 30% of range per second
+            ..Default::default()
+        };
+        let detector = AnomalyDetector::new(config);
+
+        // Data with sudden spike
+        let times: Vec<f64> = (0..20).map(|i| i as f64 * 0.1).collect();
+        let mut values: Vec<f64> = vec![100.0; 20];
+        values[10] = 200.0; // Sudden spike
+
+        let anomalies = detector.analyze_channel("Boost", &times, &values);
+        let rate_changes: Vec<_> = anomalies
+            .iter()
+            .filter(|a| matches!(a.anomaly_type, AnomalyType::RateOfChange { .. }))
+            .collect();
+
+        assert!(!rate_changes.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_all_channels() {
+        let config = AnomalyConfig::default();
+
+        let channels = vec![
+            (
+                "AFR".to_string(),
+                vec![0.0, 1.0, 2.0, 3.0, 4.0],
+                vec![14.7, 14.5, 8.0, 14.6, 14.7], // Outlier at index 2
+            ),
+            (
+                "RPM".to_string(),
+                vec![0.0, 1.0, 2.0, 3.0, 4.0],
+                vec![3000.0, 3100.0, 3050.0, 3000.0, 3100.0], // Normal
+            ),
+        ];
+
+        let results = super::analyze_all_channels(&config, &channels);
+
+        assert_eq!(results.channels_analyzed, 2);
+        assert_eq!(results.points_analyzed, 10);
+        assert!(!results.anomalies.is_empty());
+    }
+
+    #[test]
+    fn test_anomaly_results_methods() {
+        let mut results = AnomalyResults::default();
+        results.anomalies = vec![
+            Anomaly {
+                channel_name: "AFR".to_string(),
+                data_index: 0,
+                time: 1.0,
+                value: 8.0,
+                anomaly_type: AnomalyType::RangeViolation {
+                    value: 8.0,
+                    expected_min: 10.0,
+                    expected_max: 20.0,
+                },
+                severity: AnomalySeverity::Critical,
+            },
+            Anomaly {
+                channel_name: "Boost".to_string(),
+                data_index: 5,
+                time: 5.0,
+                value: 30.0,
+                anomaly_type: AnomalyType::StatisticalOutlier { z_score: 4.0 },
+                severity: AnomalySeverity::Warning,
+            },
+            Anomaly {
+                channel_name: "AFR".to_string(),
+                data_index: 10,
+                time: 10.0,
+                value: 22.0,
+                anomaly_type: AnomalyType::RangeViolation {
+                    value: 22.0,
+                    expected_min: 10.0,
+                    expected_max: 20.0,
+                },
+                severity: AnomalySeverity::Info,
+            },
+        ];
+        results.critical_count = 1;
+        results.warning_count = 1;
+        results.info_count = 1;
+
+        // Test for_channel
+        let afr_anomalies = results.for_channel("AFR");
+        assert_eq!(afr_anomalies.len(), 2);
+
+        // Test in_time_range
+        let range_anomalies = results.in_time_range(0.0, 6.0);
+        assert_eq!(range_anomalies.len(), 2);
+
+        // Test top_anomalies (sorted by severity)
+        let top = results.top_anomalies(2);
+        assert_eq!(top.len(), 2);
+        assert_eq!(top[0].severity, AnomalySeverity::Critical);
+    }
+
+    #[test]
+    fn test_known_ranges() {
+        // Test that known ranges return expected values
+        assert!(get_known_range("AFR").is_some());
+        assert!(get_known_range("Lambda").is_some());
+        assert!(get_known_range("Coolant Temp").is_some());
+        assert!(get_known_range("RPM").is_some());
+        assert!(get_known_range("Throttle Position").is_some());
+        assert!(get_known_range("Battery Voltage").is_some());
+        assert!(get_known_range("Unknown Channel XYZ").is_none());
+    }
+
+    #[test]
+    fn test_anomaly_display_and_prompt_strings() {
+        let anomaly = Anomaly {
+            channel_name: "AFR".to_string(),
+            data_index: 5,
+            time: 2.5,
+            value: 8.0,
+            anomaly_type: AnomalyType::RangeViolation {
+                value: 8.0,
+                expected_min: 10.0,
+                expected_max: 20.0,
+            },
+            severity: AnomalySeverity::Critical,
+        };
+
+        let display = anomaly.display_string();
+        assert!(display.contains("AFR"));
+        assert!(display.contains("2.50s"));
+
+        let prompt = anomaly.prompt_string();
+        assert!(prompt.contains("CRITICAL"));
+        assert!(prompt.contains("AFR"));
+    }
+
+    #[test]
+    fn test_anomaly_results_prompt_summary() {
+        let mut results = AnomalyResults::default();
+        results.channels_analyzed = 3;
+        results.points_analyzed = 1000;
+        results.critical_count = 1;
+        results.warning_count = 2;
+        results.info_count = 3;
+        results.anomalies = vec![Anomaly {
+            channel_name: "Test".to_string(),
+            data_index: 0,
+            time: 1.0,
+            value: 100.0,
+            anomaly_type: AnomalyType::StatisticalOutlier { z_score: 5.0 },
+            severity: AnomalySeverity::Critical,
+        }];
+
+        let summary = results.to_prompt_summary();
+        assert!(summary.contains("3 channels"));
+        assert!(summary.contains("1000 data points"));
+        assert!(summary.contains("1 critical"));
+    }
 }
