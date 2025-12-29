@@ -21,6 +21,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
     - [Multi-File Support](#multi-file-support)
     - [Unit Conversion](#unit-conversion)
     - [Export Options](#export-options)
+    - [Computed Channels](#computed-channels)
     - [Additional Tools](#additional-tools)
     - [Accessibility](#accessibility)
   - [Supported ECU Formats](#supported-ecu-formats)
@@ -39,6 +40,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
     - [Timeline and Playback](#timeline-and-playback-1)
     - [Unit Preferences](#unit-preferences)
     - [Field Normalization](#field-normalization)
+    - [Computed Channels](#computed-channels-1)
     - [Exporting Charts](#exporting-charts)
     - [Scatter Plot Tool](#scatter-plot-tool)
     - [Accessibility Features](#accessibility-features)
@@ -108,6 +110,18 @@ Configurable units for 8 measurement categories:
 - **PNG Export** - Save chart views as PNG images
 - **PDF Export** - Generate PDF reports of your visualizations
 
+### Computed Channels
+- **Formula-based virtual channels** - Create custom channels from mathematical expressions
+- **Time-shifting support** - Reference past/future values with index offsets (`RPM[-1]`) or time offsets (`Boost@-0.5s`)
+- **Reusable library** - Save formulas as templates to use across different log files
+- **Full expression support** - All standard math functions: `sin`, `cos`, `sqrt`, `abs`, `max`, `min`, etc.
+- **Example formulas:**
+  - `RPM * 0.5` - Simple arithmetic
+  - `"Manifold Pressure" - "Barometric Pressure"` - Quoted channel names with spaces
+  - `RPM[-1] - RPM` - RPM change from previous sample
+  - `max(AFR1, AFR2)` - Maximum of two channels
+  - `sqrt(TPS * MAP)` - Complex calculations
+
 ### Additional Tools
 - **Scatter Plot** - XY scatter visualization for channel correlation analysis
 - **Normalization Editor** - Create custom field name mappings for cross-ECU comparison
@@ -142,12 +156,22 @@ Configurable units for 8 measurement categories:
 - **Features:** Binary format parsing with field type detection
 - **Supported data:** All standard Speeduino/rusEFI channels with timestamps
 
+### AiM - Full Support
+- **File type:** XRK/DRK binary format (`.xrk`, `.drk`)
+- **Features:** Pure Rust binary parser for AiM motorsport data loggers
+- **Supported devices:** MXP, MXG, MXL2, EVO5, MyChron5, and other AiM data acquisition systems
+- **Supported data:** All logged channels with lap times, GPS data, and metadata
+
+### Link ECU - Full Support
+- **File type:** Link log format (`.llg`)
+- **Features:** Binary format parser for Link G4/G4+/G4X ECUs
+- **Supported data:** All ECU parameters including RPM, MAP, AFR, ignition timing, temperatures, and custom channels
+
 ### Coming Soon
 - MegaSquirt
 - AEM
 - MaxxECU
 - MoTeC
-- Link ECU
 
 ---
 
@@ -335,6 +359,69 @@ Field normalization maps ECU-specific channel names to standardized names, makin
 1. Open View menu → Normalization Editor
 2. Add custom source → target mappings
 3. Changes apply immediately to channel names
+
+### Computed Channels
+
+Computed channels (also called virtual or math channels) allow you to create custom data channels from mathematical formulas. These formulas can reference existing log channels and use standard math functions.
+
+**Accessing the Manager:**
+- Tools menu → Computed Channels
+
+**Creating a Computed Channel:**
+1. Click "+ New Channel" in the Computed Channels window
+2. Enter a **Name** for your channel (e.g., "Boost Delta")
+3. Enter a **Formula** using channel names and math operators
+4. Enter a **Unit** for display (e.g., "kPa", "psi", "%")
+5. Optionally add a **Description** for reference
+6. Click "Save" to add to your library
+
+**Formula Syntax:**
+
+**Basic operators:** `+`, `-`, `*`, `/`, `^` (power)
+
+**Math functions:** `sin`, `cos`, `tan`, `sqrt`, `abs`, `max`, `min`, `exp`, `ln`, `log`, `floor`, `ceil`, `round`
+
+**Channel references:**
+- Simple names: `RPM`, `TPS`, `MAP`
+- Names with spaces (use quotes): `"Manifold Pressure"`, `"Coolant Temp"`
+
+**Time-shifting:**
+- Index offset: `RPM[-1]` (previous sample), `RPM[+1]` (next sample)
+- Time offset: `Boost@-0.5s` (value 0.5 seconds ago), `AFR@-0.1s` (value 100ms ago)
+
+**Example Formulas:**
+
+```text
+RPM * 0.5
+Simple arithmetic - half the RPM value
+
+"Manifold Pressure" - "Barometric Pressure"
+Gauge pressure calculation (quoted names with spaces)
+
+RPM - RPM[-1]
+RPM change from previous sample
+
+max(AFR1, AFR2)
+Maximum of two AFR sensors
+
+sqrt(TPS * MAP / 100)
+Complex calculation
+
+(Boost@-0.5s - Boost) / 0.5
+Boost rate of change (kPa/second)
+```
+
+**Using Computed Channels:**
+1. Create and save a formula in the Computed Channels manager
+2. Click "Apply to File" to add it to the current log
+3. The computed channel appears in the channel list
+4. Select it like any other channel to add to the chart
+
+**Library Management:**
+- Templates are saved globally and persist between sessions
+- Stored in: `~/.config/ultralog/computed_channels.json` (Linux), `~/Library/Application Support/UltraLog/computed_channels.json` (macOS), `%APPDATA%\UltraLog\computed_channels.json` (Windows)
+- Edit or delete templates from the Computed Channels window
+- Templates can be reused across different log files
 
 ### Exporting Charts
 
