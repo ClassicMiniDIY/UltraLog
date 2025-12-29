@@ -12,7 +12,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::analytics;
-use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Parseable, RomRaider, Speeduino};
+
+use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
 use crate::state::{
     ActiveTool, CacheKey, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
     ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS,
@@ -246,19 +247,8 @@ impl UltraLogApp {
             Err(e) => return LoadResult::Error(format!("Failed to read file metadata: {}", e)),
         };
 
-        // Check for Link .llg format - proprietary format (check by extension since header varies)
-        if let Some(ext) = path.extension() {
-            if ext.to_string_lossy().to_lowercase() == "llg" {
-                return LoadResult::Error(
-                    "This is a Link .llg file which uses a proprietary format.\n\n\
-                    To use this log in UltraLog, please export it as CSV from Link's software:\n\
-                    1. Open the .llg file in PCLink or G4+ software\n\
-                    2. Go to File → Export → CSV\n\
-                    3. Load the exported .csv file in UltraLog"
-                        .to_string(),
-                );
-            }
-        }
+        // Link .llg files are now supported via the Link parser
+        // No need to reject them early - let the parser handle detection
 
         // Load file data - use mmap for large files, regular read for small files
         let (log, ecu_type) = if file_size > MMAP_THRESHOLD {
@@ -344,7 +334,7 @@ impl UltraLogApp {
             ));
         }
 
-        // Check for AIM XRK format - parse using xdrk library (requires file path)
+        // Check for AIM XRK format - parse using pure Rust implementation
         if Aim::detect(binary_data) {
             match Aim::parse_file(path) {
                 Ok(l) => return Ok((l, EcuType::Aim)),
@@ -364,6 +354,15 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::Speeduino)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse Speeduino/rusEFI MLG file: {}",
+                    e
+                ))),
+            }
+        } else if Link::detect(binary_data) {
+            // Link ECU LLG format detected (binary)
+            match Link::parse_binary(binary_data) {
+                Ok(l) => Ok((l, EcuType::Link)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse Link ECU LLG file: {}",
                     e
                 ))),
             }
@@ -1191,7 +1190,7 @@ impl eframe::App for UltraLogApp {
         egui::SidePanel::left("files_panel")
             .default_width(200.0)
             .resizable(true)
-            .frame(panel_frame.clone())
+            .frame(panel_frame)
             .show(ctx, |ui| {
                 self.render_sidebar(ui);
             });

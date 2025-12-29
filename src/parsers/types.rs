@@ -4,6 +4,7 @@ use std::error::Error;
 use super::aim::{AimChannel, AimMeta};
 use super::ecumaster::{EcuMasterChannel, EcuMasterMeta};
 use super::haltech::{HaltechChannel, HaltechMeta};
+use super::link::{LinkChannel, LinkMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
 
@@ -13,6 +14,7 @@ pub enum Meta {
     Aim(AimMeta),
     Haltech(HaltechMeta),
     EcuMaster(EcuMasterMeta),
+    Link(LinkMeta),
     RomRaider(RomRaiderMeta),
     Speeduino(SpeeduinoMeta),
     #[default]
@@ -25,6 +27,7 @@ pub enum Channel {
     Aim(AimChannel),
     Haltech(HaltechChannel),
     EcuMaster(EcuMasterChannel),
+    Link(LinkChannel),
     RomRaider(RomRaiderChannel),
     Speeduino(SpeeduinoChannel),
 }
@@ -38,6 +41,7 @@ impl Serialize for Channel {
             Channel::Aim(a) => a.serialize(serializer),
             Channel::Haltech(h) => h.serialize(serializer),
             Channel::EcuMaster(e) => e.serialize(serializer),
+            Channel::Link(l) => l.serialize(serializer),
             Channel::RomRaider(r) => r.serialize(serializer),
             Channel::Speeduino(s) => s.serialize(serializer),
         }
@@ -50,6 +54,7 @@ impl Channel {
             Channel::Aim(a) => a.name.clone(),
             Channel::Haltech(h) => h.name.clone(),
             Channel::EcuMaster(e) => e.name.clone(),
+            Channel::Link(l) => l.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
         }
@@ -61,6 +66,7 @@ impl Channel {
             Channel::Aim(a) => a.name.clone(),
             Channel::Haltech(h) => h.id.clone(),
             Channel::EcuMaster(e) => e.path.clone(),
+            Channel::Link(l) => l.channel_id.to_string(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
         }
@@ -71,6 +77,7 @@ impl Channel {
             Channel::Aim(_) => "AIM".to_string(),
             Channel::Haltech(h) => h.r#type.as_ref().to_string(),
             Channel::EcuMaster(e) => e.path.clone(),
+            Channel::Link(_) => "Link".to_string(),
             Channel::RomRaider(_) => "RomRaider".to_string(),
             Channel::Speeduino(_) => "Speeduino/rusEFI".to_string(),
         }
@@ -81,6 +88,7 @@ impl Channel {
             Channel::Aim(_) => None,
             Channel::Haltech(h) => h.display_min,
             Channel::EcuMaster(_) => None,
+            Channel::Link(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
         }
@@ -91,6 +99,7 @@ impl Channel {
             Channel::Aim(_) => None,
             Channel::Haltech(h) => h.display_max,
             Channel::EcuMaster(_) => None,
+            Channel::Link(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
         }
@@ -101,6 +110,7 @@ impl Channel {
             Channel::Aim(a) => a.unit(),
             Channel::Haltech(h) => h.unit(),
             Channel::EcuMaster(e) => e.unit(),
+            Channel::Link(l) => l.unit(),
             Channel::RomRaider(r) => r.unit(),
             Channel::Speeduino(s) => s.unit(),
         }

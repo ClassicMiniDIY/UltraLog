@@ -98,10 +98,10 @@ impl EcuMasterChannel {
         }
 
         // VVT/Cam angle channels
-        if path_lower.contains("vvt") || path_lower.contains("cam") {
-            if name_lower.contains("angle") || name_lower.contains("position") {
-                return "°".to_string();
-            }
+        if (path_lower.contains("vvt") || path_lower.contains("cam"))
+            && (name_lower.contains("angle") || name_lower.contains("position"))
+        {
+            return "°".to_string();
         }
 
         // Voltage channels

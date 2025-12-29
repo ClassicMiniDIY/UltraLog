@@ -107,7 +107,7 @@ impl Platform {
 
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         {
-            return Some(Platform::LinuxX64);
+            Some(Platform::LinuxX64)
         }
 
         #[cfg(not(any(

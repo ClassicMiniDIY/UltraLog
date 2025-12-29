@@ -41,7 +41,7 @@ impl UltraLogApp {
                 let data = file.log.get_channel_data(selected.channel_index);
 
                 if times.len() == data.len() && !times.is_empty() {
-                    let downsampled = Self::downsample_lttb(&times, &data, MAX_CHART_POINTS);
+                    let downsampled = Self::downsample_lttb(times, &data, MAX_CHART_POINTS);
                     // Normalize Y values to 0-1 range so all channels overlay
                     let normalized = Self::normalize_points(&downsampled);
                     self.downsample_cache.insert(cache_key, normalized);
