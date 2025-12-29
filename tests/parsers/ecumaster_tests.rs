@@ -90,7 +90,9 @@ fn test_parse_ecumaster_minimal() {
     let sample = "TIME;engine/rpm\n0.0;1000\n0.1;1100\n";
 
     let parser = EcuMaster;
-    let log = parser.parse(sample).expect("Should parse minimal ECUMaster");
+    let log = parser
+        .parse(sample)
+        .expect("Should parse minimal ECUMaster");
 
     assert_eq!(log.channels.len(), 1);
     assert_eq!(log.data.len(), 2);
@@ -181,7 +183,9 @@ fn test_ecumaster_all_sparse_column() {
     let sample = "TIME;engine/rpm;sensors/tps1\n0.0;;50\n0.1;;55\n0.2;;60\n";
 
     let parser = EcuMaster;
-    let log = parser.parse(sample).expect("Should parse all-sparse column");
+    let log = parser
+        .parse(sample)
+        .expect("Should parse all-sparse column");
 
     // Should handle column where all values are sparse
     assert_eq!(log.data.len(), 3);

@@ -329,11 +329,7 @@ fn test_aim_all_example_files() {
 
         let path = get_example_file_path(file_path);
         let result = Aim::parse_file(Path::new(&path));
-        assert!(
-            result.is_ok(),
-            "Should parse {} without error",
-            file_path
-        );
+        assert!(result.is_ok(), "Should parse {} without error", file_path);
 
         let log = result.unwrap();
 

@@ -54,8 +54,14 @@ fn test_speeduino_detection_invalid_magic() {
         !Speeduino::detect(b"NOT_MLG"),
         "Should not detect invalid header"
     );
-    assert!(!Speeduino::detect(b"MLVL"), "Should not detect truncated header");
-    assert!(!Speeduino::detect(b"mlvlg"), "Header should be case-sensitive");
+    assert!(
+        !Speeduino::detect(b"MLVL"),
+        "Should not detect truncated header"
+    );
+    assert!(
+        !Speeduino::detect(b"mlvlg"),
+        "Header should be case-sensitive"
+    );
 }
 
 #[test]
@@ -224,7 +230,10 @@ fn test_rusefi_example_file() {
 
     let data = read_example_binary(RUSEFI_MLG);
 
-    assert!(Speeduino::detect(&data), "Should detect rusEFI as MLG format");
+    assert!(
+        Speeduino::detect(&data),
+        "Should detect rusEFI as MLG format"
+    );
 
     let log = Speeduino::parse_binary(&data).expect("Should parse rusEFI MLG");
 
@@ -374,10 +383,7 @@ fn test_speeduino_values_are_reasonable() {
     for record in &log.data {
         for value in record {
             let v = value.as_f64();
-            assert!(
-                v.is_finite(),
-                "All values should be finite"
-            );
+            assert!(v.is_finite(), "All values should be finite");
             // Most ECU values should be within reasonable bounds
             // (this is a sanity check, not a strict requirement)
         }
@@ -402,11 +408,7 @@ fn test_speeduino_large_file_performance() {
     let log = Speeduino::parse_binary(&data).expect("Should parse large file");
     let elapsed = start.elapsed();
 
-    eprintln!(
-        "Parsed {} records in {:?}",
-        log.data.len(),
-        elapsed
-    );
+    eprintln!("Parsed {} records in {:?}", log.data.len(), elapsed);
 
     // Should complete in reasonable time (less than 10 seconds)
     assert!(

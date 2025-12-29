@@ -273,7 +273,8 @@ fn test_romraider_minimal_log() {
 
 #[test]
 fn test_romraider_multiple_channels() {
-    let sample = "Time (msec),Engine Speed (rpm),Engine Load (%),Coolant Temp (C),Battery Voltage (V)\n\
+    let sample =
+        "Time (msec),Engine Speed (rpm),Engine Load (%),Coolant Temp (C),Battery Voltage (V)\n\
                   0,850,15.5,85.0,14.2\n\
                   20,900,18.0,85.5,14.1\n\
                   40,950,20.5,86.0,14.3\n\
@@ -460,7 +461,9 @@ fn test_romraider_subaru_channels() {
     // Verify channel names
     let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
     assert!(names.iter().any(|n| n.contains("Engine Speed")));
-    assert!(names.iter().any(|n| n.contains("Mass Airflow") || n.contains("MAF")));
+    assert!(names
+        .iter()
+        .any(|n| n.contains("Mass Airflow") || n.contains("MAF")));
 }
 
 #[test]

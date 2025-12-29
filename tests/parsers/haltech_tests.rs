@@ -13,8 +13,8 @@ mod common;
 
 use common::assertions::*;
 use common::example_files::*;
-use common::{example_file_exists, read_example_file};
 use common::float_cmp::*;
+use common::{example_file_exists, read_example_file};
 use ultralog::parsers::haltech::Haltech;
 use ultralog::parsers::types::Parseable;
 
@@ -66,7 +66,9 @@ DisplayMaxMin : 10000, 0
 "#;
 
     let parser = Haltech;
-    let log = parser.parse(sample).expect("Should parse minimal Haltech log");
+    let log = parser
+        .parse(sample)
+        .expect("Should parse minimal Haltech log");
 
     assert_eq!(log.channels.len(), 1);
     assert_eq!(log.data.len(), 2);
@@ -99,7 +101,9 @@ DisplayMaxMin : 100, 0
 "#;
 
     let parser = Haltech;
-    let log = parser.parse(sample).expect("Should parse multi-channel log");
+    let log = parser
+        .parse(sample)
+        .expect("Should parse multi-channel log");
 
     assert_eq!(log.channels.len(), 3);
     assert_eq!(log.data.len(), 3);

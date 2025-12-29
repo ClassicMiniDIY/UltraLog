@@ -341,11 +341,7 @@ fn test_channel_data_extraction_consistency() {
         // Values should match direct access
         for (i, &value) in data.iter().enumerate() {
             let direct = log.data[i][idx].as_f64();
-            assert_eq!(
-                value, direct,
-                "Channel {} data at row {} mismatch",
-                idx, i
-            );
+            assert_eq!(value, direct, "Channel {} data at row {} mismatch", idx, i);
         }
     }
 }

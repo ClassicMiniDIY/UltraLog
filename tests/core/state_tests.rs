@@ -30,14 +30,20 @@ fn test_max_channels_reasonable() {
 
 #[test]
 fn test_max_chart_points_reasonable() {
-    assert!(MAX_CHART_POINTS >= 100, "Should have minimum points for visualization");
+    assert!(
+        MAX_CHART_POINTS >= 100,
+        "Should have minimum points for visualization"
+    );
     assert!(MAX_CHART_POINTS <= 10000, "Should not have too many points");
     assert_eq!(MAX_CHART_POINTS, 2000, "Expected 2000 max chart points");
 }
 
 #[test]
 fn test_supported_extensions_not_empty() {
-    assert!(!SUPPORTED_EXTENSIONS.is_empty(), "Should have supported extensions");
+    assert!(
+        !SUPPORTED_EXTENSIONS.is_empty(),
+        "Should have supported extensions"
+    );
 }
 
 #[test]
@@ -80,14 +86,26 @@ fn test_chart_colors_unique() {
 
 #[test]
 fn test_colorblind_colors_not_empty() {
-    assert!(!COLORBLIND_COLORS.is_empty(), "Should have colorblind colors");
-    assert_eq!(COLORBLIND_COLORS.len(), 10, "Should have 10 colorblind colors");
+    assert!(
+        !COLORBLIND_COLORS.is_empty(),
+        "Should have colorblind colors"
+    );
+    assert_eq!(
+        COLORBLIND_COLORS.len(),
+        10,
+        "Should have 10 colorblind colors"
+    );
 }
 
 #[test]
 fn test_colorblind_colors_valid_rgb() {
     for (i, color) in COLORBLIND_COLORS.iter().enumerate() {
-        assert_eq!(color.len(), 3, "Colorblind color {} should have 3 components", i);
+        assert_eq!(
+            color.len(),
+            3,
+            "Colorblind color {} should have 3 components",
+            i
+        );
     }
 }
 

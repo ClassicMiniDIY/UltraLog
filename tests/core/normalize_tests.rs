@@ -330,7 +330,10 @@ fn test_get_builtin_mappings_structure() {
 
     for (normalized, sources) in &mappings {
         // Each mapping should have a normalized name
-        assert!(!normalized.is_empty(), "Normalized name should not be empty");
+        assert!(
+            !normalized.is_empty(),
+            "Normalized name should not be empty"
+        );
 
         // Each mapping should have at least one source
         assert!(
@@ -361,7 +364,10 @@ fn test_sort_channels_normalized_first() {
     let is_normalized: Vec<bool> = sorted.iter().map(|(_, _, n)| *n).collect();
 
     // First should be normalized (true)
-    assert!(is_normalized[0] || is_normalized[1], "First channels should be normalized");
+    assert!(
+        is_normalized[0] || is_normalized[1],
+        "First channels should be normalized"
+    );
 }
 
 #[test]

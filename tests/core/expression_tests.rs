@@ -277,9 +277,9 @@ fn test_evaluate_multiplication() {
 
     let result = evaluate_all_records("A * B", &bindings, &data, &times).unwrap();
 
-    assert_eq!(result[0], 1000.0);  // 100 * 10
-    assert_eq!(result[1], 4000.0);  // 200 * 20
-    assert_eq!(result[2], 9000.0);  // 300 * 30
+    assert_eq!(result[0], 1000.0); // 100 * 10
+    assert_eq!(result[1], 4000.0); // 200 * 20
+    assert_eq!(result[2], 9000.0); // 300 * 30
 }
 
 #[test]
@@ -290,9 +290,9 @@ fn test_evaluate_with_constants() {
 
     let result = evaluate_all_records("X * 0.5 + 10", &bindings, &data, &times).unwrap();
 
-    assert_eq!(result[0], 60.0);   // 100 * 0.5 + 10
-    assert_eq!(result[1], 110.0);  // 200 * 0.5 + 10
-    assert_eq!(result[2], 160.0);  // 300 * 0.5 + 10
+    assert_eq!(result[0], 60.0); // 100 * 0.5 + 10
+    assert_eq!(result[1], 110.0); // 200 * 0.5 + 10
+    assert_eq!(result[2], 160.0); // 300 * 0.5 + 10
 }
 
 #[test]
@@ -326,9 +326,9 @@ fn test_evaluate_index_offset_previous() {
 
     let result = evaluate_all_records("RPM - RPM[-1]", &bindings, &data, &times).unwrap();
 
-    assert_eq!(result[0], 0.0);     // 1000 - 1000 (clamped)
-    assert_eq!(result[1], 1000.0);  // 2000 - 1000
-    assert_eq!(result[2], 1000.0);  // 3000 - 2000
+    assert_eq!(result[0], 0.0); // 1000 - 1000 (clamped)
+    assert_eq!(result[1], 1000.0); // 2000 - 1000
+    assert_eq!(result[2], 1000.0); // 3000 - 2000
 }
 
 #[test]
@@ -344,9 +344,9 @@ fn test_evaluate_index_offset_future() {
 
     let result = evaluate_all_records("RPM[+1] - RPM", &bindings, &data, &times).unwrap();
 
-    assert_eq!(result[0], 1000.0);  // 2000 - 1000
-    assert_eq!(result[1], 1000.0);  // 3000 - 2000
-    assert_eq!(result[2], 0.0);     // 3000 - 3000 (clamped)
+    assert_eq!(result[0], 1000.0); // 2000 - 1000
+    assert_eq!(result[1], 1000.0); // 3000 - 2000
+    assert_eq!(result[2], 0.0); // 3000 - 3000 (clamped)
 }
 
 #[test]
@@ -364,17 +364,14 @@ fn test_evaluate_time_offset() {
 
     let result = evaluate_all_records("X - X@-0.1s", &bindings, &data, &times).unwrap();
 
-    assert_eq!(result[0], 0.0);     // Clamped to same
-    assert_eq!(result[1], 100.0);   // 200 - 100
-    assert_eq!(result[2], 100.0);   // 300 - 200
+    assert_eq!(result[0], 0.0); // Clamped to same
+    assert_eq!(result[1], 100.0); // 200 - 100
+    assert_eq!(result[2], 100.0); // 300 - 200
 }
 
 #[test]
 fn test_evaluate_division_by_zero() {
-    let data = vec![
-        vec![Value::Float(0.0)],
-        vec![Value::Float(1.0)],
-    ];
+    let data = vec![vec![Value::Float(0.0)], vec![Value::Float(1.0)]];
     let times = vec![0.0, 0.1];
     let mut bindings = HashMap::new();
     bindings.insert("X".to_string(), 0);
@@ -475,9 +472,7 @@ fn test_build_bindings_missing_channel() {
 
 #[test]
 fn test_generate_preview() {
-    let data: Vec<Vec<Value>> = (0..10)
-        .map(|i| vec![Value::Float(i as f64)])
-        .collect();
+    let data: Vec<Vec<Value>> = (0..10).map(|i| vec![Value::Float(i as f64)]).collect();
     let times: Vec<f64> = (0..10).map(|i| i as f64 * 0.1).collect();
     let mut bindings = HashMap::new();
     bindings.insert("X".to_string(), 0);

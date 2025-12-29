@@ -27,7 +27,10 @@ fn test_link_detection_valid_header() {
     valid_header.extend_from_slice(b"lf3");
     valid_header.extend_from_slice(&[0; 208]); // pad to minimum size
 
-    assert!(Link::detect(&valid_header), "Should detect valid LLG header");
+    assert!(
+        Link::detect(&valid_header),
+        "Should detect valid LLG header"
+    );
 }
 
 #[test]
@@ -434,11 +437,7 @@ fn test_link_all_example_files() {
         );
 
         let result = Link::parse_binary(&data);
-        assert!(
-            result.is_ok(),
-            "Should parse {} without error",
-            file_path
-        );
+        assert!(result.is_ok(), "Should parse {} without error", file_path);
 
         let log = result.unwrap();
 

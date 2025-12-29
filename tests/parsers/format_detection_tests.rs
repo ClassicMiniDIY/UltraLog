@@ -36,7 +36,10 @@ fn test_ecumaster_semicolon_detection() {
 #[test]
 fn test_ecumaster_tab_detection() {
     let ecumaster = "TIME\tengine/rpm\n0.0\t1000\n";
-    assert!(EcuMaster::detect(ecumaster), "Should detect tab-delimited ECUMaster");
+    assert!(
+        EcuMaster::detect(ecumaster),
+        "Should detect tab-delimited ECUMaster"
+    );
 }
 
 #[test]
@@ -73,33 +76,78 @@ fn test_link_detection() {
 fn test_haltech_not_detected_as_others() {
     let haltech = "%DataLog%\nDataLogVersion : 1.1\n";
 
-    assert!(!EcuMaster::detect(haltech), "Haltech should not be ECUMaster");
-    assert!(!RomRaider::detect(haltech), "Haltech should not be RomRaider");
-    assert!(!Speeduino::detect(haltech.as_bytes()), "Haltech should not be MLG");
-    assert!(!Aim::detect(haltech.as_bytes()), "Haltech should not be AiM");
-    assert!(!Link::detect(haltech.as_bytes()), "Haltech should not be Link");
+    assert!(
+        !EcuMaster::detect(haltech),
+        "Haltech should not be ECUMaster"
+    );
+    assert!(
+        !RomRaider::detect(haltech),
+        "Haltech should not be RomRaider"
+    );
+    assert!(
+        !Speeduino::detect(haltech.as_bytes()),
+        "Haltech should not be MLG"
+    );
+    assert!(
+        !Aim::detect(haltech.as_bytes()),
+        "Haltech should not be AiM"
+    );
+    assert!(
+        !Link::detect(haltech.as_bytes()),
+        "Haltech should not be Link"
+    );
 }
 
 #[test]
 fn test_ecumaster_not_detected_as_others() {
     let ecumaster = "TIME;engine/rpm\n0.0;1000\n";
 
-    assert!(!ecumaster.starts_with("%DataLog%"), "ECUMaster should not be Haltech");
-    assert!(!RomRaider::detect(ecumaster), "ECUMaster should not be RomRaider");
-    assert!(!Speeduino::detect(ecumaster.as_bytes()), "ECUMaster should not be MLG");
-    assert!(!Aim::detect(ecumaster.as_bytes()), "ECUMaster should not be AiM");
-    assert!(!Link::detect(ecumaster.as_bytes()), "ECUMaster should not be Link");
+    assert!(
+        !ecumaster.starts_with("%DataLog%"),
+        "ECUMaster should not be Haltech"
+    );
+    assert!(
+        !RomRaider::detect(ecumaster),
+        "ECUMaster should not be RomRaider"
+    );
+    assert!(
+        !Speeduino::detect(ecumaster.as_bytes()),
+        "ECUMaster should not be MLG"
+    );
+    assert!(
+        !Aim::detect(ecumaster.as_bytes()),
+        "ECUMaster should not be AiM"
+    );
+    assert!(
+        !Link::detect(ecumaster.as_bytes()),
+        "ECUMaster should not be Link"
+    );
 }
 
 #[test]
 fn test_romraider_not_detected_as_others() {
     let romraider = "Time,RPM,Load\n0,1000,50\n";
 
-    assert!(!romraider.starts_with("%DataLog%"), "RomRaider should not be Haltech");
-    assert!(!EcuMaster::detect(romraider), "RomRaider should not be ECUMaster");
-    assert!(!Speeduino::detect(romraider.as_bytes()), "RomRaider should not be MLG");
-    assert!(!Aim::detect(romraider.as_bytes()), "RomRaider should not be AiM");
-    assert!(!Link::detect(romraider.as_bytes()), "RomRaider should not be Link");
+    assert!(
+        !romraider.starts_with("%DataLog%"),
+        "RomRaider should not be Haltech"
+    );
+    assert!(
+        !EcuMaster::detect(romraider),
+        "RomRaider should not be ECUMaster"
+    );
+    assert!(
+        !Speeduino::detect(romraider.as_bytes()),
+        "RomRaider should not be MLG"
+    );
+    assert!(
+        !Aim::detect(romraider.as_bytes()),
+        "RomRaider should not be AiM"
+    );
+    assert!(
+        !Link::detect(romraider.as_bytes()),
+        "RomRaider should not be Link"
+    );
 }
 
 #[test]
@@ -142,8 +190,14 @@ fn test_detect_haltech_example_file() {
     let content = read_example_file(HALTECH_SMALL);
 
     assert!(content.starts_with("%DataLog%"), "Should detect as Haltech");
-    assert!(!EcuMaster::detect(&content), "Should not detect as ECUMaster");
-    assert!(!RomRaider::detect(&content), "Should not detect as RomRaider");
+    assert!(
+        !EcuMaster::detect(&content),
+        "Should not detect as ECUMaster"
+    );
+    assert!(
+        !RomRaider::detect(&content),
+        "Should not detect as RomRaider"
+    );
 }
 
 #[test]
@@ -156,8 +210,14 @@ fn test_detect_ecumaster_example_file() {
     let content = read_example_file(ECUMASTER_STANDARD);
 
     assert!(EcuMaster::detect(&content), "Should detect as ECUMaster");
-    assert!(!content.starts_with("%DataLog%"), "Should not detect as Haltech");
-    assert!(!RomRaider::detect(&content), "Should not detect as RomRaider");
+    assert!(
+        !content.starts_with("%DataLog%"),
+        "Should not detect as Haltech"
+    );
+    assert!(
+        !RomRaider::detect(&content),
+        "Should not detect as RomRaider"
+    );
 }
 
 #[test]
@@ -228,8 +288,14 @@ fn test_random_data_detection() {
 fn test_whitespace_detection() {
     let whitespace = "   \n\t\r\n   ";
 
-    assert!(!EcuMaster::detect(whitespace), "Whitespace should not be ECUMaster");
-    assert!(!RomRaider::detect(whitespace), "Whitespace should not be RomRaider");
+    assert!(
+        !EcuMaster::detect(whitespace),
+        "Whitespace should not be ECUMaster"
+    );
+    assert!(
+        !RomRaider::detect(whitespace),
+        "Whitespace should not be RomRaider"
+    );
 }
 
 #[test]
@@ -301,9 +367,21 @@ fn test_binary_formats_reject_text() {
     ];
 
     for sample in &text_samples {
-        assert!(!Speeduino::detect(sample.as_bytes()), "MLG should reject text: {}", sample);
-        assert!(!Aim::detect(sample.as_bytes()), "AiM should reject text: {}", sample);
-        assert!(!Link::detect(sample.as_bytes()), "Link should reject text: {}", sample);
+        assert!(
+            !Speeduino::detect(sample.as_bytes()),
+            "MLG should reject text: {}",
+            sample
+        );
+        assert!(
+            !Aim::detect(sample.as_bytes()),
+            "AiM should reject text: {}",
+            sample
+        );
+        assert!(
+            !Link::detect(sample.as_bytes()),
+            "Link should reject text: {}",
+            sample
+        );
     }
 }
 
