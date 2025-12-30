@@ -9,7 +9,12 @@ use crate::state::MAX_CHANNELS;
 impl UltraLogApp {
     /// Render channel selection panel - fills available space
     pub fn render_channel_selection(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Channels");
+        // Pre-compute scaled font sizes
+        let font_14 = self.scaled_font(14.0);
+        let font_16 = self.scaled_font(16.0);
+        let font_18 = self.scaled_font(18.0);
+
+        ui.label(egui::RichText::new("Channels").heading().size(font_18));
         ui.separator();
 
         // Get active tab info
@@ -31,7 +36,7 @@ impl UltraLogApp {
 
             // Computed Channels button
             if ui
-                .button("+ Computed Channels")
+                .button(egui::RichText::new("+ Computed Channels").size(font_14))
                 .on_hover_text("Create virtual channels from mathematical formulas")
                 .clicked()
             {
@@ -44,7 +49,7 @@ impl UltraLogApp {
             let mut search_text = current_search;
             let mut search_changed = false;
             ui.horizontal(|ui| {
-                ui.label("Search:");
+                ui.label(egui::RichText::new("Search:").size(font_14));
                 let response = ui
                     .add(egui::TextEdit::singleline(&mut search_text).desired_width(f32::INFINITY));
                 search_changed = response.changed();
@@ -58,10 +63,13 @@ impl UltraLogApp {
             ui.add_space(5.0);
 
             // Channel count
-            ui.label(format!(
-                "Selected: {} / {} | Total: {}",
-                selected_count, MAX_CHANNELS, channel_count
-            ));
+            ui.label(
+                egui::RichText::new(format!(
+                    "Selected: {} / {} | Total: {}",
+                    selected_count, MAX_CHANNELS, channel_count
+                ))
+                .size(font_14),
+            );
 
             ui.separator();
 
@@ -173,7 +181,8 @@ impl UltraLogApp {
                                 "📊 Channels with Data ({})",
                                 channels_with.len()
                             ))
-                            .strong(),
+                            .strong()
+                            .size(font_16),
                         )
                         .default_open(true)
                         .show(ui, |ui| {
@@ -203,7 +212,8 @@ impl UltraLogApp {
                                 "📭 Empty Channels ({})",
                                 channels_without.len()
                             ))
-                            .color(egui::Color32::GRAY),
+                            .color(egui::Color32::GRAY)
+                            .size(font_16),
                         )
                         .default_open(false) // Collapsed by default
                         .show(ui, |ui| {
@@ -234,7 +244,8 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new("Select a file to view channels")
                         .italics()
-                        .color(egui::Color32::GRAY),
+                        .color(egui::Color32::GRAY)
+                        .size(font_16),
                 );
             });
         }
@@ -242,7 +253,17 @@ impl UltraLogApp {
 
     /// Render selected channel cards
     pub fn render_selected_channels(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Selected Channels");
+        // Pre-compute scaled font sizes
+        let font_12 = self.scaled_font(12.0);
+        let font_14 = self.scaled_font(14.0);
+        let font_16 = self.scaled_font(16.0);
+        let font_18 = self.scaled_font(18.0);
+
+        ui.label(
+            egui::RichText::new("Selected Channels")
+                .heading()
+                .size(font_18),
+        );
         ui.separator();
 
         let use_normalization = self.field_normalization;
@@ -391,7 +412,8 @@ impl UltraLogApp {
                                     ui.label(
                                         egui::RichText::new(&card.display_name)
                                             .strong()
-                                            .color(card.color),
+                                            .color(card.color)
+                                            .size(font_14),
                                     );
                                     let close_btn = ui.small_button("x");
                                     if close_btn.clicked() {
@@ -408,11 +430,12 @@ impl UltraLogApp {
                                         ui.label(
                                             egui::RichText::new("Min:")
                                                 .color(egui::Color32::GRAY)
-                                                .small(),
+                                                .size(font_12),
                                         );
                                         ui.label(
                                             egui::RichText::new(min_str)
-                                                .color(egui::Color32::LIGHT_GRAY),
+                                                .color(egui::Color32::LIGHT_GRAY)
+                                                .size(font_14),
                                         );
                                         if let (Some(record), Some(time)) =
                                             (card.min_record, card.min_time)
@@ -438,11 +461,12 @@ impl UltraLogApp {
                                         ui.label(
                                             egui::RichText::new("Max:")
                                                 .color(egui::Color32::GRAY)
-                                                .small(),
+                                                .size(font_12),
                                         );
                                         ui.label(
                                             egui::RichText::new(max_str)
-                                                .color(egui::Color32::LIGHT_GRAY),
+                                                .color(egui::Color32::LIGHT_GRAY)
+                                                .size(font_14),
                                         );
                                         if let (Some(record), Some(time)) =
                                             (card.max_record, card.max_time)
@@ -488,7 +512,8 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new("Click channels to add them to the chart")
                     .italics()
-                    .color(egui::Color32::GRAY),
+                    .color(egui::Color32::GRAY)
+                    .size(font_16),
             );
         }
     }

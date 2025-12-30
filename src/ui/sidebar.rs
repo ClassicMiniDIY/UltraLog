@@ -66,7 +66,7 @@ impl UltraLogApp {
                             "{} | {} channels | {} points",
                             ecu_name, channel_count, data_count
                         ))
-                        .size(12.0)
+                        .size(self.scaled_font(12.0))
                         .color(egui::Color32::GRAY),
                     );
                 });
@@ -98,7 +98,7 @@ impl UltraLogApp {
                             ui.label(
                                 egui::RichText::new("+ Add File")
                                     .color(egui::Color32::WHITE)
-                                    .size(14.0),
+                                    .size(self.scaled_font(14.0)),
                             );
                         });
 
@@ -163,7 +163,7 @@ impl UltraLogApp {
                             ui.label(
                                 egui::RichText::new("Select a file")
                                     .color(egui::Color32::WHITE)
-                                    .size(14.0),
+                                    .size(self.scaled_font(14.0)),
                             );
                         });
 
@@ -186,14 +186,18 @@ impl UltraLogApp {
 
                     ui.add_space(12.0);
 
-                    ui.label(egui::RichText::new("or").color(text_gray).size(12.0));
+                    ui.label(
+                        egui::RichText::new("or")
+                            .color(text_gray)
+                            .size(self.scaled_font(12.0)),
+                    );
 
                     ui.add_space(8.0);
 
                     ui.label(
                         egui::RichText::new("Drop file here")
                             .color(egui::Color32::LIGHT_GRAY)
-                            .size(13.0),
+                            .size(self.scaled_font(13.0)),
                     );
 
                     ui.add_space(12.0);
@@ -201,7 +205,7 @@ impl UltraLogApp {
                     ui.label(
                         egui::RichText::new("CSV • LOG • TXT • MLG")
                             .color(text_gray)
-                            .size(11.0),
+                            .size(self.scaled_font(11.0)),
                     );
                 });
             });
@@ -209,6 +213,11 @@ impl UltraLogApp {
 
     /// Render view options at the bottom of the sidebar
     fn render_view_options(&mut self, ui: &mut egui::Ui) {
+        // Pre-compute scaled font sizes
+        let font_12 = self.scaled_font(12.0);
+        let font_14 = self.scaled_font(14.0);
+        let font_18 = self.scaled_font(18.0);
+
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
             // Reverse order since we're bottom-up
             ui.add_space(10.0);
@@ -232,16 +241,20 @@ impl UltraLogApp {
                     .inner_margin(10.0)
                     .show(ui, |ui| {
                         // Cursor tracking checkbox
-                        ui.checkbox(&mut self.cursor_tracking, "🎯  Cursor Tracking");
+                        ui.checkbox(
+                            &mut self.cursor_tracking,
+                            egui::RichText::new("🎯  Cursor Tracking").size(font_14),
+                        );
                         ui.label(
                             egui::RichText::new("Keep cursor centered while scrubbing")
-                                .color(egui::Color32::GRAY),
+                                .color(egui::Color32::GRAY)
+                                .size(font_12),
                         );
 
                         // Window size slider (only show when cursor tracking is enabled)
                         if self.cursor_tracking {
                             ui.add_space(8.0);
-                            ui.label("View Window:");
+                            ui.label(egui::RichText::new("View Window:").size(font_14));
                             ui.add(
                                 egui::Slider::new(&mut self.view_window_seconds, 5.0..=120.0)
                                     .suffix("s")
@@ -254,10 +267,14 @@ impl UltraLogApp {
                         ui.add_space(4.0);
 
                         // Color blind mode checkbox
-                        ui.checkbox(&mut self.color_blind_mode, "👁  Color Blind Mode");
+                        ui.checkbox(
+                            &mut self.color_blind_mode,
+                            egui::RichText::new("👁  Color Blind Mode").size(font_14),
+                        );
                         ui.label(
                             egui::RichText::new("Use accessible color palette")
-                                .color(egui::Color32::GRAY),
+                                .color(egui::Color32::GRAY)
+                                .size(font_12),
                         );
 
                         ui.add_space(8.0);
@@ -266,7 +283,10 @@ impl UltraLogApp {
 
                         // Field normalization checkbox with right-aligned Edit button
                         ui.horizontal(|ui| {
-                            ui.checkbox(&mut self.field_normalization, "📝  Field Normalization");
+                            ui.checkbox(
+                                &mut self.field_normalization,
+                                egui::RichText::new("📝  Field Normalization").size(font_14),
+                            );
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
@@ -278,13 +298,14 @@ impl UltraLogApp {
                         });
                         ui.label(
                             egui::RichText::new("Standardize channel names across ECU types")
-                                .color(egui::Color32::GRAY),
+                                .color(egui::Color32::GRAY)
+                                .size(font_12),
                         );
                     });
 
                 ui.add_space(5.0);
                 ui.separator();
-                ui.heading("View Options");
+                ui.label(egui::RichText::new("View Options").heading().size(font_18));
             }
         });
     }

@@ -48,7 +48,7 @@ impl UltraLogApp {
                 let response = ui.add(
                     egui::Button::new(
                         egui::RichText::new(tool.name())
-                            .size(14.0)
+                            .size(self.scaled_font(14.0))
                             .color(text_color),
                     )
                     .fill(button_fill)

@@ -195,6 +195,32 @@ impl ActiveTool {
     }
 }
 
+/// Font scale preference for UI elements
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum FontScale {
+    /// Smaller fonts (0.85x)
+    Small,
+    /// Default size (1.0x)
+    #[default]
+    Medium,
+    /// Larger fonts (1.2x)
+    Large,
+    /// Extra large fonts (1.4x)
+    ExtraLarge,
+}
+
+impl FontScale {
+    /// Get the multiplier for this font scale
+    pub fn multiplier(&self) -> f32 {
+        match self {
+            FontScale::Small => 0.85,
+            FontScale::Medium => 1.0,
+            FontScale::Large => 1.2,
+            FontScale::ExtraLarge => 1.4,
+        }
+    }
+}
+
 /// A selected point on a heatmap
 #[derive(Clone, Default)]
 pub struct SelectedHeatmapPoint {

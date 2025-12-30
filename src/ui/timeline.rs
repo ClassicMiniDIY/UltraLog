@@ -8,6 +8,9 @@ use crate::app::UltraLogApp;
 impl UltraLogApp {
     /// Render the timeline scrubber bar
     pub fn render_timeline_scrubber(&mut self, ui: &mut egui::Ui) {
+        // Pre-compute scaled font size
+        let font_12 = self.scaled_font(12.0);
+
         let Some((min_time, max_time)) = self.get_time_range() else {
             return;
         };
@@ -20,12 +23,15 @@ impl UltraLogApp {
         // Time labels row
         ui.horizontal(|ui| {
             ui.label(
-                egui::RichText::new(Self::format_time(min_time)).color(egui::Color32::LIGHT_GRAY),
+                egui::RichText::new(Self::format_time(min_time))
+                    .color(egui::Color32::LIGHT_GRAY)
+                    .size(font_12),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     egui::RichText::new(Self::format_time(max_time))
-                        .color(egui::Color32::LIGHT_GRAY),
+                        .color(egui::Color32::LIGHT_GRAY)
+                        .size(font_12),
                 );
             });
         });
@@ -63,19 +69,24 @@ impl UltraLogApp {
 
     /// Render the record/time indicator bar with playback controls
     pub fn render_record_indicator(&mut self, ui: &mut egui::Ui) {
+        // Pre-compute scaled font size
+        let font_14 = self.scaled_font(14.0);
+
         ui.horizontal(|ui| {
             // Playback controls
             let button_size = egui::vec2(28.0, 28.0);
 
             // Play/Pause button
             let play_text = if self.is_playing { "⏸" } else { "▶" };
-            let play_button = egui::Button::new(egui::RichText::new(play_text).size(16.0).color(
-                if self.is_playing {
-                    egui::Color32::from_rgb(253, 193, 73) // Amber when playing
-                } else {
-                    egui::Color32::from_rgb(144, 238, 144) // Light green when paused
-                },
-            ))
+            let play_button = egui::Button::new(
+                egui::RichText::new(play_text)
+                    .size(self.scaled_font(16.0))
+                    .color(if self.is_playing {
+                        egui::Color32::from_rgb(253, 193, 73) // Amber when playing
+                    } else {
+                        egui::Color32::from_rgb(144, 238, 144) // Light green when paused
+                    }),
+            )
             .min_size(button_size);
 
             if ui.add(play_button).clicked() {
@@ -99,7 +110,7 @@ impl UltraLogApp {
             // Stop button (resets to beginning)
             let stop_button = egui::Button::new(
                 egui::RichText::new("⏹")
-                    .size(16.0)
+                    .size(self.scaled_font(16.0))
                     .color(egui::Color32::from_rgb(191, 78, 48)), // Rust orange
             )
             .min_size(button_size);
@@ -118,7 +129,11 @@ impl UltraLogApp {
             ui.separator();
 
             // Playback speed selector
-            ui.label(egui::RichText::new("Speed:").color(egui::Color32::GRAY));
+            ui.label(
+                egui::RichText::new("Speed:")
+                    .color(egui::Color32::GRAY)
+                    .size(font_14),
+            );
 
             let speed_options = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0];
             egui::ComboBox::from_id_salt("playback_speed")
@@ -137,7 +152,8 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(format!("Time: {}", Self::format_time(time)))
                         .strong()
-                        .color(egui::Color32::from_rgb(0, 255, 255)), // Cyan to match cursor
+                        .color(egui::Color32::from_rgb(0, 255, 255)) // Cyan to match cursor
+                        .size(font_14),
                 );
             }
 
@@ -155,7 +171,8 @@ impl UltraLogApp {
                                 record + 1,
                                 total_records
                             ))
-                            .color(egui::Color32::LIGHT_GRAY),
+                            .color(egui::Color32::LIGHT_GRAY)
+                            .size(font_14),
                         );
                     }
                 }

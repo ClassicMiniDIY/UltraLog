@@ -16,7 +16,7 @@ use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
 use crate::state::{
-    ActiveTool, CacheKey, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
+    ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
     ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS,
     MAX_CHANNELS,
 };
@@ -74,6 +74,8 @@ pub struct UltraLogApp {
     // === Unit Preferences ===
     /// User preferences for display units
     pub(crate) unit_preferences: UnitPreferences,
+    /// User preference for UI font size scaling
+    pub(crate) font_scale: FontScale,
     // === Custom Field Normalization ===
     /// Custom user-defined field name mappings (source name -> normalized name)
     pub(crate) custom_normalizations: HashMap<String, String>,
@@ -151,6 +153,7 @@ impl Default for UltraLogApp {
             field_normalization: true, // Enabled by default for better readability
             initial_view_seconds: 60.0, // Start with 60 second view
             unit_preferences: UnitPreferences::default(),
+            font_scale: FontScale::default(),
             custom_normalizations: HashMap::new(),
             show_normalization_editor: false,
             norm_editor_extend_source: String::new(),
@@ -228,6 +231,12 @@ impl UltraLogApp {
             CHART_COLORS
         };
         palette[color_index % palette.len()]
+    }
+
+    /// Get a scaled font size based on user's font scale preference
+    #[inline]
+    pub fn scaled_font(&self, base_size: f32) -> f32 {
+        (base_size * self.font_scale.multiplier()).round()
     }
 
     // ========================================================================

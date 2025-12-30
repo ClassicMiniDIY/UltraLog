@@ -45,7 +45,7 @@ impl UltraLogApp {
             ui.centered_and_justified(|ui| {
                 ui.label(
                     egui::RichText::new("Load a log file to use scatter plots")
-                        .size(20.0)
+                        .size(self.scaled_font(20.0))
                         .color(egui::Color32::GRAY),
                 );
             });
@@ -95,7 +95,7 @@ impl UltraLogApp {
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new(&title)
-                    .size(16.0)
+                    .size(self.scaled_font(16.0))
                     .strong()
                     .color(egui::Color32::WHITE),
             );
@@ -266,6 +266,11 @@ impl UltraLogApp {
 
         let file_idx = config.file_index.unwrap_or(self.tabs[tab_idx].file_index);
 
+        // Pre-compute scaled font sizes
+        let font_10 = self.scaled_font(10.0);
+        let font_11 = self.scaled_font(11.0);
+        let font_16 = self.scaled_font(16.0);
+
         // Check if we have valid axis selections
         let (x_idx, y_idx) = match (config.x_channel, config.y_channel) {
             (Some(x), Some(y)) => (x, y),
@@ -277,7 +282,7 @@ impl UltraLogApp {
                     rect.center(),
                     egui::Align2::CENTER_CENTER,
                     "Select X and Y axes",
-                    egui::FontId::proportional(16.0),
+                    egui::FontId::proportional(font_16),
                     egui::Color32::GRAY,
                 );
                 return;
@@ -396,7 +401,7 @@ impl UltraLogApp {
                 egui::pos2(plot_rect.left() - 5.0, y_pos),
                 egui::Align2::RIGHT_CENTER,
                 format!("{:.1}", value),
-                egui::FontId::proportional(10.0),
+                egui::FontId::proportional(font_10),
                 text_color,
             );
 
@@ -421,7 +426,7 @@ impl UltraLogApp {
                 egui::pos2(x_pos, plot_rect.bottom() + 5.0),
                 egui::Align2::CENTER_TOP,
                 format!("{:.0}", value),
-                egui::FontId::proportional(10.0),
+                egui::FontId::proportional(font_10),
                 text_color,
             );
 
@@ -510,7 +515,7 @@ impl UltraLogApp {
                         egui::pos2(plot_rect.right() - 10.0, plot_rect.top() + 15.0),
                         egui::Align2::RIGHT_TOP,
                         tooltip_text,
-                        egui::FontId::proportional(11.0),
+                        egui::FontId::proportional(font_11),
                         egui::Color32::WHITE,
                     );
 
@@ -570,6 +575,10 @@ impl UltraLogApp {
         let Some(tab_idx) = self.active_tab else {
             return;
         };
+
+        // Pre-compute scaled font sizes
+        let font_10 = self.scaled_font(10.0);
+        let font_11 = self.scaled_font(11.0);
 
         // First, gather the data we need (immutable borrow)
         let config = if is_left {
@@ -631,7 +640,7 @@ impl UltraLogApp {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new("Hits:")
-                                .size(11.0)
+                                .size(font_11)
                                 .color(egui::Color32::WHITE),
                         );
 
@@ -660,7 +669,7 @@ impl UltraLogApp {
                         ui.add_space(4.0);
                         ui.label(
                             egui::RichText::new(format!("0-{}", max_hits))
-                                .size(10.0)
+                                .size(font_10)
                                 .color(egui::Color32::WHITE),
                         );
                     });
@@ -697,7 +706,7 @@ impl UltraLogApp {
                                     selected.y_value,
                                     selected.hits
                                 ))
-                                .size(11.0)
+                                .size(font_11)
                                 .color(egui::Color32::WHITE),
                             );
 

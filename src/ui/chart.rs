@@ -17,7 +17,7 @@ impl UltraLogApp {
             ui.centered_and_justified(|ui| {
                 ui.label(
                     egui::RichText::new("Select channels to display chart")
-                        .size(20.0)
+                        .size(self.scaled_font(20.0))
                         .color(egui::Color32::GRAY),
                 );
             });
