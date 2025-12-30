@@ -244,6 +244,65 @@ pub enum HistogramMode {
     HitCount,
 }
 
+/// Grid size options for histogram
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum HistogramGridSize {
+    /// 16x16 grid
+    Size16,
+    /// 32x32 grid
+    #[default]
+    Size32,
+    /// 64x64 grid
+    Size64,
+}
+
+impl HistogramGridSize {
+    /// Get the numeric size value
+    pub fn size(&self) -> usize {
+        match self {
+            HistogramGridSize::Size16 => 16,
+            HistogramGridSize::Size32 => 32,
+            HistogramGridSize::Size64 => 64,
+        }
+    }
+
+    /// Get display name
+    pub fn name(&self) -> &'static str {
+        match self {
+            HistogramGridSize::Size16 => "16x16",
+            HistogramGridSize::Size32 => "32x32",
+            HistogramGridSize::Size64 => "64x64",
+        }
+    }
+}
+
+/// Statistics for a selected histogram cell
+#[derive(Clone, Default)]
+pub struct SelectedHistogramCell {
+    /// X bin index
+    pub x_bin: usize,
+    /// Y bin index
+    pub y_bin: usize,
+    /// X axis value range (min, max) for this cell
+    pub x_range: (f64, f64),
+    /// Y axis value range (min, max) for this cell
+    pub y_range: (f64, f64),
+    /// Number of data points in cell
+    pub hit_count: u32,
+    /// Sum of weights (for weighted averaging)
+    pub cell_weight: f64,
+    /// Variance of Z values
+    pub variance: f64,
+    /// Standard deviation of Z values
+    pub std_dev: f64,
+    /// Minimum Z value in cell
+    pub minimum: f64,
+    /// Mean Z value in cell
+    pub mean: f64,
+    /// Maximum Z value in cell
+    pub maximum: f64,
+}
+
 /// Configuration for the histogram view
 #[derive(Clone, Default)]
 pub struct HistogramConfig {
@@ -255,6 +314,10 @@ pub struct HistogramConfig {
     pub z_channel: Option<usize>,
     /// Display mode (average Z vs hit count)
     pub mode: HistogramMode,
+    /// Grid size
+    pub grid_size: HistogramGridSize,
+    /// Currently selected cell (for statistics display)
+    pub selected_cell: Option<SelectedHistogramCell>,
 }
 
 /// State for the histogram view
