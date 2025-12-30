@@ -99,22 +99,84 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      - name: Get version from Cargo.toml
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "Detected version: $version"
+
       - name: Build release binary
         run: cargo build --release --target x86_64-pc-windows-msvc
 
-      - name: Package Windows binary
+      # === SIGNPATH CODE SIGNING (Free for Open Source) ===
+      # Uncomment after SignPath Foundation approval
+      # Prerequisites:
+      #   1. Apply at https://signpath.org/open-source
+      #   2. After approval, create a GitHub Actions trusted build system in SignPath
+      #   3. Add SIGNPATH_API_TOKEN to repository secrets
+      #   4. Update the organization-id, project-slug, and signing-policy-slug below
+      #
+      # - name: Sign executable with SignPath
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: 'YOUR_ORGANIZATION_ID'  # Get from SignPath dashboard
+      #     project-slug: 'ultralog'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'exe'
+      #     github-artifact-id: 'unsigned-exe'
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'target/x86_64-pc-windows-msvc/release'
+      #
+      # - name: Upload unsigned exe for signing
+      #   if: false  # Enable when SignPath is configured
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: unsigned-exe
+      #     path: target/x86_64-pc-windows-msvc/release/ultralog.exe
+
+      - name: Install Inno Setup
         shell: pwsh
         run: |
+          choco install innosetup -y
+          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          ULTRALOG_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
           New-Item -ItemType Directory -Force -Path output
-          Copy-Item "target/x86_64-pc-windows-msvc/release/ultralog.exe" -Destination "output/ultralog-windows.exe"
-          Compress-Archive -Path "output/ultralog-windows.exe" -DestinationPath "output/ultralog-windows.zip"
-          Remove-Item "output/ultralog-windows.exe"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /O"output" installer\ultralog.iss
+
+      # === SIGNPATH INSTALLER SIGNING ===
+      # Uncomment after SignPath Foundation approval
+      # - name: Sign installer with SignPath
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: 'YOUR_ORGANIZATION_ID'  # Get from SignPath dashboard
+      #     project-slug: 'ultralog'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'installer'
+      #     github-artifact-id: 'unsigned-installer'
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'output'
+      #
+      # - name: Upload unsigned installer for signing
+      #   if: false  # Enable when SignPath is configured
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: unsigned-installer
+      #     path: output/ultralog-windows-setup.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ultralog-windows
-          path: output/
+          path: output/*.exe
 
   build-macos:
     name: Build macOS (${{ matrix.arch }})
@@ -298,7 +360,7 @@ jobs:
           files: |
             artifacts/ultralog-macos-intel/*.dmg
             artifacts/ultralog-macos-arm64/*.dmg
-            artifacts/ultralog-windows/*.zip
+            artifacts/ultralog-windows/*.exe
             artifacts/ultralog-linux/*.tar.gz
           draft: false
           prerelease: false
@@ -314,9 +376,10 @@ jobs:
             3. On first run, right-click the app and select "Open" to bypass Gatekeeper
 
             ### Windows
-            1. Download `ultralog-windows.zip`
-            2. Extract the zip file
-            3. Run `ultralog-windows.exe`
+            1. Download `ultralog-windows-setup.exe`
+            2. Run the installer (you may need to click "More info" then "Run anyway" if SmartScreen appears)
+            3. Follow the installation wizard
+            4. Launch UltraLog from the Start Menu or Desktop shortcut
 
             ### Linux
             1. Download `ultralog-linux.tar.gz`

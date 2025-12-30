@@ -44,6 +44,8 @@ pub struct UpdateInfo {
     pub download_url: String,
     pub download_size: u64,
     pub release_page_url: String,
+    /// The filename of the release asset (needed for Windows installer versioned filenames)
+    pub asset_filename: String,
 }
 
 /// Result from update check operation
@@ -121,10 +123,12 @@ impl Platform {
         }
     }
 
-    /// Get the expected asset filename for this platform
+    /// Get the expected asset filename prefix for this platform.
+    /// For Windows, returns a prefix since the filename includes version (e.g., ultralog-windows-setup-1.2.3.exe).
+    /// For other platforms, returns the exact filename.
     pub fn asset_name(&self) -> &'static str {
         match self {
-            Platform::WindowsX64 => "ultralog-windows.zip",
+            Platform::WindowsX64 => "ultralog-windows-setup", // Prefix, actual name includes version
             Platform::MacOSIntel => "ultralog-macos-intel.dmg",
             Platform::MacOSArm => "ultralog-macos-arm64.dmg",
             Platform::LinuxX64 => "ultralog-linux.tar.gz",
@@ -134,10 +138,16 @@ impl Platform {
     /// Get the file extension for downloaded asset
     pub fn extension(&self) -> &'static str {
         match self {
-            Platform::WindowsX64 => "zip",
+            Platform::WindowsX64 => "exe", // Changed from zip to exe for installer
             Platform::MacOSIntel | Platform::MacOSArm => "dmg",
             Platform::LinuxX64 => "tar.gz",
         }
+    }
+
+    /// Whether this platform uses prefix matching for asset detection
+    /// (Windows installer includes version in filename)
+    pub fn uses_prefix_matching(&self) -> bool {
+        matches!(self, Platform::WindowsX64)
     }
 }
 
@@ -212,7 +222,20 @@ pub fn check_for_updates() -> UpdateCheckResult {
     };
 
     let asset_name = platform.asset_name();
-    let asset = match release.assets.iter().find(|a| a.name == asset_name) {
+
+    // For Windows, use prefix matching since the filename includes version
+    // (e.g., "ultralog-windows-setup-1.2.3.exe")
+    // For other platforms, use exact matching
+    let asset = if platform.uses_prefix_matching() {
+        release.assets.iter().find(|a| {
+            a.name.starts_with(asset_name)
+                && a.name.ends_with(&format!(".{}", platform.extension()))
+        })
+    } else {
+        release.assets.iter().find(|a| a.name == asset_name)
+    };
+
+    let asset = match asset {
         Some(a) => a,
         None => {
             return UpdateCheckResult::Error(format!(
@@ -229,20 +252,31 @@ pub fn check_for_updates() -> UpdateCheckResult {
         download_url: asset.browser_download_url.clone(),
         download_size: asset.size,
         release_page_url: release.html_url,
+        asset_filename: asset.name.clone(),
     })
 }
 
 /// Download update file to temp directory.
 /// This is a blocking operation - run in a background thread.
-pub fn download_update(url: &str) -> DownloadResult {
+///
+/// # Arguments
+/// * `url` - The download URL for the update
+/// * `asset_filename` - The original filename of the asset (used for Windows installer)
+pub fn download_update(url: &str, asset_filename: &str) -> DownloadResult {
     let platform = match Platform::current() {
         Some(p) => p,
         None => return DownloadResult::Error("Unsupported platform".to_string()),
     };
 
     // Create temp file path
+    // For Windows installer, preserve the original filename (includes version)
+    // For other platforms, use a generic name
     let temp_dir = std::env::temp_dir();
-    let filename = format!("ultralog-update.{}", platform.extension());
+    let filename = if platform.uses_prefix_matching() {
+        asset_filename.to_string()
+    } else {
+        format!("ultralog-update.{}", platform.extension())
+    };
     let download_path = temp_dir.join(&filename);
 
     // Download file
@@ -308,12 +342,10 @@ pub fn install_update(archive_path: &std::path::Path) -> InstallResult {
     }
 }
 
-/// Windows: Extract ZIP and create a batch script to replace the executable
+/// Windows: Run the installer silently to update the application
 #[cfg(target_os = "windows")]
-fn install_windows(archive_path: &std::path::Path) -> InstallResult {
-    use std::fs::File;
-
-    // Get the current executable path
+fn install_windows(installer_path: &std::path::Path) -> InstallResult {
+    // Get the current executable path to determine installation directory
     let current_exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => return InstallResult::Error(format!("Failed to get current exe path: {}", e)),
@@ -324,126 +356,73 @@ fn install_windows(archive_path: &std::path::Path) -> InstallResult {
         None => return InstallResult::Error("Failed to get exe directory".to_string()),
     };
 
-    // Create extraction directory in temp
-    let temp_dir = std::env::temp_dir();
-    let extract_dir = temp_dir.join("ultralog-update");
-
-    // Clean up any previous extraction
-    let _ = std::fs::remove_dir_all(&extract_dir);
-    if let Err(e) = std::fs::create_dir_all(&extract_dir) {
-        return InstallResult::Error(format!("Failed to create extraction directory: {}", e));
-    }
-
-    // Open and extract ZIP
-    let file = match File::open(archive_path) {
-        Ok(f) => f,
-        Err(e) => return InstallResult::Error(format!("Failed to open archive: {}", e)),
-    };
-
-    let mut archive = match zip::ZipArchive::new(file) {
-        Ok(a) => a,
-        Err(e) => return InstallResult::Error(format!("Failed to read ZIP archive: {}", e)),
-    };
-
-    // Extract all files
-    for i in 0..archive.len() {
-        let mut file = match archive.by_index(i) {
-            Ok(f) => f,
-            Err(e) => {
-                return InstallResult::Error(format!("Failed to read file from archive: {}", e))
-            }
-        };
-
-        let outpath = match file.enclosed_name() {
-            Some(p) => extract_dir.join(p),
-            None => continue,
-        };
-
-        if file.is_dir() {
-            let _ = std::fs::create_dir_all(&outpath);
-        } else {
-            if let Some(parent) = outpath.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let mut outfile = match File::create(&outpath) {
-                Ok(f) => f,
-                Err(e) => return InstallResult::Error(format!("Failed to create file: {}", e)),
-            };
-            if let Err(e) = std::io::copy(&mut file, &mut outfile) {
-                return InstallResult::Error(format!("Failed to extract file: {}", e));
-            }
-        }
-    }
-
-    // Find the new executable in extracted files
-    let new_exe = extract_dir.join("ultralog.exe");
-    if !new_exe.exists() {
-        // Try looking in a subdirectory
-        let entries: Vec<_> = std::fs::read_dir(&extract_dir)
-            .ok()
-            .map(|rd| rd.filter_map(|e| e.ok()).collect())
-            .unwrap_or_default();
-
-        for entry in entries {
-            let path = entry.path();
-            if path.is_dir() {
-                let nested_exe = path.join("ultralog.exe");
-                if nested_exe.exists() {
-                    return create_windows_updater_script(&nested_exe, &current_exe, exe_dir);
-                }
-            }
-        }
-        return InstallResult::Error("Could not find ultralog.exe in extracted files".to_string());
-    }
-
-    create_windows_updater_script(&new_exe, &current_exe, exe_dir)
-}
-
-#[cfg(target_os = "windows")]
-fn create_windows_updater_script(
-    new_exe: &std::path::Path,
-    current_exe: &std::path::Path,
-    exe_dir: &std::path::Path,
-) -> InstallResult {
+    // Create a batch script that:
+    // 1. Waits for UltraLog to close
+    // 2. Runs the installer silently
+    // 3. Cleans up the installer and script
     let script_path = std::env::temp_dir().join("ultralog_update.bat");
 
-    // Create batch script that waits for the app to close, then replaces files
     let script_content = format!(
         r#"@echo off
 echo UltraLog Updater
 echo Waiting for application to close...
+
 :wait
 timeout /t 1 /nobreak >nul
 tasklist /FI "IMAGENAME eq ultralog.exe" 2>NUL | find /I /N "ultralog.exe">NUL
 if "%ERRORLEVEL%"=="0" goto wait
 
-echo Updating UltraLog...
-copy /Y "{new_exe}" "{target_exe}"
+echo Installing update...
+
+REM Run installer silently
+REM /VERYSILENT - No UI at all
+REM /SUPPRESSMSGBOXES - Suppress message boxes
+REM /NORESTART - Don't restart automatically
+REM /CLOSEAPPLICATIONS - Close applications using files being installed
+REM /DIR="..." - Install to the same directory as current installation
+"{installer}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /DIR="{install_dir}"
+
 if errorlevel 1 (
-    echo Update failed! Please try again or download manually.
+    echo Update failed! Error code: %ERRORLEVEL%
+    echo Please download the update manually from GitHub.
     pause
     exit /b 1
 )
 
-echo Update complete! Starting UltraLog...
-start "" "{target_exe}"
+echo Update complete!
+
+REM Clean up installer
+del /q "{installer}" 2>nul
+
+REM Start UltraLog
+start "" "{install_dir}\ultralog.exe"
+
+REM Clean up this script
 del "%~f0"
 "#,
-        new_exe = new_exe.display(),
-        target_exe = current_exe.display(),
+        installer = installer_path.display(),
+        install_dir = exe_dir.display(),
     );
 
     if let Err(e) = std::fs::write(&script_path, script_content) {
         return InstallResult::Error(format!("Failed to create update script: {}", e));
     }
 
-    // Start the update script
+    // Start the update script in a minimized window
     match std::process::Command::new("cmd")
-        .args(["/C", "start", "", "/MIN", script_path.to_str().unwrap_or("")])
+        .args([
+            "/C",
+            "start",
+            "",
+            "/MIN",
+            script_path.to_str().unwrap_or(""),
+        ])
         .spawn()
     {
         Ok(_) => InstallResult::ReadyToRestart {
-            message: "Update downloaded and ready. The application will now close to complete the update.".to_string(),
+            message:
+                "Update downloaded and ready. The application will now close to install the update."
+                    .to_string(),
         },
         Err(e) => InstallResult::Error(format!("Failed to start update script: {}", e)),
     }
@@ -618,12 +597,22 @@ mod tests {
 
     #[test]
     fn test_asset_names() {
-        assert_eq!(Platform::WindowsX64.asset_name(), "ultralog-windows.zip");
+        // Windows uses prefix matching since filename includes version
+        assert_eq!(Platform::WindowsX64.asset_name(), "ultralog-windows-setup");
+        assert_eq!(Platform::WindowsX64.extension(), "exe");
+        assert!(Platform::WindowsX64.uses_prefix_matching());
+
+        // Other platforms use exact matching
         assert_eq!(
             Platform::MacOSIntel.asset_name(),
             "ultralog-macos-intel.dmg"
         );
         assert_eq!(Platform::MacOSArm.asset_name(), "ultralog-macos-arm64.dmg");
         assert_eq!(Platform::LinuxX64.asset_name(), "ultralog-linux.tar.gz");
+
+        // Other platforms don't use prefix matching
+        assert!(!Platform::MacOSIntel.uses_prefix_matching());
+        assert!(!Platform::MacOSArm.uses_prefix_matching());
+        assert!(!Platform::LinuxX64.uses_prefix_matching());
     }
 }

@@ -113,7 +113,10 @@ impl UltraLogApp {
             // Action buttons
             ui.horizontal(|ui| {
                 if ui.button("Download & Install").clicked() {
-                    self.start_update_download(info.download_url.clone());
+                    self.start_update_download(
+                        info.download_url.clone(),
+                        info.asset_filename.clone(),
+                    );
                 }
 
                 if ui.button("View on GitHub").clicked() {

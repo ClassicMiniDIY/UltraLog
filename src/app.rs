@@ -1073,14 +1073,14 @@ impl UltraLogApp {
     }
 
     /// Start downloading update in background
-    pub fn start_update_download(&mut self, url: String) {
+    pub fn start_update_download(&mut self, url: String, asset_filename: String) {
         self.update_state = UpdateState::Downloading;
 
         let (sender, receiver) = channel();
         self.update_download_receiver = Some(receiver);
 
         thread::spawn(move || {
-            let result = crate::updater::download_update(&url);
+            let result = crate::updater::download_update(&url, &asset_filename);
             let _ = sender.send(result);
         });
     }
