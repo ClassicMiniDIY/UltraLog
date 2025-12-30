@@ -64,6 +64,9 @@ pub mod example_files {
     pub const LINK_MEDIUM: &str = "exampleLogs/link/ECU Log 2024-03-14 2;04;31 pm.llg5";
     pub const LINK_LARGE: &str = "exampleLogs/link/ECU Log 2024-03-22 11;20;32 am.llg5";
     pub const LINK_STANDARD: &str = "exampleLogs/link/linklog.llg";
+
+    // RomRaider example files
+    pub const ROMRAIDER_EUROPEAN: &str = "exampleLogs/romraider/romraiderlog_20251031_170713.csv";
 }
 
 /// Test data generators for synthetic tests

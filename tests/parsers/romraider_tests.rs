@@ -477,3 +477,96 @@ fn test_romraider_af_correction_channels() {
 
     assert_eq!(log.channels.len(), 3);
 }
+
+// ============================================
+// European Locale Tests
+// ============================================
+
+#[test]
+fn test_romraider_detection_european_locale() {
+    // European locale: semicolon delimiter, comma decimal separator
+    let content = "Time (msec);Timing Advance (degrees);PLX Engine Speed (rpm)\n0;14,00;860\n";
+    assert!(
+        RomRaider::detect(content),
+        "Should detect European locale RomRaider format"
+    );
+}
+
+#[test]
+fn test_romraider_parse_european_locale() {
+    // European locale: semicolon delimiter, comma decimal separator
+    let sample = "Time (msec);Timing Advance (degrees);PLX Engine Speed (rpm);PLX Manifold Absolute Pressure (bar)\n\
+                  0;14,00;860;0,38\n\
+                  198;12,00;841;0,37\n\
+                  396;14,00;860;0,37\n";
+
+    let parser = RomRaider;
+    let log = parser.parse(sample).expect("Should parse European locale");
+
+    assert_eq!(log.channels.len(), 3);
+    assert_eq!(log.data.len(), 3);
+
+    // Check first row values (European decimals converted)
+    assert_approx_eq(log.data[0][0].as_f64(), 14.0, DEFAULT_TOLERANCE);
+    assert_approx_eq(log.data[0][1].as_f64(), 860.0, DEFAULT_TOLERANCE);
+    assert_approx_eq(log.data[0][2].as_f64(), 0.38, 0.001);
+
+    // Check relative timestamps (converted from ms to seconds)
+    let times = log.get_times_as_f64();
+    assert_approx_eq(times[0], 0.0, DEFAULT_TOLERANCE);
+    assert_approx_eq(times[1], 0.198, 0.001);
+    assert_approx_eq(times[2], 0.396, 0.001);
+}
+
+// ============================================
+// Real File Tests
+// ============================================
+
+#[test]
+fn test_romraider_european_example_file() {
+    use common::example_files::ROMRAIDER_EUROPEAN;
+    use common::{example_file_exists, read_example_file};
+
+    if !example_file_exists(ROMRAIDER_EUROPEAN) {
+        eprintln!("Skipping test: {} not found", ROMRAIDER_EUROPEAN);
+        return;
+    }
+
+    let content = read_example_file(ROMRAIDER_EUROPEAN);
+
+    assert!(
+        RomRaider::detect(&content),
+        "Should detect European RomRaider format"
+    );
+
+    let parser = RomRaider;
+    let log = parser
+        .parse(&content)
+        .expect("Should parse European RomRaider log");
+
+    assert_valid_log_structure(&log);
+    assert_finite_values(&log);
+    assert_minimum_channels(&log, 3);
+    assert_minimum_records(&log, 100);
+
+    // Verify some expected channel names
+    let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
+    assert!(
+        names
+            .iter()
+            .any(|n| n.contains("Timing") || n.contains("timing")),
+        "Should have timing channel"
+    );
+    assert!(
+        names
+            .iter()
+            .any(|n| n.contains("Engine Speed") || n.contains("rpm")),
+        "Should have engine speed channel"
+    );
+
+    eprintln!(
+        "RomRaider European log: {} channels, {} records",
+        log.channels.len(),
+        log.data.len()
+    );
+}
