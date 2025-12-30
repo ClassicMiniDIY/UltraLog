@@ -100,3 +100,21 @@ debug = true
 
 [profile.dev.package."*"]
 opt-level = 3
+
+# Debian package configuration (cargo-deb)
+[package.metadata.deb]
+maintainer = "Cole Gentry"
+copyright = "2025, Cole Gentry"
+license-file = ["LICENSE", "0"]
+extended-description = """UltraLog is a high-performance ECU log viewer that supports
+multiple ECU formats including Haltech, ECUMaster, RomRaider, Speeduino, rusEFI,
+AiM, and Link ECU. Features include computed channels, unit conversion,
+scatter plots, and chart export."""
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/ultralog", "usr/bin/", "755"],
+    ["linux/ultralog.desktop", "usr/share/applications/", "644"],
+    ["assets/icons/linux.png", "usr/share/icons/hicolor/512x512/apps/ultralog.png", "644"],
+    ["README.md", "usr/share/doc/ultralog/", "644"],
+]

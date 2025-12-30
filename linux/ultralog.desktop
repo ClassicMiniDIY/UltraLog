@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=UltraLog
+Comment=High-performance ECU log viewer
+Exec=ultralog %F
+Icon=ultralog
+Terminal=false
+Type=Application
+Categories=Development;Engineering;
+MimeType=text/csv;application/x-mlg;
+Keywords=ECU;datalog;automotive;tuning;haltech;ecumaster;speeduino;
+StartupWMClass=ultralog

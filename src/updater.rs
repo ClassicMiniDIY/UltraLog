@@ -124,30 +124,30 @@ impl Platform {
     }
 
     /// Get the expected asset filename prefix for this platform.
-    /// For Windows, returns a prefix since the filename includes version (e.g., ultralog-windows-setup-1.2.3.exe).
-    /// For other platforms, returns the exact filename.
+    /// For Windows and Linux, returns a prefix since the filename includes version.
+    /// For macOS, returns the exact filename.
     pub fn asset_name(&self) -> &'static str {
         match self {
             Platform::WindowsX64 => "ultralog-windows-setup", // Prefix, actual name includes version
             Platform::MacOSIntel => "ultralog-macos-intel.dmg",
             Platform::MacOSArm => "ultralog-macos-arm64.dmg",
-            Platform::LinuxX64 => "ultralog-linux.tar.gz",
+            Platform::LinuxX64 => "UltraLog-", // Prefix for AppImage (e.g., UltraLog-1.2.3-x86_64.AppImage)
         }
     }
 
     /// Get the file extension for downloaded asset
     pub fn extension(&self) -> &'static str {
         match self {
-            Platform::WindowsX64 => "exe", // Changed from zip to exe for installer
+            Platform::WindowsX64 => "exe",
             Platform::MacOSIntel | Platform::MacOSArm => "dmg",
-            Platform::LinuxX64 => "tar.gz",
+            Platform::LinuxX64 => "AppImage",
         }
     }
 
     /// Whether this platform uses prefix matching for asset detection
-    /// (Windows installer includes version in filename)
+    /// (Windows installer and Linux AppImage include version in filename)
     pub fn uses_prefix_matching(&self) -> bool {
-        matches!(self, Platform::WindowsX64)
+        matches!(self, Platform::WindowsX64 | Platform::LinuxX64)
     }
 }
 
@@ -433,78 +433,52 @@ fn install_windows(_archive_path: &std::path::Path) -> InstallResult {
     InstallResult::Error("Windows installation not supported on this platform".to_string())
 }
 
-/// Linux: Extract tar.gz and create a shell script to replace the executable
+/// Linux: Replace AppImage with new version
 #[cfg(target_os = "linux")]
-fn install_linux(archive_path: &std::path::Path) -> InstallResult {
-    use flate2::read::GzDecoder;
-    use std::fs::File;
-
+fn install_linux(appimage_path: &std::path::Path) -> InstallResult {
     // Get the current executable path
     let current_exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => return InstallResult::Error(format!("Failed to get current exe path: {}", e)),
     };
 
-    // Create extraction directory in temp
     let temp_dir = std::env::temp_dir();
-    let extract_dir = temp_dir.join("ultralog-update");
 
-    // Clean up any previous extraction
-    let _ = std::fs::remove_dir_all(&extract_dir);
-    if let Err(e) = std::fs::create_dir_all(&extract_dir) {
-        return InstallResult::Error(format!("Failed to create extraction directory: {}", e));
-    }
-
-    // Open and extract tar.gz
-    let file = match File::open(archive_path) {
-        Ok(f) => f,
-        Err(e) => return InstallResult::Error(format!("Failed to open archive: {}", e)),
-    };
-
-    let gz = GzDecoder::new(file);
-    let mut archive = tar::Archive::new(gz);
-
-    if let Err(e) = archive.unpack(&extract_dir) {
-        return InstallResult::Error(format!("Failed to extract archive: {}", e));
-    }
-
-    // Find the new executable
-    let new_exe = find_executable_in_dir(&extract_dir, "ultralog");
-    let new_exe = match new_exe {
-        Some(p) => p,
-        None => {
-            return InstallResult::Error(
-                "Could not find ultralog executable in extracted files".to_string(),
-            )
-        }
-    };
-
-    // Create shell script to replace the executable
+    // Create shell script to replace the AppImage
+    // AppImage is a single executable file, so we just need to replace it
     let script_path = temp_dir.join("ultralog_update.sh");
     let script_content = format!(
         r#"#!/bin/bash
 echo "UltraLog Updater"
 echo "Waiting for application to close..."
 
-# Wait for the application to exit
-while pgrep -x "ultralog" > /dev/null; do
+# Wait for the application to exit (check for both ultralog and AppImage name)
+while pgrep -f "ultralog|UltraLog.*AppImage" > /dev/null; do
     sleep 1
 done
 
 echo "Updating UltraLog..."
-cp "{new_exe}" "{target_exe}"
+
+# Replace the AppImage
+cp "{new_appimage}" "{target_exe}"
 chmod +x "{target_exe}"
 
 if [ $? -eq 0 ]; then
-    echo "Update complete! Starting UltraLog..."
+    echo "Update complete!"
+
+    # Clean up the downloaded AppImage
+    rm -f "{new_appimage}"
+
+    echo "Starting UltraLog..."
     nohup "{target_exe}" > /dev/null 2>&1 &
 else
     echo "Update failed! Please try again or download manually."
 fi
 
+# Clean up this script
 rm -- "$0"
 "#,
-        new_exe = new_exe.display(),
+        new_appimage = appimage_path.display(),
         target_exe = current_exe.display(),
     );
 
@@ -520,12 +494,11 @@ rm -- "$0"
     }
 
     // Start the update script
-    match std::process::Command::new("bash")
-        .arg(&script_path)
-        .spawn()
-    {
+    match std::process::Command::new("bash").arg(&script_path).spawn() {
         Ok(_) => InstallResult::ReadyToRestart {
-            message: "Update downloaded and ready. The application will now close to complete the update.".to_string(),
+            message:
+                "Update downloaded and ready. The application will now close to install the update."
+                    .to_string(),
         },
         Err(e) => InstallResult::Error(format!("Failed to start update script: {}", e)),
     }
@@ -534,30 +507,6 @@ rm -- "$0"
 #[cfg(not(target_os = "linux"))]
 fn install_linux(_archive_path: &std::path::Path) -> InstallResult {
     InstallResult::Error("Linux installation not supported on this platform".to_string())
-}
-
-#[cfg(target_os = "linux")]
-fn find_executable_in_dir(dir: &std::path::Path, name: &str) -> Option<PathBuf> {
-    // First check directly in the directory
-    let direct = dir.join(name);
-    if direct.exists() && direct.is_file() {
-        return Some(direct);
-    }
-
-    // Check subdirectories
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if path.is_dir() {
-                if let Some(found) = find_executable_in_dir(&path, name) {
-                    return Some(found);
-                }
-            } else if path.file_name().map(|n| n == name).unwrap_or(false) {
-                return Some(path);
-            }
-        }
-    }
-    None
 }
 
 /// macOS: Open the DMG for manual installation
@@ -602,17 +551,18 @@ mod tests {
         assert_eq!(Platform::WindowsX64.extension(), "exe");
         assert!(Platform::WindowsX64.uses_prefix_matching());
 
-        // Other platforms use exact matching
+        // macOS uses exact matching
         assert_eq!(
             Platform::MacOSIntel.asset_name(),
             "ultralog-macos-intel.dmg"
         );
         assert_eq!(Platform::MacOSArm.asset_name(), "ultralog-macos-arm64.dmg");
-        assert_eq!(Platform::LinuxX64.asset_name(), "ultralog-linux.tar.gz");
-
-        // Other platforms don't use prefix matching
         assert!(!Platform::MacOSIntel.uses_prefix_matching());
         assert!(!Platform::MacOSArm.uses_prefix_matching());
-        assert!(!Platform::LinuxX64.uses_prefix_matching());
+
+        // Linux uses prefix matching for AppImage (filename includes version)
+        assert_eq!(Platform::LinuxX64.asset_name(), "UltraLog-");
+        assert_eq!(Platform::LinuxX64.extension(), "AppImage");
+        assert!(Platform::LinuxX64.uses_prefix_matching());
     }
 }

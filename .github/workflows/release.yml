@@ -45,6 +45,13 @@ jobs:
         with:
           targets: x86_64-unknown-linux-gnu
 
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -65,19 +72,70 @@ jobs:
             libxcb-randr0-dev \
             libxcb-xkb-dev \
             libx11-xcb-dev \
-            libxml2-dev
+            libxml2-dev \
+            libfuse2 \
+            wget
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
 
       - name: Build release binary
         run: cargo build --release --target x86_64-unknown-linux-gnu
 
-      - name: Package Linux binary
+      # === SIGNPATH CODE SIGNING FOR LINUX ===
+      # Uncomment after SignPath Foundation approval
+      # - name: Sign Linux binary with SignPath
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: 'YOUR_ORGANIZATION_ID'
+      #     project-slug: 'ultralog'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'linux-binary'
+      #     github-artifact-id: 'unsigned-linux-binary'
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'target/x86_64-unknown-linux-gnu/release'
+
+      - name: Build .deb package
         run: |
+          cargo deb --target x86_64-unknown-linux-gnu --no-build
           mkdir -p output
-          cp target/x86_64-unknown-linux-gnu/release/ultralog output/ultralog-linux
-          chmod +x output/ultralog-linux
-          cd output
-          tar -czvf ultralog-linux.tar.gz ultralog-linux
-          rm ultralog-linux
+          cp target/x86_64-unknown-linux-gnu/debian/*.deb output/
+
+      - name: Build AppImage
+        run: |
+          chmod +x linux/build-appimage.sh
+          ./linux/build-appimage.sh "${{ steps.version.outputs.VERSION }}" "x86_64"
+          mv UltraLog-*.AppImage output/
+
+      # === SIGNPATH SIGNING FOR LINUX PACKAGES ===
+      # Uncomment after SignPath Foundation approval
+      # - name: Sign .deb with SignPath
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: 'YOUR_ORGANIZATION_ID'
+      #     project-slug: 'ultralog'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'deb'
+      #     github-artifact-id: 'unsigned-deb'
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'output'
+      #
+      # - name: Sign AppImage with SignPath
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: 'YOUR_ORGANIZATION_ID'
+      #     project-slug: 'ultralog'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'appimage'
+      #     github-artifact-id: 'unsigned-appimage'
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'output'
+
+      - name: List output files
+        run: ls -la output/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -361,7 +419,8 @@ jobs:
             artifacts/ultralog-macos-intel/*.dmg
             artifacts/ultralog-macos-arm64/*.dmg
             artifacts/ultralog-windows/*.exe
-            artifacts/ultralog-linux/*.tar.gz
+            artifacts/ultralog-linux/*.deb
+            artifacts/ultralog-linux/*.AppImage
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -382,8 +441,15 @@ jobs:
             4. Launch UltraLog from the Start Menu or Desktop shortcut
 
             ### Linux
-            1. Download `ultralog-linux.tar.gz`
-            2. Extract: `tar -xzf ultralog-linux.tar.gz`
-            3. Run: `./ultralog-linux`
+
+            **AppImage (Universal - Recommended)**
+            1. Download `UltraLog-X.X.X-x86_64.AppImage`
+            2. Make it executable: `chmod +x UltraLog-*.AppImage`
+            3. Run: `./UltraLog-*.AppImage`
+
+            **Debian/Ubuntu (.deb)**
+            1. Download `ultralog_X.X.X_amd64.deb`
+            2. Install: `sudo dpkg -i ultralog_*.deb`
+            3. Run from applications menu or terminal: `ultralog`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
