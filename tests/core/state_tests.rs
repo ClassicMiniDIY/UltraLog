@@ -12,9 +12,10 @@ use ultralog::parsers::haltech::{ChannelType, HaltechChannel};
 use ultralog::parsers::types::{EcuType, Log, Value};
 use ultralog::parsers::Channel;
 use ultralog::state::{
-    ActiveTool, CacheKey, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
-    ScatterPlotState, SelectedChannel, SelectedHeatmapPoint, Tab, ToastType, CHART_COLORS,
-    COLORBLIND_COLORS, MAX_CHANNELS, MAX_CHART_POINTS, SUPPORTED_EXTENSIONS,
+    ActiveTool, CacheKey, HistogramConfig, HistogramGridSize, HistogramMode, HistogramState,
+    LoadResult, LoadedFile, LoadingState, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
+    SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS,
+    MAX_CHANNELS, MAX_CHART_POINTS, SUPPORTED_EXTENSIONS,
 };
 
 // ============================================
@@ -181,6 +182,7 @@ fn test_active_tool_default() {
 fn test_active_tool_names() {
     assert_eq!(ActiveTool::LogViewer.name(), "Log Viewer");
     assert_eq!(ActiveTool::ScatterPlot.name(), "Scatter Plots");
+    assert_eq!(ActiveTool::Histogram.name(), "Histogram");
 }
 
 #[test]
@@ -188,7 +190,10 @@ fn test_active_tool_equality() {
     // Use pattern matching since ActiveTool doesn't implement Debug
     assert!(ActiveTool::LogViewer == ActiveTool::LogViewer);
     assert!(ActiveTool::ScatterPlot == ActiveTool::ScatterPlot);
+    assert!(ActiveTool::Histogram == ActiveTool::Histogram);
     assert!(ActiveTool::LogViewer != ActiveTool::ScatterPlot);
+    assert!(ActiveTool::LogViewer != ActiveTool::Histogram);
+    assert!(ActiveTool::ScatterPlot != ActiveTool::Histogram);
 }
 
 #[test]
@@ -595,4 +600,314 @@ fn test_loaded_file_clone() {
     assert_eq!(cloned.path, file.path);
     assert_eq!(cloned.name, file.name);
     assert_eq!(cloned.channels_with_data, file.channels_with_data);
+}
+
+// ============================================
+// HistogramMode Tests
+// ============================================
+
+#[test]
+fn test_histogram_mode_default() {
+    let mode = HistogramMode::default();
+    assert!(matches!(mode, HistogramMode::AverageZ));
+}
+
+#[test]
+fn test_histogram_mode_variants() {
+    let average_z = HistogramMode::AverageZ;
+    let hit_count = HistogramMode::HitCount;
+
+    assert!(matches!(average_z, HistogramMode::AverageZ));
+    assert!(matches!(hit_count, HistogramMode::HitCount));
+}
+
+#[test]
+fn test_histogram_mode_equality() {
+    assert!(HistogramMode::AverageZ == HistogramMode::AverageZ);
+    assert!(HistogramMode::HitCount == HistogramMode::HitCount);
+    assert!(HistogramMode::AverageZ != HistogramMode::HitCount);
+}
+
+#[test]
+fn test_histogram_mode_copy() {
+    let mode1 = HistogramMode::HitCount;
+    let mode2 = mode1;
+    assert!(mode1 == mode2);
+}
+
+// ============================================
+// HistogramGridSize Tests
+// ============================================
+
+#[test]
+fn test_histogram_grid_size_default() {
+    let size = HistogramGridSize::default();
+    // Default should be 32x32
+    assert!(matches!(size, HistogramGridSize::Size32));
+}
+
+#[test]
+fn test_histogram_grid_size_values() {
+    assert_eq!(HistogramGridSize::Size16.size(), 16);
+    assert_eq!(HistogramGridSize::Size32.size(), 32);
+    assert_eq!(HistogramGridSize::Size64.size(), 64);
+}
+
+#[test]
+fn test_histogram_grid_size_names() {
+    assert_eq!(HistogramGridSize::Size16.name(), "16x16");
+    assert_eq!(HistogramGridSize::Size32.name(), "32x32");
+    assert_eq!(HistogramGridSize::Size64.name(), "64x64");
+}
+
+#[test]
+fn test_histogram_grid_size_equality() {
+    assert!(HistogramGridSize::Size16 == HistogramGridSize::Size16);
+    assert!(HistogramGridSize::Size32 == HistogramGridSize::Size32);
+    assert!(HistogramGridSize::Size64 == HistogramGridSize::Size64);
+    assert!(HistogramGridSize::Size16 != HistogramGridSize::Size32);
+    assert!(HistogramGridSize::Size32 != HistogramGridSize::Size64);
+}
+
+#[test]
+fn test_histogram_grid_size_copy() {
+    let size1 = HistogramGridSize::Size64;
+    let size2 = size1;
+    assert!(size1 == size2);
+}
+
+// ============================================
+// SelectedHistogramCell Tests
+// ============================================
+
+#[test]
+fn test_selected_histogram_cell_default() {
+    let cell = SelectedHistogramCell::default();
+
+    assert_eq!(cell.x_bin, 0);
+    assert_eq!(cell.y_bin, 0);
+    assert_eq!(cell.x_range, (0.0, 0.0));
+    assert_eq!(cell.y_range, (0.0, 0.0));
+    assert_eq!(cell.hit_count, 0);
+    assert_eq!(cell.cell_weight, 0.0);
+    assert_eq!(cell.variance, 0.0);
+    assert_eq!(cell.std_dev, 0.0);
+    assert_eq!(cell.minimum, 0.0);
+    assert_eq!(cell.mean, 0.0);
+    assert_eq!(cell.maximum, 0.0);
+}
+
+#[test]
+fn test_selected_histogram_cell_with_values() {
+    let cell = SelectedHistogramCell {
+        x_bin: 5,
+        y_bin: 10,
+        x_range: (100.0, 200.0),
+        y_range: (50.0, 75.0),
+        hit_count: 42,
+        cell_weight: 1234.56,
+        variance: 12.5,
+        std_dev: 3.54,
+        minimum: 10.0,
+        mean: 29.4,
+        maximum: 50.0,
+    };
+
+    assert_eq!(cell.x_bin, 5);
+    assert_eq!(cell.y_bin, 10);
+    assert_eq!(cell.x_range, (100.0, 200.0));
+    assert_eq!(cell.y_range, (50.0, 75.0));
+    assert_eq!(cell.hit_count, 42);
+    assert_eq!(cell.cell_weight, 1234.56);
+    assert_eq!(cell.variance, 12.5);
+    assert_eq!(cell.std_dev, 3.54);
+    assert_eq!(cell.minimum, 10.0);
+    assert_eq!(cell.mean, 29.4);
+    assert_eq!(cell.maximum, 50.0);
+}
+
+#[test]
+fn test_selected_histogram_cell_clone() {
+    let cell = SelectedHistogramCell {
+        x_bin: 3,
+        y_bin: 7,
+        x_range: (0.0, 100.0),
+        y_range: (0.0, 50.0),
+        hit_count: 100,
+        cell_weight: 500.0,
+        variance: 25.0,
+        std_dev: 5.0,
+        minimum: 5.0,
+        mean: 25.0,
+        maximum: 45.0,
+    };
+
+    let cloned = cell.clone();
+
+    assert_eq!(cloned.x_bin, cell.x_bin);
+    assert_eq!(cloned.y_bin, cell.y_bin);
+    assert_eq!(cloned.x_range, cell.x_range);
+    assert_eq!(cloned.y_range, cell.y_range);
+    assert_eq!(cloned.hit_count, cell.hit_count);
+    assert_eq!(cloned.cell_weight, cell.cell_weight);
+    assert_eq!(cloned.variance, cell.variance);
+    assert_eq!(cloned.std_dev, cell.std_dev);
+    assert_eq!(cloned.minimum, cell.minimum);
+    assert_eq!(cloned.mean, cell.mean);
+    assert_eq!(cloned.maximum, cell.maximum);
+}
+
+// ============================================
+// HistogramConfig Tests
+// ============================================
+
+#[test]
+fn test_histogram_config_default() {
+    let config = HistogramConfig::default();
+
+    assert!(config.x_channel.is_none());
+    assert!(config.y_channel.is_none());
+    assert!(config.z_channel.is_none());
+    assert!(matches!(config.mode, HistogramMode::AverageZ));
+    assert!(matches!(config.grid_size, HistogramGridSize::Size32));
+    assert!(config.selected_cell.is_none());
+}
+
+#[test]
+fn test_histogram_config_with_values() {
+    let mut config = HistogramConfig::default();
+    config.x_channel = Some(0);
+    config.y_channel = Some(1);
+    config.z_channel = Some(2);
+    config.mode = HistogramMode::HitCount;
+    config.grid_size = HistogramGridSize::Size64;
+    config.selected_cell = Some(SelectedHistogramCell::default());
+
+    assert_eq!(config.x_channel, Some(0));
+    assert_eq!(config.y_channel, Some(1));
+    assert_eq!(config.z_channel, Some(2));
+    assert!(matches!(config.mode, HistogramMode::HitCount));
+    assert!(matches!(config.grid_size, HistogramGridSize::Size64));
+    assert!(config.selected_cell.is_some());
+}
+
+#[test]
+fn test_histogram_config_clone() {
+    let mut config = HistogramConfig::default();
+    config.x_channel = Some(5);
+    config.y_channel = Some(10);
+    config.mode = HistogramMode::HitCount;
+
+    let cloned = config.clone();
+
+    assert_eq!(cloned.x_channel, Some(5));
+    assert_eq!(cloned.y_channel, Some(10));
+    assert!(matches!(cloned.mode, HistogramMode::HitCount));
+}
+
+// ============================================
+// HistogramState Tests
+// ============================================
+
+#[test]
+fn test_histogram_state_default() {
+    let state = HistogramState::default();
+
+    assert!(state.config.x_channel.is_none());
+    assert!(state.config.y_channel.is_none());
+    assert!(state.config.z_channel.is_none());
+}
+
+#[test]
+fn test_histogram_state_clone() {
+    let mut state = HistogramState::default();
+    state.config.x_channel = Some(1);
+    state.config.y_channel = Some(2);
+    state.config.z_channel = Some(3);
+    state.config.mode = HistogramMode::HitCount;
+    state.config.grid_size = HistogramGridSize::Size16;
+
+    let cloned = state.clone();
+
+    assert_eq!(cloned.config.x_channel, Some(1));
+    assert_eq!(cloned.config.y_channel, Some(2));
+    assert_eq!(cloned.config.z_channel, Some(3));
+    assert!(matches!(cloned.config.mode, HistogramMode::HitCount));
+    assert!(matches!(cloned.config.grid_size, HistogramGridSize::Size16));
+}
+
+// ============================================
+// Tab Histogram State Tests
+// ============================================
+
+#[test]
+fn test_tab_histogram_state_initialization() {
+    let tab = Tab::new(0, "test.csv".to_string());
+
+    // Histogram state should be initialized with defaults
+    assert!(tab.histogram_state.config.x_channel.is_none());
+    assert!(tab.histogram_state.config.y_channel.is_none());
+    assert!(tab.histogram_state.config.z_channel.is_none());
+    assert!(matches!(
+        tab.histogram_state.config.mode,
+        HistogramMode::AverageZ
+    ));
+    assert!(matches!(
+        tab.histogram_state.config.grid_size,
+        HistogramGridSize::Size32
+    ));
+    assert!(tab.histogram_state.config.selected_cell.is_none());
+}
+
+#[test]
+fn test_tab_histogram_state_persists_across_clone() {
+    let mut tab = Tab::new(0, "test.csv".to_string());
+    tab.histogram_state.config.x_channel = Some(5);
+    tab.histogram_state.config.y_channel = Some(10);
+    tab.histogram_state.config.z_channel = Some(15);
+    tab.histogram_state.config.mode = HistogramMode::HitCount;
+    tab.histogram_state.config.grid_size = HistogramGridSize::Size64;
+
+    let cloned = tab.clone();
+
+    assert_eq!(cloned.histogram_state.config.x_channel, Some(5));
+    assert_eq!(cloned.histogram_state.config.y_channel, Some(10));
+    assert_eq!(cloned.histogram_state.config.z_channel, Some(15));
+    assert!(matches!(
+        cloned.histogram_state.config.mode,
+        HistogramMode::HitCount
+    ));
+    assert!(matches!(
+        cloned.histogram_state.config.grid_size,
+        HistogramGridSize::Size64
+    ));
+}
+
+#[test]
+fn test_tab_histogram_selected_cell_persists() {
+    let mut tab = Tab::new(0, "test.csv".to_string());
+
+    let selected = SelectedHistogramCell {
+        x_bin: 8,
+        y_bin: 12,
+        x_range: (0.0, 500.0),
+        y_range: (0.0, 100.0),
+        hit_count: 50,
+        cell_weight: 250.0,
+        variance: 10.0,
+        std_dev: 3.16,
+        minimum: 2.0,
+        mean: 5.0,
+        maximum: 10.0,
+    };
+
+    tab.histogram_state.config.selected_cell = Some(selected);
+
+    let cloned = tab.clone();
+
+    assert!(cloned.histogram_state.config.selected_cell.is_some());
+    let cloned_cell = cloned.histogram_state.config.selected_cell.unwrap();
+    assert_eq!(cloned_cell.x_bin, 8);
+    assert_eq!(cloned_cell.y_bin, 12);
+    assert_eq!(cloned_cell.hit_count, 50);
 }

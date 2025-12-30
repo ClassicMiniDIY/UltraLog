@@ -1,5 +1,6 @@
 //! Chart export functionality (PNG, PDF).
 
+use printpdf::path::{PaintMode, WindingOrder};
 use printpdf::*;
 use std::fs::File;
 use std::io::BufWriter;
@@ -10,6 +11,7 @@ use ::image::{Rgba, RgbaImage};
 use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
+use crate::state::HistogramMode;
 
 impl UltraLogApp {
     /// Export the current chart view as PNG
@@ -351,6 +353,471 @@ impl UltraLogApp {
         doc.save(&mut writer)?;
 
         Ok(())
+    }
+
+    /// Export the current histogram view as PDF
+    pub fn export_histogram_pdf(&mut self) {
+        // Show save dialog
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("PDF Document", &["pdf"])
+            .set_file_name("ultralog_histogram.pdf")
+            .save_file()
+        else {
+            return;
+        };
+
+        match self.render_histogram_to_pdf(&path) {
+            Ok(_) => {
+                analytics::track_export("histogram_pdf");
+                self.show_toast_success("Histogram exported as PDF");
+            }
+            Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
+        }
+    }
+
+    /// Render histogram to PDF file
+    fn render_histogram_to_pdf(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Get tab and file data
+        let tab_idx = self.active_tab.ok_or("No active tab")?;
+        let config = &self.tabs[tab_idx].histogram_state.config;
+        let file_idx = self.tabs[tab_idx].file_index;
+
+        if file_idx >= self.files.len() {
+            return Err("Invalid file index".into());
+        }
+
+        let file = &self.files[file_idx];
+        let mode = config.mode;
+        let grid_size = config.grid_size.size();
+
+        let x_idx = config.x_channel.ok_or("X axis not selected")?;
+        let y_idx = config.y_channel.ok_or("Y axis not selected")?;
+        let z_idx = if mode == HistogramMode::AverageZ {
+            config
+                .z_channel
+                .ok_or("Z axis not selected for Average mode")?
+        } else {
+            0 // unused
+        };
+
+        // Get channel data
+        let x_data = file.log.get_channel_data(x_idx);
+        let y_data = file.log.get_channel_data(y_idx);
+        let z_data = if mode == HistogramMode::AverageZ {
+            Some(file.log.get_channel_data(z_idx))
+        } else {
+            None
+        };
+
+        if x_data.is_empty() || y_data.is_empty() {
+            return Err("No data available".into());
+        }
+
+        // Calculate data bounds
+        let x_min = x_data.iter().cloned().fold(f64::MAX, f64::min);
+        let x_max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+        let y_min = y_data.iter().cloned().fold(f64::MAX, f64::min);
+        let y_max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+
+        let x_range = if (x_max - x_min).abs() < f64::EPSILON {
+            1.0
+        } else {
+            x_max - x_min
+        };
+        let y_range = if (y_max - y_min).abs() < f64::EPSILON {
+            1.0
+        } else {
+            y_max - y_min
+        };
+
+        // Build histogram grid
+        let mut hit_counts = vec![vec![0u32; grid_size]; grid_size];
+        let mut z_sums = vec![vec![0.0f64; grid_size]; grid_size];
+
+        for i in 0..x_data.len() {
+            let x_bin = (((x_data[i] - x_min) / x_range) * (grid_size - 1) as f64).round() as usize;
+            let y_bin = (((y_data[i] - y_min) / y_range) * (grid_size - 1) as f64).round() as usize;
+            let x_bin = x_bin.min(grid_size - 1);
+            let y_bin = y_bin.min(grid_size - 1);
+
+            hit_counts[y_bin][x_bin] += 1;
+            if let Some(ref z) = z_data {
+                z_sums[y_bin][x_bin] += z[i];
+            }
+        }
+
+        // Calculate cell values and find min/max for color scaling
+        let mut cell_values = vec![vec![None::<f64>; grid_size]; grid_size];
+        let mut min_value: f64 = f64::MAX;
+        let mut max_value: f64 = f64::MIN;
+
+        for y_bin in 0..grid_size {
+            for x_bin in 0..grid_size {
+                let hits = hit_counts[y_bin][x_bin];
+                if hits > 0 {
+                    let value = match mode {
+                        HistogramMode::HitCount => hits as f64,
+                        HistogramMode::AverageZ => z_sums[y_bin][x_bin] / hits as f64,
+                    };
+                    cell_values[y_bin][x_bin] = Some(value);
+                    min_value = min_value.min(value);
+                    max_value = max_value.max(value);
+                }
+            }
+        }
+
+        let value_range = if (max_value - min_value).abs() < f64::EPSILON {
+            1.0
+        } else {
+            max_value - min_value
+        };
+
+        // Get channel names
+        let x_name = file.log.channels[x_idx].name();
+        let y_name = file.log.channels[y_idx].name();
+        let z_name = if mode == HistogramMode::AverageZ {
+            file.log.channels[z_idx].name()
+        } else {
+            "Hit Count".to_string()
+        };
+
+        // Create PDF document (A4 landscape)
+        let (doc, page1, layer1) = PdfDocument::new(
+            "UltraLog Histogram Export",
+            Mm(297.0),
+            Mm(210.0),
+            "Histogram",
+        );
+
+        let current_layer = doc.get_page(page1).get_layer(layer1);
+
+        // Chart dimensions in mm (A4 landscape with margins)
+        let margin: f64 = 20.0;
+        let axis_margin: f64 = 25.0;
+        let chart_left: f64 = margin + axis_margin;
+        let chart_right: f64 = 250.0; // Leave room for legend
+        let chart_bottom: f64 = margin + axis_margin;
+        let chart_top: f64 = 210.0 - margin - 30.0;
+
+        let chart_width: f64 = chart_right - chart_left;
+        let chart_height: f64 = chart_top - chart_bottom;
+
+        let cell_width = chart_width / grid_size as f64;
+        let cell_height = chart_height / grid_size as f64;
+
+        // Draw title
+        let font = doc.add_builtin_font(BuiltinFont::HelveticaBold)?;
+        current_layer.use_text(
+            "UltraLog Histogram Export",
+            16.0,
+            Mm(margin as f32),
+            Mm(200.0),
+            &font,
+        );
+
+        // Draw subtitle
+        let font_regular = doc.add_builtin_font(BuiltinFont::Helvetica)?;
+        let subtitle = format!(
+            "{} | Grid: {}x{} | Mode: {}",
+            file.name,
+            grid_size,
+            grid_size,
+            if mode == HistogramMode::HitCount {
+                "Hit Count"
+            } else {
+                "Average Z"
+            }
+        );
+        current_layer.use_text(&subtitle, 10.0, Mm(margin as f32), Mm(192.0), &font_regular);
+
+        // Draw axis labels
+        let axis_subtitle = format!("X: {} | Y: {} | Z: {}", x_name, y_name, z_name);
+        current_layer.use_text(
+            &axis_subtitle,
+            9.0,
+            Mm(margin as f32),
+            Mm(186.0),
+            &font_regular,
+        );
+
+        // Draw histogram cells
+        for y_bin in 0..grid_size {
+            for x_bin in 0..grid_size {
+                let cell_x = chart_left + x_bin as f64 * cell_width;
+                let cell_y = chart_bottom + y_bin as f64 * cell_height;
+
+                if let Some(value) = cell_values[y_bin][x_bin] {
+                    // Calculate color
+                    let normalized = if mode == HistogramMode::HitCount && max_value > 1.0 {
+                        (value.ln() / max_value.ln()).clamp(0.0, 1.0)
+                    } else {
+                        ((value - min_value) / value_range).clamp(0.0, 1.0)
+                    };
+                    let color = Self::get_pdf_heat_color(normalized);
+
+                    current_layer.set_fill_color(color);
+
+                    // Draw filled rectangle
+                    let rect = printpdf::Polygon {
+                        rings: vec![vec![
+                            (Point::new(Mm(cell_x as f32), Mm(cell_y as f32)), false),
+                            (
+                                Point::new(Mm((cell_x + cell_width) as f32), Mm(cell_y as f32)),
+                                false,
+                            ),
+                            (
+                                Point::new(
+                                    Mm((cell_x + cell_width) as f32),
+                                    Mm((cell_y + cell_height) as f32),
+                                ),
+                                false,
+                            ),
+                            (
+                                Point::new(Mm(cell_x as f32), Mm((cell_y + cell_height) as f32)),
+                                false,
+                            ),
+                        ]],
+                        mode: PaintMode::Fill,
+                        winding_order: WindingOrder::NonZero,
+                    };
+                    current_layer.add_polygon(rect);
+
+                    // Draw cell value text (only for smaller grids)
+                    if grid_size <= 32 {
+                        let text = if mode == HistogramMode::HitCount {
+                            format!("{}", hit_counts[y_bin][x_bin])
+                        } else {
+                            format!("{:.1}", value)
+                        };
+
+                        // Calculate text color based on brightness
+                        let brightness = normalized;
+                        let text_color = if brightness > 0.5 {
+                            Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) // Black
+                        } else {
+                            Color::Rgb(Rgb::new(1.0, 1.0, 1.0, None)) // White
+                        };
+
+                        current_layer.set_fill_color(text_color);
+                        let font_size = if grid_size <= 16 { 6.0 } else { 4.0 };
+                        current_layer.use_text(
+                            &text,
+                            font_size,
+                            Mm((cell_x + cell_width / 2.0 - 2.0) as f32),
+                            Mm((cell_y + cell_height / 2.0 - 1.0) as f32),
+                            &font_regular,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Draw grid lines
+        let grid_color = Color::Rgb(Rgb::new(0.4, 0.4, 0.4, None));
+        current_layer.set_outline_color(grid_color);
+        current_layer.set_outline_thickness(0.25);
+
+        for i in 0..=grid_size {
+            let x = chart_left + i as f64 * cell_width;
+            let y = chart_bottom + i as f64 * cell_height;
+
+            // Vertical line
+            let vline = Line {
+                points: vec![
+                    (Point::new(Mm(x as f32), Mm(chart_bottom as f32)), false),
+                    (Point::new(Mm(x as f32), Mm(chart_top as f32)), false),
+                ],
+                is_closed: false,
+            };
+            current_layer.add_line(vline);
+
+            // Horizontal line
+            let hline = Line {
+                points: vec![
+                    (Point::new(Mm(chart_left as f32), Mm(y as f32)), false),
+                    (Point::new(Mm(chart_right as f32), Mm(y as f32)), false),
+                ],
+                is_closed: false,
+            };
+            current_layer.add_line(hline);
+        }
+
+        // Draw axis value labels
+        let label_color = Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None));
+        current_layer.set_fill_color(label_color);
+
+        // Y axis labels
+        for i in 0..=4 {
+            let t = i as f64 / 4.0;
+            let value = y_min + t * y_range;
+            let y_pos = chart_bottom + t * chart_height;
+            current_layer.use_text(
+                format!("{:.0}", value),
+                7.0,
+                Mm((chart_left - 12.0) as f32),
+                Mm((y_pos - 1.0) as f32),
+                &font_regular,
+            );
+        }
+
+        // X axis labels
+        for i in 0..=4 {
+            let t = i as f64 / 4.0;
+            let value = x_min + t * x_range;
+            let x_pos = chart_left + t * chart_width;
+            current_layer.use_text(
+                format!("{:.0}", value),
+                7.0,
+                Mm((x_pos - 4.0) as f32),
+                Mm((chart_bottom - 8.0) as f32),
+                &font_regular,
+            );
+        }
+
+        // Draw legend (color scale)
+        let legend_left: f64 = 260.0;
+        let legend_width: f64 = 15.0;
+        let legend_bottom: f64 = chart_bottom;
+        let legend_height: f64 = chart_height;
+
+        // Draw legend title
+        current_layer.set_fill_color(Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)));
+        let legend_title = if mode == HistogramMode::HitCount {
+            "Hits"
+        } else {
+            "Value"
+        };
+        current_layer.use_text(
+            legend_title,
+            9.0,
+            Mm(legend_left as f32),
+            Mm((legend_bottom + legend_height + 5.0) as f32),
+            &font,
+        );
+
+        // Draw color gradient bar
+        let gradient_steps = 30;
+        let step_height = legend_height / gradient_steps as f64;
+
+        for i in 0..gradient_steps {
+            let t = i as f64 / gradient_steps as f64;
+            let color = Self::get_pdf_heat_color(t);
+            current_layer.set_fill_color(color);
+
+            let y = legend_bottom + i as f64 * step_height;
+            let rect = printpdf::Polygon {
+                rings: vec![vec![
+                    (Point::new(Mm(legend_left as f32), Mm(y as f32)), false),
+                    (
+                        Point::new(Mm((legend_left + legend_width) as f32), Mm(y as f32)),
+                        false,
+                    ),
+                    (
+                        Point::new(
+                            Mm((legend_left + legend_width) as f32),
+                            Mm((y + step_height + 0.5) as f32),
+                        ),
+                        false,
+                    ),
+                    (
+                        Point::new(Mm(legend_left as f32), Mm((y + step_height + 0.5) as f32)),
+                        false,
+                    ),
+                ]],
+                mode: PaintMode::Fill,
+                winding_order: WindingOrder::NonZero,
+            };
+            current_layer.add_polygon(rect);
+        }
+
+        // Draw legend min/max labels
+        current_layer.set_fill_color(Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)));
+        let min_label = if mode == HistogramMode::HitCount {
+            "0".to_string()
+        } else {
+            format!("{:.1}", min_value)
+        };
+        let max_label = if mode == HistogramMode::HitCount {
+            format!("{:.0}", max_value)
+        } else {
+            format!("{:.1}", max_value)
+        };
+
+        current_layer.use_text(
+            &min_label,
+            7.0,
+            Mm((legend_left + legend_width + 3.0) as f32),
+            Mm(legend_bottom as f32),
+            &font_regular,
+        );
+        current_layer.use_text(
+            &max_label,
+            7.0,
+            Mm((legend_left + legend_width + 3.0) as f32),
+            Mm((legend_bottom + legend_height - 3.0) as f32),
+            &font_regular,
+        );
+
+        // Draw statistics
+        let stats_y = legend_bottom - 15.0;
+        current_layer.use_text(
+            format!("Total Points: {}", x_data.len()),
+            8.0,
+            Mm(legend_left as f32),
+            Mm(stats_y as f32),
+            &font_regular,
+        );
+
+        // Save PDF
+        let file = File::create(path)?;
+        let mut writer = BufWriter::new(file);
+        doc.save(&mut writer)?;
+
+        Ok(())
+    }
+
+    /// Get a PDF color from the heat map gradient based on normalized value (0-1)
+    fn get_pdf_heat_color(normalized: f64) -> Color {
+        const HEAT_COLORS: &[[u8; 3]] = &[
+            [0, 0, 80],    // Dark blue (0.0)
+            [0, 0, 180],   // Blue
+            [0, 100, 255], // Light blue
+            [0, 200, 255], // Cyan
+            [0, 255, 200], // Cyan-green
+            [0, 255, 100], // Green
+            [100, 255, 0], // Yellow-green
+            [200, 255, 0], // Yellow
+            [255, 200, 0], // Orange
+            [255, 100, 0], // Red-orange
+            [255, 0, 0],   // Red (1.0)
+        ];
+
+        let t = normalized.clamp(0.0, 1.0);
+        let scaled = t * (HEAT_COLORS.len() - 1) as f64;
+        let idx = scaled.floor() as usize;
+        let frac = scaled - idx as f64;
+
+        if idx >= HEAT_COLORS.len() - 1 {
+            let c = HEAT_COLORS[HEAT_COLORS.len() - 1];
+            return Color::Rgb(Rgb::new(
+                c[0] as f32 / 255.0,
+                c[1] as f32 / 255.0,
+                c[2] as f32 / 255.0,
+                None,
+            ));
+        }
+
+        let c1 = HEAT_COLORS[idx];
+        let c2 = HEAT_COLORS[idx + 1];
+
+        let r = (c1[0] as f64 + (c2[0] as f64 - c1[0] as f64) * frac) / 255.0;
+        let g = (c1[1] as f64 + (c2[1] as f64 - c1[1] as f64) * frac) / 255.0;
+        let b = (c1[2] as f64 + (c2[2] as f64 - c1[2] as f64) * frac) / 255.0;
+
+        Color::Rgb(Rgb::new(r as f32, g as f32, b as f32, None))
     }
 }
 
