@@ -58,6 +58,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
     - [License](#license)
     - [Trademark Disclaimer](#trademark-disclaimer)
     - [Interoperability Statement](#interoperability-statement)
+    - [Open Invention Network](#open-invention-network)
   - [Author](#author)
   - [Related Projects](#related-projects)
   - [Contributing](#contributing)
@@ -616,6 +617,24 @@ This software is developed under the principles established by [Sega v. Accolade
 4. **Documents format specifications** - Publishes technical details for community benefit and defensive purposes
 
 For technical format specifications, see [docs/FORMAT_SPECIFICATIONS.md](docs/FORMAT_SPECIFICATIONS.md).
+
+### Open Invention Network
+
+<a href="https://openinventionnetwork.com">
+  <img src="https://openinventionnetwork.com/wp-content/uploads/2024/01/oin-logo-blue.png" alt="Open Invention Network Community Member" width="200">
+</a>
+
+UltraLog is a community member of the [Open Invention Network](https://openinventionnetwork.com) (OIN), a shared defensive patent pool with the mission to protect Linux and open-source software from patent aggression.
+
+OIN's cross-license agreement is available royalty-free to any party that agrees not to assert its patents against the Linux System. As of 2024, OIN has grown to include over 3,800 community members committed to defending open-source software.
+
+By joining OIN, UltraLog commits to:
+
+- **Patent non-aggression** - Not asserting patents against the Linux System
+- **Community defense** - Contributing to a shared defensive patent pool
+- **Open-source values** - Supporting the free exchange of ideas and innovation
+
+Learn more at [openinventionnetwork.com](https://openinventionnetwork.com).
 
 ---
 
