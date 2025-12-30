@@ -180,6 +180,8 @@ pub enum ActiveTool {
     LogViewer,
     /// Scatter plot view for comparing two variables with color coding
     ScatterPlot,
+    /// Histogram view for 2D distribution analysis
+    Histogram,
 }
 
 impl ActiveTool {
@@ -188,6 +190,7 @@ impl ActiveTool {
         match self {
             ActiveTool::LogViewer => "Log Viewer",
             ActiveTool::ScatterPlot => "Scatter Plots",
+            ActiveTool::Histogram => "Histogram",
         }
     }
 }
@@ -228,6 +231,103 @@ pub struct ScatterPlotState {
 }
 
 // ============================================================================
+// Histogram Types
+// ============================================================================
+
+/// Display mode for histogram cell values
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum HistogramMode {
+    /// Show average Z-channel value in cells
+    #[default]
+    AverageZ,
+    /// Show hit count (number of data points) in cells
+    HitCount,
+}
+
+/// Grid size options for histogram
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum HistogramGridSize {
+    /// 16x16 grid
+    Size16,
+    /// 32x32 grid
+    #[default]
+    Size32,
+    /// 64x64 grid
+    Size64,
+}
+
+impl HistogramGridSize {
+    /// Get the numeric size value
+    pub fn size(&self) -> usize {
+        match self {
+            HistogramGridSize::Size16 => 16,
+            HistogramGridSize::Size32 => 32,
+            HistogramGridSize::Size64 => 64,
+        }
+    }
+
+    /// Get display name
+    pub fn name(&self) -> &'static str {
+        match self {
+            HistogramGridSize::Size16 => "16x16",
+            HistogramGridSize::Size32 => "32x32",
+            HistogramGridSize::Size64 => "64x64",
+        }
+    }
+}
+
+/// Statistics for a selected histogram cell
+#[derive(Clone, Default)]
+pub struct SelectedHistogramCell {
+    /// X bin index
+    pub x_bin: usize,
+    /// Y bin index
+    pub y_bin: usize,
+    /// X axis value range (min, max) for this cell
+    pub x_range: (f64, f64),
+    /// Y axis value range (min, max) for this cell
+    pub y_range: (f64, f64),
+    /// Number of data points in cell
+    pub hit_count: u32,
+    /// Sum of weights (for weighted averaging)
+    pub cell_weight: f64,
+    /// Variance of Z values
+    pub variance: f64,
+    /// Standard deviation of Z values
+    pub std_dev: f64,
+    /// Minimum Z value in cell
+    pub minimum: f64,
+    /// Mean Z value in cell
+    pub mean: f64,
+    /// Maximum Z value in cell
+    pub maximum: f64,
+}
+
+/// Configuration for the histogram view
+#[derive(Clone, Default)]
+pub struct HistogramConfig {
+    /// Channel index for X axis
+    pub x_channel: Option<usize>,
+    /// Channel index for Y axis
+    pub y_channel: Option<usize>,
+    /// Channel index for Z axis (value to average)
+    pub z_channel: Option<usize>,
+    /// Display mode (average Z vs hit count)
+    pub mode: HistogramMode,
+    /// Grid size
+    pub grid_size: HistogramGridSize,
+    /// Currently selected cell (for statistics display)
+    pub selected_cell: Option<SelectedHistogramCell>,
+}
+
+/// State for the histogram view
+#[derive(Clone, Default)]
+pub struct HistogramState {
+    /// Histogram configuration
+    pub config: HistogramConfig,
+}
+
+// ============================================================================
 // Tab Types
 // ============================================================================
 
@@ -252,6 +352,8 @@ pub struct Tab {
     pub time_range: Option<(f64, f64)>,
     /// Scatter plot state for this tab (dual heatmaps)
     pub scatter_plot_state: ScatterPlotState,
+    /// Histogram state for this tab
+    pub histogram_state: HistogramState,
     /// Request to jump the view to a specific time (used for min/max jump buttons)
     pub jump_to_time: Option<f64>,
 }
@@ -274,6 +376,7 @@ impl Tab {
             chart_interacted: false,
             time_range: None,
             scatter_plot_state,
+            histogram_state: HistogramState::default(),
             jump_to_time: None,
         }
     }

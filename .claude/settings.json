@@ -16,7 +16,10 @@
       "Bash(wc:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(git config:*)",
+      "Bash(/Users/colegentry/Development/UltraLog/.githooks/pre-commit)",
+      "Bash(./scripts/bump-version.sh:*)"
     ]
   }
 }

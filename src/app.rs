@@ -1351,20 +1351,28 @@ impl eframe::App for UltraLogApp {
                 .show(ctx, |ui| {
                     self.render_channel_selection(ui);
                 });
+        }
 
-            // Bottom panel for timeline scrubber (only in Log Viewer mode)
-            if self.get_time_range().is_some() && !self.get_selected_channels().is_empty() {
-                egui::TopBottomPanel::bottom("timeline_panel")
-                    .resizable(false)
-                    .min_height(60.0)
-                    .show(ctx, |ui| {
-                        ui.add_space(5.0);
-                        self.render_record_indicator(ui);
-                        ui.separator();
-                        self.render_timeline_scrubber(ui);
-                        ui.add_space(5.0);
-                    });
+        // Bottom panel for timeline scrubber (Log Viewer and Histogram modes)
+        let show_timeline = match self.active_tool {
+            ActiveTool::LogViewer => {
+                self.get_time_range().is_some() && !self.get_selected_channels().is_empty()
             }
+            ActiveTool::Histogram => self.get_time_range().is_some(),
+            ActiveTool::ScatterPlot => false,
+        };
+
+        if show_timeline {
+            egui::TopBottomPanel::bottom("timeline_panel")
+                .resizable(false)
+                .min_height(60.0)
+                .show(ctx, |ui| {
+                    ui.add_space(5.0);
+                    self.render_record_indicator(ui);
+                    ui.separator();
+                    self.render_timeline_scrubber(ui);
+                    ui.add_space(5.0);
+                });
         }
 
         // Main content area - render based on active tool
@@ -1387,6 +1395,10 @@ impl eframe::App for UltraLogApp {
                 ActiveTool::ScatterPlot => {
                     ui.add_space(10.0);
                     self.render_scatter_plot_view(ui);
+                }
+                ActiveTool::Histogram => {
+                    ui.add_space(10.0);
+                    self.render_histogram_view(ui);
                 }
             }
         });

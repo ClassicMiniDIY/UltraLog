@@ -4,7 +4,7 @@ use eframe::egui;
 
 use crate::analytics;
 use crate::app::UltraLogApp;
-use crate::state::LoadingState;
+use crate::state::{ActiveTool, LoadingState};
 use crate::units::{
     AccelerationUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit, SpeedUnit,
     TemperatureUnit, VolumeUnit,
@@ -49,22 +49,43 @@ impl UltraLogApp {
 
                 ui.separator();
 
-                // Export submenu
+                // Export submenu - context-aware based on active tool
                 let has_chart_data =
                     !self.files.is_empty() && !self.get_selected_channels().is_empty();
-                ui.add_enabled_ui(has_chart_data, |ui| {
+                let has_histogram_data = !self.files.is_empty()
+                    && self.active_tool == ActiveTool::Histogram
+                    && self.active_tab.is_some()
+                    && {
+                        let tab_idx = self.active_tab.unwrap();
+                        let config = &self.tabs[tab_idx].histogram_state.config;
+                        config.x_channel.is_some() && config.y_channel.is_some()
+                    };
+
+                let can_export = has_chart_data || has_histogram_data;
+
+                ui.add_enabled_ui(can_export, |ui| {
                     ui.menu_button("📤  Export", |ui| {
                         // Increase font size for submenu items
                         ui.style_mut()
                             .text_styles
                             .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
-                        if ui.button("Export as PNG...").clicked() {
-                            self.export_chart_png();
-                            ui.close();
-                        }
-                        if ui.button("Export as PDF...").clicked() {
-                            self.export_chart_pdf();
-                            ui.close();
+
+                        if self.active_tool == ActiveTool::Histogram && has_histogram_data {
+                            // Histogram export options
+                            if ui.button("Export Histogram as PDF...").clicked() {
+                                self.export_histogram_pdf();
+                                ui.close();
+                            }
+                        } else if has_chart_data {
+                            // Chart export options
+                            if ui.button("Export as PNG...").clicked() {
+                                self.export_chart_png();
+                                ui.close();
+                            }
+                            if ui.button("Export as PDF...").clicked() {
+                                self.export_chart_pdf();
+                                ui.close();
+                            }
                         }
                     });
                 });

@@ -213,6 +213,14 @@ impl UltraLogApp {
             // Reverse order since we're bottom-up
             ui.add_space(10.0);
 
+            // Show histogram stats when in Histogram mode
+            if !self.files.is_empty() && self.active_tool == ActiveTool::Histogram {
+                self.render_histogram_stats(ui);
+
+                ui.add_space(5.0);
+                ui.separator();
+            }
+
             // Only show options when we have data to view and are in Log Viewer mode
             if !self.files.is_empty()
                 && !self.get_selected_channels().is_empty()
