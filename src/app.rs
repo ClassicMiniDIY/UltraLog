@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
+use crate::analysis::{AnalysisResult, AnalyzerRegistry};
 use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
@@ -118,6 +119,13 @@ pub struct UltraLogApp {
     pub(crate) show_computed_channels_manager: bool,
     /// State for the formula editor dialog
     pub(crate) formula_editor_state: FormulaEditorState,
+    // === Analysis System ===
+    /// Registry of available analyzers
+    pub(crate) analyzer_registry: AnalyzerRegistry,
+    /// Results from running analyzers (stored per file)
+    pub(crate) analysis_results: HashMap<usize, Vec<AnalysisResult>>,
+    /// Whether to show the analysis panel
+    pub(crate) show_analysis_panel: bool,
 }
 
 impl Default for UltraLogApp {
@@ -163,6 +171,9 @@ impl Default for UltraLogApp {
             file_computed_channels: HashMap::new(),
             show_computed_channels_manager: false,
             formula_editor_state: FormulaEditorState::default(),
+            analyzer_registry: AnalyzerRegistry::new(),
+            analysis_results: HashMap::new(),
+            show_analysis_panel: false,
         }
     }
 }
@@ -1295,6 +1306,7 @@ impl eframe::App for UltraLogApp {
         self.render_update_dialog(ctx);
         self.render_computed_channels_manager(ctx);
         self.render_formula_editor(ctx);
+        self.render_analysis_panel(ctx);
 
         // Menu bar at top with padding
         let menu_frame = egui::Frame::NONE.inner_margin(egui::Margin {

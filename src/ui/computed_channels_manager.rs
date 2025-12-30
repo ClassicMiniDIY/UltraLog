@@ -1,13 +1,17 @@
 //! Computed Channels Manager UI.
 //!
 //! Provides a window for users to manage their computed channel library
-//! and apply computed channels to the active log file.
+//! and apply computed channels to the active log file, including quick templates
+//! and anomaly detection channels.
 
 use eframe::egui;
 
 use crate::app::UltraLogApp;
 use crate::computed::{ComputedChannel, ComputedChannelTemplate};
-use crate::expression::{build_channel_bindings, evaluate_all_records, extract_channel_references};
+use crate::expression::{
+    build_channel_bindings, compute_all_channel_statistics, evaluate_all_records,
+    evaluate_all_records_with_stats, extract_channel_references,
+};
 use crate::parsers::types::ComputedChannelInfo;
 use crate::parsers::Channel;
 use crate::state::{SelectedChannel, CHART_COLORS};
@@ -83,76 +87,161 @@ impl UltraLogApp {
                     let mut template_to_delete: Option<String> = None;
                     let mut template_to_apply: Option<ComputedChannelTemplate> = None;
 
+                    // Group templates by category
+                    let categories: Vec<String> = {
+                        let mut cats: Vec<String> = self
+                            .computed_library
+                            .templates
+                            .iter()
+                            .map(|t| {
+                                if t.category.is_empty() {
+                                    "Custom".to_string()
+                                } else {
+                                    t.category.clone()
+                                }
+                            })
+                            .collect();
+                        cats.sort();
+                        cats.dedup();
+                        // Put common categories in a specific order
+                        let order = ["Rate", "Engine", "Smoothing", "Anomaly", "Custom"];
+                        cats.sort_by_key(|c| {
+                            order
+                                .iter()
+                                .position(|&o| o == c)
+                                .unwrap_or(order.len())
+                        });
+                        cats
+                    };
+
                     egui::ScrollArea::vertical()
                         .id_salt("library_templates_scroll")
-                        .max_height(250.0)
+                        .max_height(300.0)
                         .show(ui, |ui| {
-                            for template in &self.computed_library.templates {
-                                egui::Frame::NONE
-                                    .fill(egui::Color32::from_rgb(50, 50, 50))
-                                    .corner_radius(5.0)
-                                    .inner_margin(egui::Margin::symmetric(10, 8))
-                                    .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            // Template info
-                                            ui.vertical(|ui| {
-                                                ui.horizontal(|ui| {
-                                                    ui.label(
-                                                        egui::RichText::new(&template.name)
-                                                            .strong()
-                                                            .color(egui::Color32::LIGHT_BLUE),
-                                                    );
-                                                    if !template.unit.is_empty() {
-                                                        ui.label(
-                                                            egui::RichText::new(format!(
-                                                                "({})",
-                                                                template.unit
-                                                            ))
-                                                            .small()
-                                                            .color(egui::Color32::GRAY),
-                                                        );
-                                                    }
-                                                });
-                                                ui.label(
-                                                    egui::RichText::new(&template.formula)
-                                                        .monospace()
-                                                        .small()
-                                                        .color(egui::Color32::from_rgb(180, 180, 180)),
-                                                );
-                                                if !template.description.is_empty() {
-                                                    ui.label(
-                                                        egui::RichText::new(&template.description)
-                                                            .small()
-                                                            .color(egui::Color32::GRAY),
-                                                    );
-                                                }
-                                            });
+                            for category in &categories {
+                                let cat_templates: Vec<&ComputedChannelTemplate> = self
+                                    .computed_library
+                                    .templates
+                                    .iter()
+                                    .filter(|t| {
+                                        let t_cat = if t.category.is_empty() {
+                                            "Custom"
+                                        } else {
+                                            &t.category
+                                        };
+                                        t_cat == category
+                                    })
+                                    .collect();
 
-                                            // Buttons on the right
-                                            ui.with_layout(
-                                                egui::Layout::right_to_left(egui::Align::Center),
-                                                |ui| {
-                                                    if ui.small_button("Delete").clicked() {
-                                                        template_to_delete = Some(template.id.clone());
-                                                    }
-                                                    if ui.small_button("Edit").clicked() {
-                                                        template_to_edit = Some(template.id.clone());
-                                                    }
-                                                    if self.active_tab.is_some()
-                                                        && ui
-                                                            .button(
-                                                                egui::RichText::new("Apply")
-                                                                    .color(egui::Color32::WHITE),
-                                                            )
-                                                            .clicked()
-                                                    {
-                                                        template_to_apply = Some(template.clone());
-                                                    }
-                                                },
-                                            );
-                                        });
-                                    });
-                                ui.add_space(4.0);
+                                if cat_templates.is_empty() {
+                                    continue;
+                                }
+
+                                // Category header with color
+                                let cat_color = match category.as_str() {
+                                    "Rate" => egui::Color32::from_rgb(100, 180, 255),
+                                    "Engine" => egui::Color32::from_rgb(255, 180, 100),
+                                    "Smoothing" => egui::Color32::from_rgb(180, 255, 100),
+                                    "Anomaly" => egui::Color32::from_rgb(255, 100, 100),
+                                    _ => egui::Color32::GRAY,
+                                };
+
+                                egui::CollapsingHeader::new(
+                                    egui::RichText::new(format!(
+                                        "{} ({})",
+                                        category,
+                                        cat_templates.len()
+                                    ))
+                                    .color(cat_color),
+                                )
+                                .default_open(true)
+                                .show(ui, |ui| {
+                                    for template in cat_templates {
+                                        egui::Frame::NONE
+                                            .fill(egui::Color32::from_rgb(50, 50, 50))
+                                            .corner_radius(5.0)
+                                            .inner_margin(egui::Margin::symmetric(10, 8))
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    // Template info
+                                                    ui.vertical(|ui| {
+                                                        ui.horizontal(|ui| {
+                                                            // Built-in indicator
+                                                            if template.is_builtin {
+                                                                ui.label(
+                                                                    egui::RichText::new("★")
+                                                                        .color(egui::Color32::GOLD),
+                                                                );
+                                                            }
+                                                            ui.label(
+                                                                egui::RichText::new(&template.name)
+                                                                    .strong()
+                                                                    .color(egui::Color32::LIGHT_BLUE),
+                                                            );
+                                                            if !template.unit.is_empty() {
+                                                                ui.label(
+                                                                    egui::RichText::new(format!(
+                                                                        "({})",
+                                                                        template.unit
+                                                                    ))
+                                                                    .small()
+                                                                    .color(egui::Color32::GRAY),
+                                                                );
+                                                            }
+                                                        });
+                                                        ui.label(
+                                                            egui::RichText::new(&template.formula)
+                                                                .monospace()
+                                                                .small()
+                                                                .color(egui::Color32::from_rgb(
+                                                                    180, 180, 180,
+                                                                )),
+                                                        );
+                                                        if !template.description.is_empty() {
+                                                            ui.label(
+                                                                egui::RichText::new(
+                                                                    &template.description,
+                                                                )
+                                                                .small()
+                                                                .color(egui::Color32::GRAY),
+                                                            );
+                                                        }
+                                                    });
+
+                                                    // Buttons on the right
+                                                    ui.with_layout(
+                                                        egui::Layout::right_to_left(
+                                                            egui::Align::Center,
+                                                        ),
+                                                        |ui| {
+                                                            if ui.small_button("Delete").clicked() {
+                                                                template_to_delete =
+                                                                    Some(template.id.clone());
+                                                            }
+                                                            if ui.small_button("Edit").clicked() {
+                                                                template_to_edit =
+                                                                    Some(template.id.clone());
+                                                            }
+                                                            if self.active_tab.is_some()
+                                                                && ui
+                                                                    .button(
+                                                                        egui::RichText::new("Apply")
+                                                                            .color(
+                                                                                egui::Color32::WHITE,
+                                                                            ),
+                                                                    )
+                                                                    .clicked()
+                                                            {
+                                                                template_to_apply =
+                                                                    Some((*template).clone());
+                                                            }
+                                                        },
+                                                    );
+                                                });
+                                            });
+                                        ui.add_space(4.0);
+                                    }
+                                });
                             }
                         });
 
@@ -418,6 +507,20 @@ impl UltraLogApp {
                         ui.label("  ln, log, exp     - Logarithms, exponential");
                         ui.label("  min, max         - Minimum, maximum");
                         ui.label("  floor, ceil      - Rounding");
+
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new("Statistics (for anomaly detection):").strong());
+                        ui.label("  _mean_RPM        - Mean of entire RPM channel");
+                        ui.label("  _stdev_RPM       - Standard deviation of RPM");
+                        ui.label("  _min_RPM         - Minimum value of RPM");
+                        ui.label("  _max_RPM         - Maximum value of RPM");
+                        ui.label("  _range_RPM       - Range (max - min) of RPM");
+                        ui.label("");
+                        ui.label(
+                            egui::RichText::new("Z-score example: (RPM - _mean_RPM) / _stdev_RPM")
+                                .small()
+                                .color(egui::Color32::LIGHT_GREEN),
+                        );
                     });
             });
 
@@ -449,17 +552,43 @@ impl UltraLogApp {
             }
         };
 
-        // Evaluate the formula
-        let cached_data = match evaluate_all_records(
-            &template.formula,
-            &bindings,
-            &file.log.data,
-            &file.log.times,
-        ) {
-            Ok(data) => Some(data),
-            Err(e) => {
-                self.show_toast_error(&format!("Evaluation failed: {}", e));
-                return;
+        // Check if formula uses statistical variables (for z-score anomaly detection)
+        let needs_statistics = template.formula.contains("_mean_")
+            || template.formula.contains("_stdev_")
+            || template.formula.contains("_min_")
+            || template.formula.contains("_max_")
+            || template.formula.contains("_range_");
+
+        // Evaluate the formula (with or without statistics)
+        let cached_data = if needs_statistics {
+            // Compute statistics for all channels
+            let statistics = compute_all_channel_statistics(&available_channels, &file.log.data);
+
+            match evaluate_all_records_with_stats(
+                &template.formula,
+                &bindings,
+                &file.log.data,
+                &file.log.times,
+                Some(&statistics),
+            ) {
+                Ok(data) => Some(data),
+                Err(e) => {
+                    self.show_toast_error(&format!("Evaluation failed: {}", e));
+                    return;
+                }
+            }
+        } else {
+            match evaluate_all_records(
+                &template.formula,
+                &bindings,
+                &file.log.data,
+                &file.log.times,
+            ) {
+                Ok(data) => Some(data),
+                Err(e) => {
+                    self.show_toast_error(&format!("Evaluation failed: {}", e));
+                    return;
+                }
             }
         };
 
