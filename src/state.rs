@@ -180,6 +180,8 @@ pub enum ActiveTool {
     LogViewer,
     /// Scatter plot view for comparing two variables with color coding
     ScatterPlot,
+    /// Histogram view for 2D distribution analysis
+    Histogram,
 }
 
 impl ActiveTool {
@@ -188,6 +190,7 @@ impl ActiveTool {
         match self {
             ActiveTool::LogViewer => "Log Viewer",
             ActiveTool::ScatterPlot => "Scatter Plots",
+            ActiveTool::Histogram => "Histogram",
         }
     }
 }
@@ -228,6 +231,40 @@ pub struct ScatterPlotState {
 }
 
 // ============================================================================
+// Histogram Types
+// ============================================================================
+
+/// Display mode for histogram cell values
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum HistogramMode {
+    /// Show average Z-channel value in cells
+    #[default]
+    AverageZ,
+    /// Show hit count (number of data points) in cells
+    HitCount,
+}
+
+/// Configuration for the histogram view
+#[derive(Clone, Default)]
+pub struct HistogramConfig {
+    /// Channel index for X axis
+    pub x_channel: Option<usize>,
+    /// Channel index for Y axis
+    pub y_channel: Option<usize>,
+    /// Channel index for Z axis (value to average)
+    pub z_channel: Option<usize>,
+    /// Display mode (average Z vs hit count)
+    pub mode: HistogramMode,
+}
+
+/// State for the histogram view
+#[derive(Clone, Default)]
+pub struct HistogramState {
+    /// Histogram configuration
+    pub config: HistogramConfig,
+}
+
+// ============================================================================
 // Tab Types
 // ============================================================================
 
@@ -252,6 +289,8 @@ pub struct Tab {
     pub time_range: Option<(f64, f64)>,
     /// Scatter plot state for this tab (dual heatmaps)
     pub scatter_plot_state: ScatterPlotState,
+    /// Histogram state for this tab
+    pub histogram_state: HistogramState,
     /// Request to jump the view to a specific time (used for min/max jump buttons)
     pub jump_to_time: Option<f64>,
 }
@@ -274,6 +313,7 @@ impl Tab {
             chart_interacted: false,
             time_range: None,
             scatter_plot_state,
+            histogram_state: HistogramState::default(),
             jump_to_time: None,
         }
     }

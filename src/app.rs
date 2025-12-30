@@ -1388,6 +1388,10 @@ impl eframe::App for UltraLogApp {
                     ui.add_space(10.0);
                     self.render_scatter_plot_view(ui);
                 }
+                ActiveTool::Histogram => {
+                    ui.add_space(10.0);
+                    self.render_histogram_view(ui);
+                }
             }
         });
     }

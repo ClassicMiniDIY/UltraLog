@@ -16,7 +16,11 @@ impl UltraLogApp {
             ui.add_space(10.0);
 
             // Define available tools
-            let tools = [ActiveTool::LogViewer, ActiveTool::ScatterPlot];
+            let tools = [
+                ActiveTool::LogViewer,
+                ActiveTool::ScatterPlot,
+                ActiveTool::Histogram,
+            ];
 
             for tool in tools {
                 let is_selected = self.active_tool == tool;
