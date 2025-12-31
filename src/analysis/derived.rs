@@ -497,7 +497,7 @@ fn compute_injector_duty_cycle(pulse_width: &[f64], rpm: &[f64]) -> Vec<f64> {
             }
             // IDC = (PW_ms × RPM) / 1200
             let idc = (pw * r) / 1200.0;
-            idc.max(0.0).min(100.0) // Clamp to 0-100%
+            idc.clamp(0.0, 100.0) // Clamp to 0-100%
         })
         .collect()
 }

@@ -239,6 +239,7 @@ impl Analyzer for MedianFilterAnalyzer {
         require_min_length(&data, self.window_size)?;
 
         // Ensure odd window size
+        #[allow(clippy::manual_is_multiple_of)]
         let window = if self.window_size % 2 == 0 {
             self.window_size + 1
         } else {
@@ -248,6 +249,7 @@ impl Analyzer for MedianFilterAnalyzer {
         let (values, computation_time) = timed_analyze(|| median_filter(&data, window));
 
         let mut warnings = vec![];
+        #[allow(clippy::manual_is_multiple_of)]
         if self.window_size % 2 == 0 {
             warnings.push(format!(
                 "Window size adjusted from {} to {} (must be odd)",
@@ -360,6 +362,7 @@ pub fn median_filter(data: &[f64], window_size: usize) -> Vec<f64> {
         let mut window: Vec<f64> = data[start..end].to_vec();
         window.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
+        #[allow(clippy::manual_is_multiple_of)]
         let median = if window.len() % 2 == 0 {
             (window[window.len() / 2 - 1] + window[window.len() / 2]) / 2.0
         } else {

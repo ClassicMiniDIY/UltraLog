@@ -395,6 +395,7 @@ pub fn compute_descriptive_stats(data: &[f64]) -> DescriptiveStats {
     // Median (requires sorting)
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    #[allow(clippy::manual_is_multiple_of)]
     let median = if n % 2 == 0 {
         (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
     } else {

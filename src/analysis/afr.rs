@@ -76,6 +76,7 @@ pub fn detect_fuel_mixture_unit(data: &[f64]) -> FuelMixtureUnit {
     // Calculate median for robust detection (less affected by outliers)
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    #[allow(clippy::manual_is_multiple_of)]
     let median = if sorted.len() % 2 == 0 {
         (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
     } else {

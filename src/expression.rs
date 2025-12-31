@@ -221,11 +221,11 @@ pub fn validate_formula(formula: &str, available_channels: &[String]) -> Result<
     // Also set dummy values for statistical variables (for anomaly detection formulas)
     for channel in available_channels {
         let safe_name = sanitize_var_name(channel);
-        ctx.var(&format!("_mean_{}", safe_name), 1.0);
-        ctx.var(&format!("_stdev_{}", safe_name), 1.0);
-        ctx.var(&format!("_min_{}", safe_name), 0.0);
-        ctx.var(&format!("_max_{}", safe_name), 2.0);
-        ctx.var(&format!("_range_{}", safe_name), 2.0);
+        ctx.var(format!("_mean_{}", safe_name), 1.0);
+        ctx.var(format!("_stdev_{}", safe_name), 1.0);
+        ctx.var(format!("_min_{}", safe_name), 0.0);
+        ctx.var(format!("_max_{}", safe_name), 2.0);
+        ctx.var(format!("_range_{}", safe_name), 2.0);
     }
 
     match test_formula.parse::<Expr>() {
@@ -350,11 +350,11 @@ pub fn evaluate_all_records_with_stats(
         if let Some(stats) = statistics {
             for (channel_name, channel_stats) in stats {
                 let safe_name = sanitize_var_name(channel_name);
-                ctx.var(&format!("_mean_{}", safe_name), channel_stats.mean);
-                ctx.var(&format!("_stdev_{}", safe_name), channel_stats.stdev);
-                ctx.var(&format!("_min_{}", safe_name), channel_stats.min);
-                ctx.var(&format!("_max_{}", safe_name), channel_stats.max);
-                ctx.var(&format!("_range_{}", safe_name), channel_stats.range);
+                ctx.var(format!("_mean_{}", safe_name), channel_stats.mean);
+                ctx.var(format!("_stdev_{}", safe_name), channel_stats.stdev);
+                ctx.var(format!("_min_{}", safe_name), channel_stats.min);
+                ctx.var(format!("_max_{}", safe_name), channel_stats.max);
+                ctx.var(format!("_range_{}", safe_name), channel_stats.range);
             }
         }
 
