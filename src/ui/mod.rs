@@ -1,21 +1,43 @@
 //! UI rendering modules for the UltraLog application.
 //!
 //! This module organizes the various UI components into logical submodules:
-//! - `sidebar` - Files panel and view options
-//! - `channels` - Channel selection and display
+//!
+//! ## New Activity Bar Architecture
+//! - `activity_bar` - VS Code-style vertical icon strip for panel navigation
+//! - `side_panel` - Container that routes to the appropriate panel
+//! - `files_panel` - File management, loading, and file list
+//! - `channels_panel` - Channel selection (works in all modes)
+//! - `tools_panel` - Analysis tools, computed channels, export
+//! - `settings_panel` - Consolidated settings (display, units, normalization, updates)
+//!
+//! ## Core UI Components
+//! - `sidebar` - Legacy files panel (being replaced by files_panel)
+//! - `channels` - Legacy channel selection (being replaced by channels_panel)
 //! - `chart` - Main chart rendering and legends
 //! - `timeline` - Timeline scrubber and playback controls
-//! - `menu` - Menu bar (File, Units, Help)
+//! - `menu` - Menu bar (File, Edit, View, Help)
 //! - `toast` - Toast notification system
 //! - `icons` - Custom icon drawing utilities
 //! - `export` - Chart export functionality (PNG, PDF)
 //! - `normalization_editor` - Field normalization customization window
-//! - `tool_switcher` - Pill-style tab navigation between tools
+//! - `tool_switcher` - Tool mode selection (Log Viewer, Scatter Plot, Histogram)
 //! - `scatter_plot` - Scatter plot visualization view
+//! - `histogram` - Histogram visualization view
 //! - `tab_bar` - Chrome-style tabs for managing multiple log files
 //! - `update_dialog` - Auto-update dialog window
 //! - `analysis_panel` - Signal analysis tools window
+//! - `computed_channels_manager` - Computed channels library manager
+//! - `formula_editor` - Formula creation and editing
 
+// New activity bar architecture
+pub mod activity_bar;
+pub mod channels_panel;
+pub mod files_panel;
+pub mod settings_panel;
+pub mod side_panel;
+pub mod tools_panel;
+
+// Core UI components
 pub mod analysis_panel;
 pub mod channels;
 pub mod chart;

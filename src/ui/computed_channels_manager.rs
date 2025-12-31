@@ -257,7 +257,7 @@ impl UltraLogApp {
                         let _ = self.computed_library.save();
                     }
 
-                    if let Some(template) = template_to_apply {
+                    if let Some(ref template) = template_to_apply {
                         self.apply_computed_channel_template(template);
                     }
                 }
@@ -530,7 +530,7 @@ impl UltraLogApp {
     }
 
     /// Apply a computed channel template to the current file
-    fn apply_computed_channel_template(&mut self, template: ComputedChannelTemplate) {
+    pub fn apply_computed_channel_template(&mut self, template: &ComputedChannelTemplate) {
         let Some(tab_idx) = self.active_tab else {
             self.show_toast_warning("No active tab");
             return;

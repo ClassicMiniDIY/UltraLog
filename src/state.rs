@@ -195,6 +195,42 @@ impl ActiveTool {
     }
 }
 
+/// The currently active side panel in the activity bar
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActivePanel {
+    /// Files panel - file management, loading, file list
+    #[default]
+    Files,
+    /// Channels panel - channel selection and selected channels
+    Channels,
+    /// Tools panel - analysis tools, computed channels, export
+    Tools,
+    /// Settings panel - all preferences consolidated
+    Settings,
+}
+
+impl ActivePanel {
+    /// Get the display name for this panel
+    pub fn name(&self) -> &'static str {
+        match self {
+            ActivePanel::Files => "Files",
+            ActivePanel::Channels => "Channels",
+            ActivePanel::Tools => "Tools",
+            ActivePanel::Settings => "Settings",
+        }
+    }
+
+    /// Get the icon character for this panel (using Unicode symbols)
+    pub fn icon(&self) -> &'static str {
+        match self {
+            ActivePanel::Files => "\u{1F4C1}",    // Folder icon
+            ActivePanel::Channels => "\u{1F4CA}", // Chart icon
+            ActivePanel::Tools => "\u{1F527}",    // Wrench icon
+            ActivePanel::Settings => "\u{2699}",  // Gear icon
+        }
+    }
+}
+
 /// Font scale preference for UI elements
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub enum FontScale {

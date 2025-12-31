@@ -16,9 +16,9 @@ use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
 use crate::state::{
-    ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState, ScatterPlotConfig,
-    ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS,
-    MAX_CHANNELS,
+    ActivePanel, ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState,
+    ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS,
+    COLORBLIND_COLORS, MAX_CHANNELS,
 };
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
@@ -92,6 +92,9 @@ pub struct UltraLogApp {
     // === Tool/View Selection ===
     /// Currently active tool/view
     pub(crate) active_tool: ActiveTool,
+    // === Panel Selection ===
+    /// Currently active side panel (activity bar selection)
+    pub(crate) active_panel: ActivePanel,
     // === Tab Management ===
     /// Open tabs (one per log file being viewed)
     pub(crate) tabs: Vec<Tab>,
@@ -161,6 +164,7 @@ impl Default for UltraLogApp {
             norm_editor_custom_source: String::new(),
             norm_editor_custom_target: String::new(),
             active_tool: ActiveTool::default(),
+            active_panel: ActivePanel::default(),
             tabs: Vec::new(),
             active_tab: None,
             update_state: UpdateState::default(),
@@ -1233,18 +1237,78 @@ impl UltraLogApp {
 
     /// Handle keyboard shortcuts
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
-        // Only handle shortcuts when we have data loaded
-        if self.files.is_empty() || self.get_selected_channels().is_empty() {
-            return;
-        }
-
         // Don't handle shortcuts when a text field or other widget has keyboard focus
         if ctx.memory(|m| m.focused().is_some()) {
             return;
         }
 
-        // Spacebar to toggle play/pause
         ctx.input(|i| {
+            let cmd = i.modifiers.command;
+            let shift = i.modifiers.shift;
+
+            // ⌘O - Open file
+            if cmd && i.key_pressed(egui::Key::O) {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Log Files", crate::state::SUPPORTED_EXTENSIONS)
+                    .pick_file()
+                {
+                    self.start_loading_file(path);
+                }
+                return;
+            }
+
+            // ⌘W - Close current tab
+            if cmd && i.key_pressed(egui::Key::W) {
+                if let Some(tab_idx) = self.active_tab {
+                    self.close_tab(tab_idx);
+                }
+                return;
+            }
+
+            // ⌘, - Open Settings panel
+            if cmd && i.key_pressed(egui::Key::Comma) {
+                self.active_panel = crate::state::ActivePanel::Settings;
+                return;
+            }
+
+            // ⌘1/2/3 - Switch tool modes
+            if cmd && !shift {
+                if i.key_pressed(egui::Key::Num1) {
+                    self.active_tool = crate::state::ActiveTool::LogViewer;
+                    return;
+                }
+                if i.key_pressed(egui::Key::Num2) {
+                    self.active_tool = crate::state::ActiveTool::ScatterPlot;
+                    return;
+                }
+                if i.key_pressed(egui::Key::Num3) {
+                    self.active_tool = crate::state::ActiveTool::Histogram;
+                    return;
+                }
+            }
+
+            // ⌘⇧F/C/T - Switch panels
+            if cmd && shift {
+                if i.key_pressed(egui::Key::F) {
+                    self.active_panel = crate::state::ActivePanel::Files;
+                    return;
+                }
+                if i.key_pressed(egui::Key::C) {
+                    self.active_panel = crate::state::ActivePanel::Channels;
+                    return;
+                }
+                if i.key_pressed(egui::Key::T) {
+                    self.active_panel = crate::state::ActivePanel::Tools;
+                    return;
+                }
+            }
+
+            // Playback shortcuts (require file loaded with channels selected)
+            if self.files.is_empty() || self.get_selected_channels().is_empty() {
+                return;
+            }
+
+            // Spacebar to toggle play/pause
             if i.key_pressed(egui::Key::Space) {
                 self.is_playing = !self.is_playing;
                 if self.is_playing {
@@ -1347,41 +1411,38 @@ impl eframe::App for UltraLogApp {
                 self.render_tool_switcher(ui);
             });
 
-        // Panel background color (matches drop zone card)
+        // Panel background color
         let panel_bg = egui::Color32::from_rgb(45, 45, 45);
         let panel_frame = egui::Frame::NONE
             .fill(panel_bg)
             .inner_margin(egui::Margin::symmetric(10, 10));
 
-        // Left sidebar panel (always visible)
-        egui::SidePanel::left("files_panel")
-            .default_width(200.0)
+        // Activity bar (far left, narrow icon strip)
+        let activity_bar_bg = egui::Color32::from_rgb(35, 35, 35);
+        let activity_bar_frame = egui::Frame::NONE
+            .fill(activity_bar_bg)
+            .inner_margin(egui::Margin::symmetric(4, 8));
+
+        egui::SidePanel::left("activity_bar")
+            .exact_width(crate::ui::activity_bar::ACTIVITY_BAR_WIDTH)
+            .resizable(false)
+            .frame(activity_bar_frame)
+            .show(ctx, |ui| {
+                self.render_activity_bar(ui);
+            });
+
+        // Side panel (context-sensitive based on activity bar selection)
+        egui::SidePanel::left("side_panel")
+            .default_width(crate::ui::side_panel::SIDE_PANEL_WIDTH)
+            .min_width(crate::ui::side_panel::SIDE_PANEL_MIN_WIDTH)
             .resizable(true)
             .frame(panel_frame)
             .show(ctx, |ui| {
-                self.render_sidebar(ui);
+                self.render_side_panel(ui);
             });
 
-        // Right panel for channel selection (only in Log Viewer mode)
-        if self.active_tool == ActiveTool::LogViewer {
-            egui::SidePanel::right("channels_panel")
-                .default_width(300.0)
-                .min_width(200.0)
-                .resizable(true)
-                .frame(panel_frame)
-                .show(ctx, |ui| {
-                    self.render_channel_selection(ui);
-                });
-        }
-
-        // Bottom panel for timeline scrubber (Log Viewer and Histogram modes)
-        let show_timeline = match self.active_tool {
-            ActiveTool::LogViewer => {
-                self.get_time_range().is_some() && !self.get_selected_channels().is_empty()
-            }
-            ActiveTool::Histogram => self.get_time_range().is_some(),
-            ActiveTool::ScatterPlot => false,
-        };
+        // Bottom panel for timeline scrubber (always visible when file loaded)
+        let show_timeline = self.get_time_range().is_some();
 
         if show_timeline {
             egui::TopBottomPanel::bottom("timeline_panel")
