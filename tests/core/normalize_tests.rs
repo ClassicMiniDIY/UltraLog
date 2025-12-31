@@ -19,12 +19,29 @@ use ultralog::normalize::{
 
 #[test]
 fn test_normalize_afr_variants() {
+    // Generic/overall AFR readings normalize to "AFR"
     assert_eq!(normalize_channel_name("Act_AFR"), "AFR");
     assert_eq!(normalize_channel_name("R_EGO"), "AFR");
     assert_eq!(normalize_channel_name("Air Fuel Ratio"), "AFR");
     assert_eq!(normalize_channel_name("AFR"), "AFR");
-    assert_eq!(normalize_channel_name("AFR1"), "AFR");
-    assert_eq!(normalize_channel_name("WB2 AFR 1"), "AFR");
+    assert_eq!(normalize_channel_name("Wideband O2"), "AFR");
+    assert_eq!(normalize_channel_name("Wideband O2 Overall"), "AFR");
+}
+
+#[test]
+fn test_normalize_afr_numbered_channels() {
+    // Numbered AFR/wideband channels normalize to distinct names
+    assert_eq!(normalize_channel_name("AFR1"), "AFR Channel 1");
+    assert_eq!(normalize_channel_name("AFR 1"), "AFR Channel 1");
+    assert_eq!(normalize_channel_name("WB2 AFR 1"), "AFR Channel 1");
+    assert_eq!(normalize_channel_name("Wideband O2 1"), "AFR Channel 1");
+    assert_eq!(normalize_channel_name("Wideband 1"), "AFR Channel 1");
+
+    assert_eq!(normalize_channel_name("AFR2"), "AFR Channel 2");
+    assert_eq!(normalize_channel_name("AFR 2"), "AFR Channel 2");
+    assert_eq!(normalize_channel_name("WB2 AFR 2"), "AFR Channel 2");
+    assert_eq!(normalize_channel_name("Wideband O2 2"), "AFR Channel 2");
+    assert_eq!(normalize_channel_name("Wideband 2"), "AFR Channel 2");
 }
 
 #[test]

@@ -438,6 +438,13 @@ impl UltraLogApp {
                     self.show_computed_channels_manager = true;
                     ui.close();
                 }
+
+                ui.separator();
+
+                if ui.button("📊  Analysis Tools...").clicked() {
+                    self.show_analysis_panel = true;
+                    ui.close();
+                }
             });
 
             ui.menu_button("Help", |ui| {

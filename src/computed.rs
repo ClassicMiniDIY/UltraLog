@@ -26,6 +26,12 @@ pub struct ComputedChannelTemplate {
     pub created_at: u64,
     /// Last modified timestamp (unix seconds)
     pub modified_at: u64,
+    /// Whether this is a built-in template (vs user-created)
+    #[serde(default)]
+    pub is_builtin: bool,
+    /// Category for grouping (e.g., "Rate", "Engine", "Anomaly", "Smoothing")
+    #[serde(default)]
+    pub category: String,
 }
 
 impl ComputedChannelTemplate {
@@ -44,6 +50,34 @@ impl ComputedChannelTemplate {
             description,
             created_at: now,
             modified_at: now,
+            is_builtin: false,
+            category: String::new(),
+        }
+    }
+
+    /// Create a built-in template with category
+    pub fn builtin(
+        name: &str,
+        formula: &str,
+        unit: &str,
+        category: &str,
+        description: &str,
+    ) -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            formula: formula.to_string(),
+            unit: unit.to_string(),
+            description: description.to_string(),
+            created_at: now,
+            modified_at: now,
+            is_builtin: true,
+            category: category.to_string(),
         }
     }
 
@@ -201,7 +235,7 @@ impl ComputedChannelLibrary {
         Self::get_config_dir().map(|p| p.join("computed_channels.json"))
     }
 
-    /// Load the library from disk
+    /// Load the library from disk, seeding with built-ins if empty
     pub fn load() -> Self {
         let path = match Self::get_library_path() {
             Some(p) => p,
@@ -209,30 +243,52 @@ impl ComputedChannelLibrary {
                 tracing::warn!(
                     "Could not determine config directory for computed channels library"
                 );
-                return Self::new();
+                return Self::new_with_builtins();
             }
         };
 
         if !path.exists() {
-            tracing::info!("Computed channels library not found, using empty library");
-            return Self::new();
+            tracing::info!("Computed channels library not found, seeding with built-in templates");
+            let library = Self::new_with_builtins();
+            // Save the seeded library
+            if let Err(e) = library.save() {
+                tracing::warn!("Failed to save initial library: {}", e);
+            }
+            return library;
         }
 
         match std::fs::read_to_string(&path) {
-            Ok(content) => match serde_json::from_str(&content) {
+            Ok(content) => match serde_json::from_str::<Self>(&content) {
                 Ok(library) => {
+                    // If existing library is empty, seed with built-ins
+                    if library.templates.is_empty() {
+                        tracing::info!("Library empty, seeding with built-in templates");
+                        let seeded = Self::new_with_builtins();
+                        if let Err(e) = seeded.save() {
+                            tracing::warn!("Failed to save seeded library: {}", e);
+                        }
+                        return seeded;
+                    }
                     tracing::info!("Loaded computed channels library from {:?}", path);
                     library
                 }
                 Err(e) => {
                     tracing::error!("Failed to parse computed channels library: {}", e);
-                    Self::new()
+                    Self::new_with_builtins()
                 }
             },
             Err(e) => {
                 tracing::error!("Failed to read computed channels library: {}", e);
-                Self::new()
+                Self::new_with_builtins()
             }
+        }
+    }
+
+    /// Create a new library pre-seeded with built-in templates
+    pub fn new_with_builtins() -> Self {
+        Self {
+            version: Self::CURRENT_VERSION,
+            templates: get_builtin_templates(),
         }
     }
 
@@ -256,6 +312,86 @@ impl ComputedChannelLibrary {
         tracing::info!("Saved computed channels library to {:?}", path);
         Ok(())
     }
+}
+
+/// Get the default built-in templates for quick computed channels
+pub fn get_builtin_templates() -> Vec<ComputedChannelTemplate> {
+    vec![
+        // Rate of Change templates
+        ComputedChannelTemplate::builtin(
+            "RPM Delta",
+            "RPM - RPM[-1]",
+            "RPM/sample",
+            "Rate",
+            "RPM change between consecutive samples",
+        ),
+        ComputedChannelTemplate::builtin(
+            "TPS Rate",
+            "(TPS - TPS@-0.1s) * 10",
+            "%/s",
+            "Rate",
+            "Throttle position rate of change per second",
+        ),
+        ComputedChannelTemplate::builtin(
+            "Boost Rate",
+            "(MAP - MAP@-0.1s) * 10",
+            "kPa/s",
+            "Rate",
+            "Boost/MAP pressure rate of change per second",
+        ),
+        // Engine Calculations
+        ComputedChannelTemplate::builtin(
+            "AFR Deviation",
+            "(AFR - 14.7) / 14.7 * 100",
+            "%",
+            "Engine",
+            "Percent deviation from stoichiometric AFR (14.7)",
+        ),
+        ComputedChannelTemplate::builtin(
+            "Lambda",
+            "AFR / 14.7",
+            "λ",
+            "Engine",
+            "Lambda value calculated from AFR",
+        ),
+        ComputedChannelTemplate::builtin(
+            "Load Estimate",
+            "MAP / 101.325 * 100",
+            "%",
+            "Engine",
+            "Engine load estimate from MAP (% of atmospheric)",
+        ),
+        // Smoothing
+        ComputedChannelTemplate::builtin(
+            "RPM Smoothed",
+            "(RPM + RPM[-1] + RPM[-2]) / 3",
+            "RPM",
+            "Smoothing",
+            "3-sample moving average of RPM",
+        ),
+        // Z-Score / Statistical Outlier Detection
+        ComputedChannelTemplate::builtin(
+            "RPM Z-Score",
+            "(RPM - _mean_RPM) / _stdev_RPM",
+            "σ",
+            "Anomaly",
+            "Z-score of RPM (values > 3 or < -3 are statistical outliers)",
+        ),
+        ComputedChannelTemplate::builtin(
+            "AFR Z-Score",
+            "(AFR - _mean_AFR) / _stdev_AFR",
+            "σ",
+            "Anomaly",
+            "Z-score of AFR (values > 3 or < -3 are statistical outliers)",
+        ),
+        ComputedChannelTemplate::builtin(
+            "MAP Z-Score",
+            "(MAP - _mean_MAP) / _stdev_MAP",
+            "σ",
+            "Anomaly",
+            "Z-score of MAP (values > 3 or < -3 are statistical outliers)",
+        ),
+    ]
 }
 
 /// State for the formula editor dialog

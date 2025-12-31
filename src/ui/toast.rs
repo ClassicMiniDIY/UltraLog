@@ -34,6 +34,9 @@ impl UltraLogApp {
                                 color: egui::Color32::from_black_alpha(60),
                             })
                             .show(ui, |ui| {
+                                // Set min/max width for proper text wrapping
+                                ui.set_min_width(200.0);
+                                ui.set_max_width(400.0);
                                 ui.label(
                                     egui::RichText::new(message)
                                         .color(egui::Color32::from_rgb(

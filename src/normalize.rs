@@ -11,7 +11,7 @@ static NORMALIZATION_MAP: LazyLock<HashMap<&'static str, Vec<&'static str>>> =
     LazyLock::new(|| {
         let mut map = HashMap::new();
 
-        // AFR (Air Fuel Ratio)
+        // AFR (Air Fuel Ratio) - generic/overall readings
         map.insert(
             "AFR",
             vec![
@@ -20,10 +20,14 @@ static NORMALIZATION_MAP: LazyLock<HashMap<&'static str, Vec<&'static str>>> =
                 "Aft",
                 "Act AFR",
                 "AFR",
-                "AFR1",
-                "WB2 AFR 1",
                 "Air Fuel Ratio",
                 "AFR_R_BANK",
+                // Wideband O2 sensors - overall/combined readings only
+                "Wideband O2 Overall",
+                "Wideband O2",
+                "WB O2",
+                "O2 Wideband",
+                "Wideband Overall",
             ],
         );
 
@@ -39,23 +43,41 @@ static NORMALIZATION_MAP: LazyLock<HashMap<&'static str, Vec<&'static str>>> =
             ],
         );
 
-        // AFR 1
-        map.insert("AFR 1", vec!["AFR_1", "AFR 1"]);
+        // AFR 1 - first sensor/bank
+        map.insert(
+            "AFR Channel 1",
+            vec![
+                "AFR_1",
+                "AFR 1",
+                "AFR1",
+                "WB2 AFR 1",
+                "Wideband O2 1",
+                "WB O2 1",
+                "Wideband 1",
+            ],
+        );
+
+        // AFR 2 - second sensor/bank
+        map.insert(
+            "AFR Channel 2",
+            vec![
+                "Aft2",
+                "AFR 2",
+                "AFR_2",
+                "afr_2",
+                "AFR2",
+                "WB2 AFR 2",
+                "Wideband O2 2",
+                "WB O2 2",
+                "Wideband 2",
+            ],
+        );
 
         // AFR 1 Error
         map.insert(
             "AFR 1 Error",
-            vec![
-                "AFR_Error",
-                "AFR_1_Error",
-                "AFR 1 Error",
-                "KO2_AFR_CORR",
-                "AFR_1_Error",
-            ],
+            vec!["AFR_Error", "AFR_1_Error", "AFR 1 Error", "KO2_AFR_CORR"],
         );
-
-        // AFR 2
-        map.insert("AFR 2", vec!["Aft2", "AFR 2", "AFR_2", "afr_2"]);
 
         // Battery Voltage
         map.insert(
@@ -132,6 +154,7 @@ static NORMALIZATION_MAP: LazyLock<HashMap<&'static str, Vec<&'static str>>> =
                 "IAT - Inlet Air Temp",
                 "IAT Intake Air Temp",
                 "Intake Air Temp",
+                "Intake Air Temperature",
             ],
         );
 
@@ -461,9 +484,20 @@ mod tests {
 
     #[test]
     fn test_normalize_afr() {
+        // Generic AFR channels
         assert_eq!(normalize_channel_name("Act_AFR"), "AFR");
         assert_eq!(normalize_channel_name("R_EGO"), "AFR");
         assert_eq!(normalize_channel_name("Air Fuel Ratio"), "AFR");
+        // Wideband O2 overall/generic should normalize to AFR
+        assert_eq!(normalize_channel_name("Wideband O2 Overall"), "AFR");
+        assert_eq!(normalize_channel_name("Wideband O2"), "AFR");
+        assert_eq!(normalize_channel_name("WB O2"), "AFR");
+        // Numbered sensors should normalize to AFR Channel 1, AFR Channel 2 (not generic AFR)
+        assert_eq!(normalize_channel_name("Wideband O2 1"), "AFR Channel 1");
+        assert_eq!(normalize_channel_name("Wideband O2 2"), "AFR Channel 2");
+        assert_eq!(normalize_channel_name("WB O2 1"), "AFR Channel 1");
+        assert_eq!(normalize_channel_name("Wideband 1"), "AFR Channel 1");
+        assert_eq!(normalize_channel_name("Wideband 2"), "AFR Channel 2");
     }
 
     #[test]

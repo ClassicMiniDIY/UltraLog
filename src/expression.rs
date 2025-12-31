@@ -1,7 +1,8 @@
 //! Expression parsing and evaluation engine for computed channels
 //!
 //! This module handles parsing mathematical formulas that reference channel data,
-//! including support for time-shifted values (both index-based and time-based).
+//! including support for time-shifted values (both index-based and time-based),
+//! and pre-computed channel statistics for anomaly detection.
 
 use crate::computed::{ChannelReference, TimeShift};
 use crate::parsers::types::Value;
@@ -9,6 +10,71 @@ use meval::{Context, Expr};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
+
+/// Pre-computed statistics for a channel, used for anomaly detection formulas
+#[derive(Clone, Debug, Default)]
+pub struct ChannelStatistics {
+    /// Arithmetic mean of all values
+    pub mean: f64,
+    /// Standard deviation of all values
+    pub stdev: f64,
+    /// Minimum value
+    pub min: f64,
+    /// Maximum value
+    pub max: f64,
+    /// Range (max - min)
+    pub range: f64,
+}
+
+/// Compute statistics for a single channel
+pub fn compute_channel_statistics(
+    channel_idx: usize,
+    log_data: &[Vec<Value>],
+) -> ChannelStatistics {
+    if log_data.is_empty() {
+        return ChannelStatistics::default();
+    }
+
+    let values: Vec<f64> = log_data
+        .iter()
+        .filter_map(|row| row.get(channel_idx).map(|v| v.as_f64()))
+        .filter(|v| v.is_finite())
+        .collect();
+
+    if values.is_empty() {
+        return ChannelStatistics::default();
+    }
+
+    let n = values.len() as f64;
+    let sum: f64 = values.iter().sum();
+    let mean = sum / n;
+
+    let variance: f64 = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    let stdev = variance.sqrt();
+
+    let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+    ChannelStatistics {
+        mean,
+        stdev,
+        min,
+        max,
+        range: max - min,
+    }
+}
+
+/// Compute statistics for all channels in a log
+pub fn compute_all_channel_statistics(
+    channel_names: &[String],
+    log_data: &[Vec<Value>],
+) -> HashMap<String, ChannelStatistics> {
+    let mut stats = HashMap::new();
+    for (idx, name) in channel_names.iter().enumerate() {
+        stats.insert(name.clone(), compute_channel_statistics(idx, log_data));
+    }
+    stats
+}
 
 /// Regex for parsing quoted channel references with optional time shifts
 /// Pattern: "Channel Name" (anything in quotes) with optional time shift
@@ -29,6 +95,9 @@ const RESERVED_NAMES: &[&str] = &[
     "atanh", "sqrt", "abs", "exp", "ln", "log", "log2", "log10", "floor", "ceil", "round", "trunc",
     "fract", "signum", "max", "min", "pi", "e", "tau", "phi",
 ];
+
+/// Prefixes for statistical variables that should not be treated as channel names
+const STATS_PREFIXES: &[&str] = &["_mean_", "_stdev_", "_min_", "_max_", "_range_"];
 
 /// Extract all channel references from a formula
 pub fn extract_channel_references(formula: &str) -> Vec<ChannelReference> {
@@ -59,6 +128,11 @@ pub fn extract_channel_references(formula: &str) -> Vec<ChannelReference> {
 
         // Skip reserved names (meval functions/constants)
         if RESERVED_NAMES.contains(&name.to_lowercase().as_str()) {
+            continue;
+        }
+
+        // Skip statistical variable references (e.g., _mean_RPM, _stdev_AFR)
+        if STATS_PREFIXES.iter().any(|p| full_match.starts_with(p)) {
             continue;
         }
 
@@ -144,6 +218,16 @@ pub fn validate_formula(formula: &str, available_channels: &[String]) -> Result<
         ctx.var(&var_name, 1.0);
     }
 
+    // Also set dummy values for statistical variables (for anomaly detection formulas)
+    for channel in available_channels {
+        let safe_name = sanitize_var_name(channel);
+        ctx.var(format!("_mean_{}", safe_name), 1.0);
+        ctx.var(format!("_stdev_{}", safe_name), 1.0);
+        ctx.var(format!("_min_{}", safe_name), 0.0);
+        ctx.var(format!("_max_{}", safe_name), 2.0);
+        ctx.var(format!("_range_{}", safe_name), 2.0);
+    }
+
     match test_formula.parse::<Expr>() {
         Ok(expr) => {
             // Try to evaluate with dummy values
@@ -213,11 +297,28 @@ pub fn build_channel_bindings(
 }
 
 /// Evaluate a formula for all records in the log
+///
+/// If `statistics` is provided, injects statistical variables for each channel:
+/// - `_mean_ChannelName`, `_stdev_ChannelName`, `_min_ChannelName`, `_max_ChannelName`, `_range_ChannelName`
 pub fn evaluate_all_records(
     formula: &str,
     bindings: &HashMap<String, usize>,
     log_data: &[Vec<Value>],
     times: &[f64],
+) -> Result<Vec<f64>, String> {
+    evaluate_all_records_with_stats(formula, bindings, log_data, times, None)
+}
+
+/// Evaluate a formula for all records in the log with optional pre-computed statistics
+///
+/// If `statistics` is provided, injects statistical variables for each channel:
+/// - `_mean_ChannelName`, `_stdev_ChannelName`, `_min_ChannelName`, `_max_ChannelName`, `_range_ChannelName`
+pub fn evaluate_all_records_with_stats(
+    formula: &str,
+    bindings: &HashMap<String, usize>,
+    log_data: &[Vec<Value>],
+    times: &[f64],
+    statistics: Option<&HashMap<String, ChannelStatistics>>,
 ) -> Result<Vec<f64>, String> {
     if log_data.is_empty() {
         return Ok(Vec::new());
@@ -243,6 +344,18 @@ pub fn evaluate_all_records(
             let value = get_shifted_value(record_idx, &r.time_shift, channel_idx, log_data, times);
             let var_name = sanitize_var_name(&r.full_match);
             ctx.var(&var_name, value);
+        }
+
+        // Inject statistics variables if provided
+        if let Some(stats) = statistics {
+            for (channel_name, channel_stats) in stats {
+                let safe_name = sanitize_var_name(channel_name);
+                ctx.var(format!("_mean_{}", safe_name), channel_stats.mean);
+                ctx.var(format!("_stdev_{}", safe_name), channel_stats.stdev);
+                ctx.var(format!("_min_{}", safe_name), channel_stats.min);
+                ctx.var(format!("_max_{}", safe_name), channel_stats.max);
+                ctx.var(format!("_range_{}", safe_name), channel_stats.range);
+            }
         }
 
         match expr.eval_with_context(&ctx) {
