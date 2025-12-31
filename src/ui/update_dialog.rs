@@ -63,7 +63,7 @@ impl UltraLogApp {
 
             ui.label(
                 egui::RichText::new("A new version is available!")
-                    .size(18.0)
+                    .size(self.scaled_font(18.0))
                     .strong(),
             );
 
@@ -133,7 +133,7 @@ impl UltraLogApp {
         ui.vertical_centered(|ui| {
             ui.add_space(20.0);
 
-            ui.label(egui::RichText::new("Downloading update...").size(16.0));
+            ui.label(egui::RichText::new("Downloading update...").size(self.scaled_font(16.0)));
 
             ui.add_space(15.0);
 
@@ -158,7 +158,7 @@ impl UltraLogApp {
 
             ui.label(
                 egui::RichText::new("Download complete!")
-                    .size(16.0)
+                    .size(self.scaled_font(16.0))
                     .color(egui::Color32::LIGHT_GREEN),
             );
 
@@ -224,7 +224,7 @@ impl UltraLogApp {
 
             ui.label(
                 egui::RichText::new("Update Error")
-                    .size(16.0)
+                    .size(self.scaled_font(16.0))
                     .color(egui::Color32::from_rgb(191, 78, 48)),
             );
 

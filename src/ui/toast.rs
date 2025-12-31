@@ -44,7 +44,7 @@ impl UltraLogApp {
                                             text_color[1],
                                             text_color[2],
                                         ))
-                                        .size(14.0),
+                                        .size(self.scaled_font(14.0)),
                                 );
                             });
                     });
