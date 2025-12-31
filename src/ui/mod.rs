@@ -14,7 +14,9 @@
 //! - `scatter_plot` - Scatter plot visualization view
 //! - `tab_bar` - Chrome-style tabs for managing multiple log files
 //! - `update_dialog` - Auto-update dialog window
+//! - `analysis_panel` - Signal analysis tools window
 
+pub mod analysis_panel;
 pub mod channels;
 pub mod chart;
 pub mod computed_channels_manager;

@@ -254,6 +254,7 @@ impl UltraLogApp {
         struct ChannelCardData {
             color: egui::Color32,
             display_name: String,
+            is_computed: bool,
             min_str: Option<String>,
             max_str: Option<String>,
             min_record: Option<usize>,
@@ -280,43 +281,70 @@ impl UltraLogApp {
             let (min_str, max_str, min_record, max_record, min_time, max_time) =
                 if selected.file_index < self.files.len() {
                     let file = &self.files[selected.file_index];
-                    let data = file.log.get_channel_data(selected.channel_index);
                     let times = file.log.get_times_as_f64();
 
-                    if !data.is_empty() {
-                        // Find min and max with their indices
-                        let (min_idx, min_val) = data
-                            .iter()
-                            .enumerate()
-                            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                            .map(|(i, v)| (i, *v))
-                            .unwrap();
-                        let (max_idx, max_val) = data
-                            .iter()
-                            .enumerate()
-                            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                            .map(|(i, v)| (i, *v))
-                            .unwrap();
-
-                        let source_unit = selected.channel.unit();
-                        let (conv_min, display_unit) =
-                            self.unit_preferences.convert_value(min_val, source_unit);
-                        let (conv_max, _) =
-                            self.unit_preferences.convert_value(max_val, source_unit);
-                        let unit_str = if display_unit.is_empty() {
-                            String::new()
+                    // Get data from either regular channel or computed channel
+                    let data: Vec<f64> = if selected.channel.is_computed() {
+                        // For computed channels, get data from file_computed_channels
+                        let regular_count = file.log.channels.len();
+                        if selected.channel_index >= regular_count {
+                            let computed_idx = selected.channel_index - regular_count;
+                            self.file_computed_channels
+                                .get(&selected.file_index)
+                                .and_then(|channels| channels.get(computed_idx))
+                                .and_then(|c| c.cached_data.clone())
+                                .unwrap_or_default()
                         } else {
-                            format!(" {}", display_unit)
-                        };
+                            Vec::new()
+                        }
+                    } else {
+                        // Regular channel data
+                        file.log.get_channel_data(selected.channel_index)
+                    };
 
-                        (
-                            Some(format!("{:.1}{}", conv_min, unit_str)),
-                            Some(format!("{:.1}{}", conv_max, unit_str)),
-                            Some(min_idx),
-                            Some(max_idx),
-                            times.get(min_idx).copied(),
-                            times.get(max_idx).copied(),
-                        )
+                    if !data.is_empty() {
+                        // Find min and max with their indices (filter out NaN values)
+                        let valid_data: Vec<(usize, f64)> = data
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, v)| v.is_finite())
+                            .map(|(i, v)| (i, *v))
+                            .collect();
+
+                        if valid_data.is_empty() {
+                            (None, None, None, None, None, None)
+                        } else {
+                            let (min_idx, min_val) = valid_data
+                                .iter()
+                                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                                .map(|(i, v)| (*i, *v))
+                                .unwrap();
+                            let (max_idx, max_val) = valid_data
+                                .iter()
+                                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                                .map(|(i, v)| (*i, *v))
+                                .unwrap();
+
+                            let source_unit = selected.channel.unit();
+                            let (conv_min, display_unit) =
+                                self.unit_preferences.convert_value(min_val, source_unit);
+                            let (conv_max, _) =
+                                self.unit_preferences.convert_value(max_val, source_unit);
+                            let unit_str = if display_unit.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" {}", display_unit)
+                            };
+
+                            (
+                                Some(format!("{:.1}{}", conv_min, unit_str)),
+                                Some(format!("{:.1}{}", conv_max, unit_str)),
+                                Some(min_idx),
+                                Some(max_idx),
+                                times.get(min_idx).copied(),
+                                times.get(max_idx).copied(),
+                            )
+                        }
                     } else {
                         (None, None, None, None, None, None)
                     }
@@ -327,6 +355,7 @@ impl UltraLogApp {
             channel_cards.push(ChannelCardData {
                 color: color32,
                 display_name,
+                is_computed: selected.channel.is_computed(),
                 min_str,
                 max_str,
                 min_record,
@@ -350,6 +379,15 @@ impl UltraLogApp {
                         .show(ui, |ui| {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
+                                    // Show computed channel indicator
+                                    if card.is_computed {
+                                        ui.label(
+                                            egui::RichText::new("ƒ")
+                                                .color(egui::Color32::from_rgb(150, 200, 255))
+                                                .strong(),
+                                        )
+                                        .on_hover_text("Computed channel (formula-based)");
+                                    }
                                     ui.label(
                                         egui::RichText::new(&card.display_name)
                                             .strong()
