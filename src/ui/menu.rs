@@ -1,14 +1,11 @@
-//! Menu bar UI components (File, View, Units, Help menus).
+//! Menu bar UI components (File, View, Help menus).
+//!
+//! Simplified menu structure - settings moved to Settings panel.
 
 use eframe::egui;
 
-use crate::analytics;
 use crate::app::UltraLogApp;
-use crate::state::{ActiveTool, FontScale, LoadingState};
-use crate::units::{
-    AccelerationUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit, SpeedUnit,
-    TemperatureUnit, VolumeUnit,
-};
+use crate::state::{ActivePanel, ActiveTool, LoadingState};
 
 impl UltraLogApp {
     /// Render the application menu bar
@@ -39,7 +36,8 @@ impl UltraLogApp {
 
                 // Open file option
                 if ui
-                    .add_enabled(!is_loading, egui::Button::new("📂  Open Log File..."))
+                    .add_enabled(!is_loading, egui::Button::new("Open Log File..."))
+                    .on_hover_text("⌘O")
                     .clicked()
                 {
                     if let Some(path) = rfd::FileDialog::new()
@@ -47,6 +45,21 @@ impl UltraLogApp {
                         .pick_file()
                     {
                         self.start_loading_file(path);
+                    }
+                    ui.close();
+                }
+
+                ui.separator();
+
+                // Close current tab
+                let has_tabs = !self.tabs.is_empty();
+                if ui
+                    .add_enabled(has_tabs, egui::Button::new("Close Tab"))
+                    .on_hover_text("⌘W")
+                    .clicked()
+                {
+                    if let Some(tab_idx) = self.active_tab {
+                        self.close_tab(tab_idx);
                     }
                     ui.close();
                 }
@@ -68,20 +81,17 @@ impl UltraLogApp {
                 let can_export = has_chart_data || has_histogram_data;
 
                 ui.add_enabled_ui(can_export, |ui| {
-                    ui.menu_button("📤  Export", |ui| {
-                        // Increase font size for submenu items
+                    ui.menu_button("Export", |ui| {
                         ui.style_mut()
                             .text_styles
                             .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
 
                         if self.active_tool == ActiveTool::Histogram && has_histogram_data {
-                            // Histogram export options
                             if ui.button("Export Histogram as PDF...").clicked() {
                                 self.export_histogram_pdf();
                                 ui.close();
                             }
                         } else if has_chart_data {
-                            // Chart export options
                             if ui.button("Export as PNG...").clicked() {
                                 self.export_chart_png();
                                 ui.close();
@@ -95,380 +105,10 @@ impl UltraLogApp {
                 });
             });
 
-            // View menu
+            // View menu - tool modes and panels
             ui.menu_button("View", |ui| {
-                ui.set_min_width(180.0);
-
-                // Increase font size for dropdown items
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
-
-                // Cursor Tracking toggle
-                if ui
-                    .checkbox(&mut self.cursor_tracking, "🎯  Cursor Tracking")
-                    .clicked()
-                {
-                    ui.close();
-                }
-
-                // Color Blind Mode toggle
-                let old_color_blind_mode = self.color_blind_mode;
-                if ui
-                    .checkbox(&mut self.color_blind_mode, "👁  Color Blind Mode")
-                    .clicked()
-                {
-                    if self.color_blind_mode != old_color_blind_mode {
-                        analytics::track_colorblind_mode_toggled(self.color_blind_mode);
-                    }
-                    ui.close();
-                }
-
-                ui.separator();
-
-                // Field Normalization toggle
-                if ui
-                    .checkbox(&mut self.field_normalization, "📝  Field Normalization")
-                    .on_hover_text("Standardize channel names across different ECU types")
-                    .clicked()
-                {
-                    ui.close();
-                }
-
-                // Edit mappings button
-                if ui.button("      Edit Mappings...").clicked() {
-                    self.show_normalization_editor = true;
-                    ui.close();
-                }
-
-                ui.separator();
-
-                // Auto-update preference
-                if ui
-                    .checkbox(
-                        &mut self.auto_check_updates,
-                        "🔄  Check for Updates on Startup",
-                    )
-                    .on_hover_text("Automatically check for new versions when the app starts")
-                    .clicked()
-                {
-                    ui.close();
-                }
-
-                ui.separator();
-
-                // Font Size submenu
-                ui.menu_button("🔠  Font Size", |ui| {
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-
-                    if ui
-                        .radio_value(&mut self.font_scale, FontScale::Small, "Small (85%)")
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(&mut self.font_scale, FontScale::Medium, "Medium (100%)")
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(&mut self.font_scale, FontScale::Large, "Large (120%)")
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.font_scale,
-                            FontScale::ExtraLarge,
-                            "Extra Large (140%)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-            });
-
-            // Units menu
-            ui.menu_button("Units", |ui| {
-                ui.set_min_width(180.0);
-
-                // Increase font size for dropdown items
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
-
-                // Temperature submenu
-                ui.menu_button("°C  Temperature", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.temperature,
-                            TemperatureUnit::Celsius,
-                            "Celsius (°C)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.temperature,
-                            TemperatureUnit::Fahrenheit,
-                            "Fahrenheit (°F)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.temperature,
-                            TemperatureUnit::Kelvin,
-                            "Kelvin (K)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-
-                // Pressure submenu
-                ui.menu_button("💨  Pressure", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.pressure,
-                            PressureUnit::KPa,
-                            "Kilopascal (kPa)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.pressure,
-                            PressureUnit::PSI,
-                            "PSI",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.pressure,
-                            PressureUnit::Bar,
-                            "Bar",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-
-                // Speed submenu
-                ui.menu_button("🚗  Speed", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.speed,
-                            SpeedUnit::KmH,
-                            "Kilometers/hour (km/h)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.speed,
-                            SpeedUnit::Mph,
-                            "Miles/hour (mph)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-
-                // Distance submenu
-                ui.menu_button("📏  Distance", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.distance,
-                            DistanceUnit::Kilometers,
-                            "Kilometers (km)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.distance,
-                            DistanceUnit::Miles,
-                            "Miles (mi)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-
-                ui.separator();
-
-                // Fuel Economy submenu
-                ui.menu_button("⛽  Fuel Economy", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.fuel_economy,
-                            FuelEconomyUnit::LPer100Km,
-                            "Liters/100km (L/100km)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.fuel_economy,
-                            FuelEconomyUnit::Mpg,
-                            "Miles/gallon (mpg)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.fuel_economy,
-                            FuelEconomyUnit::KmPerL,
-                            "Kilometers/liter (km/L)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-
-                // Volume submenu
-                ui.menu_button("📊  Volume", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.volume,
-                            VolumeUnit::Liters,
-                            "Liters (L)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.volume,
-                            VolumeUnit::Gallons,
-                            "Gallons (gal)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-
-                // Flow submenu
-                ui.menu_button("💧  Flow Rate", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.flow,
-                            FlowUnit::CcPerMin,
-                            "cc/min",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(&mut self.unit_preferences.flow, FlowUnit::LbPerHr, "lb/hr")
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-
-                ui.separator();
-
-                // Acceleration submenu
-                ui.menu_button("📈  Acceleration", |ui| {
-                    // Increase font size for submenu items
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.acceleration,
-                            AccelerationUnit::MPerS2,
-                            "m/s²",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                    if ui
-                        .radio_value(
-                            &mut self.unit_preferences.acceleration,
-                            AccelerationUnit::G,
-                            "g-force (g)",
-                        )
-                        .clicked()
-                    {
-                        ui.close();
-                    }
-                });
-            });
-
-            // Channels menu
-            ui.menu_button("Channels", |ui| {
                 ui.set_min_width(200.0);
 
-                // Increase font size for dropdown items
                 ui.style_mut()
                     .text_styles
                     .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
@@ -476,23 +116,82 @@ impl UltraLogApp {
                     .text_styles
                     .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
-                if ui.button("ƒ(x)  Computed Channels...").clicked() {
-                    self.show_computed_channels_manager = true;
+                // Tool modes
+                ui.label(
+                    egui::RichText::new("Tool Mode")
+                        .size(font_14)
+                        .color(egui::Color32::GRAY),
+                );
+
+                if ui
+                    .radio_value(&mut self.active_tool, ActiveTool::LogViewer, "Log Viewer")
+                    .on_hover_text("⌘1")
+                    .clicked()
+                {
+                    ui.close();
+                }
+                if ui
+                    .radio_value(
+                        &mut self.active_tool,
+                        ActiveTool::ScatterPlot,
+                        "Scatter Plots",
+                    )
+                    .on_hover_text("⌘2")
+                    .clicked()
+                {
+                    ui.close();
+                }
+                if ui
+                    .radio_value(&mut self.active_tool, ActiveTool::Histogram, "Histogram")
+                    .on_hover_text("⌘3")
+                    .clicked()
+                {
                     ui.close();
                 }
 
                 ui.separator();
 
-                if ui.button("📊  Analysis Tools...").clicked() {
-                    self.show_analysis_panel = true;
+                // Panel navigation
+                ui.label(
+                    egui::RichText::new("Side Panel")
+                        .size(font_14)
+                        .color(egui::Color32::GRAY),
+                );
+
+                if ui
+                    .radio_value(&mut self.active_panel, ActivePanel::Files, "Files")
+                    .on_hover_text("⌘⇧F")
+                    .clicked()
+                {
+                    ui.close();
+                }
+                if ui
+                    .radio_value(&mut self.active_panel, ActivePanel::Channels, "Channels")
+                    .on_hover_text("⌘⇧C")
+                    .clicked()
+                {
+                    ui.close();
+                }
+                if ui
+                    .radio_value(&mut self.active_panel, ActivePanel::Tools, "Tools")
+                    .on_hover_text("⌘⇧T")
+                    .clicked()
+                {
+                    ui.close();
+                }
+                if ui
+                    .radio_value(&mut self.active_panel, ActivePanel::Settings, "Settings")
+                    .on_hover_text("⌘,")
+                    .clicked()
+                {
                     ui.close();
                 }
             });
 
+            // Help menu
             ui.menu_button("Help", |ui| {
                 ui.set_min_width(200.0);
 
-                // Increase font size for dropdown items
                 ui.style_mut()
                     .text_styles
                     .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
@@ -500,19 +199,19 @@ impl UltraLogApp {
                     .text_styles
                     .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
-                if ui.button("📖  Documentation").clicked() {
+                if ui.button("Documentation").clicked() {
                     let _ = open::that("https://github.com/SomethingNew71/UltraLog/wiki");
                     ui.close();
                 }
 
-                if ui.button("🐛  Report Issue").clicked() {
+                if ui.button("Report Issue").clicked() {
                     let _ = open::that("https://github.com/SomethingNew71/UltraLog/issues");
                     ui.close();
                 }
 
                 ui.separator();
 
-                if ui.button("💝  Support Development").clicked() {
+                if ui.button("Support Development").clicked() {
                     let _ = open::that("https://github.com/sponsors/SomethingNew71");
                     ui.close();
                 }
@@ -526,9 +225,9 @@ impl UltraLogApp {
                         | crate::updater::UpdateState::Downloading
                 );
                 let button_text = if is_checking {
-                    "🔄  Checking for Updates..."
+                    "Checking for Updates..."
                 } else {
-                    "🔄  Check for Updates"
+                    "Check for Updates"
                 };
 
                 if ui

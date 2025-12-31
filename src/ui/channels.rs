@@ -398,24 +398,104 @@ impl UltraLogApp {
                         .corner_radius(5)
                         .inner_margin(10.0)
                         .show(ui, |ui| {
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui| {
-                                    // Show computed channel indicator
-                                    if card.is_computed {
+                            // Use horizontal layout with content on left, close button on right
+                            ui.horizontal(|ui| {
+                                // Main content column
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        // Show computed channel indicator
+                                        if card.is_computed {
+                                            ui.label(
+                                                egui::RichText::new("ƒ")
+                                                    .color(egui::Color32::from_rgb(150, 200, 255))
+                                                    .strong(),
+                                            )
+                                            .on_hover_text("Computed channel (formula-based)");
+                                        }
                                         ui.label(
-                                            egui::RichText::new("ƒ")
-                                                .color(egui::Color32::from_rgb(150, 200, 255))
-                                                .strong(),
-                                        )
-                                        .on_hover_text("Computed channel (formula-based)");
+                                            egui::RichText::new(&card.display_name)
+                                                .strong()
+                                                .color(card.color)
+                                                .size(font_14),
+                                        );
+                                    });
+
+                                    // Show min with jump button
+                                    if let Some(min_str) = &card.min_str {
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                egui::RichText::new("Min:")
+                                                    .color(egui::Color32::GRAY)
+                                                    .size(font_12),
+                                            );
+                                            ui.label(
+                                                egui::RichText::new(min_str)
+                                                    .color(egui::Color32::LIGHT_GRAY)
+                                                    .size(font_14),
+                                            );
+                                            if let (Some(record), Some(time)) =
+                                                (card.min_record, card.min_time)
+                                            {
+                                                let btn = ui
+                                                    .small_button("⏵")
+                                                    .on_hover_text("Jump to minimum");
+                                                if btn.clicked() {
+                                                    jump_to = Some((record, time));
+                                                }
+                                                if btn.hovered() {
+                                                    ui.ctx().set_cursor_icon(
+                                                        egui::CursorIcon::PointingHand,
+                                                    );
+                                                }
+                                            }
+                                        });
                                     }
-                                    ui.label(
-                                        egui::RichText::new(&card.display_name)
-                                            .strong()
-                                            .color(card.color)
-                                            .size(font_14),
+
+                                    // Show max with jump button
+                                    if let Some(max_str) = &card.max_str {
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                egui::RichText::new("Max:")
+                                                    .color(egui::Color32::GRAY)
+                                                    .size(font_12),
+                                            );
+                                            ui.label(
+                                                egui::RichText::new(max_str)
+                                                    .color(egui::Color32::LIGHT_GRAY)
+                                                    .size(font_14),
+                                            );
+                                            if let (Some(record), Some(time)) =
+                                                (card.max_record, card.max_time)
+                                            {
+                                                let btn = ui
+                                                    .small_button("⏵")
+                                                    .on_hover_text("Jump to maximum");
+                                                if btn.clicked() {
+                                                    jump_to = Some((record, time));
+                                                }
+                                                if btn.hovered() {
+                                                    ui.ctx().set_cursor_icon(
+                                                        egui::CursorIcon::PointingHand,
+                                                    );
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+
+                                // Close button in top right
+                                ui.add_space(8.0);
+                                ui.vertical(|ui| {
+                                    let close_btn = ui.add(
+                                        egui::Button::new(
+                                            egui::RichText::new("✕")
+                                                .size(font_12)
+                                                .color(egui::Color32::from_rgb(150, 150, 150)),
+                                        )
+                                        .fill(egui::Color32::TRANSPARENT)
+                                        .stroke(egui::Stroke::NONE)
+                                        .corner_radius(2.0),
                                     );
-                                    let close_btn = ui.small_button("x");
                                     if close_btn.clicked() {
                                         channel_to_remove = Some(i);
                                     }
@@ -423,68 +503,6 @@ impl UltraLogApp {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                 });
-
-                                // Show min with jump button
-                                if let Some(min_str) = &card.min_str {
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            egui::RichText::new("Min:")
-                                                .color(egui::Color32::GRAY)
-                                                .size(font_12),
-                                        );
-                                        ui.label(
-                                            egui::RichText::new(min_str)
-                                                .color(egui::Color32::LIGHT_GRAY)
-                                                .size(font_14),
-                                        );
-                                        if let (Some(record), Some(time)) =
-                                            (card.min_record, card.min_time)
-                                        {
-                                            let btn = ui
-                                                .small_button("⏵")
-                                                .on_hover_text("Jump to minimum");
-                                            if btn.clicked() {
-                                                jump_to = Some((record, time));
-                                            }
-                                            if btn.hovered() {
-                                                ui.ctx().set_cursor_icon(
-                                                    egui::CursorIcon::PointingHand,
-                                                );
-                                            }
-                                        }
-                                    });
-                                }
-
-                                // Show max with jump button
-                                if let Some(max_str) = &card.max_str {
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            egui::RichText::new("Max:")
-                                                .color(egui::Color32::GRAY)
-                                                .size(font_12),
-                                        );
-                                        ui.label(
-                                            egui::RichText::new(max_str)
-                                                .color(egui::Color32::LIGHT_GRAY)
-                                                .size(font_14),
-                                        );
-                                        if let (Some(record), Some(time)) =
-                                            (card.max_record, card.max_time)
-                                        {
-                                            let btn = ui
-                                                .small_button("⏵")
-                                                .on_hover_text("Jump to maximum");
-                                            if btn.clicked() {
-                                                jump_to = Some((record, time));
-                                            }
-                                            if btn.hovered() {
-                                                ui.ctx().set_cursor_icon(
-                                                    egui::CursorIcon::PointingHand,
-                                                );
-                                            }
-                                        }
-                                    });
-                                }
                             });
                         });
 
