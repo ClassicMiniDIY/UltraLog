@@ -4,7 +4,7 @@ use eframe::egui;
 
 use crate::analytics;
 use crate::app::UltraLogApp;
-use crate::state::{ActiveTool, LoadingState};
+use crate::state::{ActiveTool, FontScale, LoadingState};
 use crate::units::{
     AccelerationUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit, SpeedUnit,
     TemperatureUnit, VolumeUnit,
@@ -13,11 +13,15 @@ use crate::units::{
 impl UltraLogApp {
     /// Render the application menu bar
     pub fn render_menu_bar(&mut self, ui: &mut egui::Ui) {
+        // Pre-compute scaled font sizes for use in closures
+        let font_14 = self.scaled_font(14.0);
+        let font_15 = self.scaled_font(15.0);
+
         egui::MenuBar::new().ui(ui, |ui| {
             // Increase font size for menu items
             ui.style_mut()
                 .text_styles
-                .insert(egui::TextStyle::Button, egui::FontId::proportional(15.0));
+                .insert(egui::TextStyle::Button, egui::FontId::proportional(font_15));
 
             // File menu
             ui.menu_button("File", |ui| {
@@ -26,10 +30,10 @@ impl UltraLogApp {
                 // Increase font size for dropdown items
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 let is_loading = matches!(self.loading_state, LoadingState::Loading(_));
 
@@ -68,7 +72,7 @@ impl UltraLogApp {
                         // Increase font size for submenu items
                         ui.style_mut()
                             .text_styles
-                            .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                            .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
 
                         if self.active_tool == ActiveTool::Histogram && has_histogram_data {
                             // Histogram export options
@@ -98,10 +102,10 @@ impl UltraLogApp {
                 // Increase font size for dropdown items
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 // Cursor Tracking toggle
                 if ui
@@ -153,6 +157,44 @@ impl UltraLogApp {
                 {
                     ui.close();
                 }
+
+                ui.separator();
+
+                // Font Size submenu
+                ui.menu_button("🔠  Font Size", |ui| {
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
+
+                    if ui
+                        .radio_value(&mut self.font_scale, FontScale::Small, "Small (85%)")
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                    if ui
+                        .radio_value(&mut self.font_scale, FontScale::Medium, "Medium (100%)")
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                    if ui
+                        .radio_value(&mut self.font_scale, FontScale::Large, "Large (120%)")
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                    if ui
+                        .radio_value(
+                            &mut self.font_scale,
+                            FontScale::ExtraLarge,
+                            "Extra Large (140%)",
+                        )
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                });
             });
 
             // Units menu
@@ -162,17 +204,17 @@ impl UltraLogApp {
                 // Increase font size for dropdown items
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 // Temperature submenu
                 ui.menu_button("°C  Temperature", |ui| {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.temperature,
@@ -210,7 +252,7 @@ impl UltraLogApp {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.pressure,
@@ -248,7 +290,7 @@ impl UltraLogApp {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.speed,
@@ -276,7 +318,7 @@ impl UltraLogApp {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.distance,
@@ -306,7 +348,7 @@ impl UltraLogApp {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.fuel_economy,
@@ -344,7 +386,7 @@ impl UltraLogApp {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.volume,
@@ -372,7 +414,7 @@ impl UltraLogApp {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.flow,
@@ -398,7 +440,7 @@ impl UltraLogApp {
                     // Increase font size for submenu items
                     ui.style_mut()
                         .text_styles
-                        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                     if ui
                         .radio_value(
                             &mut self.unit_preferences.acceleration,
@@ -429,10 +471,10 @@ impl UltraLogApp {
                 // Increase font size for dropdown items
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 if ui.button("ƒ(x)  Computed Channels...").clicked() {
                     self.show_computed_channels_manager = true;
@@ -453,10 +495,10 @@ impl UltraLogApp {
                 // Increase font size for dropdown items
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 if ui.button("📖  Documentation").clicked() {
                     let _ = open::that("https://github.com/SomethingNew71/UltraLog/wiki");

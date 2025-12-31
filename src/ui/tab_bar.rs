@@ -63,9 +63,10 @@ impl UltraLogApp {
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             // Tab name (clickable)
+                            let font_13 = self.scaled_font(13.0);
                             let label_response = ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new(name).color(text_color).size(13.0),
+                                    egui::RichText::new(name).color(text_color).size(font_13),
                                 )
                                 .sense(egui::Sense::click()),
                             );
@@ -80,11 +81,12 @@ impl UltraLogApp {
                             ui.add_space(4.0);
 
                             // Close button
+                            let font_14 = self.scaled_font(14.0);
                             let close_btn = ui.add(
                                 egui::Label::new(
                                     egui::RichText::new("×")
                                         .color(egui::Color32::from_rgb(150, 150, 150))
-                                        .size(14.0),
+                                        .size(font_14),
                                 )
                                 .sense(egui::Sense::click()),
                             );

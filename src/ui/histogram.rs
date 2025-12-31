@@ -90,7 +90,7 @@ impl UltraLogApp {
             ui.centered_and_justified(|ui| {
                 ui.label(
                     egui::RichText::new("Load a log file to use histogram")
-                        .size(20.0)
+                        .size(self.scaled_font(20.0))
                         .color(egui::Color32::GRAY),
                 );
             });
@@ -151,9 +151,13 @@ impl UltraLogApp {
         let mut new_mode: Option<HistogramMode> = None;
         let mut new_grid_size: Option<HistogramGridSize> = None;
 
+        // Pre-compute scaled font sizes
+        let font_14 = self.scaled_font(14.0);
+        let font_15 = self.scaled_font(15.0);
+
         ui.horizontal(|ui| {
             // X Axis selector
-            ui.label(egui::RichText::new("X Axis:").size(15.0));
+            ui.label(egui::RichText::new("X Axis:").size(font_15));
             egui::ComboBox::from_id_salt("histogram_x")
                 .selected_text(
                     egui::RichText::new(
@@ -161,7 +165,7 @@ impl UltraLogApp {
                             .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
                             .unwrap_or("Select..."),
                     )
-                    .size(14.0),
+                    .size(font_14),
                 )
                 .width(160.0)
                 .show_ui(ui, |ui| {
@@ -169,7 +173,7 @@ impl UltraLogApp {
                         if ui
                             .selectable_label(
                                 current_x == Some(*idx),
-                                egui::RichText::new(name).size(14.0),
+                                egui::RichText::new(name).size(font_14),
                             )
                             .clicked()
                         {
@@ -181,7 +185,7 @@ impl UltraLogApp {
             ui.add_space(16.0);
 
             // Y Axis selector
-            ui.label(egui::RichText::new("Y Axis:").size(15.0));
+            ui.label(egui::RichText::new("Y Axis:").size(font_15));
             egui::ComboBox::from_id_salt("histogram_y")
                 .selected_text(
                     egui::RichText::new(
@@ -189,7 +193,7 @@ impl UltraLogApp {
                             .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
                             .unwrap_or("Select..."),
                     )
-                    .size(14.0),
+                    .size(font_14),
                 )
                 .width(160.0)
                 .show_ui(ui, |ui| {
@@ -197,7 +201,7 @@ impl UltraLogApp {
                         if ui
                             .selectable_label(
                                 current_y == Some(*idx),
-                                egui::RichText::new(name).size(14.0),
+                                egui::RichText::new(name).size(font_14),
                             )
                             .clicked()
                         {
@@ -211,7 +215,7 @@ impl UltraLogApp {
             // Z Axis selector (only enabled in AverageZ mode)
             let z_enabled = current_mode == HistogramMode::AverageZ;
             ui.add_enabled_ui(z_enabled, |ui| {
-                ui.label(egui::RichText::new("Z Axis:").size(15.0));
+                ui.label(egui::RichText::new("Z Axis:").size(font_15));
                 egui::ComboBox::from_id_salt("histogram_z")
                     .selected_text(
                         egui::RichText::new(
@@ -219,7 +223,7 @@ impl UltraLogApp {
                                 .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
                                 .unwrap_or("Select..."),
                         )
-                        .size(14.0),
+                        .size(font_14),
                     )
                     .width(160.0)
                     .show_ui(ui, |ui| {
@@ -227,7 +231,7 @@ impl UltraLogApp {
                             if ui
                                 .selectable_label(
                                     current_z == Some(*idx),
-                                    egui::RichText::new(name).size(14.0),
+                                    egui::RichText::new(name).size(font_14),
                                 )
                                 .clicked()
                             {
@@ -240,9 +244,9 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             // Grid size selector
-            ui.label(egui::RichText::new("Grid:").size(15.0));
+            ui.label(egui::RichText::new("Grid:").size(font_15));
             egui::ComboBox::from_id_salt("histogram_grid_size")
-                .selected_text(egui::RichText::new(current_grid_size.name()).size(14.0))
+                .selected_text(egui::RichText::new(current_grid_size.name()).size(font_14))
                 .width(80.0)
                 .show_ui(ui, |ui| {
                     let sizes = [
@@ -254,7 +258,7 @@ impl UltraLogApp {
                         if ui
                             .selectable_label(
                                 current_grid_size == size,
-                                egui::RichText::new(size.name()).size(14.0),
+                                egui::RichText::new(size.name()).size(font_14),
                             )
                             .clicked()
                         {
@@ -266,11 +270,11 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             // Mode toggle
-            ui.label(egui::RichText::new("Mode:").size(15.0));
+            ui.label(egui::RichText::new("Mode:").size(font_15));
             if ui
                 .selectable_label(
                     current_mode == HistogramMode::AverageZ,
-                    egui::RichText::new("Average Z").size(14.0),
+                    egui::RichText::new("Average Z").size(font_14),
                 )
                 .clicked()
             {
@@ -279,7 +283,7 @@ impl UltraLogApp {
             if ui
                 .selectable_label(
                     current_mode == HistogramMode::HitCount,
-                    egui::RichText::new("Hit Count").size(14.0),
+                    egui::RichText::new("Hit Count").size(font_14),
                 )
                 .clicked()
             {
@@ -322,6 +326,12 @@ impl UltraLogApp {
         let mode = config.mode;
         let grid_size = config.grid_size.size();
 
+        // Pre-compute scaled font sizes for use in closures
+        let font_10 = self.scaled_font(10.0);
+        let font_12 = self.scaled_font(12.0);
+        let font_13 = self.scaled_font(13.0);
+        let font_16 = self.scaled_font(16.0);
+
         // Check valid axis selections
         let (x_idx, y_idx) = match (config.x_channel, config.y_channel) {
             (Some(x), Some(y)) => (x, y),
@@ -332,7 +342,7 @@ impl UltraLogApp {
                     rect.center(),
                     egui::Align2::CENTER_CENTER,
                     "Select X and Y axes",
-                    egui::FontId::proportional(16.0),
+                    egui::FontId::proportional(font_16),
                     egui::Color32::GRAY,
                 );
                 return;
@@ -350,7 +360,7 @@ impl UltraLogApp {
                         rect.center(),
                         egui::Align2::CENTER_CENTER,
                         "Select Z axis for Average mode",
-                        egui::FontId::proportional(16.0),
+                        egui::FontId::proportional(font_16),
                         egui::Color32::GRAY,
                     );
                     return;
@@ -499,19 +509,20 @@ impl UltraLogApp {
                         // Choose text color for AAA contrast compliance
                         let text_color = get_aaa_text_color(color);
 
-                        let font_size = if grid_size <= 16 {
+                        let base_font_size = if grid_size <= 16 {
                             11.0
                         } else if grid_size <= 32 {
                             9.0
                         } else {
                             7.0
                         };
+                        let cell_font_size = self.scaled_font(base_font_size);
 
                         painter.text(
                             cell_rect.center(),
                             egui::Align2::CENTER_CENTER,
                             text,
-                            egui::FontId::proportional(font_size),
+                            egui::FontId::proportional(cell_font_size),
                             text_color,
                         );
                     }
@@ -557,7 +568,7 @@ impl UltraLogApp {
                 egui::pos2(plot_rect.left() - 8.0, y_pos),
                 egui::Align2::RIGHT_CENTER,
                 format!("{:.1}", value),
-                egui::FontId::proportional(10.0),
+                egui::FontId::proportional(font_10),
                 text_color,
             );
         }
@@ -569,7 +580,7 @@ impl UltraLogApp {
             egui::pos2(y_title_x, y_title_y),
             egui::Align2::CENTER_CENTER,
             &y_channel_name,
-            egui::FontId::proportional(13.0),
+            egui::FontId::proportional(font_13),
             axis_title_color,
         );
 
@@ -582,7 +593,7 @@ impl UltraLogApp {
                 egui::pos2(x_pos, plot_rect.bottom() + 5.0),
                 egui::Align2::CENTER_TOP,
                 format!("{:.0}", value),
-                egui::FontId::proportional(10.0),
+                egui::FontId::proportional(font_10),
                 text_color,
             );
         }
@@ -594,7 +605,7 @@ impl UltraLogApp {
             egui::pos2(x_title_x, x_title_y),
             egui::Align2::CENTER_CENTER,
             &x_channel_name,
-            egui::FontId::proportional(13.0),
+            egui::FontId::proportional(font_13),
             axis_title_color,
         );
 
@@ -727,7 +738,7 @@ impl UltraLogApp {
                         egui::pos2(plot_rect.right() - 10.0, plot_rect.top() + 15.0),
                         egui::Align2::RIGHT_TOP,
                         tooltip_text,
-                        egui::FontId::proportional(12.0),
+                        egui::FontId::proportional(font_12),
                         egui::Color32::WHITE,
                     );
                 }
@@ -844,6 +855,8 @@ impl UltraLogApp {
         mode: HistogramMode,
         grid_size: usize,
     ) {
+        let font_13 = self.scaled_font(13.0);
+
         ui.horizontal(|ui| {
             ui.add_space(4.0);
 
@@ -860,7 +873,7 @@ impl UltraLogApp {
                         };
                         ui.label(
                             egui::RichText::new(label)
-                                .size(13.0)
+                                .size(font_13)
                                 .color(egui::Color32::WHITE),
                         );
 
@@ -894,7 +907,7 @@ impl UltraLogApp {
                         };
                         ui.label(
                             egui::RichText::new(range_text)
-                                .size(13.0)
+                                .size(font_13)
                                 .color(egui::Color32::WHITE),
                         );
                     });
@@ -911,13 +924,13 @@ impl UltraLogApp {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(format!("Grid: {}x{}", grid_size, grid_size))
-                                .size(13.0)
+                                .size(font_13)
                                 .color(egui::Color32::WHITE),
                         );
                         ui.add_space(12.0);
                         ui.label(
                             egui::RichText::new(format!("Total Points: {}", total_points))
-                                .size(13.0)
+                                .size(font_13)
                                 .color(egui::Color32::WHITE),
                         );
                     });
@@ -933,13 +946,18 @@ impl UltraLogApp {
 
         let selected = &self.tabs[tab_idx].histogram_state.config.selected_cell;
 
+        // Pre-compute scaled font sizes
+        let font_12 = self.scaled_font(12.0);
+        let font_13 = self.scaled_font(13.0);
+        let font_14 = self.scaled_font(14.0);
+
         ui.add_space(10.0);
         ui.separator();
         ui.add_space(5.0);
 
         ui.label(
             egui::RichText::new("Cell Statistics")
-                .size(14.0)
+                .size(font_14)
                 .strong()
                 .color(egui::Color32::WHITE),
         );
@@ -956,7 +974,7 @@ impl UltraLogApp {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(format!("Cell [{}, {}]", cell.x_bin, cell.y_bin))
-                                .size(13.0)
+                                .size(font_13)
                                 .color(SELECTED_CELL_COLOR),
                         );
                     });
@@ -985,7 +1003,7 @@ impl UltraLogApp {
                         ui.horizontal(|ui| {
                             ui.label(
                                 egui::RichText::new(format!("{}:", label))
-                                    .size(12.0)
+                                    .size(font_12)
                                     .color(egui::Color32::from_rgb(180, 180, 180)),
                             );
                             ui.with_layout(
@@ -993,7 +1011,7 @@ impl UltraLogApp {
                                 |ui| {
                                     ui.label(
                                         egui::RichText::new(&value)
-                                            .size(12.0)
+                                            .size(font_12)
                                             .color(egui::Color32::WHITE),
                                     );
                                 },
@@ -1010,7 +1028,7 @@ impl UltraLogApp {
         } else {
             ui.label(
                 egui::RichText::new("Click a cell to view statistics")
-                    .size(12.0)
+                    .size(font_12)
                     .italics()
                     .color(egui::Color32::GRAY),
             );
