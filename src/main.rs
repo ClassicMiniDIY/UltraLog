@@ -95,8 +95,14 @@ fn main() -> eframe::Result<()> {
     set_macos_app_name();
     setup_linux_scaling();
 
-    // Initialize logging
-    tracing_subscriber::fmt::init();
+    // Initialize logging with RUST_LOG env filter support
+    // Default to showing info level for ultralog, can be overridden with RUST_LOG env var
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("ultralog=info")),
+        )
+        .init();
 
     // Track app startup for analytics
     ultralog::analytics::track_app_started();
