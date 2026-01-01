@@ -122,6 +122,10 @@ pub struct UltraLogApp {
     pub(crate) file_computed_channels: HashMap<usize, Vec<ComputedChannel>>,
     /// Whether to show the computed channels manager dialog
     pub(crate) show_computed_channels_manager: bool,
+    /// Search filter for computed channels library
+    pub(crate) computed_channels_search: String,
+    /// Whether to show the computed channels help popup
+    pub(crate) show_computed_channels_help: bool,
     /// State for the formula editor dialog
     pub(crate) formula_editor_state: FormulaEditorState,
     // === Analysis System ===
@@ -131,6 +135,8 @@ pub struct UltraLogApp {
     pub(crate) analysis_results: HashMap<usize, Vec<AnalysisResult>>,
     /// Whether to show the analysis panel
     pub(crate) show_analysis_panel: bool,
+    /// Selected category in analysis panel (None = show all)
+    pub(crate) analysis_selected_category: Option<String>,
 }
 
 impl Default for UltraLogApp {
@@ -177,10 +183,13 @@ impl Default for UltraLogApp {
             computed_library: ComputedChannelLibrary::load(),
             file_computed_channels: HashMap::new(),
             show_computed_channels_manager: false,
+            computed_channels_search: String::new(),
+            show_computed_channels_help: false,
             formula_editor_state: FormulaEditorState::default(),
             analyzer_registry: AnalyzerRegistry::new(),
             analysis_results: HashMap::new(),
             show_analysis_panel: false,
+            analysis_selected_category: None,
         }
     }
 }

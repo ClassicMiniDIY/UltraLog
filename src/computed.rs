@@ -440,6 +440,18 @@ impl FormulaEditorState {
         self.is_open = true;
     }
 
+    /// Open the editor with a pre-filled pattern (for Quick Create)
+    pub fn open_with_pattern(&mut self, name: &str, formula: &str, unit: &str, description: &str) {
+        self.editing_template_id = None;
+        self.name = name.to_string();
+        self.formula = formula.to_string();
+        self.unit = unit.to_string();
+        self.description = description.to_string();
+        self.validation_error = None;
+        self.preview_values = None;
+        self.is_open = true;
+    }
+
     /// Close the editor
     pub fn close(&mut self) {
         self.is_open = false;

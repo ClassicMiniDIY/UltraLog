@@ -1,6 +1,7 @@
 //! Formula Editor UI.
 //!
 //! Provides a modal window for creating and editing computed channel formulas.
+//! Features an expanded channel browser, quick pattern buttons, and rich preview with statistics.
 
 use eframe::egui;
 
@@ -29,7 +30,7 @@ impl UltraLogApp {
         egui::Window::new(title)
             .open(&mut open)
             .resizable(true)
-            .default_width(500.0)
+            .default_width(550.0)
             .collapsible(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .order(egui::Order::Foreground)
@@ -63,6 +64,50 @@ impl UltraLogApp {
                     self.validate_current_formula();
                 }
 
+                // Quick pattern buttons
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("Insert:").small().weak());
+                    ui.add_space(4.0);
+
+                    // Math operators
+                    for (label, insert) in [
+                        ("+", " + "),
+                        ("-", " - "),
+                        ("*", " * "),
+                        ("/", " / "),
+                        ("()", "("),
+                        ("abs", "abs("),
+                        ("sqrt", "sqrt("),
+                    ] {
+                        if ui
+                            .small_button(egui::RichText::new(label).monospace())
+                            .on_hover_text(format!("Insert {}", insert.trim()))
+                            .clicked()
+                        {
+                            self.formula_editor_state.formula.push_str(insert);
+                            self.validate_current_formula();
+                        }
+                    }
+
+                    ui.separator();
+
+                    // Time-shift operators
+                    for (label, insert, tooltip) in [
+                        ("[-1]", "[-1]", "Previous sample (index offset)"),
+                        ("@-0.1s", "@-0.1s", "Value 0.1 seconds ago"),
+                    ] {
+                        if ui
+                            .small_button(egui::RichText::new(label).monospace())
+                            .on_hover_text(tooltip)
+                            .clicked()
+                        {
+                            self.formula_editor_state.formula.push_str(insert);
+                            self.validate_current_formula();
+                        }
+                    }
+                });
+
                 // Show validation status
                 ui.add_space(4.0);
                 if let Some(error) = &self.formula_editor_state.validation_error {
@@ -76,41 +121,46 @@ impl UltraLogApp {
 
                 ui.add_space(8.0);
 
-                // Unit field
+                // Unit and description in a row
                 ui.horizontal(|ui| {
                     ui.label("Unit:");
                     ui.add(
                         egui::TextEdit::singleline(&mut self.formula_editor_state.unit)
                             .hint_text("e.g., RPM/s")
-                            .desired_width(150.0),
+                            .desired_width(100.0),
+                    );
+
+                    ui.add_space(16.0);
+
+                    ui.label("Description:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.formula_editor_state.description)
+                            .hint_text("Optional description")
+                            .desired_width(ui.available_width() - 20.0),
                     );
                 });
 
                 ui.add_space(8.0);
 
-                // Description field
-                ui.label("Description (optional):");
-                ui.add(
-                    egui::TextEdit::multiline(&mut self.formula_editor_state.description)
-                        .hint_text("What does this computed channel calculate?")
-                        .desired_width(ui.available_width())
-                        .desired_rows(2),
-                );
-
-                ui.add_space(8.0);
-
-                // Channel browser
+                // Channel browser - expanded by default for discoverability
                 if self.active_tab.is_some() {
                     egui::CollapsingHeader::new("Available Channels")
-                        .default_open(false)
+                        .default_open(true) // Expanded by default
                         .show(ui, |ui| {
                             let channels = self.get_available_channel_names();
                             if channels.is_empty() {
                                 ui.label(
-                                    egui::RichText::new("No channels available")
-                                        .color(egui::Color32::GRAY),
+                                    egui::RichText::new(
+                                        "No channels available - load a log file first",
+                                    )
+                                    .color(egui::Color32::GRAY),
                                 );
                             } else {
+                                ui.label(
+                                    egui::RichText::new("Click to insert into formula:")
+                                        .small()
+                                        .weak(),
+                                );
                                 egui::ScrollArea::vertical()
                                     .id_salt("channel_browser")
                                     .max_height(120.0)
@@ -136,23 +186,76 @@ impl UltraLogApp {
                         });
                 }
 
-                // Preview section
+                // Preview section with statistics
                 if let Some(preview_values) = &self.formula_editor_state.preview_values {
-                    ui.add_space(8.0);
-                    ui.separator();
-                    ui.label(egui::RichText::new("Preview (first 5 values):").strong());
-                    ui.horizontal(|ui| {
-                        for (i, val) in preview_values.iter().take(5).enumerate() {
-                            if i > 0 {
-                                ui.label(",");
-                            }
-                            ui.label(
-                                egui::RichText::new(format!("{:.2}", val))
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
+                    if !preview_values.is_empty() {
+                        ui.add_space(8.0);
+                        ui.separator();
+
+                        // Calculate stats
+                        let valid_values: Vec<f64> = preview_values
+                            .iter()
+                            .copied()
+                            .filter(|v| v.is_finite())
+                            .collect();
+
+                        if !valid_values.is_empty() {
+                            let min = valid_values.iter().copied().fold(f64::INFINITY, f64::min);
+                            let max = valid_values
+                                .iter()
+                                .copied()
+                                .fold(f64::NEG_INFINITY, f64::max);
+                            let sum: f64 = valid_values.iter().sum();
+                            let avg = sum / valid_values.len() as f64;
+
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("Preview").strong());
+                                ui.add_space(8.0);
+
+                                // Stats in a compact row
+                                ui.label(egui::RichText::new("Min:").small().weak());
+                                ui.label(
+                                    egui::RichText::new(format!("{:.2}", min))
+                                        .monospace()
+                                        .color(egui::Color32::LIGHT_BLUE),
+                                );
+                                ui.add_space(8.0);
+
+                                ui.label(egui::RichText::new("Avg:").small().weak());
+                                ui.label(
+                                    egui::RichText::new(format!("{:.2}", avg))
+                                        .monospace()
+                                        .color(egui::Color32::LIGHT_GREEN),
+                                );
+                                ui.add_space(8.0);
+
+                                ui.label(egui::RichText::new("Max:").small().weak());
+                                ui.label(
+                                    egui::RichText::new(format!("{:.2}", max))
+                                        .monospace()
+                                        .color(egui::Color32::from_rgb(255, 180, 100)),
+                                );
+                            });
+
+                            // Sample values
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("Sample:").small().weak());
+                                for (i, val) in preview_values.iter().take(5).enumerate() {
+                                    if i > 0 {
+                                        ui.label(egui::RichText::new(",").weak());
+                                    }
+                                    ui.label(
+                                        egui::RichText::new(format!("{:.2}", val))
+                                            .monospace()
+                                            .color(egui::Color32::GRAY),
+                                    );
+                                }
+                                if preview_values.len() > 5 {
+                                    ui.label(egui::RichText::new("...").weak());
+                                }
+                            });
                         }
-                    });
+                    }
                 }
 
                 ui.add_space(16.0);
@@ -212,19 +315,20 @@ impl UltraLogApp {
             Ok(()) => {
                 self.formula_editor_state.validation_error = None;
 
-                // Generate preview if we have data
+                // Generate preview if we have data - get more samples for better stats
                 if let Some(tab_idx) = self.active_tab {
                     let file_idx = self.tabs[tab_idx].file_index;
                     if file_idx < self.files.len() {
                         let file = &self.files[file_idx];
                         let refs = extract_channel_references(&formula);
                         if let Ok(bindings) = build_channel_bindings(&refs, &available_channels) {
+                            // Get 100 samples for meaningful statistics
                             if let Ok(preview) = generate_preview(
                                 &formula,
                                 &bindings,
                                 &file.log.data,
                                 &file.log.times,
-                                5,
+                                100,
                             ) {
                                 self.formula_editor_state.preview_values = Some(preview);
                             }
