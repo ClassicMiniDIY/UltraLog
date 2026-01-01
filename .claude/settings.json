@@ -19,7 +19,16 @@
       "Bash(mkdir:*)",
       "Bash(git config:*)",
       "Bash(/Users/colegentry/Development/UltraLog/.githooks/pre-commit)",
-      "Bash(./scripts/bump-version.sh:*)"
+      "Bash(./scripts/bump-version.sh:*)",
+      "Bash(mkdir:*)",
+      "Bash(xxd:*)",
+      "Bash(cat:*)",
+      "Bash(cargo run:*)",
+      "Bash(cargo doc:*)",
+      "Bash(cargo check:*)",
+      "Bash(while read line)",
+      "Bash(do echo \"=== $line ===\")",
+      "Bash(done)"
     ]
   }
 }

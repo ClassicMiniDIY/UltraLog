@@ -131,11 +131,18 @@ Configurable units for 8 measurement categories:
 
 ### Additional Tools
 - **Scatter Plot** - XY scatter visualization for channel correlation analysis
+- **Histogram** - 2D heatmap visualization with configurable grid sizes (10x10 to 25x25) for analyzing channel distributions
+- **Analysis Tools** - Built-in signal processing and statistics:
+  - **Filters** - Moving average, Kalman filter, and other signal processing tools
+  - **Statistics** - Min/max, percentiles, standard deviation calculations
+  - **AFR Analysis** - Air-Fuel Ratio analysis with target comparison
+  - **Derived Channels** - Calculated channels from existing data
 - **Normalization Editor** - Create custom field name mappings for cross-ECU comparison
 - **Field Normalization** - Maps ECU-specific channel names to standard names (e.g., "Act_AFR" → "AFR")
 
 ### Accessibility
 - **Colorblind mode** - Wong's optimized color palette designed for deuteranopia, protanopia, and tritanopia
+- **Font scaling** - Four font sizes (S, M, L, XL) for improved readability
 - **Custom font** - Clear, readable Outfit typeface
 - **Toast notifications** - Non-intrusive feedback for user actions
 
@@ -170,9 +177,18 @@ Configurable units for 8 measurement categories:
 - **Supported data:** All logged channels with lap times, GPS data, and metadata
 
 ### Link ECU - Full Support
+
 - **File type:** Link log format (`.llg`)
 - **Features:** Binary format parser for Link G4/G4+/G4X ECUs
 - **Supported data:** All ECU parameters including RPM, MAP, AFR, ignition timing, temperatures, and custom channels
+
+### Emerald ECU - Full Support
+
+- **File type:** Binary format (`.lg1` data + `.lg2` channel definitions)
+- **Features:** Native binary format parser for Emerald K6/M3D ECUs
+- **Supported devices:** Emerald K6, M3D, and compatible ECU models
+- **Supported data:** TPS, Air Temp, MAP, Lambda, Oil/Fuel Pressure, Oil/Fuel Temp, Exhaust Temp, Boost Target/Duty, RPM, Coolant Temp, Battery Voltage, Ignition Advance, Injector Pulse Width, and more
+- **Note:** Both `.lg1` (data) and `.lg2` (channel definitions) files must be in the same directory
 
 ### Coming Soon
 - MegaSquirt
@@ -286,15 +302,28 @@ cargo build --release
 
 ## User Guide
 
+### Interface Overview
+
+UltraLog v2.0 features a VS Code-style interface with an activity bar on the far left:
+
+**Activity Bar Panels:**
+- **Files** (folder icon) - File list, drop zone, loaded files management
+- **Channels** (list icon) - Channel selection, search, selected channel cards
+- **Tools** (wrench icon) - Access to Scatter Plot, Histogram, and Analysis Tools
+- **Settings** (gear icon) - All application settings in one place (units, display options, accessibility)
+
 ### Loading Log Files
 
-**Supported file extensions:** `.csv`, `.log`, `.txt`, `.mlg`
+**Supported file extensions:** `.csv`, `.log`, `.txt`, `.mlg`, `.xrk`, `.drk`, `.llg`, `.lg1/.lg2`
 
 UltraLog automatically detects the ECU format based on file contents:
 - **Haltech:** Identified by `%DataLog%` header
 - **ECUMaster:** Identified by semicolon/tab-delimited CSV with `TIME` column
 - **RomRaider:** Identified by comma-delimited CSV starting with `Time` column
 - **Speeduino/rusEFI:** Identified by `MLVLG` binary header
+- **AiM:** Identified by `<hCNF` tag in XRK/DRK files
+- **Link ECU:** Identified by `lf3` magic bytes in LLG files
+- **Emerald:** Identified by `.lg1` and `.lg2` file pair
 
 **Loading multiple files:**
 - Each file opens in its own tab
@@ -336,7 +365,7 @@ When enabled (View menu → Cursor Tracking), the chart automatically scrolls to
 
 ### Unit Preferences
 
-Access via **Units** menu. Changes apply immediately to all displayed values.
+Access via **Settings** panel → **Units**. Changes apply immediately to all displayed values.
 
 | Category     | Options                     |
 | ------------ | --------------------------- |
@@ -355,7 +384,7 @@ Access via **Units** menu. Changes apply immediately to all displayed values.
 
 Field normalization maps ECU-specific channel names to standardized names, making it easier to compare data across different ECU systems.
 
-**Enable/Disable:** View menu → Field Normalization
+**Enable/Disable:** Settings panel → Display → Field Normalization
 
 **Example mappings:**
 - "Act_AFR", "AFR1", "Aft" → "AFR"
@@ -363,7 +392,7 @@ Field normalization maps ECU-specific channel names to standardized names, makin
 - "RPM", "Engine_Speed" → "Engine RPM"
 
 **Custom mappings:**
-1. Open View menu → Normalization Editor
+1. Open Settings panel → Display → Normalization Editor
 2. Add custom source → target mappings
 3. Changes apply immediately to channel names
 
@@ -372,7 +401,7 @@ Field normalization maps ECU-specific channel names to standardized names, makin
 Computed channels (also called virtual or math channels) allow you to create custom data channels from mathematical formulas. These formulas can reference existing log channels and use standard math functions.
 
 **Accessing the Manager:**
-- Tools menu → Computed Channels
+- Settings panel → Computed Channels
 
 **Creating a Computed Channel:**
 1. Click "+ New Channel" in the Computed Channels window
@@ -447,20 +476,58 @@ Boost rate of change (kPa/second)
 The scatter plot tool visualizes the relationship between two channels.
 
 **To use:**
-1. Click the tool switcher (top-right area) and select "Scatter Plot"
-2. Select X-axis channel from the dropdown
-3. Select Y-axis channel from the dropdown
-4. Data points are plotted showing correlation between the two channels
+1. Click the **Tools** icon in the activity bar
+2. Select "Scatter Plot" from the tools panel
+3. Select X-axis channel from the dropdown
+4. Select Y-axis channel from the dropdown
+5. Data points are plotted showing correlation between the two channels
 
 **Use cases:**
 - Correlate AFR vs. manifold pressure
 - Compare throttle position vs. engine load
 - Identify tuning anomalies
 
+### Histogram Tool
+
+The histogram tool creates 2D heatmap visualizations for analyzing channel distributions.
+
+**To use:**
+1. Click the **Tools** icon in the activity bar
+2. Select "Histogram" from the tools panel
+3. Select X-axis channel
+4. Select Y-axis channel
+5. Optionally select Z-axis channel for color coding
+6. Choose grid size (10x10, 16x16, 20x20, or 25x25)
+7. Toggle between "Hit Count" and "Average Z-Value" modes
+
+**Features:**
+- Heat gradient from blue (low) to red (high)
+- Cell statistics on hover/click
+- Cursor position tracking during playback
+- Analyze data distributions and correlations
+
+### Analysis Tools
+
+The Analysis Tools panel provides built-in signal processing and statistical analysis.
+
+**To use:**
+1. Click the **Tools** icon in the activity bar
+2. Select "Analysis" from the tools panel
+3. Choose a category: Filters, Statistics, AFR, or Derived
+4. Select an analysis tool
+5. Configure parameters
+6. Run analysis and optionally save results as computed channels
+
+**Categories:**
+- **Filters** - Moving average, Kalman filter, signal smoothing
+- **Statistics** - Min/max, percentiles, standard deviation, variance
+- **AFR** - Air-Fuel Ratio analysis with target comparison
+- **Derived** - Calculate new channels from existing data
+
 ### Accessibility Features
 
 **Colorblind Mode:**
-- Enable via View menu → Colorblind Mode
+- Enable via Settings panel → Display → Colorblind Mode
 - Uses Wong's optimized 8-color palette
 - Designed to be distinguishable for deuteranopia, protanopia, and tritanopia
 
@@ -469,6 +536,12 @@ Blue, Orange, Green, Red, Purple, Brown, Pink, Gray, Yellow, Cyan
 
 **Colorblind palette:**
 Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
+
+**Font Scaling:**
+- Access via Settings panel → Display → Font Size
+- Four sizes available: S (Small), M (Medium - default), L (Large), XL (Extra Large)
+- Scales all UI text for improved readability
+- Settings persist across sessions
 
 ---
 
@@ -527,21 +600,37 @@ cargo clippy -- -D warnings
 ```
 UltraLog/
 ├── src/
-│   ├── main.rs          # Application entry point
-│   ├── app.rs           # Main application state and logic
-│   ├── state.rs         # Core data types and structures
-│   ├── units.rs         # Unit conversion system
-│   ├── normalize.rs     # Field name normalization
-│   ├── parsers/         # ECU format parsers
-│   │   ├── haltech.rs   # Haltech CSV parser
-│   │   ├── ecumaster.rs # ECUMaster CSV parser
-│   │   ├── romraider.rs # RomRaider CSV parser
-│   │   └── speeduino.rs # Speeduino MLG parser
-│   └── ui/              # User interface components
-│       ├── sidebar.rs   # File list and options
-│       ├── channels.rs  # Channel selection panel
-│       ├── chart.rs     # Main chart and LTTB algorithm
-│       ├── timeline.rs  # Playback controls
+│   ├── main.rs            # Application entry point
+│   ├── app.rs             # Main application state and logic
+│   ├── state.rs           # Core data types and structures
+│   ├── units.rs           # Unit conversion system
+│   ├── normalize.rs       # Field name normalization
+│   ├── computed.rs        # Computed channels system
+│   ├── expression.rs      # Formula parsing and evaluation
+│   ├── parsers/           # ECU format parsers
+│   │   ├── haltech.rs     # Haltech CSV parser
+│   │   ├── ecumaster.rs   # ECUMaster CSV parser
+│   │   ├── romraider.rs   # RomRaider CSV parser
+│   │   ├── speeduino.rs   # Speeduino MLG parser
+│   │   ├── aim.rs         # AiM XRK/DRK parser
+│   │   ├── link.rs        # Link ECU LLG parser
+│   │   └── emerald.rs     # Emerald ECU parser
+│   ├── analysis/          # Analysis tools
+│   │   ├── filters.rs     # Signal processing filters
+│   │   ├── statistics.rs  # Statistical analysis
+│   │   ├── afr.rs         # AFR analysis tools
+│   │   └── derived.rs     # Derived channel calculations
+│   └── ui/                # User interface components
+│       ├── activity_bar.rs        # VS Code-style activity bar
+│       ├── files_panel.rs         # Files panel
+│       ├── channels_panel.rs      # Channels panel
+│       ├── tools_panel.rs         # Tools panel
+│       ├── settings_panel.rs      # Settings panel
+│       ├── chart.rs               # Main chart and LTTB algorithm
+│       ├── histogram.rs           # Histogram tool
+│       ├── scatter_plot.rs        # Scatter plot tool
+│       ├── analysis_panel.rs      # Analysis tools panel
+│       ├── timeline.rs            # Playback controls
 │       └── ...
 ├── assets/              # Icons and fonts
 ├── exampleLogs/         # Sample log files for testing
@@ -596,6 +685,7 @@ The following trademarks are the property of their respective owners:
 - **ECUMaster** and **EMU Pro** are trademarks of ECUMaster
 - **AiM**, **MXP**, **MXG**, **MXL2**, **EVO5**, and **MyChron5** are trademarks of AiM Technologies
 - **Link ECU** is a trademark of Link Engine Management Ltd
+- **Emerald** and **Emerald ECU** are trademarks of Emerald ECU Ltd
 - **Speeduino** is a trademark of the Speeduino project
 - **rusEFI** is a trademark of the rusEFI project
 - **RomRaider** is a trademark of the RomRaider project
