@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UltraLog - Unlock Your Performance Data</title>
     <meta name="description"
-        content="A high-performance, cross-platform ECU log viewer. Analyze your Haltech, ECUMaster, RomRaider, Speeduino, and more.">
+        content="A high-performance, cross-platform ECU log viewer. Analyze your Haltech, ECUMaster, RomRaider, Speeduino, Emerald, AiM, Link and more.">
     <meta name="keywords"
-        content="ECU, datalog, log viewer, Haltech, ECUMaster, RomRaider, Subaru, Speeduino, rusEFI, automotive, tuning">
+        content="ECU, datalog, log viewer, Haltech, ECUMaster, RomRaider, Subaru, Speeduino, rusEFI, Emerald, AiM, Link, automotive, tuning, analysis">
 
     <!-- Open Graph -->
     <meta property="og:title" content="UltraLog - ECU Log Viewer">
@@ -179,28 +179,29 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
             position: relative;
             z-index: 1;
         }
 
-        /* Hero Section */
+        /* Hero Section - Carousel Focus */
         .hero {
             text-align: center;
-            padding: 4rem 0;
+            padding: 2rem 0 1rem;
         }
 
-        .logo-container {
+        .hero-intro {
             margin-bottom: 2rem;
         }
 
-        .logo {
-            max-width: 500px;
+        .hero-logo {
+            max-width: 350px;
             width: 100%;
             height: auto;
             filter: drop-shadow(0 0 30px rgba(0, 255, 255, 0.5));
+            margin-bottom: 1rem;
         }
 
         .tagline {
@@ -210,7 +211,7 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 4px;
         }
@@ -218,9 +219,13 @@
         .subtitle {
             font-size: 1.1rem;
             color: #a0a0b0;
-            max-width: 600px;
-            margin: 0 auto 3rem;
+            max-width: 700px;
+            margin: 0 auto 1.5rem;
             line-height: 1.6;
+        }
+
+        .subtitle strong {
+            color: var(--neon-green);
         }
 
         .hero-badges {
@@ -229,17 +234,41 @@
             align-items: center;
             gap: 1rem;
             flex-wrap: wrap;
-            margin-bottom: 3rem;
+            margin-bottom: 2rem;
         }
 
         .version-badge {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
             padding: 0.5rem 1.5rem;
-            background: rgba(0, 255, 255, 0.1);
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2));
             border: 1px solid var(--neon-cyan);
             border-radius: 50px;
-            font-size: 0.9rem;
+            font-size: 1rem;
+            font-weight: 600;
             color: var(--neon-cyan);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            }
+
+            to {
+                box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
+            }
+        }
+
+        .version-badge .new-tag {
+            background: var(--neon-magenta);
+            color: #000;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
         }
 
         .opensource-badge {
@@ -262,8 +291,258 @@
             color: var(--neon-cyan);
         }
 
-        .subtitle strong {
+        /* Hero Carousel */
+        .hero-carousel {
+            margin-bottom: 3rem;
+        }
+
+        .carousel-container {
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 20px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            background: var(--dark-surface);
+            box-shadow: 0 0 60px rgba(0, 255, 255, 0.15), 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .carousel-track {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .carousel-slide {
+            min-width: 100%;
+            position: relative;
+        }
+
+        .carousel-slide img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .carousel-slide .slide-caption {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 2rem;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.7) 50%, transparent 100%);
+            text-align: center;
+        }
+
+        .carousel-slide .slide-caption h3 {
+            font-size: 1.4rem;
+            color: var(--neon-cyan);
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .carousel-slide .slide-caption p {
+            font-size: 1rem;
+            color: #c0c0d0;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .carousel-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 56px;
+            height: 56px;
+            border: none;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 10;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .carousel-btn:hover {
+            background: rgba(0, 255, 255, 0.3);
+            color: var(--neon-cyan);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+            border-color: var(--neon-cyan);
+        }
+
+        .carousel-btn.prev {
+            left: 1.5rem;
+        }
+
+        .carousel-btn.next {
+            right: 1.5rem;
+        }
+
+        .carousel-dots {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 1.5rem;
+            background: var(--dark-surface);
+        }
+
+        .carousel-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .carousel-dot:hover {
+            border-color: var(--neon-cyan);
+        }
+
+        .carousel-dot.active {
+            background: var(--neon-cyan);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+        }
+
+        /* CTA Buttons under carousel */
+        .hero-cta {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+
+        .cta-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 2.5rem;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .cta-btn.primary {
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
+            color: #000;
+        }
+
+        .cta-btn.primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.5);
+        }
+
+        .cta-btn.secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .cta-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--neon-cyan);
+            color: var(--neon-cyan);
+        }
+
+        /* What's New Section */
+        .whats-new-section {
+            margin-bottom: 4rem;
+            padding: 3rem;
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.05), rgba(255, 0, 255, 0.05));
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 24px;
+        }
+
+        .whats-new-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .whats-new-section .section-subtitle {
+            text-align: center;
+            color: #a0a0b0;
+            margin-bottom: 2rem;
+        }
+
+        .new-features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .new-feature-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .new-feature-card:hover {
+            border-color: rgba(0, 255, 255, 0.3);
+            transform: translateY(-3px);
+        }
+
+        .new-feature-card .feature-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .new-feature-card .feature-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .new-feature-card .feature-icon.cyan {
+            background: rgba(0, 255, 255, 0.15);
+            color: var(--neon-cyan);
+        }
+
+        .new-feature-card .feature-icon.magenta {
+            background: rgba(255, 0, 255, 0.15);
+            color: var(--neon-magenta);
+        }
+
+        .new-feature-card .feature-icon.green {
+            background: rgba(57, 255, 20, 0.15);
             color: var(--neon-green);
+        }
+
+        .new-feature-card .feature-icon.orange {
+            background: rgba(255, 102, 0, 0.15);
+            color: var(--neon-orange);
+        }
+
+        .new-feature-card h3 {
+            font-size: 1.1rem;
+            color: #fff;
+        }
+
+        .new-feature-card p {
+            font-size: 0.9rem;
+            color: #a0a0b0;
+            line-height: 1.5;
         }
 
         /* Download Section */
@@ -274,8 +553,14 @@
         .download-section h2 {
             text-align: center;
             font-size: 2rem;
-            margin-bottom: 2rem;
+            margin-bottom: 0.5rem;
             color: #fff;
+        }
+
+        .download-section .section-subtitle {
+            text-align: center;
+            color: #a0a0b0;
+            margin-bottom: 2rem;
         }
 
         .download-grid {
@@ -385,6 +670,12 @@
         .features-section h2 {
             text-align: center;
             font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .features-section .section-subtitle {
+            text-align: center;
+            color: #a0a0b0;
             margin-bottom: 2rem;
         }
 
@@ -399,6 +690,12 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 12px;
             padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.04);
         }
 
         .feature-icon {
@@ -431,10 +728,10 @@
 
         .ecu-section h2 {
             font-size: 2rem;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
         }
 
-        .ecu-section p {
+        .ecu-section .section-subtitle {
             color: #a0a0b0;
             margin-bottom: 2rem;
         }
@@ -462,158 +759,23 @@
             color: var(--neon-green);
         }
 
-        .ecu-badge.partial {
-            border-color: var(--neon-yellow);
-            color: var(--neon-yellow);
-        }
-
-        /* Screenshot Carousel */
-        .screenshots-section {
-            margin-bottom: 4rem;
-        }
-
-        .screenshots-section h2 {
-            text-align: center;
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .screenshots-section .section-subtitle {
-            text-align: center;
-            color: #a0a0b0;
-            margin-bottom: 2rem;
-        }
-
-        .carousel-container {
-            position: relative;
-            max-width: 1000px;
-            margin: 0 auto;
-            overflow: hidden;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: var(--dark-surface);
-        }
-
-        .carousel-track {
-            display: flex;
-            transition: transform 0.5s ease-in-out;
-        }
-
-        .carousel-slide {
-            min-width: 100%;
+        .ecu-badge.new {
+            border-color: var(--neon-cyan);
+            color: var(--neon-cyan);
             position: relative;
         }
 
-        .carousel-slide img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .carousel-slide .slide-caption {
+        .ecu-badge.new::after {
+            content: 'NEW';
             position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 1.5rem;
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.5) 70%, transparent 100%);
-            text-align: center;
-        }
-
-        .carousel-slide .slide-caption h3 {
-            font-size: 1.2rem;
-            color: var(--neon-cyan);
-            margin-bottom: 0.25rem;
-        }
-
-        .carousel-slide .slide-caption p {
-            font-size: 0.9rem;
-            color: #a0a0b0;
-        }
-
-        .carousel-btn {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 50px;
-            height: 50px;
-            border: none;
-            background: rgba(0, 0, 0, 0.6);
-            color: #fff;
-            font-size: 1.5rem;
-            cursor: pointer;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            z-index: 10;
-        }
-
-        .carousel-btn:hover {
-            background: rgba(0, 255, 255, 0.3);
-            color: var(--neon-cyan);
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-        }
-
-        .carousel-btn.prev {
-            left: 1rem;
-        }
-
-        .carousel-btn.next {
-            right: 1rem;
-        }
-
-        .carousel-dots {
-            display: flex;
-            justify-content: center;
-            gap: 0.75rem;
-            padding: 1.5rem;
-            background: var(--dark-surface);
-        }
-
-        .carousel-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            background: transparent;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .carousel-dot:hover {
-            border-color: var(--neon-cyan);
-        }
-
-        .carousel-dot.active {
-            background: var(--neon-cyan);
-            border-color: var(--neon-cyan);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-        }
-
-        @media (max-width: 768px) {
-            .carousel-btn {
-                width: 40px;
-                height: 40px;
-                font-size: 1.2rem;
-            }
-
-            .carousel-btn.prev {
-                left: 0.5rem;
-            }
-
-            .carousel-btn.next {
-                right: 0.5rem;
-            }
-
-            .carousel-slide .slide-caption h3 {
-                font-size: 1rem;
-            }
-
-            .carousel-slide .slide-caption p {
-                font-size: 0.8rem;
-            }
+            top: -8px;
+            right: -8px;
+            background: var(--neon-magenta);
+            color: #000;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 2px 5px;
+            border-radius: 4px;
         }
 
         /* Footer */
@@ -652,20 +814,51 @@
         /* Responsive */
         @media (max-width: 768px) {
             .hero {
-                padding: 2rem 0;
+                padding: 1rem 0;
             }
 
-            .logo {
-                max-width: 300px;
+            .hero-logo {
+                max-width: 250px;
             }
 
             .tagline {
-                font-size: 1.2rem;
+                font-size: 1.1rem;
                 letter-spacing: 2px;
+            }
+
+            .carousel-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 1.2rem;
+            }
+
+            .carousel-btn.prev {
+                left: 0.75rem;
+            }
+
+            .carousel-btn.next {
+                right: 0.75rem;
+            }
+
+            .carousel-slide .slide-caption h3 {
+                font-size: 1.1rem;
+            }
+
+            .carousel-slide .slide-caption p {
+                font-size: 0.85rem;
             }
 
             .download-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .whats-new-section {
+                padding: 2rem 1.5rem;
+            }
+
+            .cta-btn {
+                padding: 0.9rem 1.8rem;
+                font-size: 1rem;
             }
         }
     </style>
@@ -698,74 +891,164 @@
     <div class="grid-lines"></div>
 
     <div class="container">
-        <!-- Hero -->
+        <!-- Hero Section -->
         <section class="hero">
-            <div class="logo-container">
-                <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/banner.png"
-                    alt="UltraLog" class="logo">
+            <div class="hero-intro">
+                <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/logo.png" alt="UltraLog"
+                    class="hero-logo">
+                <p class="tagline">Unlock Your Performance Data</p>
+                <p class="subtitle">
+                    A high-performance, cross-platform ECU log viewer built with Rust.
+                    Analyze your datalog files with blazing speed, powerful analysis tools, and beautiful
+                    visualizations.
+                    <strong>Free and open source</strong> — no subscriptions, no licenses.
+                </p>
+                <div class="hero-badges">
+                    <span class="version-badge">
+                        <span class="new-tag">New</span>
+                        v2.0.0
+                    </span>
+                    <a href="https://github.com/SomethingNew71/UltraLog" class="opensource-badge" target="_blank">
+                        <i class="fa-brands fa-github"></i> Open Source
+                    </a>
+                </div>
             </div>
-            <p class="tagline">Unlock Your Performance Data</p>
-            <p class="subtitle">
-                A high-performance, cross-platform ECU log viewer built with Rust.
-                Analyze your datalog files with blazing speed and beautiful visualizations.
-                <strong>Free and open source</strong> — no subscriptions, no licenses, just download and go.
-            </p>
-            <div class="hero-badges">
-                <span class="version-badge">v2.0.0</span>
-                <a href="https://github.com/SomethingNew71/UltraLog" class="opensource-badge" target="_blank">
-                    <i class="fa-brands fa-github"></i> Open Source
+
+            <!-- Hero Carousel -->
+            <div class="hero-carousel">
+                <div class="carousel-container">
+                    <div class="carousel-track">
+                        <div class="carousel-slide">
+                            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/LogPlayback.png"
+                                alt="UltraLog log viewer with playback">
+                            <div class="slide-caption">
+                                <h3>Interactive Log Playback</h3>
+                                <p>Play through your logs at adjustable speeds with synchronized cursor tracking across
+                                    all channels</p>
+                            </div>
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/AnalysisTools.png"
+                                alt="UltraLog analysis tools">
+                            <div class="slide-caption">
+                                <h3>Professional Analysis Tools</h3>
+                                <p>14 built-in analyzers for AFR analysis, signal filtering, derived calculations, and
+                                    statistics</p>
+                            </div>
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/Histogram.png"
+                                alt="UltraLog 2D histogram heatmap">
+                            <div class="slide-caption">
+                                <h3>2D Histogram Heatmaps</h3>
+                                <p>Visualize channel relationships with interactive heatmaps and configurable grid sizes
+                                </p>
+                            </div>
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/ScatterPlots.png"
+                                alt="UltraLog scatter plot analysis">
+                            <div class="slide-caption">
+                                <h3>Scatter Plot Correlation</h3>
+                                <p>Analyze relationships between any two channels with interactive XY scatter plots</p>
+                            </div>
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/ComputedMathChannels.png"
+                                alt="UltraLog computed channels">
+                            <div class="slide-caption">
+                                <h3>Computed Math Channels</h3>
+                                <p>Create custom virtual channels with mathematical formulas and time-shifting</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="carousel-btn prev" aria-label="Previous slide">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button class="carousel-btn next" aria-label="Next slide">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <div class="carousel-dots">
+                        <button class="carousel-dot active" aria-label="Go to slide 1"></button>
+                        <button class="carousel-dot" aria-label="Go to slide 2"></button>
+                        <button class="carousel-dot" aria-label="Go to slide 3"></button>
+                        <button class="carousel-dot" aria-label="Go to slide 4"></button>
+                        <button class="carousel-dot" aria-label="Go to slide 5"></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CTA Buttons -->
+            <div class="hero-cta">
+                <a href="#downloads" class="cta-btn primary">
+                    <i class="fa-solid fa-download"></i> Download Now
+                </a>
+                <a href="https://github.com/SomethingNew71/UltraLog/wiki" class="cta-btn secondary" target="_blank">
+                    <i class="fa-solid fa-book"></i> View Documentation
                 </a>
             </div>
         </section>
 
-        <!-- Screenshots Carousel -->
-        <section class="screenshots-section">
-            <h2>See It In Action</h2>
-            <p class="section-subtitle">Explore UltraLog's powerful visualization capabilities</p>
-            <div class="carousel-container">
-                <div class="carousel-track">
-                    <div class="carousel-slide">
-                        <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/example1.png"
-                            alt="UltraLog multi-channel chart view">
-                        <div class="slide-caption">
-                            <h3>Multi-Channel Visualization</h3>
-                            <p>Plot up to 10 channels simultaneously with synchronized cursors</p>
-                        </div>
+        <!-- What's New in 2.0 -->
+        <section class="whats-new-section">
+            <h2>What's New in 2.0</h2>
+            <p class="section-subtitle">A major release with powerful new analysis capabilities and a redesigned
+                interface</p>
+            <div class="new-features-grid">
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon cyan"><i class="fa-solid fa-microscope"></i></div>
+                        <h3>Analysis Framework</h3>
                     </div>
-                    <div class="carousel-slide">
-                        <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/example2.png"
-                            alt="UltraLog channel selection">
-                        <div class="slide-caption">
-                            <h3>Intuitive Channel Selection</h3>
-                            <p>Easily browse and select from all available data channels</p>
-                        </div>
-                    </div>
-                    <div class="carousel-slide">
-                        <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/example3.png"
-                            alt="UltraLog detailed analysis">
-                        <div class="slide-caption">
-                            <h3>Detailed Data Analysis</h3>
-                            <p>Zoom, pan, and analyze your ECU data with precision</p>
-                        </div>
-                    </div>
+                    <p>14 professional analysis algorithms including AFR drift detection, Butterworth filters,
+                        volumetric efficiency, and statistical correlation.</p>
                 </div>
-                <button class="carousel-btn prev" aria-label="Previous slide">
-                    <i class="fa-solid fa-chevron-left"></i>
-                </button>
-                <button class="carousel-btn next" aria-label="Next slide">
-                    <i class="fa-solid fa-chevron-right"></i>
-                </button>
-                <div class="carousel-dots">
-                    <button class="carousel-dot active" aria-label="Go to slide 1"></button>
-                    <button class="carousel-dot" aria-label="Go to slide 2"></button>
-                    <button class="carousel-dot" aria-label="Go to slide 3"></button>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon magenta"><i class="fa-solid fa-table-cells"></i></div>
+                        <h3>2D Histogram View</h3>
+                    </div>
+                    <p>Visualize channel relationships as interactive heatmaps with configurable grid sizes and
+                        real-time cursor tracking.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon green"><i class="fa-solid fa-text-height"></i></div>
+                        <h3>Font Scaling</h3>
+                    </div>
+                    <p>Accessibility-focused font sizing with 4 scale options (S/M/L/XL) for improved readability on any
+                        display.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon orange"><i class="fa-solid fa-car"></i></div>
+                        <h3>Emerald ECU Support</h3>
+                    </div>
+                    <p>Full support for Emerald K6/M3D ECU binary log files (.lg1/.lg2) with 40+ channel types.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon cyan"><i class="fa-solid fa-palette"></i></div>
+                        <h3>Redesigned UI</h3>
+                    </div>
+                    <p>VS Code-style activity bar navigation with dedicated panels for files, channels, tools, and
+                        settings.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon magenta"><i class="fa-solid fa-play-circle"></i></div>
+                        <h3>Run & Chart</h3>
+                    </div>
+                    <p>One-click workflow to run analysis and instantly add results to your chart for immediate
+                        visualization.</p>
                 </div>
             </div>
         </section>
 
         <!-- Downloads -->
-        <section class="download-section">
+        <section class="download-section" id="downloads">
             <h2>Download UltraLog</h2>
+            <p class="section-subtitle">Available for macOS, Windows, and Linux — always free</p>
             <div class="download-grid">
                 <div class="download-card">
                     <div class="platform-icon apple"><i class="fa-brands fa-apple"></i></div>
@@ -811,36 +1094,46 @@
 
         <!-- Features -->
         <section class="features-section">
-            <h2>Features</h2>
+            <h2>Core Features</h2>
+            <p class="section-subtitle">Everything you need for professional log analysis</p>
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-chart-line"></i></div>
                     <h3>Interactive Charts</h3>
-                    <p>Beautiful, responsive charts with zoom, pan, and multi-channel overlay support.</p>
+                    <p>Beautiful, responsive charts with zoom, pan, and multi-channel overlay. Plot up to 10 channels
+                        simultaneously.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-bolt"></i></div>
                     <h3>Blazing Fast</h3>
-                    <p>Built with Rust for maximum performance. Load and analyze large log files instantly.</p>
+                    <p>Built with Rust for maximum performance. Load and analyze large log files instantly with LTTB
+                        downsampling.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-chart-scatter"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-braille"></i></div>
                     <h3>Scatter Plots</h3>
-                    <p>Visualize relationships between any two channels with interactive scatter plots.</p>
+                    <p>Visualize correlations between any two channels with interactive XY scatter plots.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-function"></i></div>
+                    <h3>Computed Channels</h3>
+                    <p>Create virtual channels with mathematical formulas and time-shifting like RPM[-1] or Boost@-0.5s.
+                    </p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-play"></i></div>
                     <h3>Playback Mode</h3>
-                    <p>Play through your logs in real-time with adjustable speed controls.</p>
+                    <p>Play through your logs in real-time with adjustable speed from 0.25x to 8x.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-folders"></i></div>
-                    <h3>Multi-File Support</h3>
-                    <p>Open multiple log files in tabs for easy comparison and analysis.</p>
+                    <div class="feature-icon"><i class="fa-solid fa-folder-tree"></i></div>
+                    <h3>Multi-File Tabs</h3>
+                    <p>Open multiple log files in Chrome-style tabs for easy comparison and analysis.</p>
                 </div>
 
                 <div class="feature-card">
@@ -852,13 +1145,31 @@
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-arrows-rotate"></i></div>
                     <h3>Unit Conversion</h3>
-                    <p>Toggle between metric and imperial units on the fly.</p>
+                    <p>Toggle between metric and imperial units on the fly across 8 unit categories.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-eye"></i></div>
+                    <h3>Colorblind Mode</h3>
+                    <p>Wong's optimized color palette for accessibility and clear channel differentiation.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-tags"></i></div>
+                    <h3>Field Normalization</h3>
+                    <p>Standardize channel names across ECU systems for consistent cross-platform comparison.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-chart-column"></i></div>
+                    <h3>Min/Max Legend</h3>
+                    <p>See peak values for each channel at a glance with the min/max legend overlay.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-cloud-arrow-down"></i></div>
                     <h3>Auto Updates</h3>
-                    <p>Stay up to date with automatic update notifications.</p>
+                    <p>Stay current with automatic update notifications and one-click installation.</p>
                 </div>
             </div>
         </section>
@@ -866,16 +1177,16 @@
         <!-- ECU Support -->
         <section class="ecu-section">
             <h2>Supported ECUs</h2>
-            <p>UltraLog supports a growing list of ECU manufacturers and formats</p>
+            <p class="section-subtitle">UltraLog supports 8 ECU manufacturers with both CSV and binary formats</p>
             <div class="ecu-grid">
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Haltech</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> ECUMaster EMU Pro</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> RomRaider</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Speeduino</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> rusEFI</span>
-                <span class="ecu-badge partial"><i class="fa-solid fa-circle-half-stroke"></i> MegaSquirt (CSV)</span>
-                <span class="ecu-badge partial"><i class="fa-solid fa-circle-half-stroke"></i> AEM (CSV)</span>
-                <span class="ecu-badge partial"><i class="fa-solid fa-circle-half-stroke"></i> Link ECU (CSV)</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> AiM (XRK/DRK)</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Link ECU (LLG)</span>
+                <span class="ecu-badge new"><i class="fa-solid fa-circle-check"></i> Emerald K6/M3D</span>
             </div>
         </section>
 
@@ -891,7 +1202,7 @@
                     Discussions</a>
             </div>
             <p class="copyright">
-                AGPL-3.0 License &copy; 2024 Cole Gentry
+                AGPL-3.0 License &copy; 2024-2025 Cole Gentry
             </p>
         </footer>
     </div>
@@ -902,7 +1213,8 @@
             .then(response => response.json())
             .then(data => {
                 if (data.tag_name) {
-                    document.querySelector('.version-badge').textContent = data.tag_name;
+                    const badge = document.querySelector('.version-badge');
+                    badge.innerHTML = `<span class="new-tag">New</span> ${data.tag_name}`;
                 }
             })
             .catch(() => { });
@@ -936,7 +1248,7 @@
             }
 
             function startAutoPlay() {
-                autoPlayInterval = setInterval(nextSlide, 5000);
+                autoPlayInterval = setInterval(nextSlide, 6000);
             }
 
             function stopAutoPlay() {
@@ -1006,6 +1318,17 @@
             // Start autoplay
             startAutoPlay();
         })();
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
     </script>
 </body>
 
