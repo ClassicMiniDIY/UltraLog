@@ -498,6 +498,9 @@ impl UltraLogApp {
                         self.active_tab = Some(self.tabs.len() - 1);
 
                         self.show_toast_success("File loaded successfully");
+
+                        // Switch to Channels panel so user can select channels
+                        self.active_panel = ActivePanel::Channels;
                     }
                     LoadResult::Error(e) => {
                         self.show_toast_error(&format!("Error: {}", e));
