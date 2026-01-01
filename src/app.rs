@@ -1466,6 +1466,13 @@ impl eframe::App for UltraLogApp {
             ctx.request_repaint();
         }
 
+        // When MCP server is active, request repaint at 10Hz to poll for IPC commands
+        // This is much more CPU-efficient than continuous repaint while still being
+        // responsive enough for MCP commands (100ms latency max).
+        if self.ipc_server.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
+
         // Toast notifications
         self.render_toast(ctx);
 

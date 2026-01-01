@@ -149,10 +149,6 @@ impl UltraLogMcpServer {
         }
     }
 
-    fn send_command(&self, command: IpcCommand) -> Result<IpcResponse, String> {
-        self.client.send_command(command)
-    }
-
     /// Async wrapper for send_command that uses spawn_blocking to avoid blocking the async runtime
     async fn send_command_async(&self, command: IpcCommand) -> Result<IpcResponse, McpError> {
         let client = self.client.clone();

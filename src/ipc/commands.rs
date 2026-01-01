@@ -305,3 +305,356 @@ impl IpcResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // IPC Command Serialization Tests
+    // ========================================================================
+
+    #[test]
+    fn test_ping_command_roundtrip() {
+        let cmd = IpcCommand::Ping;
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        assert!(matches!(parsed, IpcCommand::Ping));
+    }
+
+    #[test]
+    fn test_get_state_command_roundtrip() {
+        let cmd = IpcCommand::GetState;
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        assert!(matches!(parsed, IpcCommand::GetState));
+    }
+
+    #[test]
+    fn test_load_file_command_roundtrip() {
+        let cmd = IpcCommand::LoadFile {
+            path: "/path/to/file.csv".to_string(),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        if let IpcCommand::LoadFile { path } = parsed {
+            assert_eq!(path, "/path/to/file.csv");
+        } else {
+            panic!("Expected LoadFile command");
+        }
+    }
+
+    #[test]
+    fn test_get_channel_data_with_time_range() {
+        let cmd = IpcCommand::GetChannelData {
+            file_id: "0".to_string(),
+            channel_name: "RPM".to_string(),
+            time_range: Some((10.0, 20.0)),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        if let IpcCommand::GetChannelData {
+            file_id,
+            channel_name,
+            time_range,
+        } = parsed
+        {
+            assert_eq!(file_id, "0");
+            assert_eq!(channel_name, "RPM");
+            assert_eq!(time_range, Some((10.0, 20.0)));
+        } else {
+            panic!("Expected GetChannelData command");
+        }
+    }
+
+    #[test]
+    fn test_get_channel_data_without_time_range() {
+        let cmd = IpcCommand::GetChannelData {
+            file_id: "0".to_string(),
+            channel_name: "Boost".to_string(),
+            time_range: None,
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        if let IpcCommand::GetChannelData {
+            file_id,
+            channel_name,
+            time_range,
+        } = parsed
+        {
+            assert_eq!(file_id, "0");
+            assert_eq!(channel_name, "Boost");
+            assert!(time_range.is_none());
+        } else {
+            panic!("Expected GetChannelData command");
+        }
+    }
+
+    #[test]
+    fn test_create_computed_channel_command() {
+        let cmd = IpcCommand::CreateComputedChannel {
+            name: "Boost PSI".to_string(),
+            formula: "Manifold_Pressure_kPa / 6.895".to_string(),
+            unit: "PSI".to_string(),
+            description: Some("Boost in PSI".to_string()),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        if let IpcCommand::CreateComputedChannel {
+            name,
+            formula,
+            unit,
+            description,
+        } = parsed
+        {
+            assert_eq!(name, "Boost PSI");
+            assert_eq!(formula, "Manifold_Pressure_kPa / 6.895");
+            assert_eq!(unit, "PSI");
+            assert_eq!(description, Some("Boost in PSI".to_string()));
+        } else {
+            panic!("Expected CreateComputedChannel command");
+        }
+    }
+
+    #[test]
+    fn test_play_command_with_speed() {
+        let cmd = IpcCommand::Play { speed: Some(2.0) };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        if let IpcCommand::Play { speed } = parsed {
+            assert_eq!(speed, Some(2.0));
+        } else {
+            panic!("Expected Play command");
+        }
+    }
+
+    #[test]
+    fn test_find_peaks_command() {
+        let cmd = IpcCommand::FindPeaks {
+            file_id: "0".to_string(),
+            channel_name: "RPM".to_string(),
+            min_prominence: Some(100.0),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
+        if let IpcCommand::FindPeaks {
+            file_id,
+            channel_name,
+            min_prominence,
+        } = parsed
+        {
+            assert_eq!(file_id, "0");
+            assert_eq!(channel_name, "RPM");
+            assert_eq!(min_prominence, Some(100.0));
+        } else {
+            panic!("Expected FindPeaks command");
+        }
+    }
+
+    // ========================================================================
+    // IPC Response Serialization Tests
+    // ========================================================================
+
+    #[test]
+    fn test_ok_response_roundtrip() {
+        let resp = IpcResponse::ok();
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        assert!(matches!(parsed, IpcResponse::Ok(Some(ResponseData::Ack))));
+    }
+
+    #[test]
+    fn test_error_response_roundtrip() {
+        let resp = IpcResponse::error("Something went wrong");
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        if let IpcResponse::Error { message } = parsed {
+            assert_eq!(message, "Something went wrong");
+        } else {
+            panic!("Expected Error response");
+        }
+    }
+
+    #[test]
+    fn test_pong_response_roundtrip() {
+        let resp = IpcResponse::ok_with_data(ResponseData::Pong);
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        assert!(matches!(parsed, IpcResponse::Ok(Some(ResponseData::Pong))));
+    }
+
+    #[test]
+    fn test_channel_data_response_roundtrip() {
+        let resp = IpcResponse::ok_with_data(ResponseData::ChannelData {
+            times: vec![0.0, 0.1, 0.2, 0.3],
+            values: vec![1000.0, 1500.0, 2000.0, 2500.0],
+        });
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        if let IpcResponse::Ok(Some(ResponseData::ChannelData { times, values })) = parsed {
+            assert_eq!(times, vec![0.0, 0.1, 0.2, 0.3]);
+            assert_eq!(values, vec![1000.0, 1500.0, 2000.0, 2500.0]);
+        } else {
+            panic!("Expected ChannelData response");
+        }
+    }
+
+    #[test]
+    fn test_stats_response_roundtrip() {
+        let stats = ChannelStats {
+            min: 800.0,
+            max: 7500.0,
+            mean: 3500.0,
+            std_dev: 1200.0,
+            median: 3200.0,
+            count: 1000,
+            min_time: 5.2,
+            max_time: 42.8,
+        };
+        let resp = IpcResponse::ok_with_data(ResponseData::Stats(stats));
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        if let IpcResponse::Ok(Some(ResponseData::Stats(s))) = parsed {
+            assert_eq!(s.min, 800.0);
+            assert_eq!(s.max, 7500.0);
+            assert_eq!(s.mean, 3500.0);
+            assert_eq!(s.count, 1000);
+        } else {
+            panic!("Expected Stats response");
+        }
+    }
+
+    #[test]
+    fn test_app_state_response_roundtrip() {
+        let state = AppState {
+            files: vec![FileInfo {
+                id: "0".to_string(),
+                path: "/path/to/log.csv".to_string(),
+                name: "log.csv".to_string(),
+                ecu_type: "Haltech".to_string(),
+                channel_count: 50,
+                record_count: 10000,
+                duration: 120.5,
+                sample_rate: 100.0,
+            }],
+            active_file: Some("0".to_string()),
+            selected_channels: vec![SelectedChannelInfo {
+                file_id: "0".to_string(),
+                channel_name: "RPM".to_string(),
+                color: "#FF0000".to_string(),
+            }],
+            cursor_time: Some(15.5),
+            visible_time_range: Some((10.0, 30.0)),
+            is_playing: false,
+            view_mode: "chart".to_string(),
+        };
+        let resp = IpcResponse::ok_with_data(ResponseData::State(state));
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        if let IpcResponse::Ok(Some(ResponseData::State(s))) = parsed {
+            assert_eq!(s.files.len(), 1);
+            assert_eq!(s.files[0].name, "log.csv");
+            assert_eq!(s.selected_channels.len(), 1);
+            assert_eq!(s.cursor_time, Some(15.5));
+            assert!(!s.is_playing);
+        } else {
+            panic!("Expected State response");
+        }
+    }
+
+    #[test]
+    fn test_correlation_response_roundtrip() {
+        let resp = IpcResponse::ok_with_data(ResponseData::Correlation {
+            coefficient: 0.87,
+            interpretation: "Strong positive correlation".to_string(),
+        });
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        if let IpcResponse::Ok(Some(ResponseData::Correlation {
+            coefficient,
+            interpretation,
+        })) = parsed
+        {
+            assert!((coefficient - 0.87).abs() < 0.001);
+            assert_eq!(interpretation, "Strong positive correlation");
+        } else {
+            panic!("Expected Correlation response");
+        }
+    }
+
+    #[test]
+    fn test_peaks_response_roundtrip() {
+        let peaks = vec![
+            Peak {
+                time: 10.5,
+                value: 7200.0,
+                prominence: 500.0,
+            },
+            Peak {
+                time: 25.3,
+                value: 7500.0,
+                prominence: 800.0,
+            },
+        ];
+        let resp = IpcResponse::ok_with_data(ResponseData::Peaks(peaks));
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        if let IpcResponse::Ok(Some(ResponseData::Peaks(p))) = parsed {
+            assert_eq!(p.len(), 2);
+            assert_eq!(p[0].time, 10.5);
+            assert_eq!(p[1].value, 7500.0);
+        } else {
+            panic!("Expected Peaks response");
+        }
+    }
+
+    // ========================================================================
+    // JSON Format Compatibility Tests
+    // ========================================================================
+
+    #[test]
+    fn test_command_json_format_is_stable() {
+        // Ensure the JSON format is what MCP clients expect
+        let cmd = IpcCommand::LoadFile {
+            path: "/test.csv".to_string(),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        // Should use tagged enum format
+        assert!(json.contains("\"type\":\"LoadFile\""));
+        assert!(json.contains("\"payload\""));
+        assert!(json.contains("\"/test.csv\""));
+    }
+
+    #[test]
+    fn test_response_json_format_is_stable() {
+        // Ensure the JSON format is what MCP clients expect
+        let resp = IpcResponse::ok();
+        let json = serde_json::to_string(&resp).unwrap();
+        // Should use tagged enum format
+        assert!(json.contains("\"status\":\"Ok\""));
+
+        let err = IpcResponse::error("test error");
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("\"status\":\"Error\""));
+        assert!(json.contains("\"test error\""));
+    }
+
+    #[test]
+    fn test_command_can_be_parsed_from_external_json() {
+        // Test parsing JSON that might come from an external MCP client
+        let json = r#"{"type":"GetChannelData","payload":{"file_id":"0","channel_name":"RPM","time_range":[0.0,10.0]}}"#;
+        let cmd: IpcCommand = serde_json::from_str(json).unwrap();
+        if let IpcCommand::GetChannelData {
+            file_id,
+            channel_name,
+            time_range,
+        } = cmd
+        {
+            assert_eq!(file_id, "0");
+            assert_eq!(channel_name, "RPM");
+            assert_eq!(time_range, Some((0.0, 10.0)));
+        } else {
+            panic!("Expected GetChannelData command");
+        }
+    }
+}
