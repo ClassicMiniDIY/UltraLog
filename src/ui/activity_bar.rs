@@ -154,71 +154,89 @@ impl UltraLogApp {
                 }
             }
             ActivePanel::Tools => {
-                // Wrench icon
+                // Line chart icon (for analysis/computed channels)
                 let stroke = egui::Stroke::new(2.0, color);
+                let chart_width = size * 0.8;
+                let chart_height = size * 0.6;
+                let left = center.x - chart_width / 2.0;
+                let right = center.x + chart_width / 2.0;
+                let top = center.y - chart_height / 2.0;
+                let bottom = center.y + chart_height / 2.0;
 
-                // Handle (diagonal line)
-                let handle_start = egui::pos2(center.x - half * 0.5, center.y + half * 0.5);
-                let handle_end = egui::pos2(center.x + half * 0.1, center.y - half * 0.1);
-                painter.line_segment([handle_start, handle_end], stroke);
+                // Draw axes
+                painter.line_segment(
+                    [egui::pos2(left, top), egui::pos2(left, bottom)],
+                    stroke,
+                );
+                painter.line_segment(
+                    [egui::pos2(left, bottom), egui::pos2(right, bottom)],
+                    stroke,
+                );
 
-                // Wrench head (arc-like shape using lines)
-                let head_center = egui::pos2(center.x + half * 0.25, center.y - half * 0.25);
-                let head_radius = half * 0.45;
+                // Draw a line chart curve
+                let points = [
+                    egui::pos2(left + chart_width * 0.1, bottom - chart_height * 0.2),
+                    egui::pos2(left + chart_width * 0.3, bottom - chart_height * 0.6),
+                    egui::pos2(left + chart_width * 0.5, bottom - chart_height * 0.4),
+                    egui::pos2(left + chart_width * 0.7, bottom - chart_height * 0.8),
+                    egui::pos2(left + chart_width * 0.9, bottom - chart_height * 0.5),
+                ];
 
-                // Draw wrench head as a partial circle with opening
-                let segments = 8;
-                let start_angle = std::f32::consts::PI * 0.25;
-                let end_angle = std::f32::consts::PI * 1.75;
-                let angle_step = (end_angle - start_angle) / segments as f32;
-
-                for i in 0..segments {
-                    let a1 = start_angle + (i as f32) * angle_step;
-                    let a2 = start_angle + ((i + 1) as f32) * angle_step;
-                    let p1 = egui::pos2(
-                        head_center.x + head_radius * a1.cos(),
-                        head_center.y + head_radius * a1.sin(),
-                    );
-                    let p2 = egui::pos2(
-                        head_center.x + head_radius * a2.cos(),
-                        head_center.y + head_radius * a2.sin(),
-                    );
-                    painter.line_segment([p1, p2], stroke);
+                for i in 0..points.len() - 1 {
+                    painter.line_segment([points[i], points[i + 1]], stroke);
                 }
             }
             ActivePanel::Settings => {
-                // Gear icon
-                let outer_radius = half * 0.85;
-                let inner_radius = half * 0.45;
-                let teeth = 8;
-                let tooth_depth = half * 0.2;
+                // Gear/cog icon with rectangular teeth
+                let body_radius = half * 0.55;
+                let tooth_outer = half * 0.85;
+                let tooth_width = 0.35; // Width of each tooth in radians
+                let teeth = 6;
 
-                // Draw gear teeth
+                // Draw the gear body (filled circle)
+                painter.circle_stroke(center, body_radius, egui::Stroke::new(2.0, color));
+
+                // Draw rectangular teeth
                 for i in 0..teeth {
                     let angle = (i as f32) * std::f32::consts::TAU / teeth as f32;
-                    let next_angle = ((i as f32) + 0.5) * std::f32::consts::TAU / teeth as f32;
 
-                    let outer_point = egui::pos2(
-                        center.x + outer_radius * angle.cos(),
-                        center.y + outer_radius * angle.sin(),
+                    // Calculate the four corners of each tooth
+                    let angle_left = angle - tooth_width / 2.0;
+                    let angle_right = angle + tooth_width / 2.0;
+
+                    // Inner corners (on the body circle)
+                    let inner_left = egui::pos2(
+                        center.x + body_radius * angle_left.cos(),
+                        center.y + body_radius * angle_left.sin(),
                     );
-                    let inner_point = egui::pos2(
-                        center.x + (outer_radius - tooth_depth) * next_angle.cos(),
-                        center.y + (outer_radius - tooth_depth) * next_angle.sin(),
+                    let inner_right = egui::pos2(
+                        center.x + body_radius * angle_right.cos(),
+                        center.y + body_radius * angle_right.sin(),
                     );
 
-                    painter.line_segment([outer_point, inner_point], egui::Stroke::new(2.0, color));
+                    // Outer corners (extending outward)
+                    let outer_left = egui::pos2(
+                        center.x + tooth_outer * angle_left.cos(),
+                        center.y + tooth_outer * angle_left.sin(),
+                    );
+                    let outer_right = egui::pos2(
+                        center.x + tooth_outer * angle_right.cos(),
+                        center.y + tooth_outer * angle_right.sin(),
+                    );
+
+                    // Draw the tooth as a filled polygon
+                    let tooth_points = vec![inner_left, outer_left, outer_right, inner_right];
+                    painter.add(egui::Shape::convex_polygon(
+                        tooth_points,
+                        color,
+                        egui::Stroke::NONE,
+                    ));
                 }
 
-                // Draw outer circle
-                painter.circle_stroke(
-                    center,
-                    outer_radius - tooth_depth / 2.0,
-                    egui::Stroke::new(2.0, color),
-                );
-
-                // Draw inner circle (hole)
-                painter.circle_stroke(center, inner_radius, egui::Stroke::new(1.5, color));
+                // Draw center hole
+                let hole_radius = half * 0.2;
+                painter.circle_filled(center, hole_radius, egui::Color32::from_rgb(30, 30, 30));
+                painter.circle_stroke(center, hole_radius, egui::Stroke::new(1.5, color));
             }
         }
     }
