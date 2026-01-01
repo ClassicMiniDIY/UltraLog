@@ -1,34 +1,283 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 
 <head>
+    <!-- Primary Meta Tags -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UltraLog - Unlock Your Performance Data</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More</title>
+    <meta name="title" content="UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More">
     <meta name="description"
-        content="A high-performance, cross-platform ECU log viewer. Analyze your Haltech, ECUMaster, RomRaider, Speeduino, Emerald, AiM, Link and more.">
+        content="UltraLog is a free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, and Emerald ECUs. Features include histogram heatmaps, scatter plots, computed channels, and professional analysis tools. Download for Windows, macOS, and Linux.">
     <meta name="keywords"
-        content="ECU, datalog, log viewer, Haltech, ECUMaster, RomRaider, Subaru, Speeduino, rusEFI, Emerald, AiM, Link, automotive, tuning, analysis">
+        content="ECU log viewer, datalog analyzer, Haltech NSP, ECUMaster EMU Pro, RomRaider, Speeduino MLG, rusEFI, AiM XRK DRK, Link ECU LLG, Emerald K6 M3D, automotive tuning software, engine tuning, AFR analysis, boost log, free tuning software, open source ECU, car data logger, dyno analysis, motorsport data, fuel map analysis, ignition timing, lambda analysis, volumetric efficiency, injector duty cycle, Butterworth filter, scatter plot, histogram heatmap, computed channels, Rust application">
+    <meta name="author" content="Cole Gentry">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow">
+    <meta name="bingbot" content="index, follow">
+    <meta name="language" content="English">
+    <meta name="revisit-after" content="7 days">
+    <meta name="rating" content="general">
+    <meta name="distribution" content="global">
+    <meta name="coverage" content="Worldwide">
+    <meta name="target" content="all">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="MobileOptimized" content="320">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="UltraLog">
+    <meta name="application-name" content="UltraLog">
+    <meta name="format-detection" content="telephone=no">
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="UltraLog - ECU Log Viewer">
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://classicminidiy.github.io/UltraLog/">
+
+    <!-- Alternate Languages (for future localization) -->
+    <link rel="alternate" hreflang="en" href="https://classicminidiy.github.io/UltraLog/">
+    <link rel="alternate" hreflang="x-default" href="https://classicminidiy.github.io/UltraLog/">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#00ffff" media="(prefers-color-scheme: light)">
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-navbutton-color" content="#00ffff">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://classicminidiy.github.io/UltraLog/">
+    <meta property="og:site_name" content="UltraLog">
+    <meta property="og:title" content="UltraLog - Free ECU Log Viewer & Analyzer">
     <meta property="og:description"
-        content="A high-performance, cross-platform ECU log viewer. Unlock your performance data.">
+        content="Free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, Speeduino, AiM, Link, and more. Features histogram heatmaps, scatter plots, computed channels, and 14 professional analysis algorithms.">
     <meta property="og:image"
         content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
-    <meta property="og:type" content="website">
+    <meta property="og:image:secure_url"
+        content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="UltraLog ECU Log Viewer showing multi-channel chart visualization">
+    <meta property="og:locale" content="en_US">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="UltraLog - ECU Log Viewer">
-    <meta name="twitter:description" content="A high-performance, cross-platform ECU log viewer.">
+    <meta name="twitter:url" content="https://classicminidiy.github.io/UltraLog/">
+    <meta name="twitter:title" content="UltraLog - Free ECU Log Viewer & Analyzer">
+    <meta name="twitter:description"
+        content="Free, open-source ECU datalog viewer. Analyze logs from Haltech, ECUMaster, Speeduino, AiM, Link & more. Histogram heatmaps, scatter plots, and 14 analysis algorithms.">
     <meta name="twitter:image"
         content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
+    <meta name="twitter:image:alt" content="UltraLog ECU Log Viewer interface">
+    <meta name="twitter:creator" content="@classicminidiy">
+    <meta name="twitter:site" content="@classicminidiy">
 
-    <link rel="icon" type="image/png"
+    <!-- Additional Social Tags -->
+    <meta property="article:author" content="Cole Gentry">
+    <meta property="article:publisher" content="https://github.com/ClassicMiniDIY">
+    <meta itemprop="name" content="UltraLog - Free ECU Log Viewer & Analyzer">
+    <meta itemprop="description"
+        content="Free, open-source ECU datalog viewer built with Rust. Supports Haltech, ECUMaster, Speeduino, AiM, Link, Emerald and more.">
+    <meta itemprop="image"
+        content="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/socialWide1.png">
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32"
+        href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png">
+    <link rel="icon" type="image/png" sizes="16x16"
+        href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png">
+    <link rel="apple-touch-icon" sizes="180x180"
+        href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png">
+    <link rel="mask-icon" href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png"
+        color="#00ffff">
+    <link rel="shortcut icon"
         href="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/icons/mac.png">
 
-    <script src="https://kit.fontawesome.com/517b58dc6f.js" crossorigin="anonymous"></script>
+    <!-- Preconnect for Performance -->
+    <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://kit.fontawesome.com" crossorigin>
+    <link rel="dns-prefetch" href="https://api.github.com">
+
+    <!-- JSON-LD Structured Data - Software Application -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "UltraLog",
+        "alternateName": ["UltraLog ECU Viewer", "UltraLog Datalog Analyzer"],
+        "description": "A high-performance, cross-platform ECU log viewer and analyzer built with Rust. Supports Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, and Emerald ECU formats with advanced analysis tools.",
+        "url": "https://classicminidiy.github.io/UltraLog/",
+        "applicationCategory": "UtilitiesApplication",
+        "applicationSubCategory": "Automotive Software",
+        "operatingSystem": ["Windows 10", "Windows 11", "macOS", "Linux"],
+        "softwareVersion": "2.0.0",
+        "releaseNotes": "https://github.com/ClassicMiniDIY/UltraLog/releases/tag/v2.0.0",
+        "downloadUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
+        "installUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
+        "screenshot": [
+            "https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/LogPlayback.png",
+            "https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/AnalysisTools.png",
+            "https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/Histogram.png",
+            "https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/ScatterPlots.png",
+            "https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/ComputedMathChannels.png"
+        ],
+        "softwareHelp": {
+            "@type": "CreativeWork",
+            "url": "https://github.com/ClassicMiniDIY/UltraLog/wiki"
+        },
+        "author": {
+            "@type": "Person",
+            "name": "Cole Gentry",
+            "url": "https://github.com/SomethingNew71"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClassicMiniDIY",
+            "url": "https://github.com/ClassicMiniDIY"
+        },
+        "license": "https://opensource.org/licenses/AGPL-3.0",
+        "isAccessibleForFree": true,
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "featureList": [
+            "Multi-channel time series visualization",
+            "2D histogram heatmaps",
+            "XY scatter plot analysis",
+            "Computed math channels with formulas",
+            "14 professional analysis algorithms",
+            "AFR drift detection (CUSUM)",
+            "Butterworth lowpass/highpass filters",
+            "Volumetric efficiency calculation",
+            "Injector duty cycle analysis",
+            "Log playback with adjustable speed",
+            "PNG and PDF export",
+            "Multi-file tab support",
+            "Colorblind accessible mode",
+            "Font scaling for accessibility",
+            "Automatic updates"
+        ],
+        "keywords": "ECU, datalog, log viewer, Haltech, ECUMaster, Speeduino, rusEFI, AiM, Link, Emerald, automotive tuning, engine tuning, AFR analysis",
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "5",
+            "ratingCount": "1",
+            "bestRating": "5",
+            "worstRating": "1"
+        },
+        "sameAs": [
+            "https://github.com/ClassicMiniDIY/UltraLog"
+        ]
+    }
+    </script>
+
+    <!-- JSON-LD Structured Data - WebPage -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "UltraLog - Free ECU Log Viewer & Analyzer",
+        "description": "Download UltraLog, a free open-source ECU datalog viewer for Windows, macOS, and Linux. Analyze logs from Haltech, ECUMaster, Speeduino, AiM, Link, and Emerald ECUs.",
+        "url": "https://classicminidiy.github.io/UltraLog/",
+        "inLanguage": "en-US",
+        "isPartOf": {
+            "@type": "WebSite",
+            "name": "UltraLog",
+            "url": "https://classicminidiy.github.io/UltraLog/"
+        },
+        "about": {
+            "@type": "SoftwareApplication",
+            "name": "UltraLog"
+        },
+        "mainEntity": {
+            "@type": "SoftwareApplication",
+            "name": "UltraLog"
+        },
+        "breadcrumb": {
+            "@type": "BreadcrumbList",
+            "itemListElement": [{
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://classicminidiy.github.io/UltraLog/"
+            }]
+        }
+    }
+    </script>
+
+    <!-- JSON-LD Structured Data - FAQ for common questions -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "What ECU formats does UltraLog support?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "UltraLog supports Haltech (NSP CSV), ECUMaster EMU Pro (CSV), RomRaider (CSV), Speeduino (MLG binary), rusEFI (MLG binary), AiM (XRK/DRK binary), Link ECU (LLG binary), and Emerald K6/M3D (.lg1/.lg2 binary) formats."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Is UltraLog free to use?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, UltraLog is completely free and open source under the AGPL-3.0 license. There are no subscriptions, licenses, or hidden costs."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What operating systems does UltraLog run on?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "UltraLog runs on Windows 10/11, macOS (both Apple Silicon and Intel), and Linux (x86_64)."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What analysis features does UltraLog offer?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "UltraLog includes 14 professional analysis algorithms including AFR drift detection (CUSUM), rich/lean zone detection, Butterworth filters, volumetric efficiency calculation, injector duty cycle, correlation analysis, and more."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Can I create custom calculated channels in UltraLog?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, UltraLog supports computed math channels where you can create virtual channels using mathematical formulas with time-shifting capabilities like RPM[-1] or Boost@-0.5s."
+                }
+            }
+        ]
+    }
+    </script>
+
+    <!-- JSON-LD Structured Data - Organization -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "ClassicMiniDIY",
+        "url": "https://github.com/ClassicMiniDIY",
+        "logo": "https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/logo.png",
+        "sameAs": [
+            "https://github.com/ClassicMiniDIY"
+        ]
+    }
+    </script>
+
+    <!-- Sitemap -->
+    <link rel="sitemap" type="application/xml" href="sitemap.xml">
+
+    <!-- External Resources -->
+    <script src="https://kit.fontawesome.com/517b58dc6f.js" crossorigin="anonymous" defer></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
@@ -874,42 +1123,63 @@
             }
         }
     </style>
+    <style>
+        /* Skip Link for Accessibility */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--neon-cyan);
+            color: #000;
+            padding: 8px 16px;
+            z-index: 10000;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 0 0 8px 0;
+        }
+        .skip-link:focus {
+            top: 0;
+        }
+    </style>
 </head>
 
-<body>
+<body itemscope itemtype="https://schema.org/WebPage">
+    <!-- Skip Link for Accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
     <!-- Floating Header -->
-    <header class="site-header">
-        <a href="#" class="header-brand">
-            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/banner.png" alt="UltraLog">
+    <header class="site-header" role="banner">
+        <a href="#" class="header-brand" aria-label="UltraLog Home">
+            <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/banner.png" alt="UltraLog Logo" width="120" height="32">
             <span>UltraLog</span>
         </a>
-        <nav class="header-nav">
-            <a href="https://github.com/SomethingNew71/UltraLog" target="_blank">
-                <i class="fa-brands fa-github"></i>
+        <nav class="header-nav" role="navigation" aria-label="Main navigation">
+            <a href="https://github.com/SomethingNew71/UltraLog" target="_blank" rel="noopener noreferrer" aria-label="View source code on GitHub">
+                <i class="fa-brands fa-github" aria-hidden="true"></i>
                 <span>Source Code</span>
             </a>
-            <a href="https://github.com/SomethingNew71/UltraLog/wiki" target="_blank">
-                <i class="fa-solid fa-book"></i>
+            <a href="https://github.com/SomethingNew71/UltraLog/wiki" target="_blank" rel="noopener noreferrer" aria-label="View documentation wiki">
+                <i class="fa-solid fa-book" aria-hidden="true"></i>
                 <span>Wiki</span>
             </a>
-            <a href="https://github.com/SomethingNew71/UltraLog/issues/new/choose" target="_blank">
-                <i class="fa-solid fa-bug"></i>
+            <a href="https://github.com/SomethingNew71/UltraLog/issues/new/choose" target="_blank" rel="noopener noreferrer" aria-label="Report an issue on GitHub">
+                <i class="fa-solid fa-bug" aria-hidden="true"></i>
                 <span>Report Issue</span>
             </a>
         </nav>
     </header>
 
-    <div class="grid-bg"></div>
-    <div class="grid-lines"></div>
+    <div class="grid-bg" aria-hidden="true"></div>
+    <div class="grid-lines" aria-hidden="true"></div>
 
-    <div class="container">
+    <main id="main-content" class="container" role="main" itemprop="mainContentOfPage">
         <!-- Hero Section -->
-        <section class="hero">
+        <section class="hero" aria-labelledby="hero-heading">
             <div class="hero-intro">
-                <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/logo.png" alt="UltraLog"
-                    class="hero-logo">
-                <p class="tagline">Unlock Your Performance Data</p>
-                <p class="subtitle">
+                <img src="https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/logo.png" alt="UltraLog - Free ECU Log Viewer"
+                    class="hero-logo" width="350" height="auto" itemprop="image">
+                <h1 id="hero-heading" class="tagline" itemprop="headline">Unlock Your Performance Data</h1>
+                <p class="subtitle" itemprop="description">
                     A high-performance, cross-platform ECU log viewer built with Rust.
                     Analyze your datalog files with blazing speed, powerful analysis tools, and beautiful
                     visualizations.
@@ -920,8 +1190,8 @@
                         <span class="new-tag">New</span>
                         v2.0.0
                     </span>
-                    <a href="https://github.com/SomethingNew71/UltraLog" class="opensource-badge" target="_blank">
-                        <i class="fa-brands fa-github"></i> Open Source
+                    <a href="https://github.com/SomethingNew71/UltraLog" class="opensource-badge" target="_blank" rel="noopener noreferrer">
+                        <i class="fa-brands fa-github" aria-hidden="true"></i> Open Source
                     </a>
                 </div>
             </div>
@@ -975,10 +1245,10 @@
                         </div>
                     </div>
                     <button class="carousel-btn prev" aria-label="Previous slide">
-                        <i class="fa-solid fa-chevron-left"></i>
+                        <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
                     </button>
                     <button class="carousel-btn next" aria-label="Next slide">
-                        <i class="fa-solid fa-chevron-right"></i>
+                        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
                     </button>
                     <div class="carousel-dots">
                         <button class="carousel-dot active" aria-label="Go to slide 1"></button>
@@ -993,10 +1263,10 @@
             <!-- CTA Buttons -->
             <div class="hero-cta">
                 <a href="#downloads" class="cta-btn primary">
-                    <i class="fa-solid fa-download"></i> Download Now
+                    <i class="fa-solid fa-download" aria-hidden="true"></i> Download Now
                 </a>
                 <a href="https://github.com/SomethingNew71/UltraLog/wiki" class="cta-btn secondary" target="_blank">
-                    <i class="fa-solid fa-book"></i> View Documentation
+                    <i class="fa-solid fa-book" aria-hidden="true"></i> View Documentation
                 </a>
             </div>
         </section>
@@ -1009,7 +1279,7 @@
             <div class="new-features-grid">
                 <div class="new-feature-card">
                     <div class="feature-header">
-                        <div class="feature-icon cyan"><i class="fa-solid fa-microscope"></i></div>
+                        <div class="feature-icon cyan"><i class="fa-solid fa-microscope" aria-hidden="true"></i></div>
                         <h3>Analysis Framework</h3>
                     </div>
                     <p>14 professional analysis algorithms including AFR drift detection, Butterworth filters,
@@ -1017,7 +1287,7 @@
                 </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
-                        <div class="feature-icon magenta"><i class="fa-solid fa-table-cells"></i></div>
+                        <div class="feature-icon magenta"><i class="fa-solid fa-table-cells" aria-hidden="true"></i></div>
                         <h3>2D Histogram View</h3>
                     </div>
                     <p>Visualize channel relationships as interactive heatmaps with configurable grid sizes and
@@ -1025,7 +1295,7 @@
                 </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
-                        <div class="feature-icon green"><i class="fa-solid fa-text-height"></i></div>
+                        <div class="feature-icon green"><i class="fa-solid fa-text-height" aria-hidden="true"></i></div>
                         <h3>Font Scaling</h3>
                     </div>
                     <p>Accessibility-focused font sizing with 4 scale options (S/M/L/XL) for improved readability on any
@@ -1033,14 +1303,14 @@
                 </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
-                        <div class="feature-icon orange"><i class="fa-solid fa-car"></i></div>
+                        <div class="feature-icon orange"><i class="fa-solid fa-car" aria-hidden="true"></i></div>
                         <h3>Emerald ECU Support</h3>
                     </div>
                     <p>Full support for Emerald K6/M3D ECU binary log files (.lg1/.lg2) with 40+ channel types.</p>
                 </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
-                        <div class="feature-icon cyan"><i class="fa-solid fa-palette"></i></div>
+                        <div class="feature-icon cyan"><i class="fa-solid fa-palette" aria-hidden="true"></i></div>
                         <h3>Redesigned UI</h3>
                     </div>
                     <p>VS Code-style activity bar navigation with dedicated panels for files, channels, tools, and
@@ -1048,7 +1318,7 @@
                 </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
-                        <div class="feature-icon magenta"><i class="fa-solid fa-play-circle"></i></div>
+                        <div class="feature-icon magenta"><i class="fa-solid fa-play-circle" aria-hidden="true"></i></div>
                         <h3>Run & Chart</h3>
                     </div>
                     <p>One-click workflow to run analysis and instantly add results to your chart for immediate
@@ -1063,42 +1333,42 @@
             <p class="section-subtitle">Available for macOS, Windows, and Linux — always free</p>
             <div class="download-grid">
                 <div class="download-card">
-                    <div class="platform-icon apple"><i class="fa-brands fa-apple"></i></div>
+                    <div class="platform-icon apple"><i class="fa-brands fa-apple" aria-hidden="true"></i></div>
                     <div class="platform-name">macOS</div>
                     <div class="platform-detail">Apple Silicon (M1/M2/M3/M4)</div>
                     <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-arm64.dmg"
                         class="download-btn">
-                        <i class="fa-solid fa-download"></i> Download DMG
+                        <i class="fa-solid fa-download" aria-hidden="true"></i> Download DMG
                     </a>
                 </div>
 
                 <div class="download-card">
-                    <div class="platform-icon apple"><i class="fa-brands fa-apple"></i></div>
+                    <div class="platform-icon apple"><i class="fa-brands fa-apple" aria-hidden="true"></i></div>
                     <div class="platform-name">macOS</div>
                     <div class="platform-detail">Intel Macs</div>
                     <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-macos-intel.dmg"
                         class="download-btn">
-                        <i class="fa-solid fa-download"></i> Download DMG
+                        <i class="fa-solid fa-download" aria-hidden="true"></i> Download DMG
                     </a>
                 </div>
 
                 <div class="download-card">
-                    <div class="platform-icon windows"><i class="fa-brands fa-windows"></i></div>
+                    <div class="platform-icon windows"><i class="fa-brands fa-windows" aria-hidden="true"></i></div>
                     <div class="platform-name">Windows</div>
                     <div class="platform-detail">Windows 10/11 (64-bit)</div>
                     <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-windows.zip"
                         class="download-btn">
-                        <i class="fa-solid fa-download"></i> Download ZIP
+                        <i class="fa-solid fa-download" aria-hidden="true"></i> Download ZIP
                     </a>
                 </div>
 
                 <div class="download-card">
-                    <div class="platform-icon linux"><i class="fa-brands fa-linux"></i></div>
+                    <div class="platform-icon linux"><i class="fa-brands fa-linux" aria-hidden="true"></i></div>
                     <div class="platform-name">Linux</div>
                     <div class="platform-detail">x86_64 Binary</div>
                     <a href="https://github.com/SomethingNew71/UltraLog/releases/latest/download/ultralog-linux.tar.gz"
                         class="download-btn">
-                        <i class="fa-solid fa-download"></i> Download TAR.GZ
+                        <i class="fa-solid fa-download" aria-hidden="true"></i> Download TAR.GZ
                     </a>
                 </div>
             </div>
@@ -1110,76 +1380,76 @@
             <p class="section-subtitle">Everything you need for professional log analysis</p>
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-chart-line"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-chart-line" aria-hidden="true"></i></div>
                     <h3>Interactive Charts</h3>
                     <p>Beautiful, responsive charts with zoom, pan, and multi-channel overlay. Plot up to 10 channels
                         simultaneously.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-bolt"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-bolt" aria-hidden="true"></i></div>
                     <h3>Blazing Fast</h3>
                     <p>Built with Rust for maximum performance. Load and analyze large log files instantly with LTTB
                         downsampling.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-braille"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-braille" aria-hidden="true"></i></div>
                     <h3>Scatter Plots</h3>
                     <p>Visualize correlations between any two channels with interactive XY scatter plots.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-function"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-function" aria-hidden="true"></i></div>
                     <h3>Computed Channels</h3>
                     <p>Create virtual channels with mathematical formulas and time-shifting like RPM[-1] or Boost@-0.5s.
                     </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-play"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-play" aria-hidden="true"></i></div>
                     <h3>Playback Mode</h3>
                     <p>Play through your logs in real-time with adjustable speed from 0.25x to 8x.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-folder-tree"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-folder-tree" aria-hidden="true"></i></div>
                     <h3>Multi-File Tabs</h3>
                     <p>Open multiple log files in Chrome-style tabs for easy comparison and analysis.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-file-export"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-file-export" aria-hidden="true"></i></div>
                     <h3>Export Options</h3>
                     <p>Export charts as PNG images or PDF documents for reports and sharing.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-arrows-rotate"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i></div>
                     <h3>Unit Conversion</h3>
                     <p>Toggle between metric and imperial units on the fly across 8 unit categories.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-eye"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-eye" aria-hidden="true"></i></div>
                     <h3>Colorblind Mode</h3>
                     <p>Wong's optimized color palette for accessibility and clear channel differentiation.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-tags"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-tags" aria-hidden="true"></i></div>
                     <h3>Field Normalization</h3>
                     <p>Standardize channel names across ECU systems for consistent cross-platform comparison.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-chart-column"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-chart-column" aria-hidden="true"></i></div>
                     <h3>Min/Max Legend</h3>
                     <p>See peak values for each channel at a glance with the min/max legend overlay.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+                    <div class="feature-icon"><i class="fa-solid fa-cloud-arrow-down" aria-hidden="true"></i></div>
                     <h3>Auto Updates</h3>
                     <p>Stay current with automatic update notifications and one-click installation.</p>
                 </div>
@@ -1191,33 +1461,31 @@
             <h2>Supported ECUs</h2>
             <p class="section-subtitle">UltraLog supports 8 ECU manufacturers with both CSV and binary formats</p>
             <div class="ecu-grid">
-                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Haltech</span>
-                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> ECUMaster EMU Pro</span>
-                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> RomRaider</span>
-                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Speeduino</span>
-                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> rusEFI</span>
-                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> AiM (XRK/DRK)</span>
-                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check"></i> Link ECU (LLG)</span>
-                <span class="ecu-badge new"><i class="fa-solid fa-circle-check"></i> Emerald K6/M3D</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Haltech</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> ECUMaster EMU Pro</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> RomRaider</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Speeduino</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> rusEFI</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> AiM (XRK/DRK)</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Link ECU (LLG)</span>
+                <span class="ecu-badge new"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Emerald K6/M3D</span>
             </div>
         </section>
 
-        <!-- Footer -->
-        <footer>
-            <div class="footer-links">
-                <a href="https://github.com/SomethingNew71/UltraLog"><i class="fa-brands fa-github"></i> GitHub</a>
-                <a href="https://github.com/SomethingNew71/UltraLog/releases"><i class="fa-solid fa-tags"></i> All
-                    Releases</a>
-                <a href="https://github.com/SomethingNew71/UltraLog/issues"><i class="fa-solid fa-bug"></i> Report
-                    Issue</a>
-                <a href="https://github.com/SomethingNew71/UltraLog/discussions"><i class="fa-solid fa-comments"></i>
-                    Discussions</a>
-            </div>
-            <p class="copyright">
-                AGPL-3.0 License &copy; 2024-2025 Cole Gentry
-            </p>
-        </footer>
-    </div>
+    </main>
+
+    <!-- Footer -->
+    <footer role="contentinfo" class="container" itemscope itemtype="https://schema.org/WPFooter">
+        <nav class="footer-links" aria-label="Footer navigation">
+            <a href="https://github.com/SomethingNew71/UltraLog" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-github" aria-hidden="true"></i> GitHub</a>
+            <a href="https://github.com/SomethingNew71/UltraLog/releases" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-tags" aria-hidden="true"></i> All Releases</a>
+            <a href="https://github.com/SomethingNew71/UltraLog/issues" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-bug" aria-hidden="true"></i> Report Issue</a>
+            <a href="https://github.com/SomethingNew71/UltraLog/discussions" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-comments" aria-hidden="true"></i> Discussions</a>
+        </nav>
+        <p class="copyright" itemprop="copyrightNotice">
+            <a href="https://opensource.org/licenses/AGPL-3.0" target="_blank" rel="noopener noreferrer license">AGPL-3.0 License</a> &copy; <span itemprop="copyrightYear">2024-2025</span> <span itemprop="copyrightHolder">Cole Gentry</span>
+        </p>
+    </footer>
 
     <script>
         // Update version badge from GitHub API

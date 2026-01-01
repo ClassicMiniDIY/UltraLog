@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+    <url>
+        <loc>https://classicminidiy.github.io/UltraLog/</loc>
+        <lastmod>2026-01-01</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>1.0</priority>
+        <image:image>
+            <image:loc>https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/LogPlayback.png</image:loc>
+            <image:title>UltraLog Interactive Log Playback</image:title>
+            <image:caption>Play through your ECU logs at adjustable speeds with synchronized cursor tracking</image:caption>
+        </image:image>
+        <image:image>
+            <image:loc>https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/AnalysisTools.png</image:loc>
+            <image:title>UltraLog Professional Analysis Tools</image:title>
+            <image:caption>14 built-in analyzers for AFR analysis, signal filtering, and derived calculations</image:caption>
+        </image:image>
+        <image:image>
+            <image:loc>https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/Histogram.png</image:loc>
+            <image:title>UltraLog 2D Histogram Heatmaps</image:title>
+            <image:caption>Visualize channel relationships with interactive heatmaps</image:caption>
+        </image:image>
+        <image:image>
+            <image:loc>https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/ScatterPlots.png</image:loc>
+            <image:title>UltraLog Scatter Plot Correlation</image:title>
+            <image:caption>Analyze relationships between channels with XY scatter plots</image:caption>
+        </image:image>
+        <image:image>
+            <image:loc>https://raw.githubusercontent.com/SomethingNew71/UltraLog/main/assets/pagesImages/ComputedMathChannels.png</image:loc>
+            <image:title>UltraLog Computed Math Channels</image:title>
+            <image:caption>Create custom virtual channels with mathematical formulas</image:caption>
+        </image:image>
+    </url>
+</urlset>
