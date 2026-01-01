@@ -14,7 +14,9 @@ use std::thread;
 use crate::analysis::{AnalysisResult, AnalyzerRegistry};
 use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
-use crate::parsers::{Aim, EcuMaster, EcuType, Haltech, Link, Parseable, RomRaider, Speeduino};
+use crate::parsers::{
+    Aim, EcuMaster, EcuType, Emerald, Haltech, Link, Parseable, RomRaider, Speeduino,
+};
 use crate::state::{
     ActivePanel, ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState,
     ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS,
@@ -409,6 +411,17 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::Link)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse Link ECU LLG file: {}",
+                    e
+                ))),
+            }
+        } else if Emerald::is_emerald_path(path)
+            && (Emerald::detect(binary_data) || Emerald::detect_lg2(binary_data))
+        {
+            // Emerald ECU LG1/LG2 format detected
+            match Emerald::parse_file(path) {
+                Ok(l) => Ok((l, EcuType::Emerald)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse Emerald ECU file: {}",
                     e
                 ))),
             }

@@ -1,8 +1,9 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 
 // Import from the library
-use ultralog::parsers::{EcuMaster, EcuType, Haltech, Link, Parseable, Speeduino};
+use ultralog::parsers::{EcuMaster, EcuType, Emerald, Haltech, Link, Parseable, Speeduino};
 
 fn main() {
     // Get file path from command line or use default
@@ -33,6 +34,16 @@ fn main() {
         println!("Parsing Link ECU log...");
         match Link::parse_binary(&binary_data) {
             Ok(log) => (EcuType::Link, log),
+            Err(e) => {
+                eprintln!("Parse error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else if Emerald::is_emerald_path(Path::new(path)) && Emerald::detect(&binary_data) {
+        println!("\nDetected: Emerald ECU LG1/LG2 format");
+        println!("Parsing Emerald ECU log...");
+        match Emerald::parse_file(Path::new(path)) {
+            Ok(log) => (EcuType::Emerald, log),
             Err(e) => {
                 eprintln!("Parse error: {}", e);
                 std::process::exit(1);

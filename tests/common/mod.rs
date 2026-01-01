@@ -67,6 +67,12 @@ pub mod example_files {
 
     // RomRaider example files
     pub const ROMRAIDER_EUROPEAN: &str = "exampleLogs/romraider/romraiderlog_20251031_170713.csv";
+
+    // Emerald ECU example files
+    pub const EMERALD_IDLE_REV: &str = "exampleLogs/emerald/EM Log MG ZS Turbo idle and rev.lg1";
+    pub const EMERALD_SHORT_DRIVE: &str = "exampleLogs/emerald/EM Log MG ZS Turbo short drive.lg1";
+    pub const EMERALD_DIFF_CHANNELS: &str =
+        "exampleLogs/emerald/EM Log MG ZS Turbo short drive back diff channels.lg1";
 }
 
 /// Test data generators for synthetic tests
