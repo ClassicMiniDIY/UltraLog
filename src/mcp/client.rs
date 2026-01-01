@@ -63,9 +63,9 @@ impl GuiClient {
             .map_err(|e| format!("Failed to serialize command: {}", e))?;
 
         tracing::debug!("MCP client writing to IPC: {}", json);
-        writeln!(stream, "{}", json)
-            .map_err(|e| format!("Failed to send command: {}", e))?;
-        stream.flush()
+        writeln!(stream, "{}", json).map_err(|e| format!("Failed to send command: {}", e))?;
+        stream
+            .flush()
             .map_err(|e| format!("Failed to flush: {}", e))?;
 
         tracing::debug!("MCP client waiting for response...");
@@ -73,7 +73,8 @@ impl GuiClient {
         // Read the response
         let mut reader = BufReader::new(&stream);
         let mut response_line = String::new();
-        reader.read_line(&mut response_line)
+        reader
+            .read_line(&mut response_line)
             .map_err(|e| format!("Failed to read response: {}", e))?;
 
         tracing::debug!("MCP client received response: {}", response_line.trim());
@@ -81,8 +82,7 @@ impl GuiClient {
         // Connection will be closed when stream is dropped
 
         // Parse the response
-        serde_json::from_str(&response_line)
-            .map_err(|e| format!("Failed to parse response: {}", e))
+        serde_json::from_str(&response_line).map_err(|e| format!("Failed to parse response: {}", e))
     }
 
     /// Check if the GUI is running and responsive

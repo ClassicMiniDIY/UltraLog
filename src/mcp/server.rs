@@ -137,7 +137,10 @@ impl UltraLogMcpServer {
     }
 
     pub fn with_ipc_port(ipc_port: u16) -> Self {
-        tracing::info!("Creating new UltraLogMcpServer instance for IPC port {}", ipc_port);
+        tracing::info!(
+            "Creating new UltraLogMcpServer instance for IPC port {}",
+            ipc_port
+        );
         let router = Self::tool_router();
         tracing::info!("Tool router created with {} tools", router.list_all().len());
         Self {
@@ -333,7 +336,10 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<LoadFileRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::LoadFile { path: req.path }).await? {
+        match self
+            .send_command_async(IpcCommand::LoadFile { path: req.path })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::FileLoaded(info))) => {
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&info).unwrap_or_default(),
@@ -354,12 +360,13 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<FileIdRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::CloseFile {
-            file_id: req.file_id,
-        }).await? {
-            IpcResponse::Ok(_) => {
-                Ok(CallToolResult::success(vec![Content::text("File closed")]))
-            }
+        match self
+            .send_command_async(IpcCommand::CloseFile {
+                file_id: req.file_id,
+            })
+            .await?
+        {
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text("File closed")])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
         }
     }
@@ -371,9 +378,12 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<FileIdRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::ListChannels {
-            file_id: req.file_id,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::ListChannels {
+                file_id: req.file_id,
+            })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::Channels(channels))) => {
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&channels).unwrap_or_default(),
@@ -396,11 +406,14 @@ impl UltraLogMcpServer {
             _ => None,
         };
 
-        match self.send_command_async(IpcCommand::GetChannelData {
-            file_id: req.file_id,
-            channel_name: req.channel_name,
-            time_range,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::GetChannelData {
+                file_id: req.file_id,
+                channel_name: req.channel_name,
+                time_range,
+            })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::ChannelData { times, values })) => {
                 let result = serde_json::json!({
                     "sample_count": times.len(),
@@ -426,11 +439,14 @@ impl UltraLogMcpServer {
             _ => None,
         };
 
-        match self.send_command_async(IpcCommand::GetChannelStats {
-            file_id: req.file_id,
-            channel_name: req.channel_name,
-            time_range,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::GetChannelStats {
+                file_id: req.file_id,
+                channel_name: req.channel_name,
+                time_range,
+            })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::Stats(stats))) => {
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&stats).unwrap_or_default(),
@@ -448,10 +464,13 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<ChannelRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::SelectChannel {
-            file_id: req.file_id,
-            channel_name: req.channel_name,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::SelectChannel {
+                file_id: req.file_id,
+                channel_name: req.channel_name,
+            })
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
                 "Channel selected",
             )])),
@@ -464,10 +483,13 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<ChannelRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::DeselectChannel {
-            file_id: req.file_id,
-            channel_name: req.channel_name,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::DeselectChannel {
+                file_id: req.file_id,
+                channel_name: req.channel_name,
+            })
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
                 "Channel deselected",
             )])),
@@ -480,7 +502,10 @@ impl UltraLogMcpServer {
         &self,
         Parameters(_): Parameters<EmptyRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::DeselectAllChannels).await? {
+        match self
+            .send_command_async(IpcCommand::DeselectAllChannels)
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
                 "All channels deselected",
             )])),
@@ -496,12 +521,15 @@ impl UltraLogMcpServer {
         Parameters(req): Parameters<CreateComputedChannelRequest>,
     ) -> Result<CallToolResult, McpError> {
         let name = req.name.clone();
-        match self.send_command_async(IpcCommand::CreateComputedChannel {
-            name: req.name,
-            formula: req.formula,
-            unit: req.unit,
-            description: req.description,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::CreateComputedChannel {
+                name: req.name,
+                formula: req.formula,
+                unit: req.unit,
+                description: req.description,
+            })
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(format!(
                 "Computed channel '{}' created",
                 name
@@ -515,7 +543,10 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<DeleteComputedChannelRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::DeleteComputedChannel { name: req.name }).await? {
+        match self
+            .send_command_async(IpcCommand::DeleteComputedChannel { name: req.name })
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
                 "Computed channel deleted",
             )])),
@@ -528,7 +559,10 @@ impl UltraLogMcpServer {
         &self,
         Parameters(_): Parameters<EmptyRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::ListComputedChannels).await? {
+        match self
+            .send_command_async(IpcCommand::ListComputedChannels)
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::ComputedChannels(channels))) => {
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&channels).unwrap_or_default(),
@@ -551,11 +585,14 @@ impl UltraLogMcpServer {
             _ => None,
         };
 
-        match self.send_command_async(IpcCommand::EvaluateFormula {
-            file_id: req.file_id,
-            formula: req.formula,
-            time_range,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::EvaluateFormula {
+                file_id: req.file_id,
+                formula: req.formula,
+                time_range,
+            })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::FormulaResult {
                 times,
                 values,
@@ -583,10 +620,13 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<SetTimeRangeRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::SetTimeRange {
-            start: req.start,
-            end: req.end,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::SetTimeRange {
+                start: req.start,
+                end: req.end,
+            })
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
                 "Time range set",
             )])),
@@ -601,10 +641,11 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<SetCursorRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::SetCursor { time: req.time }).await? {
-            IpcResponse::Ok(_) => {
-                Ok(CallToolResult::success(vec![Content::text("Cursor set")]))
-            }
+        match self
+            .send_command_async(IpcCommand::SetCursor { time: req.time })
+            .await?
+        {
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text("Cursor set")])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
         }
     }
@@ -614,7 +655,10 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<PlayRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::Play { speed: req.speed }).await? {
+        match self
+            .send_command_async(IpcCommand::Play { speed: req.speed })
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
                 "Playback started",
             )])),
@@ -653,9 +697,12 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<FileIdRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::GetCursorValues {
-            file_id: req.file_id,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::GetCursorValues {
+                file_id: req.file_id,
+            })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::CursorValues(values))) => {
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&values).unwrap_or_default(),
@@ -673,11 +720,14 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<FindPeaksRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::FindPeaks {
-            file_id: req.file_id,
-            channel_name: req.channel_name,
-            min_prominence: req.min_prominence,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::FindPeaks {
+                file_id: req.file_id,
+                channel_name: req.channel_name,
+                min_prominence: req.min_prominence,
+            })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::Peaks(peaks))) => {
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&peaks).unwrap_or_default(),
@@ -695,11 +745,14 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<CorrelateChannelsRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::CorrelateChannels {
-            file_id: req.file_id,
-            channel_a: req.channel_a,
-            channel_b: req.channel_b,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::CorrelateChannels {
+                file_id: req.file_id,
+                channel_a: req.channel_a,
+                channel_b: req.channel_b,
+            })
+            .await?
+        {
             IpcResponse::Ok(Some(ResponseData::Correlation {
                 coefficient,
                 interpretation,
@@ -724,11 +777,14 @@ impl UltraLogMcpServer {
         &self,
         Parameters(req): Parameters<ShowScatterPlotRequest>,
     ) -> Result<CallToolResult, McpError> {
-        match self.send_command_async(IpcCommand::ShowScatterPlot {
-            file_id: req.file_id,
-            x_channel: req.x_channel,
-            y_channel: req.y_channel,
-        }).await? {
+        match self
+            .send_command_async(IpcCommand::ShowScatterPlot {
+                file_id: req.file_id,
+                x_channel: req.x_channel,
+                y_channel: req.y_channel,
+            })
+            .await?
+        {
             IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
                 "Scatter plot displayed",
             )])),
