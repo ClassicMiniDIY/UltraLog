@@ -42,11 +42,12 @@ enum ParamType {
 }
 
 /// Category labels for the tab bar
+/// First element is the category ID (must match analyzer.category()), second is display name
 const CATEGORIES: &[(&str, &str)] = &[
     ("all", "All"),
     ("Filters", "Filters"),
     ("Statistics", "Statistics"),
-    ("AFR Analysis", "AFR"),
+    ("AFR", "AFR"),
     ("Derived", "Derived"),
 ];
 
@@ -383,11 +384,11 @@ impl UltraLogApp {
                 // Header row with name and Run button
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new(&info.name).strong());
+                        ui.label(egui::RichText::new(&info.name).strong().size(14.0));
                         ui.label(
                             egui::RichText::new(&info.description)
                                 .color(egui::Color32::GRAY)
-                                .small(),
+                                .size(12.0),
                         );
                     });
 

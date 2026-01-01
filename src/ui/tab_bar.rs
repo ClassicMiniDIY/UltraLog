@@ -84,7 +84,7 @@ impl UltraLogApp {
                             let font_14 = self.scaled_font(14.0);
                             let close_btn = ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new("×")
+                                    egui::RichText::new("x")
                                         .color(egui::Color32::from_rgb(150, 150, 150))
                                         .size(font_14),
                                 )

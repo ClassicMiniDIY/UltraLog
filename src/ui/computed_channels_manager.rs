@@ -156,7 +156,6 @@ impl UltraLogApp {
 
                     egui::ScrollArea::vertical()
                         .id_salt("library_templates_scroll")
-                        .max_height(200.0)
                         .show(ui, |ui| {
                             for template in &self.computed_library.templates {
                                 // Filter by search
@@ -291,7 +290,7 @@ impl UltraLogApp {
                     // Buttons on the right
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Overflow menu for Edit/Delete/Duplicate
-                        ui.menu_button("⋮", |ui| {
+                        ui.menu_button("•••", |ui| {
                             if ui.button("Edit").clicked() {
                                 *template_to_edit = Some(template.id.clone());
                                 ui.close();
@@ -397,7 +396,7 @@ impl UltraLogApp {
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
                                             if ui
-                                                .small_button("×")
+                                                .small_button("x")
                                                 .on_hover_text("Remove")
                                                 .clicked()
                                             {
