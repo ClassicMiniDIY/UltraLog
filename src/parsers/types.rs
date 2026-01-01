@@ -3,6 +3,7 @@ use std::error::Error;
 
 use super::aim::{AimChannel, AimMeta};
 use super::ecumaster::{EcuMasterChannel, EcuMasterMeta};
+use super::emerald::{EmeraldChannel, EmeraldMeta};
 use super::haltech::{HaltechChannel, HaltechMeta};
 use super::link::{LinkChannel, LinkMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
@@ -12,6 +13,7 @@ use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
 #[derive(Clone, Debug, Serialize, Default)]
 pub enum Meta {
     Aim(AimMeta),
+    Emerald(EmeraldMeta),
     Haltech(HaltechMeta),
     EcuMaster(EcuMasterMeta),
     Link(LinkMeta),
@@ -36,6 +38,7 @@ pub struct ComputedChannelInfo {
 #[derive(Clone, Debug)]
 pub enum Channel {
     Aim(AimChannel),
+    Emerald(EmeraldChannel),
     Haltech(HaltechChannel),
     EcuMaster(EcuMasterChannel),
     Link(LinkChannel),
@@ -52,6 +55,7 @@ impl Serialize for Channel {
     {
         match self {
             Channel::Aim(a) => a.serialize(serializer),
+            Channel::Emerald(e) => e.serialize(serializer),
             Channel::Haltech(h) => h.serialize(serializer),
             Channel::EcuMaster(e) => e.serialize(serializer),
             Channel::Link(l) => l.serialize(serializer),
@@ -66,6 +70,7 @@ impl Channel {
     pub fn name(&self) -> String {
         match self {
             Channel::Aim(a) => a.name.clone(),
+            Channel::Emerald(e) => e.name.clone(),
             Channel::Haltech(h) => h.name.clone(),
             Channel::EcuMaster(e) => e.name.clone(),
             Channel::Link(l) => l.name.clone(),
@@ -79,6 +84,7 @@ impl Channel {
     pub fn id(&self) -> String {
         match self {
             Channel::Aim(a) => a.name.clone(),
+            Channel::Emerald(e) => e.channel_id.to_string(),
             Channel::Haltech(h) => h.id.clone(),
             Channel::EcuMaster(e) => e.path.clone(),
             Channel::Link(l) => l.channel_id.to_string(),
@@ -91,6 +97,7 @@ impl Channel {
     pub fn type_name(&self) -> String {
         match self {
             Channel::Aim(_) => "AIM".to_string(),
+            Channel::Emerald(_) => "Emerald".to_string(),
             Channel::Haltech(h) => h.r#type.as_ref().to_string(),
             Channel::EcuMaster(e) => e.path.clone(),
             Channel::Link(_) => "Link".to_string(),
@@ -103,6 +110,7 @@ impl Channel {
     pub fn display_min(&self) -> Option<f64> {
         match self {
             Channel::Aim(_) => None,
+            Channel::Emerald(_) => None,
             Channel::Haltech(h) => h.display_min,
             Channel::EcuMaster(_) => None,
             Channel::Link(_) => None,
@@ -115,6 +123,7 @@ impl Channel {
     pub fn display_max(&self) -> Option<f64> {
         match self {
             Channel::Aim(_) => None,
+            Channel::Emerald(_) => None,
             Channel::Haltech(h) => h.display_max,
             Channel::EcuMaster(_) => None,
             Channel::Link(_) => None,
@@ -127,6 +136,7 @@ impl Channel {
     pub fn unit(&self) -> &str {
         match self {
             Channel::Aim(a) => a.unit(),
+            Channel::Emerald(e) => e.unit(),
             Channel::Haltech(h) => h.unit(),
             Channel::EcuMaster(e) => e.unit(),
             Channel::Link(l) => l.unit(),
@@ -216,6 +226,7 @@ pub enum EcuType {
     #[default]
     Haltech,
     Aim,
+    Emerald,
     EcuMaster,
     MegaSquirt,
     Aem,
@@ -232,6 +243,7 @@ impl EcuType {
         match self {
             EcuType::Haltech => "Haltech",
             EcuType::Aim => "AIM",
+            EcuType::Emerald => "Emerald",
             EcuType::EcuMaster => "ECUMaster",
             EcuType::MegaSquirt => "MegaSquirt",
             EcuType::Aem => "AEM",

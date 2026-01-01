@@ -8,6 +8,7 @@
 
 pub mod aim_tests;
 pub mod ecumaster_tests;
+pub mod emerald_tests;
 pub mod format_detection_tests;
 pub mod haltech_tests;
 pub mod link_tests;

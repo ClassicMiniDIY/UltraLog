@@ -3,7 +3,7 @@
 use eframe::egui;
 
 use crate::app::UltraLogApp;
-use crate::state::LoadingState;
+use crate::state::{LoadingState, SUPPORTED_EXTENSIONS};
 use crate::ui::icons::draw_upload_icon;
 
 impl UltraLogApp {
@@ -271,8 +271,13 @@ impl UltraLogApp {
 
                     ui.add_space(12.0);
 
+                    let extensions_text = SUPPORTED_EXTENSIONS
+                        .iter()
+                        .map(|ext| ext.to_uppercase())
+                        .collect::<Vec<_>>()
+                        .join(" • ");
                     ui.label(
-                        egui::RichText::new("CSV • LOG • TXT • MLG • LLG • XRK • DRK")
+                        egui::RichText::new(extensions_text)
                             .color(text_gray)
                             .size(self.scaled_font(11.0)),
                     );
