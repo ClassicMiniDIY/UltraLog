@@ -5,7 +5,7 @@
 //! - .lg1 file: Binary file containing timestamped data records
 //!
 //! Format structure:
-//! - LG2 file: INI-like format with [chan1] through [chan8] sections mapping to channel IDs
+//! - LG2 file: INI-like format with \[chan1\] through \[chan8\] sections mapping to channel IDs
 //! - LG1 file: 24-byte records (8-byte OLE timestamp + 8 x 2-byte u16 values)
 //!
 //! The channel IDs map to specific ECU parameters (RPM, TPS, temperatures, etc.)
@@ -378,7 +378,7 @@ impl Emerald {
     }
 
     /// Detect if text data is Emerald LG2 format (channel definitions)
-    /// LG2 files have [chan1] through [chan8] sections
+    /// LG2 files have \[chan1\] through \[chan8\] sections
     pub fn detect_lg2(data: &[u8]) -> bool {
         // Must be valid UTF-8 text
         let text = match std::str::from_utf8(data) {
