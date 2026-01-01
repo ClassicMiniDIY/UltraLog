@@ -400,11 +400,9 @@ impl UltraLogApp {
                         .show(ui, |ui| {
                             // Use horizontal layout with content on left, close button on right
                             // Align to top so cards with different heights don't stair-step
-                            ui.with_layout(
-                                egui::Layout::left_to_right(egui::Align::TOP),
-                                |ui| {
-                                    // Main content column
-                                    ui.vertical(|ui| {
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                                // Main content column
+                                ui.vertical(|ui| {
                                     ui.horizontal(|ui| {
                                         // Show computed channel indicator
                                         if card.is_computed {
@@ -506,8 +504,7 @@ impl UltraLogApp {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                 });
-                                },
-                            );
+                            });
                         });
 
                     ui.add_space(5.0);

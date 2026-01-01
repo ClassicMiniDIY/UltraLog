@@ -164,10 +164,7 @@ impl UltraLogApp {
                 let bottom = center.y + chart_height / 2.0;
 
                 // Draw axes
-                painter.line_segment(
-                    [egui::pos2(left, top), egui::pos2(left, bottom)],
-                    stroke,
-                );
+                painter.line_segment([egui::pos2(left, top), egui::pos2(left, bottom)], stroke);
                 painter.line_segment(
                     [egui::pos2(left, bottom), egui::pos2(right, bottom)],
                     stroke,
