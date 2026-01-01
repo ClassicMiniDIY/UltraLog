@@ -1041,6 +1041,7 @@ impl UltraLogApp {
         }
 
         // Draw histogram cells
+        #[allow(clippy::needless_range_loop)]
         for y_bin in 0..grid_size {
             for x_bin in 0..grid_size {
                 if let Some(value) = cell_values[y_bin][x_bin] {
@@ -1239,6 +1240,7 @@ impl UltraLogApp {
         let cell_height = height as f64 / HEATMAP_BINS as f64;
 
         // Draw heatmap cells
+        #[allow(clippy::needless_range_loop)]
         for y_bin in 0..HEATMAP_BINS {
             for x_bin in 0..HEATMAP_BINS {
                 let hits = histogram[y_bin][x_bin];
@@ -1401,7 +1403,7 @@ impl UltraLogApp {
 
         // Draw axis labels
         layer.use_text(
-            &format!("{} vs {}", y_name, x_name),
+            format!("{} vs {}", y_name, x_name),
             9.0,
             Mm(left as f32),
             Mm((top + 3.0) as f32),
@@ -1445,6 +1447,7 @@ impl UltraLogApp {
         let cell_height = height / PDF_BINS as f64;
 
         // Draw heatmap cells
+        #[allow(clippy::needless_range_loop)]
         for y_bin in 0..PDF_BINS {
             for x_bin in 0..PDF_BINS {
                 let hits = histogram[y_bin][x_bin];
