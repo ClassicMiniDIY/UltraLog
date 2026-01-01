@@ -10,6 +10,34 @@ use eframe::egui::IconData;
 use std::sync::Arc;
 use ultralog::app::UltraLogApp;
 
+/// Set up Linux-specific scaling configuration before window creation.
+/// This handles common DPI/scaling issues on X11, especially with KDE Plasma.
+#[cfg(target_os = "linux")]
+fn setup_linux_scaling() {
+    // If no X11 scale factor is set, try to detect from common environment variables
+    // This helps on systems where the scale factor isn't properly detected
+    if std::env::var("WINIT_X11_SCALE_FACTOR").is_err() {
+        // Check if GDK_SCALE is set (common on GTK-based systems)
+        if let Ok(gdk_scale) = std::env::var("GDK_SCALE") {
+            std::env::set_var("WINIT_X11_SCALE_FACTOR", &gdk_scale);
+        }
+        // Check QT_SCALE_FACTOR (common on KDE/Qt systems like Kubuntu)
+        else if let Ok(qt_scale) = std::env::var("QT_SCALE_FACTOR") {
+            std::env::set_var("WINIT_X11_SCALE_FACTOR", &qt_scale);
+        }
+        // Check QT_AUTO_SCREEN_SCALE_FACTOR
+        else if std::env::var("QT_AUTO_SCREEN_SCALE_FACTOR").is_ok() {
+            // Let winit auto-detect, but ensure it uses randr for X11
+            std::env::set_var("WINIT_X11_SCALE_FACTOR", "randr");
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn setup_linux_scaling() {
+    // No-op on non-Linux platforms
+}
+
 /// Load the platform-specific application icon
 fn load_app_icon() -> Option<Arc<IconData>> {
     // Select the appropriate icon based on platform
@@ -63,8 +91,9 @@ fn set_macos_app_name() {
 fn set_macos_app_name() {}
 
 fn main() -> eframe::Result<()> {
-    // Set macOS app name before anything else
+    // Set up platform-specific configuration before anything else
     set_macos_app_name();
+    setup_linux_scaling();
 
     // Initialize logging
     tracing_subscriber::fmt::init();
@@ -82,6 +111,13 @@ fn main() -> eframe::Result<()> {
         .with_title("UltraLog - ECU Log Viewer")
         .with_app_id("UltraLog")
         .with_drag_and_drop(true);
+
+    // On Linux, start maximized to avoid sizing/scaling issues across different
+    // desktop environments and display configurations
+    #[cfg(target_os = "linux")]
+    {
+        viewport = viewport.with_maximized(true);
+    }
 
     // Set icon if loaded successfully
     if let Some(icon_data) = icon {
