@@ -263,20 +263,27 @@ impl UltraLogApp {
                 );
                 ui.add_space(8.0);
 
-                let has_data = self.selected_file.is_some()
-                    && !self.files.is_empty()
-                    && !self.get_selected_channels().is_empty();
+                let has_file = self.selected_file.is_some() && !self.files.is_empty();
+                let has_channels = !self.get_selected_channels().is_empty();
 
-                let can_export_chart = has_data && self.active_tool == ActiveTool::LogViewer;
-                let can_export_histogram = self.selected_file.is_some()
-                    && !self.files.is_empty()
-                    && self.active_tool == ActiveTool::Histogram;
+                // Determine what can be exported based on active tool
+                let can_export_png = match self.active_tool {
+                    ActiveTool::LogViewer => has_file && has_channels,
+                    ActiveTool::ScatterPlot => has_file,
+                    ActiveTool::Histogram => has_file,
+                };
+
+                let can_export_pdf = match self.active_tool {
+                    ActiveTool::LogViewer => has_file && has_channels,
+                    ActiveTool::ScatterPlot => has_file,
+                    ActiveTool::Histogram => has_file,
+                };
 
                 ui.horizontal(|ui| {
                     // PNG Export
-                    ui.add_enabled_ui(can_export_chart, |ui| {
+                    ui.add_enabled_ui(can_export_png, |ui| {
                         let btn = egui::Frame::NONE
-                            .fill(if can_export_chart {
+                            .fill(if can_export_png {
                                 egui::Color32::from_rgb(71, 108, 155)
                             } else {
                                 egui::Color32::from_rgb(50, 50, 50)
@@ -286,7 +293,7 @@ impl UltraLogApp {
                             .show(ui, |ui| {
                                 ui.label(
                                     egui::RichText::new("PNG")
-                                        .color(if can_export_chart {
+                                        .color(if can_export_png {
                                             egui::Color32::WHITE
                                         } else {
                                             egui::Color32::GRAY
@@ -295,18 +302,20 @@ impl UltraLogApp {
                                 );
                             });
 
-                        if can_export_chart && btn.response.interact(egui::Sense::click()).clicked()
-                        {
-                            self.export_chart_png();
+                        if can_export_png && btn.response.interact(egui::Sense::click()).clicked() {
+                            match self.active_tool {
+                                ActiveTool::LogViewer => self.export_chart_png(),
+                                ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
+                                ActiveTool::Histogram => self.export_histogram_png(),
+                            }
                         }
 
-                        if btn.response.hovered() && can_export_chart {
+                        if btn.response.hovered() && can_export_png {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
                     });
 
                     // PDF Export
-                    let can_export_pdf = can_export_chart || can_export_histogram;
                     ui.add_enabled_ui(can_export_pdf, |ui| {
                         let btn = egui::Frame::NONE
                             .fill(if can_export_pdf {
@@ -329,10 +338,10 @@ impl UltraLogApp {
                             });
 
                         if can_export_pdf && btn.response.interact(egui::Sense::click()).clicked() {
-                            if can_export_chart {
-                                self.export_chart_pdf();
-                            } else if can_export_histogram {
-                                self.export_histogram_pdf();
+                            match self.active_tool {
+                                ActiveTool::LogViewer => self.export_chart_pdf(),
+                                ActiveTool::ScatterPlot => self.export_scatter_plot_pdf(),
+                                ActiveTool::Histogram => self.export_histogram_pdf(),
                             }
                         }
 
@@ -342,10 +351,19 @@ impl UltraLogApp {
                     });
                 });
 
-                if !has_data {
+                // Show appropriate help text based on tool and state
+                if !has_file {
                     ui.add_space(4.0);
                     ui.label(
-                        egui::RichText::new("Select channels to enable export")
+                        egui::RichText::new("Load a file to enable export")
+                            .size(font_12)
+                            .color(egui::Color32::from_rgb(100, 100, 100))
+                            .italics(),
+                    );
+                } else if self.active_tool == ActiveTool::LogViewer && !has_channels {
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new("Select channels to enable chart export")
                             .size(font_12)
                             .color(egui::Color32::from_rgb(100, 100, 100))
                             .italics(),

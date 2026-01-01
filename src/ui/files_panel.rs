@@ -116,7 +116,7 @@ impl UltraLogApp {
                             // Delete button
                             let close_btn = ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new("×")
+                                    egui::RichText::new("x")
                                         .size(self.scaled_font(16.0))
                                         .color(egui::Color32::from_rgb(150, 150, 150)),
                                 )
@@ -272,7 +272,7 @@ impl UltraLogApp {
                     ui.add_space(12.0);
 
                     ui.label(
-                        egui::RichText::new("CSV • LOG • TXT • MLG")
+                        egui::RichText::new("CSV • LOG • TXT • MLG • LLG • XRK • DRK")
                             .color(text_gray)
                             .size(self.scaled_font(11.0)),
                     );

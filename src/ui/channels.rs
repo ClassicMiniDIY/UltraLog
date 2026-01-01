@@ -489,7 +489,7 @@ impl UltraLogApp {
                                 ui.vertical(|ui| {
                                     let close_btn = ui.add(
                                         egui::Button::new(
-                                            egui::RichText::new("✕")
+                                            egui::RichText::new("x")
                                                 .size(font_12)
                                                 .color(egui::Color32::from_rgb(150, 150, 150)),
                                         )

@@ -41,6 +41,9 @@ const CELL_HIGHLIGHT_COLOR: egui::Color32 = egui::Color32::WHITE;
 /// Selected cell highlight color
 const SELECTED_CELL_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 165, 0); // Orange
 
+/// Crosshair color for cursor tracking during playback
+const CURSOR_CROSSHAIR_COLOR: egui::Color32 = egui::Color32::from_rgb(128, 128, 128); // Grey
+
 /// Calculate relative luminance for WCAG contrast ratio
 /// Uses the sRGB colorspace formula from WCAG 2.1
 fn calculate_luminance(color: egui::Color32) -> f64 {
@@ -639,6 +642,22 @@ impl UltraLogApp {
                     let pos_x = plot_rect.left() + rel_x * plot_rect.width();
                     let pos_y = plot_rect.bottom() - rel_y * plot_rect.height();
 
+                    // Draw grey crosshairs tracking the cursor position
+                    painter.line_segment(
+                        [
+                            egui::pos2(pos_x, plot_rect.top()),
+                            egui::pos2(pos_x, plot_rect.bottom()),
+                        ],
+                        egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
+                    );
+                    painter.line_segment(
+                        [
+                            egui::pos2(plot_rect.left(), pos_y),
+                            egui::pos2(plot_rect.right(), pos_y),
+                        ],
+                        egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
+                    );
+
                     // Highlight the cell containing the cursor
                     let cell_x_bin = (rel_x * (grid_size - 1) as f32).round() as usize;
                     let cell_y_bin = (rel_y * (grid_size - 1) as f32).round() as usize;
@@ -818,9 +837,14 @@ impl UltraLogApp {
             }
         }
 
-        // Render legend
+        // Render legend with selected cell info
         ui.add_space(8.0);
-        self.render_histogram_legend(ui, min_value, max_value, x_data.len(), mode, grid_size);
+        let selected_cell = self.tabs[tab_idx]
+            .histogram_state
+            .config
+            .selected_cell
+            .as_ref();
+        self.render_histogram_legend(ui, min_value, max_value, mode, selected_cell);
     }
 
     /// Get a color from the heat map gradient based on normalized value (0-1)
@@ -845,16 +869,16 @@ impl UltraLogApp {
         egui::Color32::from_rgb(r, g, b)
     }
 
-    /// Render the legend with color scale and stats
+    /// Render the legend with color scale and cell statistics
     fn render_histogram_legend(
         &self,
         ui: &mut egui::Ui,
         min_value: f64,
         max_value: f64,
-        total_points: usize,
         mode: HistogramMode,
-        grid_size: usize,
+        selected_cell: Option<&SelectedHistogramCell>,
     ) {
+        let font_12 = self.scaled_font(12.0);
         let font_13 = self.scaled_font(13.0);
 
         ui.horizontal(|ui| {
@@ -915,26 +939,85 @@ impl UltraLogApp {
 
             ui.add_space(16.0);
 
-            // Stats panel
-            egui::Frame::NONE
-                .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
-                .corner_radius(4)
-                .inner_margin(8.0)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(format!("Grid: {}x{}", grid_size, grid_size))
+            // Cell statistics panel (only shown when a cell is selected)
+            if let Some(cell) = selected_cell {
+                egui::Frame::NONE
+                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
+                    .corner_radius(4)
+                    .inner_margin(8.0)
+                    .stroke(egui::Stroke::new(1.0, SELECTED_CELL_COLOR))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Cell identifier
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "Cell [{}, {}]",
+                                    cell.x_bin, cell.y_bin
+                                ))
                                 .size(font_13)
-                                .color(egui::Color32::WHITE),
-                        );
-                        ui.add_space(12.0);
+                                .color(SELECTED_CELL_COLOR),
+                            );
+                            ui.add_space(12.0);
+
+                            // Key statistics inline
+                            let stat_color = egui::Color32::from_rgb(180, 180, 180);
+                            let value_color = egui::Color32::WHITE;
+
+                            ui.label(egui::RichText::new("Hits:").size(font_12).color(stat_color));
+                            ui.label(
+                                egui::RichText::new(format!("{}", cell.hit_count))
+                                    .size(font_12)
+                                    .color(value_color),
+                            );
+                            ui.add_space(8.0);
+
+                            ui.label(egui::RichText::new("Mean:").size(font_12).color(stat_color));
+                            ui.label(
+                                egui::RichText::new(format!("{:.2}", cell.mean))
+                                    .size(font_12)
+                                    .color(value_color),
+                            );
+                            ui.add_space(8.0);
+
+                            ui.label(egui::RichText::new("Min:").size(font_12).color(stat_color));
+                            ui.label(
+                                egui::RichText::new(format!("{:.2}", cell.minimum))
+                                    .size(font_12)
+                                    .color(value_color),
+                            );
+                            ui.add_space(8.0);
+
+                            ui.label(egui::RichText::new("Max:").size(font_12).color(stat_color));
+                            ui.label(
+                                egui::RichText::new(format!("{:.2}", cell.maximum))
+                                    .size(font_12)
+                                    .color(value_color),
+                            );
+                            ui.add_space(8.0);
+
+                            ui.label(egui::RichText::new("σ:").size(font_12).color(stat_color));
+                            ui.label(
+                                egui::RichText::new(format!("{:.2}", cell.std_dev))
+                                    .size(font_12)
+                                    .color(value_color),
+                            );
+                        });
+                    });
+            } else {
+                // Hint when no cell is selected
+                egui::Frame::NONE
+                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
+                    .corner_radius(4)
+                    .inner_margin(8.0)
+                    .show(ui, |ui| {
                         ui.label(
-                            egui::RichText::new(format!("Total Points: {}", total_points))
-                                .size(font_13)
-                                .color(egui::Color32::WHITE),
+                            egui::RichText::new("Click a cell to view statistics")
+                                .size(font_12)
+                                .italics()
+                                .color(egui::Color32::GRAY),
                         );
                     });
-                });
+            }
         });
     }
 

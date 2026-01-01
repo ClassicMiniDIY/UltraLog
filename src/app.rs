@@ -1453,8 +1453,9 @@ impl eframe::App for UltraLogApp {
                 self.render_side_panel(ui);
             });
 
-        // Bottom panel for timeline scrubber (always visible when file loaded)
-        let show_timeline = self.get_time_range().is_some();
+        // Bottom panel for timeline scrubber (visible in LogViewer and Histogram modes)
+        let show_timeline =
+            self.get_time_range().is_some() && self.active_tool != ActiveTool::ScatterPlot;
 
         if show_timeline {
             egui::TopBottomPanel::bottom("timeline_panel")
