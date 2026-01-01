@@ -2,9 +2,9 @@
 //!
 //! Provides a window for users to run analysis algorithms on the active log file,
 //! including signal processing filters and statistical analyzers.
+//! Features category tabs for filtering and clear separation between tools and results.
 
 use eframe::egui;
-use std::collections::HashMap;
 
 use crate::analysis::{AnalysisResult, Analyzer, AnalyzerConfig, LogDataAccess};
 use crate::app::UltraLogApp;
@@ -41,6 +41,15 @@ enum ParamType {
     Boolean,
 }
 
+/// Category labels for the tab bar
+const CATEGORIES: &[(&str, &str)] = &[
+    ("all", "All"),
+    ("Filters", "Filters"),
+    ("Statistics", "Statistics"),
+    ("AFR Analysis", "AFR"),
+    ("Derived", "Derived"),
+];
+
 impl UltraLogApp {
     /// Render the analysis panel window
     pub fn render_analysis_panel(&mut self, ctx: &egui::Context) {
@@ -54,23 +63,9 @@ impl UltraLogApp {
             .open(&mut open)
             .resizable(true)
             .default_width(550.0)
-            .default_height(500.0)
+            .default_height(550.0)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                // Header
-                ui.heading("Signal Analysis");
-                ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new(
-                        "Run signal processing and statistical analysis on log data.",
-                    )
-                    .color(egui::Color32::GRAY),
-                );
-                ui.add_space(8.0);
-
-                ui.separator();
-                ui.add_space(4.0);
-
                 // Check if we have a file loaded
                 let has_file = self.selected_file.is_some() && !self.files.is_empty();
 
@@ -91,7 +86,14 @@ impl UltraLogApp {
                         ui.add_space(40.0);
                     });
                 } else {
-                    // Show available analyzers grouped by category
+                    // Category tabs at the top
+                    self.render_category_tabs(ui);
+
+                    ui.add_space(4.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+
+                    // Main content
                     self.render_analyzer_list(ui);
                 }
             });
@@ -99,6 +101,41 @@ impl UltraLogApp {
         if !open {
             self.show_analysis_panel = false;
         }
+    }
+
+    /// Render the category filter tabs
+    fn render_category_tabs(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            for (category_id, display_name) in CATEGORIES {
+                let is_selected = match &self.analysis_selected_category {
+                    None => *category_id == "all",
+                    Some(cat) => cat == *category_id,
+                };
+
+                let text = egui::RichText::new(*display_name);
+                let text = if is_selected {
+                    text.strong()
+                } else {
+                    text.color(egui::Color32::GRAY)
+                };
+
+                let btn = egui::Button::new(text)
+                    .fill(if is_selected {
+                        egui::Color32::from_rgb(60, 70, 60)
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    })
+                    .corner_radius(4.0);
+
+                if ui.add(btn).clicked() {
+                    if *category_id == "all" {
+                        self.analysis_selected_category = None;
+                    } else {
+                        self.analysis_selected_category = Some(category_id.to_string());
+                    }
+                }
+            }
+        });
     }
 
     /// Render the list of available analyzers
@@ -150,17 +187,14 @@ impl UltraLogApp {
             })
             .collect();
 
-        // Group by category
-        let mut categories: HashMap<String, Vec<&AnalyzerInfo>> = HashMap::new();
-        for info in &analyzer_infos {
-            categories
-                .entry(info.category.clone())
-                .or_default()
-                .push(info);
-        }
-
-        let mut sorted_categories: Vec<_> = categories.keys().cloned().collect();
-        sorted_categories.sort();
+        // Filter by selected category
+        let filtered_infos: Vec<&AnalyzerInfo> = analyzer_infos
+            .iter()
+            .filter(|info| match &self.analysis_selected_category {
+                None => true, // Show all
+                Some(cat) => info.category == *cat,
+            })
+            .collect();
 
         // Track actions to perform after rendering
         let mut analyzer_to_run: Option<String> = None;
@@ -172,69 +206,100 @@ impl UltraLogApp {
         egui::ScrollArea::vertical()
             .id_salt("analysis_panel_scroll")
             .show(ui, |ui| {
-                // Show analysis results at the TOP if any exist
+                // Results section - always visible at top if there are results
                 if let Some(file_idx) = self.selected_file {
                     if let Some(results) = self.analysis_results.get(&file_idx) {
                         if !results.is_empty() {
-                            egui::CollapsingHeader::new(
-                                egui::RichText::new(format!("Results ({})", results.len()))
-                                    .strong()
-                                    .size(14.0),
-                            )
-                            .default_open(true)
-                            .show(ui, |ui| {
-                                for (i, result) in results.iter().enumerate() {
-                                    if let Some(action) =
-                                        Self::render_analysis_result_with_actions(ui, result, i)
-                                    {
-                                        match action {
-                                            ResultAction::AddToChart => result_to_add = Some(i),
-                                            ResultAction::Remove => result_to_remove = Some(i),
+                            // Results header with count
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new(format!("Results ({})", results.len()))
+                                        .strong()
+                                        .size(15.0),
+                                );
+
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .small_button("Clear All")
+                                            .on_hover_text("Remove all results")
+                                            .clicked()
+                                        {
+                                            // Mark for clearing
+                                            result_to_remove = Some(usize::MAX);
                                         }
-                                    }
-                                }
+                                    },
+                                );
                             });
 
                             ui.add_space(4.0);
+
+                            // Result cards
+                            for (i, result) in results.iter().enumerate() {
+                                if let Some(action) =
+                                    Self::render_analysis_result_with_actions(ui, result, i)
+                                {
+                                    match action {
+                                        ResultAction::AddToChart => result_to_add = Some(i),
+                                        ResultAction::Remove => result_to_remove = Some(i),
+                                    }
+                                }
+                            }
+
+                            ui.add_space(8.0);
                             ui.separator();
-                            ui.add_space(4.0);
+                            ui.add_space(8.0);
                         }
                     }
                 }
 
-                // Show available analyzers grouped by category
-                for category in &sorted_categories {
-                    if let Some(analyzers) = categories.get(category) {
-                        ui.add_space(4.0);
+                // Analyzers section header
+                let category_label = match &self.analysis_selected_category {
+                    None => "All Tools".to_string(),
+                    Some(cat) => cat.clone(),
+                };
 
-                        egui::CollapsingHeader::new(
-                            egui::RichText::new(category).strong().size(14.0),
-                        )
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            for info in analyzers {
-                                if let Some((id, action)) = Self::render_analyzer_card_with_config(
-                                    ui,
-                                    info,
-                                    &channel_names,
-                                    &channel_display_names,
-                                ) {
-                                    match action {
-                                        AnalyzerAction::Run => {
-                                            analyzer_to_run = Some(id);
-                                        }
-                                        AnalyzerAction::RunAndChart => {
-                                            analyzer_to_run_and_chart = Some(id);
-                                        }
-                                        AnalyzerAction::UpdateConfig(config) => {
-                                            config_updates.push((id, config));
-                                        }
-                                    }
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{} ({})",
+                            category_label,
+                            filtered_infos.len()
+                        ))
+                        .strong()
+                        .size(15.0),
+                    );
+                });
+
+                ui.add_space(4.0);
+
+                if filtered_infos.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No analyzers in this category")
+                            .color(egui::Color32::GRAY),
+                    );
+                } else {
+                    // Render analyzer cards
+                    for info in filtered_infos {
+                        if let Some((id, action)) = Self::render_analyzer_card_with_config(
+                            ui,
+                            info,
+                            &channel_names,
+                            &channel_display_names,
+                        ) {
+                            match action {
+                                AnalyzerAction::Run => {
+                                    analyzer_to_run = Some(id);
+                                }
+                                AnalyzerAction::RunAndChart => {
+                                    analyzer_to_run_and_chart = Some(id);
+                                }
+                                AnalyzerAction::UpdateConfig(config) => {
+                                    config_updates.push((id, config));
                                 }
                             }
-                        });
-
-                        ui.add_space(4.0);
+                        }
                     }
                 }
             });
@@ -263,11 +328,14 @@ impl UltraLogApp {
             self.add_analysis_result_to_chart(idx);
         }
 
-        // Remove result
+        // Remove result(s)
         if let Some(idx) = result_to_remove {
             if let Some(file_idx) = self.selected_file {
                 if let Some(results) = self.analysis_results.get_mut(&file_idx) {
-                    if idx < results.len() {
+                    if idx == usize::MAX {
+                        // Clear all
+                        results.clear();
+                    } else if idx < results.len() {
                         results.remove(idx);
                     }
                 }
@@ -533,7 +601,7 @@ impl UltraLogApp {
         let mut action: Option<ResultAction> = None;
 
         egui::Frame::NONE
-            .fill(egui::Color32::from_rgb(35, 40, 45))
+            .fill(egui::Color32::from_rgb(35, 50, 55))
             .corner_radius(6)
             .inner_margin(8.0)
             .outer_margin(egui::Margin::symmetric(0, 2))

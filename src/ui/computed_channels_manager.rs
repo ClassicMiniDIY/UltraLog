@@ -1,8 +1,7 @@
 //! Computed Channels Manager UI.
 //!
-//! Provides a window for users to manage their computed channel library
-//! and apply computed channels to the active log file, including quick templates
-//! and anomaly detection channels.
+//! Provides a simplified window for users to manage their computed channel library
+//! and apply computed channels to the active log file.
 
 use eframe::egui;
 
@@ -24,19 +23,31 @@ impl UltraLogApp {
         }
 
         let mut open = true;
+        let font_12 = self.scaled_font(12.0);
+        let font_14 = self.scaled_font(14.0);
 
         egui::Window::new("Computed Channels")
             .open(&mut open)
             .resizable(true)
-            .default_width(650.0)
-            .default_height(550.0)
+            .default_width(500.0)
+            .default_height(450.0)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                // Header with Add button
+                // Header with help button
                 ui.horizontal(|ui| {
-                    ui.heading("Channel Library");
+                    ui.heading("Computed Channels");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("+ New Channel").clicked() {
+                        // Help button
+                        let help_btn = ui.add(
+                            egui::Button::new(egui::RichText::new("?").size(font_14))
+                                .min_size(egui::vec2(24.0, 24.0)),
+                        );
+                        if help_btn.clicked() {
+                            self.show_computed_channels_help = !self.show_computed_channels_help;
+                        }
+                        help_btn.on_hover_text("Show formula syntax help");
+
+                        if ui.button("+ New").clicked() {
                             self.formula_editor_state.open_new();
                         }
                     });
@@ -44,14 +55,78 @@ impl UltraLogApp {
 
                 ui.add_space(4.0);
                 ui.label(
-                    egui::RichText::new(
-                        "Create reusable computed channels from mathematical formulas.",
-                    )
-                    .color(egui::Color32::GRAY),
+                    egui::RichText::new("Create virtual channels from mathematical formulas.")
+                        .size(font_12)
+                        .color(egui::Color32::GRAY),
                 );
+
                 ui.add_space(8.0);
 
+                // Quick Create section
+                ui.label(egui::RichText::new("Quick Create:").size(font_12).strong());
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("Rate of Change")
+                        .on_hover_text("Create: Channel - Channel[-1]")
+                        .clicked()
+                    {
+                        self.formula_editor_state.open_with_pattern(
+                            "Rate of Change",
+                            "{channel} - {channel}[-1]",
+                            "/sample",
+                            "Rate of change per sample",
+                        );
+                    }
+                    if ui
+                        .button("Moving Avg")
+                        .on_hover_text("Create: 3-sample moving average")
+                        .clicked()
+                    {
+                        self.formula_editor_state.open_with_pattern(
+                            "Moving Average",
+                            "({channel} + {channel}[-1] + {channel}[-2]) / 3",
+                            "",
+                            "3-sample moving average for smoothing",
+                        );
+                    }
+                    if ui
+                        .button("% Deviation")
+                        .on_hover_text("Create: Percentage deviation from a target")
+                        .clicked()
+                    {
+                        self.formula_editor_state.open_with_pattern(
+                            "Deviation",
+                            "({channel} - 14.7) / 14.7 * 100",
+                            "%",
+                            "Percentage deviation from target value",
+                        );
+                    }
+                });
+
+                ui.add_space(12.0);
                 ui.separator();
+                ui.add_space(8.0);
+
+                // Search filter
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "Your Library ({})",
+                            self.computed_library.templates.len()
+                        ))
+                        .size(font_14)
+                        .strong(),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.computed_channels_search)
+                                .hint_text("🔍 Search...")
+                                .desired_width(120.0),
+                        );
+                    });
+                });
+
                 ui.add_space(4.0);
 
                 // Library templates section
@@ -62,186 +137,52 @@ impl UltraLogApp {
                             egui::RichText::new("No computed channels yet")
                                 .color(egui::Color32::GRAY),
                         );
-                        ui.add_space(8.0);
+                        ui.add_space(4.0);
                         ui.label(
-                            egui::RichText::new(
-                                "Click '+ New Channel' to create your first computed channel.",
-                            )
-                            .color(egui::Color32::GRAY)
-                            .small(),
+                            egui::RichText::new("Use Quick Create or click '+ New' to get started")
+                                .color(egui::Color32::GRAY)
+                                .size(font_12),
                         );
                         ui.add_space(20.0);
                     });
                 } else {
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "Templates ({})",
-                            self.computed_library.templates.len()
-                        ))
-                        .strong(),
-                    );
-                    ui.add_space(4.0);
-
-                    // Collect actions to perform after rendering (avoid borrow issues)
+                    // Collect actions to perform after rendering
                     let mut template_to_edit: Option<String> = None;
                     let mut template_to_delete: Option<String> = None;
                     let mut template_to_apply: Option<ComputedChannelTemplate> = None;
+                    let mut template_to_duplicate: Option<ComputedChannelTemplate> = None;
 
-                    // Group templates by category
-                    let categories: Vec<String> = {
-                        let mut cats: Vec<String> = self
-                            .computed_library
-                            .templates
-                            .iter()
-                            .map(|t| {
-                                if t.category.is_empty() {
-                                    "Custom".to_string()
-                                } else {
-                                    t.category.clone()
-                                }
-                            })
-                            .collect();
-                        cats.sort();
-                        cats.dedup();
-                        // Put common categories in a specific order
-                        let order = ["Rate", "Engine", "Smoothing", "Anomaly", "Custom"];
-                        cats.sort_by_key(|c| {
-                            order
-                                .iter()
-                                .position(|&o| o == c)
-                                .unwrap_or(order.len())
-                        });
-                        cats
-                    };
+                    let search_lower = self.computed_channels_search.to_lowercase();
 
                     egui::ScrollArea::vertical()
                         .id_salt("library_templates_scroll")
-                        .max_height(300.0)
+                        .max_height(200.0)
                         .show(ui, |ui| {
-                            for category in &categories {
-                                let cat_templates: Vec<&ComputedChannelTemplate> = self
-                                    .computed_library
-                                    .templates
-                                    .iter()
-                                    .filter(|t| {
-                                        let t_cat = if t.category.is_empty() {
-                                            "Custom"
-                                        } else {
-                                            &t.category
-                                        };
-                                        t_cat == category
-                                    })
-                                    .collect();
-
-                                if cat_templates.is_empty() {
-                                    continue;
+                            for template in &self.computed_library.templates {
+                                // Filter by search
+                                if !search_lower.is_empty() {
+                                    let matches = template
+                                        .name
+                                        .to_lowercase()
+                                        .contains(&search_lower)
+                                        || template.formula.to_lowercase().contains(&search_lower)
+                                        || template.category.to_lowercase().contains(&search_lower);
+                                    if !matches {
+                                        continue;
+                                    }
                                 }
 
-                                // Category header with color
-                                let cat_color = match category.as_str() {
-                                    "Rate" => egui::Color32::from_rgb(100, 180, 255),
-                                    "Engine" => egui::Color32::from_rgb(255, 180, 100),
-                                    "Smoothing" => egui::Color32::from_rgb(180, 255, 100),
-                                    "Anomaly" => egui::Color32::from_rgb(255, 100, 100),
-                                    _ => egui::Color32::GRAY,
-                                };
-
-                                egui::CollapsingHeader::new(
-                                    egui::RichText::new(format!(
-                                        "{} ({})",
-                                        category,
-                                        cat_templates.len()
-                                    ))
-                                    .color(cat_color),
-                                )
-                                .default_open(true)
-                                .show(ui, |ui| {
-                                    for template in cat_templates {
-                                        egui::Frame::NONE
-                                            .fill(egui::Color32::from_rgb(50, 50, 50))
-                                            .corner_radius(5.0)
-                                            .inner_margin(egui::Margin::symmetric(10, 8))
-                                            .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    // Template info
-                                                    ui.vertical(|ui| {
-                                                        ui.horizontal(|ui| {
-                                                            // Built-in indicator
-                                                            if template.is_builtin {
-                                                                ui.label(
-                                                                    egui::RichText::new("★")
-                                                                        .color(egui::Color32::GOLD),
-                                                                );
-                                                            }
-                                                            ui.label(
-                                                                egui::RichText::new(&template.name)
-                                                                    .strong()
-                                                                    .color(egui::Color32::LIGHT_BLUE),
-                                                            );
-                                                            if !template.unit.is_empty() {
-                                                                ui.label(
-                                                                    egui::RichText::new(format!(
-                                                                        "({})",
-                                                                        template.unit
-                                                                    ))
-                                                                    .small()
-                                                                    .color(egui::Color32::GRAY),
-                                                                );
-                                                            }
-                                                        });
-                                                        ui.label(
-                                                            egui::RichText::new(&template.formula)
-                                                                .monospace()
-                                                                .small()
-                                                                .color(egui::Color32::from_rgb(
-                                                                    180, 180, 180,
-                                                                )),
-                                                        );
-                                                        if !template.description.is_empty() {
-                                                            ui.label(
-                                                                egui::RichText::new(
-                                                                    &template.description,
-                                                                )
-                                                                .small()
-                                                                .color(egui::Color32::GRAY),
-                                                            );
-                                                        }
-                                                    });
-
-                                                    // Buttons on the right
-                                                    ui.with_layout(
-                                                        egui::Layout::right_to_left(
-                                                            egui::Align::Center,
-                                                        ),
-                                                        |ui| {
-                                                            if ui.small_button("Delete").clicked() {
-                                                                template_to_delete =
-                                                                    Some(template.id.clone());
-                                                            }
-                                                            if ui.small_button("Edit").clicked() {
-                                                                template_to_edit =
-                                                                    Some(template.id.clone());
-                                                            }
-                                                            if self.active_tab.is_some()
-                                                                && ui
-                                                                    .button(
-                                                                        egui::RichText::new("Apply")
-                                                                            .color(
-                                                                                egui::Color32::WHITE,
-                                                                            ),
-                                                                    )
-                                                                    .clicked()
-                                                            {
-                                                                template_to_apply =
-                                                                    Some((*template).clone());
-                                                            }
-                                                        },
-                                                    );
-                                                });
-                                            });
-                                        ui.add_space(4.0);
-                                    }
-                                });
+                                self.render_template_card(
+                                    ui,
+                                    template,
+                                    font_12,
+                                    font_14,
+                                    &mut template_to_edit,
+                                    &mut template_to_delete,
+                                    &mut template_to_apply,
+                                    &mut template_to_duplicate,
+                                );
+                                ui.add_space(4.0);
                             }
                         });
 
@@ -260,273 +201,332 @@ impl UltraLogApp {
                     if let Some(ref template) = template_to_apply {
                         self.apply_computed_channel_template(template);
                     }
+
+                    if let Some(ref template) = template_to_duplicate {
+                        let mut new_template = template.clone();
+                        new_template.id = uuid::Uuid::new_v4().to_string();
+                        new_template.name = format!("{} (copy)", template.name);
+                        new_template.is_builtin = false;
+                        self.computed_library.add_template(new_template);
+                        let _ = self.computed_library.save();
+                        self.show_toast_success("Template duplicated");
+                    }
                 }
 
-                ui.add_space(12.0);
+                ui.add_space(8.0);
                 ui.separator();
-                ui.add_space(4.0);
+                ui.add_space(8.0);
 
                 // Applied channels section (for current file)
-                if let Some(tab_idx) = self.active_tab {
-                    let file_idx = self.tabs[tab_idx].file_index;
-                    let applied_count = self
-                        .file_computed_channels
-                        .get(&file_idx)
-                        .map(|c| c.len())
-                        .unwrap_or(0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(format!("Applied to Current File ({})", applied_count))
-                                .strong(),
-                        );
-                    });
-                    ui.add_space(4.0);
-
-                    if applied_count == 0 {
-                        ui.label(
-                            egui::RichText::new(
-                                "No computed channels applied to this file. Click 'Apply' on a template above.",
-                            )
-                            .color(egui::Color32::GRAY)
-                            .small(),
-                        );
-                    } else {
-                        let mut channel_to_remove: Option<usize> = None;
-                        let mut channel_to_select: Option<usize> = None;
-
-                        if let Some(channels) = self.file_computed_channels.get(&file_idx) {
-                            egui::ScrollArea::vertical()
-                                .id_salt("applied_channels_scroll")
-                                .max_height(150.0)
-                                .show(ui, |ui| {
-                                    for (idx, channel) in channels.iter().enumerate() {
-                                        egui::Frame::NONE
-                                            .fill(egui::Color32::from_rgb(40, 50, 40))
-                                            .corner_radius(5.0)
-                                            .inner_margin(egui::Margin::symmetric(10, 6))
-                                            .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    // Status indicator
-                                                    if channel.is_valid() {
-                                                        ui.label(
-                                                            egui::RichText::new("●")
-                                                                .color(egui::Color32::GREEN),
-                                                        );
-                                                    } else {
-                                                        ui.label(
-                                                            egui::RichText::new("●")
-                                                                .color(egui::Color32::RED),
-                                                        );
-                                                    }
-
-                                                    ui.label(
-                                                        egui::RichText::new(channel.name())
-                                                            .color(egui::Color32::LIGHT_GREEN),
-                                                    );
-
-                                                    if let Some(error) = &channel.error {
-                                                        ui.label(
-                                                            egui::RichText::new(format!(
-                                                                "Error: {}",
-                                                                error
-                                                            ))
-                                                            .small()
-                                                            .color(egui::Color32::RED),
-                                                        );
-                                                    }
-
-                                                    ui.with_layout(
-                                                        egui::Layout::right_to_left(
-                                                            egui::Align::Center,
-                                                        ),
-                                                        |ui| {
-                                                            if ui.small_button("Remove").clicked() {
-                                                                channel_to_remove = Some(idx);
-                                                            }
-                                                            if channel.is_valid()
-                                                                && ui.small_button("Add to Chart").clicked()
-                                                            {
-                                                                channel_to_select = Some(idx);
-                                                            }
-                                                        },
-                                                    );
-                                                });
-                                            });
-                                        ui.add_space(2.0);
-                                    }
-                                });
-                        }
-
-                        if let Some(idx) = channel_to_remove {
-                            self.remove_computed_channel(idx);
-                        }
-
-                        if let Some(idx) = channel_to_select {
-                            self.add_computed_channel_to_chart(idx);
-                        }
-                    }
-                } else {
-                    ui.label(
-                        egui::RichText::new("Load a log file to apply computed channels.")
-                            .color(egui::Color32::GRAY),
-                    );
-                }
-
-                // Examples section
-                ui.add_space(12.0);
-                ui.separator();
-
-                egui::CollapsingHeader::new("Example Formulas")
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new("Common computed channel examples:")
-                                .color(egui::Color32::GRAY),
-                        );
-                        ui.add_space(4.0);
-
-                        // Rate of Change examples
-                        ui.label(egui::RichText::new("Rate of Change:").strong());
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("  RPM - RPM[-1]")
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
-                            ui.label(
-                                egui::RichText::new("— RPM change per sample")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("  TPS - TPS@-0.1s")
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
-                            ui.label(
-                                egui::RichText::new("— TPS change over 100ms")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        });
-
-                        ui.add_space(6.0);
-                        ui.label(egui::RichText::new("Engine Calculations:").strong());
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("  (AFR - 14.7) / 14.7 * 100")
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
-                            ui.label(
-                                egui::RichText::new("— AFR % deviation from stoich")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("  MAP / 101.325 * 100")
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
-                            ui.label(
-                                egui::RichText::new("— MAP as % of atmosphere")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        });
-
-                        ui.add_space(6.0);
-                        ui.label(egui::RichText::new("Averaging / Smoothing:").strong());
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("  (RPM + RPM[-1] + RPM[-2]) / 3")
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
-                            ui.label(
-                                egui::RichText::new("— 3-sample moving average")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        });
-
-                        ui.add_space(6.0);
-                        ui.label(egui::RichText::new("Unit Conversions:").strong());
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("  MAP * 0.145038")
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
-                            ui.label(
-                                egui::RichText::new("— kPa to PSI")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("  (ECT - 32) * 5 / 9")
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
-                            );
-                            ui.label(
-                                egui::RichText::new("— Fahrenheit to Celsius")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        });
-                    });
-
-                // Syntax help section
-                egui::CollapsingHeader::new("Formula Syntax Reference")
-                    .default_open(false)
-                    .show(ui, |ui| {
-                        ui.label(egui::RichText::new("Channel References:").strong());
-                        ui.label("  RPM              - Current value of RPM channel");
-                        ui.label("  \"Manifold Pressure\" - Channels with spaces (use quotes)");
-                        ui.label("  RPM[-1]          - Previous sample (index offset)");
-                        ui.label("  RPM[+2]          - 2 samples ahead");
-                        ui.label("  RPM@-0.1s        - Value 100ms ago (time offset)");
-
-                        ui.add_space(8.0);
-                        ui.label(egui::RichText::new("Operators:").strong());
-                        ui.label("  + - * /          - Basic math");
-                        ui.label("  ^                - Power");
-                        ui.label("  ( )              - Grouping");
-
-                        ui.add_space(8.0);
-                        ui.label(egui::RichText::new("Functions:").strong());
-                        ui.label("  sin, cos, tan    - Trigonometry");
-                        ui.label("  sqrt, abs        - Square root, absolute value");
-                        ui.label("  ln, log, exp     - Logarithms, exponential");
-                        ui.label("  min, max         - Minimum, maximum");
-                        ui.label("  floor, ceil      - Rounding");
-
-                        ui.add_space(8.0);
-                        ui.label(egui::RichText::new("Statistics (for anomaly detection):").strong());
-                        ui.label("  _mean_RPM        - Mean of entire RPM channel");
-                        ui.label("  _stdev_RPM       - Standard deviation of RPM");
-                        ui.label("  _min_RPM         - Minimum value of RPM");
-                        ui.label("  _max_RPM         - Maximum value of RPM");
-                        ui.label("  _range_RPM       - Range (max - min) of RPM");
-                        ui.label("");
-                        ui.label(
-                            egui::RichText::new("Z-score example: (RPM - _mean_RPM) / _stdev_RPM")
-                                .small()
-                                .color(egui::Color32::LIGHT_GREEN),
-                        );
-                    });
+                self.render_applied_channels_section(ui, font_12, font_14);
             });
+
+        // Render help popup if open
+        if self.show_computed_channels_help {
+            self.render_computed_channels_help(ctx);
+        }
 
         if !open {
             self.show_computed_channels_manager = false;
         }
+    }
+
+    /// Render a single template card with cleaner layout
+    #[allow(clippy::too_many_arguments)]
+    fn render_template_card(
+        &self,
+        ui: &mut egui::Ui,
+        template: &ComputedChannelTemplate,
+        font_12: f32,
+        font_14: f32,
+        template_to_edit: &mut Option<String>,
+        template_to_delete: &mut Option<String>,
+        template_to_apply: &mut Option<ComputedChannelTemplate>,
+        template_to_duplicate: &mut Option<ComputedChannelTemplate>,
+    ) {
+        egui::Frame::NONE
+            .fill(egui::Color32::from_rgb(45, 48, 45))
+            .corner_radius(6.0)
+            .inner_margin(egui::Margin::symmetric(12, 8))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    // Template info
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("ƒ")
+                                    .color(egui::Color32::from_rgb(150, 200, 255))
+                                    .size(font_14),
+                            );
+                            ui.label(
+                                egui::RichText::new(&template.name)
+                                    .strong()
+                                    .size(font_14)
+                                    .color(egui::Color32::WHITE),
+                            );
+                            if !template.unit.is_empty() {
+                                ui.label(
+                                    egui::RichText::new(format!("({})", template.unit))
+                                        .size(font_12)
+                                        .color(egui::Color32::GRAY),
+                                );
+                            }
+                            if template.is_builtin {
+                                ui.label(
+                                    egui::RichText::new("★")
+                                        .size(font_12)
+                                        .color(egui::Color32::GOLD),
+                                )
+                                .on_hover_text("Built-in template");
+                            }
+                        });
+                        ui.label(
+                            egui::RichText::new(&template.formula)
+                                .monospace()
+                                .size(font_12)
+                                .color(egui::Color32::from_rgb(160, 180, 160)),
+                        );
+                    });
+
+                    // Buttons on the right
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Overflow menu for Edit/Delete/Duplicate
+                        ui.menu_button("⋮", |ui| {
+                            if ui.button("Edit").clicked() {
+                                *template_to_edit = Some(template.id.clone());
+                                ui.close();
+                            }
+                            if ui.button("Duplicate").clicked() {
+                                *template_to_duplicate = Some(template.clone());
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui
+                                .button(
+                                    egui::RichText::new("Delete")
+                                        .color(egui::Color32::from_rgb(255, 120, 120)),
+                                )
+                                .clicked()
+                            {
+                                *template_to_delete = Some(template.id.clone());
+                                ui.close();
+                            }
+                        });
+
+                        // Apply button (primary action)
+                        if self.active_tab.is_some() {
+                            let apply_btn = egui::Button::new(
+                                egui::RichText::new("Apply").color(egui::Color32::WHITE),
+                            )
+                            .fill(egui::Color32::from_rgb(80, 110, 80));
+
+                            if ui.add(apply_btn).clicked() {
+                                *template_to_apply = Some(template.clone());
+                            }
+                        }
+                    });
+                });
+            });
+    }
+
+    /// Render the applied channels section
+    fn render_applied_channels_section(&mut self, ui: &mut egui::Ui, font_12: f32, font_14: f32) {
+        if let Some(tab_idx) = self.active_tab {
+            let file_idx = self.tabs[tab_idx].file_index;
+            let applied_count = self
+                .file_computed_channels
+                .get(&file_idx)
+                .map(|c| c.len())
+                .unwrap_or(0);
+
+            ui.label(
+                egui::RichText::new(format!("Applied to Current File ({})", applied_count))
+                    .size(font_14)
+                    .strong(),
+            );
+            ui.add_space(4.0);
+
+            if applied_count == 0 {
+                ui.label(
+                    egui::RichText::new("Apply templates from the library above")
+                        .color(egui::Color32::GRAY)
+                        .size(font_12),
+                );
+            } else {
+                let mut channel_to_remove: Option<usize> = None;
+                let mut channel_to_select: Option<usize> = None;
+
+                if let Some(channels) = self.file_computed_channels.get(&file_idx) {
+                    for (idx, channel) in channels.iter().enumerate() {
+                        egui::Frame::NONE
+                            .fill(egui::Color32::from_rgb(40, 45, 50))
+                            .corner_radius(4.0)
+                            .inner_margin(egui::Margin::symmetric(10, 6))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    // Status indicator
+                                    if channel.is_valid() {
+                                        ui.label(
+                                            egui::RichText::new("●")
+                                                .color(egui::Color32::GREEN)
+                                                .size(font_12),
+                                        );
+                                    } else {
+                                        ui.label(
+                                            egui::RichText::new("●")
+                                                .color(egui::Color32::RED)
+                                                .size(font_12),
+                                        );
+                                    }
+
+                                    ui.label(
+                                        egui::RichText::new(channel.name())
+                                            .size(font_14)
+                                            .color(egui::Color32::LIGHT_GREEN),
+                                    );
+
+                                    if let Some(error) = &channel.error {
+                                        ui.label(
+                                            egui::RichText::new(error)
+                                                .size(font_12)
+                                                .color(egui::Color32::RED),
+                                        );
+                                    }
+
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            if ui
+                                                .small_button("×")
+                                                .on_hover_text("Remove")
+                                                .clicked()
+                                            {
+                                                channel_to_remove = Some(idx);
+                                            }
+                                            if channel.is_valid()
+                                                && ui
+                                                    .small_button("+ Chart")
+                                                    .on_hover_text("Add to chart")
+                                                    .clicked()
+                                            {
+                                                channel_to_select = Some(idx);
+                                            }
+                                        },
+                                    );
+                                });
+                            });
+                        ui.add_space(2.0);
+                    }
+                }
+
+                if let Some(idx) = channel_to_remove {
+                    self.remove_computed_channel(idx);
+                }
+
+                if let Some(idx) = channel_to_select {
+                    self.add_computed_channel_to_chart(idx);
+                }
+            }
+        } else {
+            ui.label(
+                egui::RichText::new("Load a log file to apply computed channels")
+                    .color(egui::Color32::GRAY)
+                    .size(font_12),
+            );
+        }
+    }
+
+    /// Render the help popup with examples and syntax reference
+    fn render_computed_channels_help(&mut self, ctx: &egui::Context) {
+        let mut open = true;
+
+        egui::Window::new("Formula Help")
+            .open(&mut open)
+            .resizable(false)
+            .default_width(400.0)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .max_height(400.0)
+                    .show(ui, |ui| {
+                        // Channel References
+                        ui.label(egui::RichText::new("Channel References").strong());
+                        ui.add_space(4.0);
+                        Self::help_row(ui, "RPM", "Current value of RPM channel");
+                        Self::help_row(
+                            ui,
+                            "\"Manifold Pressure\"",
+                            "Channels with spaces (use quotes)",
+                        );
+                        Self::help_row(ui, "RPM[-1]", "Previous sample (index offset)");
+                        Self::help_row(ui, "RPM[+2]", "2 samples ahead");
+                        Self::help_row(ui, "RPM@-0.1s", "Value 100ms ago (time offset)");
+
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("Operators").strong());
+                        ui.add_space(4.0);
+                        Self::help_row(ui, "+ - * /", "Basic math");
+                        Self::help_row(ui, "^", "Power (e.g., RPM^2)");
+                        Self::help_row(ui, "( )", "Grouping");
+
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("Functions").strong());
+                        ui.add_space(4.0);
+                        Self::help_row(ui, "sin, cos, tan", "Trigonometry");
+                        Self::help_row(ui, "sqrt, abs", "Square root, absolute value");
+                        Self::help_row(ui, "ln, log, exp", "Logarithms, exponential");
+                        Self::help_row(ui, "min, max", "Minimum, maximum");
+                        Self::help_row(ui, "floor, ceil", "Rounding");
+
+                        ui.add_space(12.0);
+                        ui.label(
+                            egui::RichText::new("Statistics (for anomaly detection)").strong(),
+                        );
+                        ui.add_space(4.0);
+                        Self::help_row(ui, "_mean_RPM", "Mean of entire RPM channel");
+                        Self::help_row(ui, "_stdev_RPM", "Standard deviation");
+                        Self::help_row(ui, "_min_RPM / _max_RPM", "Min/max values");
+
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new("Examples").strong());
+                        ui.add_space(4.0);
+                        Self::example_row(ui, "RPM - RPM[-1]", "RPM change per sample");
+                        Self::example_row(ui, "(AFR - 14.7) / 14.7 * 100", "AFR % deviation");
+                        Self::example_row(ui, "(RPM - _mean_RPM) / _stdev_RPM", "Z-score");
+                    });
+            });
+
+        if !open {
+            self.show_computed_channels_help = false;
+        }
+    }
+
+    fn help_row(ui: &mut egui::Ui, code: &str, description: &str) {
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(code)
+                    .monospace()
+                    .color(egui::Color32::LIGHT_GREEN),
+            );
+            ui.label(egui::RichText::new("—").color(egui::Color32::GRAY));
+            ui.label(egui::RichText::new(description).color(egui::Color32::GRAY));
+        });
+    }
+
+    fn example_row(ui: &mut egui::Ui, formula: &str, description: &str) {
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(formula)
+                    .monospace()
+                    .color(egui::Color32::from_rgb(180, 200, 255)),
+            );
+        });
+        ui.label(
+            egui::RichText::new(format!("  {}", description))
+                .small()
+                .color(egui::Color32::GRAY),
+        );
     }
 
     /// Apply a computed channel template to the current file
