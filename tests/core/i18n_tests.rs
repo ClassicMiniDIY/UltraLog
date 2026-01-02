@@ -40,11 +40,24 @@ fn test_language_spanish_display_name() {
 }
 
 #[test]
-fn test_language_all_returns_both_languages() {
+fn test_language_all_returns_all_languages() {
     let all = Language::all();
-    assert_eq!(all.len(), 2);
+    assert_eq!(all.len(), 15);
     assert!(all.contains(&Language::English));
     assert!(all.contains(&Language::Spanish));
+    assert!(all.contains(&Language::German));
+    assert!(all.contains(&Language::French));
+    assert!(all.contains(&Language::Italian));
+    assert!(all.contains(&Language::PortugueseBrazil));
+    assert!(all.contains(&Language::PortuguesePortugal));
+    assert!(all.contains(&Language::ChineseSimplified));
+    assert!(all.contains(&Language::Hindi));
+    assert!(all.contains(&Language::Arabic));
+    assert!(all.contains(&Language::Bengali));
+    assert!(all.contains(&Language::Russian));
+    assert!(all.contains(&Language::Urdu));
+    assert!(all.contains(&Language::Indonesian));
+    assert!(all.contains(&Language::Japanese));
 }
 
 #[test]
@@ -143,15 +156,42 @@ fn test_language_debug_spanish() {
 // ============================================
 
 #[test]
-fn test_locale_codes_are_valid_iso_639_1() {
-    // ISO 639-1 codes are exactly 2 lowercase letters
+fn test_locale_codes_are_valid_bcp47() {
+    // Locale codes follow BCP 47 format: language code (2 chars) optionally followed by
+    // a hyphen and region code (e.g., "en", "pt-BR", "zh-CN")
     for lang in Language::all() {
         let code = lang.locale_code();
-        assert_eq!(code.len(), 2, "Locale code should be 2 characters");
+        assert!(!code.is_empty(), "Locale code should not be empty");
+
+        // Split by hyphen to check format
+        let parts: Vec<&str> = code.split('-').collect();
         assert!(
-            code.chars().all(|c| c.is_ascii_lowercase()),
-            "Locale code should be lowercase ASCII"
+            parts.len() <= 2,
+            "Locale code should have at most 2 parts: {:?}",
+            code
         );
+
+        // First part should be 2 lowercase letters (language code)
+        assert_eq!(
+            parts[0].len(),
+            2,
+            "Language code should be 2 characters: {:?}",
+            code
+        );
+        assert!(
+            parts[0].chars().all(|c| c.is_ascii_lowercase()),
+            "Language code should be lowercase ASCII: {:?}",
+            code
+        );
+
+        // If there's a second part, it should be a region code (2 uppercase or mixed case)
+        if parts.len() == 2 {
+            assert!(
+                parts[1].len() >= 2,
+                "Region code should be at least 2 characters: {:?}",
+                code
+            );
+        }
     }
 }
 
