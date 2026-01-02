@@ -2,6 +2,7 @@
 
 use printpdf::path::{PaintMode, WindingOrder};
 use printpdf::*;
+use rust_i18n::t;
 use std::fs::File;
 use std::io::BufWriter;
 
@@ -29,9 +30,9 @@ impl UltraLogApp {
         match self.render_chart_to_png(&path) {
             Ok(_) => {
                 analytics::track_export("png");
-                self.show_toast_success("Chart exported as PNG");
+                self.show_toast_success(&t!("toast.export_png_success"));
             }
-            Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
     }
 
@@ -49,9 +50,9 @@ impl UltraLogApp {
         match self.render_chart_to_pdf(&path) {
             Ok(_) => {
                 analytics::track_export("pdf");
-                self.show_toast_success("Chart exported as PDF");
+                self.show_toast_success(&t!("toast.export_pdf_success"));
             }
-            Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
     }
 
@@ -369,9 +370,9 @@ impl UltraLogApp {
         match self.render_histogram_to_png(&path) {
             Ok(_) => {
                 analytics::track_export("histogram_png");
-                self.show_toast_success("Histogram exported as PNG");
+                self.show_toast_success(&t!("toast.histogram_exported_png"));
             }
-            Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
     }
 
@@ -389,9 +390,9 @@ impl UltraLogApp {
         match self.render_scatter_plot_to_png(&path) {
             Ok(_) => {
                 analytics::track_export("scatter_plot_png");
-                self.show_toast_success("Scatter plot exported as PNG");
+                self.show_toast_success(&t!("toast.scatter_exported_png"));
             }
-            Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
     }
 
@@ -409,9 +410,9 @@ impl UltraLogApp {
         match self.render_scatter_plot_to_pdf(&path) {
             Ok(_) => {
                 analytics::track_export("scatter_plot_pdf");
-                self.show_toast_success("Scatter plot exported as PDF");
+                self.show_toast_success(&t!("toast.scatter_exported_pdf"));
             }
-            Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
     }
 
@@ -429,9 +430,9 @@ impl UltraLogApp {
         match self.render_histogram_to_pdf(&path) {
             Ok(_) => {
                 analytics::track_export("histogram_pdf");
-                self.show_toast_success("Histogram exported as PDF");
+                self.show_toast_success(&t!("toast.histogram_exported_pdf"));
             }
-            Err(e) => self.show_toast_error(&format!("Export failed: {}", e)),
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
     }
 

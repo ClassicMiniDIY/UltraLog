@@ -3,6 +3,7 @@
 //! Displays update information and provides download/install options.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::updater::{InstallResult, UpdateInfo, UpdateState};
@@ -17,7 +18,7 @@ impl UltraLogApp {
         let mut open = true;
         let mut should_close = false;
 
-        egui::Window::new("Update Available")
+        egui::Window::new(t!("update.update_available"))
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
@@ -62,7 +63,7 @@ impl UltraLogApp {
             ui.add_space(10.0);
 
             ui.label(
-                egui::RichText::new("A new version is available!")
+                egui::RichText::new(t!("update.new_version_available"))
                     .size(self.scaled_font(18.0))
                     .strong(),
             );
@@ -71,12 +72,12 @@ impl UltraLogApp {
 
             // Version comparison
             ui.horizontal(|ui| {
-                ui.label("Current version:");
+                ui.label(t!("update.current_version"));
                 ui.label(egui::RichText::new(&info.current_version).color(egui::Color32::GRAY));
             });
 
             ui.horizontal(|ui| {
-                ui.label("New version:");
+                ui.label(t!("update.new_version"));
                 ui.label(
                     egui::RichText::new(&info.new_version)
                         .color(egui::Color32::LIGHT_GREEN)
@@ -89,7 +90,7 @@ impl UltraLogApp {
             // Download size
             let size_mb = info.download_size as f64 / (1024.0 * 1024.0);
             ui.label(
-                egui::RichText::new(format!("Download size: {:.1} MB", size_mb))
+                egui::RichText::new(t!("update.download_size", size = format!("{:.1}", size_mb)))
                     .color(egui::Color32::GRAY),
             );
 
@@ -97,7 +98,7 @@ impl UltraLogApp {
 
             // Release notes (scrollable, collapsible)
             if let Some(notes) = &info.release_notes {
-                egui::CollapsingHeader::new("Release Notes")
+                egui::CollapsingHeader::new(t!("update.release_notes"))
                     .default_open(true)
                     .show(ui, |ui| {
                         egui::ScrollArea::vertical()
@@ -112,15 +113,15 @@ impl UltraLogApp {
 
             // Action buttons
             ui.horizontal(|ui| {
-                if ui.button("Download & Install").clicked() {
+                if ui.button(t!("update.download_install")).clicked() {
                     self.start_update_download(info.download_url.clone());
                 }
 
-                if ui.button("View on GitHub").clicked() {
+                if ui.button(t!("update.view_on_github")).clicked() {
                     let _ = open::that(&info.release_page_url);
                 }
 
-                if ui.button("Later").clicked() {
+                if ui.button(t!("update.later")).clicked() {
                     *should_close = true;
                 }
             });
@@ -133,7 +134,7 @@ impl UltraLogApp {
         ui.vertical_centered(|ui| {
             ui.add_space(20.0);
 
-            ui.label(egui::RichText::new("Downloading update...").size(self.scaled_font(16.0)));
+            ui.label(egui::RichText::new(t!("update.downloading")).size(self.scaled_font(16.0)));
 
             ui.add_space(15.0);
 
@@ -141,7 +142,7 @@ impl UltraLogApp {
 
             ui.add_space(15.0);
 
-            ui.label(egui::RichText::new("Please wait...").color(egui::Color32::GRAY));
+            ui.label(egui::RichText::new(t!("update.please_wait")).color(egui::Color32::GRAY));
 
             ui.add_space(20.0);
         });
@@ -157,37 +158,28 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             ui.label(
-                egui::RichText::new("Download complete!")
+                egui::RichText::new(t!("update.download_complete"))
                     .size(self.scaled_font(16.0))
                     .color(egui::Color32::LIGHT_GREEN),
             );
 
             ui.add_space(15.0);
 
-            ui.label("Click Install to apply the update.");
+            ui.label(t!("update.install_instructions"));
 
             #[cfg(target_os = "windows")]
-            ui.label(
-                egui::RichText::new("The application will close and restart automatically.")
-                    .color(egui::Color32::GRAY),
-            );
+            ui.label(egui::RichText::new(t!("update.windows_restart")).color(egui::Color32::GRAY));
 
             #[cfg(target_os = "macos")]
-            ui.label(
-                egui::RichText::new("The DMG will open - drag UltraLog to Applications.")
-                    .color(egui::Color32::GRAY),
-            );
+            ui.label(egui::RichText::new(t!("update.macos_dmg")).color(egui::Color32::GRAY));
 
             #[cfg(target_os = "linux")]
-            ui.label(
-                egui::RichText::new("The application will close and restart automatically.")
-                    .color(egui::Color32::GRAY),
-            );
+            ui.label(egui::RichText::new(t!("update.linux_restart")).color(egui::Color32::GRAY));
 
             ui.add_space(15.0);
 
             ui.horizontal(|ui| {
-                if ui.button("Install Now").clicked() {
+                if ui.button(t!("update.install_now")).clicked() {
                     match crate::updater::install_update(path) {
                         InstallResult::ReadyToRestart { message } => {
                             self.show_toast_success(&message);
@@ -207,8 +199,8 @@ impl UltraLogApp {
                     }
                 }
 
-                if ui.button("Install Later").clicked() {
-                    self.show_toast("Update saved to your temp folder.");
+                if ui.button(t!("update.install_later")).clicked() {
+                    self.show_toast(&t!("update.update_saved"));
                     *should_close = true;
                     self.update_state = UpdateState::Idle;
                 }
@@ -223,7 +215,7 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             ui.label(
-                egui::RichText::new("Update Error")
+                egui::RichText::new(t!("update.update_error"))
                     .size(self.scaled_font(16.0))
                     .color(egui::Color32::from_rgb(191, 78, 48)),
             );
@@ -234,7 +226,7 @@ impl UltraLogApp {
 
             ui.add_space(15.0);
 
-            if ui.button("Close").clicked() {
+            if ui.button(t!("update.close")).clicked() {
                 *should_close = true;
                 self.update_state = UpdateState::Idle;
             }

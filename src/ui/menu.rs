@@ -3,6 +3,7 @@
 //! Simplified menu structure - settings moved to Settings panel.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::state::{ActivePanel, ActiveTool, LoadingState};
@@ -21,7 +22,7 @@ impl UltraLogApp {
                 .insert(egui::TextStyle::Button, egui::FontId::proportional(font_15));
 
             // File menu
-            ui.menu_button("File", |ui| {
+            ui.menu_button(t!("menu.file"), |ui| {
                 ui.set_min_width(180.0);
 
                 // Increase font size for dropdown items
@@ -36,8 +37,8 @@ impl UltraLogApp {
 
                 // Open file option
                 if ui
-                    .add_enabled(!is_loading, egui::Button::new("Open Log File..."))
-                    .on_hover_text("⌘O")
+                    .add_enabled(!is_loading, egui::Button::new(t!("menu.open_log_file")))
+                    .on_hover_text("\u{2318}O")
                     .clicked()
                 {
                     if let Some(path) = rfd::FileDialog::new()
@@ -54,8 +55,8 @@ impl UltraLogApp {
                 // Close current tab
                 let has_tabs = !self.tabs.is_empty();
                 if ui
-                    .add_enabled(has_tabs, egui::Button::new("Close Tab"))
-                    .on_hover_text("⌘W")
+                    .add_enabled(has_tabs, egui::Button::new(t!("menu.close_tab")))
+                    .on_hover_text("\u{2318}W")
                     .clicked()
                 {
                     if let Some(tab_idx) = self.active_tab {
@@ -81,22 +82,22 @@ impl UltraLogApp {
                 let can_export = has_chart_data || has_histogram_data;
 
                 ui.add_enabled_ui(can_export, |ui| {
-                    ui.menu_button("Export", |ui| {
+                    ui.menu_button(t!("menu.export"), |ui| {
                         ui.style_mut()
                             .text_styles
                             .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
 
                         if self.active_tool == ActiveTool::Histogram && has_histogram_data {
-                            if ui.button("Export Histogram as PDF...").clicked() {
+                            if ui.button(t!("menu.export_histogram_pdf")).clicked() {
                                 self.export_histogram_pdf();
                                 ui.close();
                             }
                         } else if has_chart_data {
-                            if ui.button("Export as PNG...").clicked() {
+                            if ui.button(t!("menu.export_png")).clicked() {
                                 self.export_chart_png();
                                 ui.close();
                             }
-                            if ui.button("Export as PDF...").clicked() {
+                            if ui.button(t!("menu.export_pdf")).clicked() {
                                 self.export_chart_pdf();
                                 ui.close();
                             }
@@ -106,7 +107,7 @@ impl UltraLogApp {
             });
 
             // View menu - tool modes and panels
-            ui.menu_button("View", |ui| {
+            ui.menu_button(t!("menu.view"), |ui| {
                 ui.set_min_width(200.0);
 
                 ui.style_mut()
@@ -118,14 +119,18 @@ impl UltraLogApp {
 
                 // Tool modes
                 ui.label(
-                    egui::RichText::new("Tool Mode")
+                    egui::RichText::new(t!("menu.tool_mode"))
                         .size(font_14)
                         .color(egui::Color32::GRAY),
                 );
 
                 if ui
-                    .radio_value(&mut self.active_tool, ActiveTool::LogViewer, "Log Viewer")
-                    .on_hover_text("⌘1")
+                    .radio_value(
+                        &mut self.active_tool,
+                        ActiveTool::LogViewer,
+                        t!("menu.log_viewer"),
+                    )
+                    .on_hover_text("\u{2318}1")
                     .clicked()
                 {
                     ui.close();
@@ -134,16 +139,20 @@ impl UltraLogApp {
                     .radio_value(
                         &mut self.active_tool,
                         ActiveTool::ScatterPlot,
-                        "Scatter Plots",
+                        t!("menu.scatter_plots"),
                     )
-                    .on_hover_text("⌘2")
+                    .on_hover_text("\u{2318}2")
                     .clicked()
                 {
                     ui.close();
                 }
                 if ui
-                    .radio_value(&mut self.active_tool, ActiveTool::Histogram, "Histogram")
-                    .on_hover_text("⌘3")
+                    .radio_value(
+                        &mut self.active_tool,
+                        ActiveTool::Histogram,
+                        t!("menu.histogram"),
+                    )
+                    .on_hover_text("\u{2318}3")
                     .clicked()
                 {
                     ui.close();
@@ -153,35 +162,43 @@ impl UltraLogApp {
 
                 // Panel navigation
                 ui.label(
-                    egui::RichText::new("Side Panel")
+                    egui::RichText::new(t!("menu.side_panel"))
                         .size(font_14)
                         .color(egui::Color32::GRAY),
                 );
 
                 if ui
-                    .radio_value(&mut self.active_panel, ActivePanel::Files, "Files")
-                    .on_hover_text("⌘⇧F")
+                    .radio_value(&mut self.active_panel, ActivePanel::Files, t!("menu.files"))
+                    .on_hover_text("\u{2318}\u{21E7}F")
                     .clicked()
                 {
                     ui.close();
                 }
                 if ui
-                    .radio_value(&mut self.active_panel, ActivePanel::Channels, "Channels")
-                    .on_hover_text("⌘⇧C")
+                    .radio_value(
+                        &mut self.active_panel,
+                        ActivePanel::Channels,
+                        t!("menu.channels"),
+                    )
+                    .on_hover_text("\u{2318}\u{21E7}C")
                     .clicked()
                 {
                     ui.close();
                 }
                 if ui
-                    .radio_value(&mut self.active_panel, ActivePanel::Tools, "Tools")
-                    .on_hover_text("⌘⇧T")
+                    .radio_value(&mut self.active_panel, ActivePanel::Tools, t!("menu.tools"))
+                    .on_hover_text("\u{2318}\u{21E7}T")
                     .clicked()
                 {
                     ui.close();
                 }
                 if ui
-                    .radio_value(&mut self.active_panel, ActivePanel::Settings, "Settings")
-                    .on_hover_text("⌘,")
+                    .radio_value(
+                        &mut self.active_panel,
+                        ActivePanel::Settings,
+                        t!("menu.settings"),
+                    )
+                    .on_hover_text("\u{2318},")
                     .clicked()
                 {
                     ui.close();
@@ -189,7 +206,7 @@ impl UltraLogApp {
             });
 
             // Help menu
-            ui.menu_button("Help", |ui| {
+            ui.menu_button(t!("menu.help"), |ui| {
                 ui.set_min_width(200.0);
 
                 ui.style_mut()
@@ -199,19 +216,19 @@ impl UltraLogApp {
                     .text_styles
                     .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
-                if ui.button("Documentation").clicked() {
+                if ui.button(t!("menu.documentation")).clicked() {
                     let _ = open::that("https://github.com/SomethingNew71/UltraLog/wiki");
                     ui.close();
                 }
 
-                if ui.button("Report Issue").clicked() {
+                if ui.button(t!("menu.report_issue")).clicked() {
                     let _ = open::that("https://github.com/SomethingNew71/UltraLog/issues");
                     ui.close();
                 }
 
                 ui.separator();
 
-                if ui.button("Support Development").clicked() {
+                if ui.button(t!("menu.support_development")).clicked() {
                     let _ = open::that("https://github.com/sponsors/SomethingNew71");
                     ui.close();
                 }
@@ -225,9 +242,9 @@ impl UltraLogApp {
                         | crate::updater::UpdateState::Downloading
                 );
                 let button_text = if is_checking {
-                    "Checking for Updates..."
+                    t!("menu.checking_for_updates")
                 } else {
-                    "Check for Updates"
+                    t!("menu.check_for_updates")
                 };
 
                 if ui
@@ -242,8 +259,11 @@ impl UltraLogApp {
 
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
-                            .color(egui::Color32::GRAY),
+                        egui::RichText::new(t!(
+                            "menu.version",
+                            version = env!("CARGO_PKG_VERSION")
+                        ))
+                        .color(egui::Color32::GRAY),
                     );
                 });
             });

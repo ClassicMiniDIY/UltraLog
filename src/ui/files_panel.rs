@@ -1,6 +1,7 @@
 //! Files panel - file management, loading, and file list.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::state::{LoadingState, SUPPORTED_EXTENSIONS};
@@ -13,7 +14,7 @@ impl UltraLogApp {
         if let LoadingState::Loading(filename) = &self.loading_state {
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label(format!("Loading {}...", filename));
+                ui.label(t!("files.loading", filename = filename));
             });
             ui.add_space(8.0);
             ui.separator();
@@ -60,7 +61,7 @@ impl UltraLogApp {
             .collect();
 
         ui.label(
-            egui::RichText::new(format!("Loaded Files ({})", file_info.len()))
+            egui::RichText::new(t!("files.loaded_files", count = file_info.len()))
                 .size(self.scaled_font(13.0))
                 .color(egui::Color32::GRAY),
         );
@@ -135,9 +136,11 @@ impl UltraLogApp {
 
                     // ECU type and data info
                     ui.label(
-                        egui::RichText::new(format!(
-                            "{} • {} ch • {} pts",
-                            ecu_name, channel_count, data_count
+                        egui::RichText::new(t!(
+                            "files.file_info",
+                            ecu = ecu_name,
+                            channels = channel_count,
+                            points = data_count
                         ))
                         .size(self.scaled_font(11.0))
                         .color(egui::Color32::GRAY),
@@ -173,7 +176,7 @@ impl UltraLogApp {
                             .size(self.scaled_font(16.0)),
                     );
                     ui.label(
-                        egui::RichText::new("Add File")
+                        egui::RichText::new(t!("files.add_file"))
                             .color(egui::Color32::WHITE)
                             .size(self.scaled_font(14.0)),
                     );
@@ -230,7 +233,7 @@ impl UltraLogApp {
                         .inner_margin(egui::vec2(16.0, 8.0))
                         .show(ui, |ui| {
                             ui.label(
-                                egui::RichText::new("Select a file")
+                                egui::RichText::new(t!("files.select_file"))
                                     .color(egui::Color32::WHITE)
                                     .size(self.scaled_font(14.0)),
                             );
@@ -256,7 +259,7 @@ impl UltraLogApp {
                     ui.add_space(12.0);
 
                     ui.label(
-                        egui::RichText::new("or")
+                        egui::RichText::new(t!("files.or"))
                             .color(text_gray)
                             .size(self.scaled_font(12.0)),
                     );
@@ -264,7 +267,7 @@ impl UltraLogApp {
                     ui.add_space(8.0);
 
                     ui.label(
-                        egui::RichText::new("Drop file here")
+                        egui::RichText::new(t!("files.drop_file_here"))
                             .color(egui::Color32::LIGHT_GRAY)
                             .size(self.scaled_font(13.0)),
                     );
@@ -275,7 +278,7 @@ impl UltraLogApp {
                         .iter()
                         .map(|ext| ext.to_uppercase())
                         .collect::<Vec<_>>()
-                        .join(" • ");
+                        .join(" \u{2022} ");
                     ui.label(
                         egui::RichText::new(extensions_text)
                             .color(text_gray)

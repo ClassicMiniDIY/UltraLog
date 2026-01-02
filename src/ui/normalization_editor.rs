@@ -3,6 +3,7 @@
 //! Provides a window for users to view and customize field name mappings.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::normalize::get_builtin_mappings;
@@ -16,7 +17,7 @@ impl UltraLogApp {
 
         let mut open = true;
 
-        egui::Window::new("Field Normalization Editor")
+        egui::Window::new(t!("normalization.title"))
             .open(&mut open)
             .resizable(true)
             .default_width(550.0)
@@ -25,10 +26,10 @@ impl UltraLogApp {
             .show(ctx, |ui| {
                 // Header with reset button
                 ui.horizontal(|ui| {
-                    ui.heading("Field Name Mappings");
+                    ui.heading(t!("normalization.field_mappings"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if !self.custom_normalizations.is_empty()
-                            && ui.button("Reset to Defaults").clicked()
+                            && ui.button(t!("normalization.reset_defaults")).clicked()
                         {
                             self.custom_normalizations.clear();
                             self.norm_editor_extend_source.clear();
@@ -43,12 +44,10 @@ impl UltraLogApp {
                 // --- Extend Built-in Mappings Section ---
                 ui.separator();
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("Extend Built-in Mappings").strong());
+                ui.label(egui::RichText::new(t!("normalization.extend_builtin")).strong());
                 ui.label(
-                    egui::RichText::new(
-                        "Add your own source names that map to existing normalized field names.",
-                    )
-                    .color(egui::Color32::GRAY),
+                    egui::RichText::new(t!("normalization.extend_description"))
+                        .color(egui::Color32::GRAY),
                 );
                 ui.add_space(8.0);
 
@@ -57,33 +56,35 @@ impl UltraLogApp {
                 let builtin_names: Vec<&str> = builtin_mappings.iter().map(|(n, _)| *n).collect();
 
                 ui.horizontal(|ui| {
-                    ui.label("Source Name:");
+                    ui.label(t!("normalization.source_name"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.norm_editor_extend_source)
-                            .hint_text("e.g., MyCustomRPM")
+                            .hint_text(t!("normalization.source_hint"))
                             .desired_width(150.0),
                     );
                     ui.label("→");
-                    ui.label("Maps To:");
+                    ui.label(t!("normalization.maps_to"));
 
                     // Dropdown for selecting existing normalized name
+                    let default_select = t!("normalization.select");
                     let selected_text = self
                         .norm_editor_selected_target
                         .as_deref()
-                        .unwrap_or("Select...");
+                        .unwrap_or(&default_select);
                     egui::ComboBox::from_id_salt("extend_builtin_combo")
                         .selected_text(selected_text)
                         .width(120.0)
                         .show_ui(ui, |ui| {
                             for name in &builtin_names {
-                                let is_selected = self.norm_editor_selected_target.as_deref() == Some(*name);
+                                let is_selected =
+                                    self.norm_editor_selected_target.as_deref() == Some(*name);
                                 if ui.selectable_label(is_selected, *name).clicked() {
                                     self.norm_editor_selected_target = Some(name.to_string());
                                 }
                             }
                         });
 
-                    if ui.button("Add").clicked()
+                    if ui.button(t!("common.add")).clicked()
                         && !self.norm_editor_extend_source.is_empty()
                     {
                         if let Some(target) = &self.norm_editor_selected_target {
@@ -101,30 +102,28 @@ impl UltraLogApp {
                 // --- Custom Mappings Section ---
                 ui.separator();
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("Create New Mapping").strong());
+                ui.label(egui::RichText::new(t!("normalization.create_new")).strong());
                 ui.label(
-                    egui::RichText::new(
-                        "Define completely new normalized names for your custom channels.",
-                    )
-                    .color(egui::Color32::GRAY),
+                    egui::RichText::new(t!("normalization.create_description"))
+                        .color(egui::Color32::GRAY),
                 );
                 ui.add_space(8.0);
 
                 ui.horizontal(|ui| {
-                    ui.label("Source Name:");
+                    ui.label(t!("normalization.source_name"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.norm_editor_custom_source)
-                            .hint_text("e.g., Sensor_XYZ")
+                            .hint_text(t!("normalization.custom_source_hint"))
                             .desired_width(150.0),
                     );
                     ui.label("→");
-                    ui.label("Display As:");
+                    ui.label(t!("normalization.display_as"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.norm_editor_custom_target)
-                            .hint_text("e.g., Custom Sensor")
+                            .hint_text(t!("normalization.custom_target_hint"))
                             .desired_width(150.0),
                     );
-                    if ui.button("Add").clicked()
+                    if ui.button(t!("common.add")).clicked()
                         && !self.norm_editor_custom_source.is_empty()
                         && !self.norm_editor_custom_target.is_empty()
                     {
@@ -144,7 +143,7 @@ impl UltraLogApp {
                     ui.separator();
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Your Custom Mappings").strong());
+                        ui.label(egui::RichText::new(t!("normalization.your_mappings")).strong());
                         ui.label(
                             egui::RichText::new(format!("({})", self.custom_normalizations.len()))
                                 .color(egui::Color32::GRAY),
@@ -164,13 +163,19 @@ impl UltraLogApp {
                                 .min_col_width(100.0)
                                 .spacing([16.0, 8.0])
                                 .show(ui, |ui| {
-                                    ui.label(egui::RichText::new("Source").strong());
-                                    ui.label(egui::RichText::new("Display As").strong());
+                                    ui.label(
+                                        egui::RichText::new(t!("normalization.source")).strong(),
+                                    );
+                                    ui.label(
+                                        egui::RichText::new(t!("normalization.display_as"))
+                                            .strong(),
+                                    );
                                     ui.label("");
                                     ui.end_row();
 
                                     // Sort by target name for better organization
-                                    let mut sorted: Vec<_> = self.custom_normalizations.iter().collect();
+                                    let mut sorted: Vec<_> =
+                                        self.custom_normalizations.iter().collect();
                                     sorted.sort_by(|a, b| a.1.cmp(b.1));
 
                                     for (source, target) in sorted {
@@ -179,7 +184,7 @@ impl UltraLogApp {
                                             egui::RichText::new(target)
                                                 .color(egui::Color32::LIGHT_BLUE),
                                         );
-                                        if ui.small_button("Remove").clicked() {
+                                        if ui.small_button(t!("common.remove")).clicked() {
                                             to_remove = Some(source.clone());
                                         }
                                         ui.end_row();
@@ -196,14 +201,12 @@ impl UltraLogApp {
                 ui.separator();
 
                 // Built-in mappings reference (collapsible)
-                egui::CollapsingHeader::new("Built-in Mappings Reference")
+                egui::CollapsingHeader::new(t!("normalization.builtin_reference"))
                     .default_open(false)
                     .show(ui, |ui| {
                         ui.label(
-                            egui::RichText::new(
-                                "These are the default mappings. You can extend them by adding new source names above.",
-                            )
-                            .color(egui::Color32::GRAY),
+                            egui::RichText::new(t!("normalization.builtin_description"))
+                                .color(egui::Color32::GRAY),
                         );
                         ui.add_space(8.0);
 

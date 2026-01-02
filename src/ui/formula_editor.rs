@@ -4,6 +4,7 @@
 //! Features an expanded channel browser, quick pattern buttons, and rich preview with statistics.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::computed::ComputedChannelTemplate;
@@ -22,9 +23,9 @@ impl UltraLogApp {
         let mut should_save = false;
 
         let title = if self.formula_editor_state.is_editing() {
-            "Edit Computed Channel"
+            t!("formula.edit_computed_channel")
         } else {
-            "New Computed Channel"
+            t!("formula.new_computed_channel")
         };
 
         egui::Window::new(title)
@@ -39,10 +40,10 @@ impl UltraLogApp {
 
                 // Name field
                 ui.horizontal(|ui| {
-                    ui.label("Name:");
+                    ui.label(t!("formula.name"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.formula_editor_state.name)
-                            .hint_text("e.g., RPM Delta")
+                            .hint_text(t!("formula.name_hint"))
                             .desired_width(300.0),
                     );
                 });
@@ -50,10 +51,10 @@ impl UltraLogApp {
                 ui.add_space(8.0);
 
                 // Formula field
-                ui.label("Formula:");
+                ui.label(t!("formula.formula"));
                 let formula_response = ui.add(
                     egui::TextEdit::multiline(&mut self.formula_editor_state.formula)
-                        .hint_text("e.g., RPM - RPM[-1]")
+                        .hint_text(t!("formula.formula_hint"))
                         .desired_width(ui.available_width())
                         .desired_rows(3)
                         .font(egui::TextStyle::Monospace),
@@ -67,7 +68,7 @@ impl UltraLogApp {
                 // Quick pattern buttons
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Insert:").small().weak());
+                    ui.label(egui::RichText::new(t!("formula.insert")).small().weak());
                     ui.add_space(4.0);
 
                     // Math operators
@@ -82,7 +83,7 @@ impl UltraLogApp {
                     ] {
                         if ui
                             .small_button(egui::RichText::new(label).monospace())
-                            .on_hover_text(format!("Insert {}", insert.trim()))
+                            .on_hover_text(t!("formula.insert_tooltip", op = insert.trim()))
                             .clicked()
                         {
                             self.formula_editor_state.formula.push_str(insert);
@@ -93,18 +94,21 @@ impl UltraLogApp {
                     ui.separator();
 
                     // Time-shift operators
-                    for (label, insert, tooltip) in [
-                        ("[-1]", "[-1]", "Previous sample (index offset)"),
-                        ("@-0.1s", "@-0.1s", "Value 0.1 seconds ago"),
-                    ] {
-                        if ui
-                            .small_button(egui::RichText::new(label).monospace())
-                            .on_hover_text(tooltip)
-                            .clicked()
-                        {
-                            self.formula_editor_state.formula.push_str(insert);
-                            self.validate_current_formula();
-                        }
+                    if ui
+                        .small_button(egui::RichText::new("[-1]").monospace())
+                        .on_hover_text(t!("formula.prev_sample_tooltip"))
+                        .clicked()
+                    {
+                        self.formula_editor_state.formula.push_str("[-1]");
+                        self.validate_current_formula();
+                    }
+                    if ui
+                        .small_button(egui::RichText::new("@-0.1s").monospace())
+                        .on_hover_text(t!("formula.time_ago_tooltip"))
+                        .clicked()
+                    {
+                        self.formula_editor_state.formula.push_str("@-0.1s");
+                        self.validate_current_formula();
                     }
                 });
 
@@ -112,30 +116,35 @@ impl UltraLogApp {
                 ui.add_space(4.0);
                 if let Some(error) = &self.formula_editor_state.validation_error {
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Error:").color(egui::Color32::RED));
+                        ui.label(
+                            egui::RichText::new(t!("formula.error")).color(egui::Color32::RED),
+                        );
                         ui.label(egui::RichText::new(error).color(egui::Color32::RED).small());
                     });
                 } else if !self.formula_editor_state.formula.is_empty() {
-                    ui.label(egui::RichText::new("Formula valid").color(egui::Color32::GREEN));
+                    ui.label(
+                        egui::RichText::new(t!("formula.formula_valid"))
+                            .color(egui::Color32::GREEN),
+                    );
                 }
 
                 ui.add_space(8.0);
 
                 // Unit and description in a row
                 ui.horizontal(|ui| {
-                    ui.label("Unit:");
+                    ui.label(t!("formula.unit"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.formula_editor_state.unit)
-                            .hint_text("e.g., RPM/s")
+                            .hint_text(t!("formula.unit_hint"))
                             .desired_width(100.0),
                     );
 
                     ui.add_space(16.0);
 
-                    ui.label("Description:");
+                    ui.label(t!("formula.description"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.formula_editor_state.description)
-                            .hint_text("Optional description")
+                            .hint_text(t!("formula.description_hint"))
                             .desired_width(ui.available_width() - 20.0),
                     );
                 });
@@ -144,20 +153,18 @@ impl UltraLogApp {
 
                 // Channel browser - expanded by default for discoverability
                 if self.active_tab.is_some() {
-                    egui::CollapsingHeader::new("Available Channels")
+                    egui::CollapsingHeader::new(t!("formula.available_channels"))
                         .default_open(true) // Expanded by default
                         .show(ui, |ui| {
                             let channels = self.get_available_channel_names();
                             if channels.is_empty() {
                                 ui.label(
-                                    egui::RichText::new(
-                                        "No channels available - load a log file first",
-                                    )
-                                    .color(egui::Color32::GRAY),
+                                    egui::RichText::new(t!("formula.no_channels_available"))
+                                        .color(egui::Color32::GRAY),
                                 );
                             } else {
                                 ui.label(
-                                    egui::RichText::new("Click to insert into formula:")
+                                    egui::RichText::new(t!("formula.click_to_insert"))
                                         .small()
                                         .weak(),
                                 );
@@ -209,11 +216,11 @@ impl UltraLogApp {
                             let avg = sum / valid_values.len() as f64;
 
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("Preview").strong());
+                                ui.label(egui::RichText::new(t!("formula.preview")).strong());
                                 ui.add_space(8.0);
 
                                 // Stats in a compact row
-                                ui.label(egui::RichText::new("Min:").small().weak());
+                                ui.label(egui::RichText::new(t!("formula.min")).small().weak());
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", min))
                                         .monospace()
@@ -221,7 +228,7 @@ impl UltraLogApp {
                                 );
                                 ui.add_space(8.0);
 
-                                ui.label(egui::RichText::new("Avg:").small().weak());
+                                ui.label(egui::RichText::new(t!("formula.avg")).small().weak());
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", avg))
                                         .monospace()
@@ -229,7 +236,7 @@ impl UltraLogApp {
                                 );
                                 ui.add_space(8.0);
 
-                                ui.label(egui::RichText::new("Max:").small().weak());
+                                ui.label(egui::RichText::new(t!("formula.max")).small().weak());
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", max))
                                         .monospace()
@@ -239,7 +246,7 @@ impl UltraLogApp {
 
                             // Sample values
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("Sample:").small().weak());
+                                ui.label(egui::RichText::new(t!("formula.sample")).small().weak());
                                 for (i, val) in preview_values.iter().take(5).enumerate() {
                                     if i > 0 {
                                         ui.label(egui::RichText::new(",").weak());
@@ -264,7 +271,7 @@ impl UltraLogApp {
 
                 // Buttons
                 ui.horizontal(|ui| {
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t!("formula.cancel")).clicked() {
                         self.formula_editor_state.close();
                     }
 
@@ -274,13 +281,13 @@ impl UltraLogApp {
                             && self.formula_editor_state.validation_error.is_none();
 
                         ui.add_enabled_ui(can_save, |ui| {
-                            if ui.button("Save").clicked() {
+                            if ui.button(t!("formula.save")).clicked() {
                                 should_save = true;
                             }
                         });
 
                         // Validate button
-                        if ui.button("Validate").clicked() {
+                        if ui.button(t!("formula.validate")).clicked() {
                             self.validate_current_formula();
                         }
                     });
@@ -371,9 +378,9 @@ impl UltraLogApp {
 
         // Save library
         if let Err(e) = self.computed_library.save() {
-            self.show_toast_error(&format!("Failed to save: {}", e));
+            self.show_toast_error(&t!("toast.failed_to_save", error = e));
         } else {
-            self.show_toast_success("Channel saved to library");
+            self.show_toast_success(&t!("toast.channel_saved"));
         }
 
         self.formula_editor_state.close();

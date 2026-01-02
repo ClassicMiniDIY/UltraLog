@@ -14,9 +14,11 @@ use std::thread;
 use crate::analysis::{AnalysisResult, AnalyzerRegistry};
 use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
+use crate::i18n::Language;
 use crate::parsers::{
     Aim, EcuMaster, EcuType, Emerald, Haltech, Link, Parseable, RomRaider, Speeduino,
 };
+use crate::settings::UserSettings;
 use crate::state::{
     ActivePanel, ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState,
     ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS,
@@ -139,6 +141,11 @@ pub struct UltraLogApp {
     pub(crate) show_analysis_panel: bool,
     /// Selected category in analysis panel (None = show all)
     pub(crate) analysis_selected_category: Option<String>,
+    // === Internationalization ===
+    /// User settings (persisted to disk)
+    pub(crate) user_settings: UserSettings,
+    /// Current language selection
+    pub(crate) language: Language,
 }
 
 impl Default for UltraLogApp {
@@ -192,6 +199,8 @@ impl Default for UltraLogApp {
             analysis_results: HashMap::new(),
             show_analysis_panel: false,
             analysis_selected_category: None,
+            user_settings: UserSettings::default(),
+            language: Language::default(),
         }
     }
 }
@@ -231,7 +240,15 @@ impl UltraLogApp {
         // Apply fonts
         cc.egui_ctx.set_fonts(fonts);
 
-        Self::default()
+        // Load user settings and set locale
+        let user_settings = UserSettings::load();
+        rust_i18n::set_locale(user_settings.language.locale_code());
+
+        Self {
+            user_settings: user_settings.clone(),
+            language: user_settings.language,
+            ..Self::default()
+        }
     }
 
     // ========================================================================

@@ -13,6 +13,8 @@
 //! - [`updater`] - Auto-update functionality for checking and downloading updates
 //! - [`analytics`] - Anonymous usage analytics via PostHog
 //! - [`analysis`] - Signal processing and statistical analysis algorithms
+//! - [`i18n`] - Internationalization support
+//! - [`settings`] - User settings persistence
 //! - [`ui`] - User interface components
 //!   - `sidebar` - File list and view options
 //!   - `channels` - Channel selection and display
@@ -22,13 +24,22 @@
 //!   - `toast` - Toast notification system
 //!   - `icons` - Custom icon drawing utilities
 
+#[macro_use]
+extern crate rust_i18n;
+
+// Initialize i18n with translation files from the i18n directory
+// Fallback to English if a translation is missing
+i18n!("i18n", fallback = "en");
+
 pub mod analysis;
 pub mod analytics;
 pub mod app;
 pub mod computed;
 pub mod expression;
+pub mod i18n;
 pub mod normalize;
 pub mod parsers;
+pub mod settings;
 pub mod state;
 pub mod ui;
 pub mod units;
