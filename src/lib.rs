@@ -13,7 +13,7 @@
 //! - [`updater`] - Auto-update functionality for checking and downloading updates
 //! - [`analytics`] - Anonymous usage analytics via PostHog
 //! - [`analysis`] - Signal processing and statistical analysis algorithms
-//! - [`i18n`] - Internationalization support
+//! - [`mod@i18n`] - Internationalization support
 //! - [`settings`] - User settings persistence
 //! - [`ui`] - User interface components
 //!   - `sidebar` - File list and view options
