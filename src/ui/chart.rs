@@ -2,6 +2,7 @@
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotBounds, PlotPoints, VLine};
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
@@ -16,7 +17,7 @@ impl UltraLogApp {
         if selected_channels.is_empty() {
             ui.centered_and_justified(|ui| {
                 ui.label(
-                    egui::RichText::new("Select channels to display chart")
+                    egui::RichText::new(t!("chart.select_channels"))
                         .size(self.scaled_font(20.0))
                         .color(egui::Color32::GRAY),
                 );

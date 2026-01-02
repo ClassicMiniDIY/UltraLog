@@ -5,6 +5,7 @@
 //! cell coloring based on average Z-value or hit count.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::normalize::sort_channels_by_priority;
@@ -92,7 +93,7 @@ impl UltraLogApp {
         if self.active_tab.is_none() || self.files.is_empty() {
             ui.centered_and_justified(|ui| {
                 ui.label(
-                    egui::RichText::new("Load a log file to use histogram")
+                    egui::RichText::new(t!("histogram.no_file_loaded"))
                         .size(self.scaled_font(20.0))
                         .color(egui::Color32::GRAY),
                 );
@@ -160,7 +161,7 @@ impl UltraLogApp {
 
         ui.horizontal(|ui| {
             // X Axis selector
-            ui.label(egui::RichText::new("X Axis:").size(font_15));
+            ui.label(egui::RichText::new(t!("histogram.x_axis")).size(font_15));
             egui::ComboBox::from_id_salt("histogram_x")
                 .selected_text(
                     egui::RichText::new(
@@ -188,7 +189,7 @@ impl UltraLogApp {
             ui.add_space(16.0);
 
             // Y Axis selector
-            ui.label(egui::RichText::new("Y Axis:").size(font_15));
+            ui.label(egui::RichText::new(t!("histogram.y_axis")).size(font_15));
             egui::ComboBox::from_id_salt("histogram_y")
                 .selected_text(
                     egui::RichText::new(
@@ -218,7 +219,7 @@ impl UltraLogApp {
             // Z Axis selector (only enabled in AverageZ mode)
             let z_enabled = current_mode == HistogramMode::AverageZ;
             ui.add_enabled_ui(z_enabled, |ui| {
-                ui.label(egui::RichText::new("Z Axis:").size(font_15));
+                ui.label(egui::RichText::new(t!("histogram.z_axis")).size(font_15));
                 egui::ComboBox::from_id_salt("histogram_z")
                     .selected_text(
                         egui::RichText::new(
@@ -247,7 +248,7 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             // Grid size selector
-            ui.label(egui::RichText::new("Grid:").size(font_15));
+            ui.label(egui::RichText::new(t!("histogram.grid")).size(font_15));
             egui::ComboBox::from_id_salt("histogram_grid_size")
                 .selected_text(egui::RichText::new(current_grid_size.name()).size(font_14))
                 .width(80.0)
@@ -273,11 +274,11 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             // Mode toggle
-            ui.label(egui::RichText::new("Mode:").size(font_15));
+            ui.label(egui::RichText::new(t!("histogram.mode")).size(font_15));
             if ui
                 .selectable_label(
                     current_mode == HistogramMode::AverageZ,
-                    egui::RichText::new("Average Z").size(font_14),
+                    egui::RichText::new(t!("histogram.average_z")).size(font_14),
                 )
                 .clicked()
             {
@@ -286,7 +287,7 @@ impl UltraLogApp {
             if ui
                 .selectable_label(
                     current_mode == HistogramMode::HitCount,
-                    egui::RichText::new("Hit Count").size(font_14),
+                    egui::RichText::new(t!("histogram.hit_count")).size(font_14),
                 )
                 .clicked()
             {

@@ -5,6 +5,7 @@
 //! Features category tabs for filtering and clear separation between tools and results.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::analysis::{AnalysisResult, Analyzer, AnalyzerConfig, LogDataAccess};
 use crate::app::UltraLogApp;
@@ -41,15 +42,8 @@ enum ParamType {
     Boolean,
 }
 
-/// Category labels for the tab bar
-/// First element is the category ID (must match analyzer.category()), second is display name
-const CATEGORIES: &[(&str, &str)] = &[
-    ("all", "All"),
-    ("Filters", "Filters"),
-    ("Statistics", "Statistics"),
-    ("AFR", "AFR"),
-    ("Derived", "Derived"),
-];
+/// Category IDs for the tab bar (must match analyzer.category())
+const CATEGORY_IDS: &[&str] = &["all", "Filters", "Statistics", "AFR", "Derived"];
 
 impl UltraLogApp {
     /// Render the analysis panel window
@@ -60,7 +54,7 @@ impl UltraLogApp {
 
         let mut open = true;
 
-        egui::Window::new("Analysis Tools")
+        egui::Window::new(t!("analysis.window_title"))
             .open(&mut open)
             .resizable(true)
             .default_width(550.0)
@@ -74,13 +68,13 @@ impl UltraLogApp {
                     ui.vertical_centered(|ui| {
                         ui.add_space(40.0);
                         ui.label(
-                            egui::RichText::new("No log file loaded")
+                            egui::RichText::new(t!("analysis.no_file_loaded"))
                                 .color(egui::Color32::GRAY)
                                 .size(16.0),
                         );
                         ui.add_space(8.0);
                         ui.label(
-                            egui::RichText::new("Load a log file to access analysis tools.")
+                            egui::RichText::new(t!("analysis.load_file_help"))
                                 .color(egui::Color32::GRAY)
                                 .small(),
                         );
@@ -107,13 +101,23 @@ impl UltraLogApp {
     /// Render the category filter tabs
     fn render_category_tabs(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            for (category_id, display_name) in CATEGORIES {
+            for category_id in CATEGORY_IDS {
                 let is_selected = match &self.analysis_selected_category {
                     None => *category_id == "all",
                     Some(cat) => cat == *category_id,
                 };
 
-                let text = egui::RichText::new(*display_name);
+                // Get translated category name
+                let display_name = match *category_id {
+                    "all" => t!("analysis.category_all"),
+                    "Filters" => t!("analysis.category_filters"),
+                    "Statistics" => t!("analysis.category_statistics"),
+                    "AFR" => t!("analysis.category_afr"),
+                    "Derived" => t!("analysis.category_derived"),
+                    _ => std::borrow::Cow::Borrowed(*category_id),
+                };
+
+                let text = egui::RichText::new(display_name.as_ref());
                 let text = if is_selected {
                     text.strong()
                 } else {
@@ -214,17 +218,20 @@ impl UltraLogApp {
                             // Results header with count
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    egui::RichText::new(format!("Results ({})", results.len()))
-                                        .strong()
-                                        .size(15.0),
+                                    egui::RichText::new(t!(
+                                        "analysis.results_count",
+                                        count = results.len()
+                                    ))
+                                    .strong()
+                                    .size(15.0),
                                 );
 
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         if ui
-                                            .small_button("Clear All")
-                                            .on_hover_text("Remove all results")
+                                            .small_button(t!("analysis.clear_all"))
+                                            .on_hover_text(t!("analysis.remove_all_tooltip"))
                                             .clicked()
                                         {
                                             // Mark for clearing
@@ -257,8 +264,17 @@ impl UltraLogApp {
 
                 // Analyzers section header
                 let category_label = match &self.analysis_selected_category {
-                    None => "All Tools".to_string(),
-                    Some(cat) => cat.clone(),
+                    None => t!("analysis.all_tools").to_string(),
+                    Some(cat) => {
+                        // Translate the category name
+                        match cat.as_str() {
+                            "Filters" => t!("analysis.category_filters").to_string(),
+                            "Statistics" => t!("analysis.category_statistics").to_string(),
+                            "AFR" => t!("analysis.category_afr").to_string(),
+                            "Derived" => t!("analysis.category_derived").to_string(),
+                            _ => cat.clone(),
+                        }
+                    }
                 };
 
                 ui.horizontal(|ui| {
@@ -277,8 +293,7 @@ impl UltraLogApp {
 
                 if filtered_infos.is_empty() {
                     ui.label(
-                        egui::RichText::new("No analyzers in this category")
-                            .color(egui::Color32::GRAY),
+                        egui::RichText::new(t!("analysis.no_analyzers")).color(egui::Color32::GRAY),
                     );
                 } else {
                     // Render analyzer cards
@@ -394,7 +409,7 @@ impl UltraLogApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // "Run & Chart" button (primary action)
-                        let run_chart_btn = egui::Button::new("Run & Chart")
+                        let run_chart_btn = egui::Button::new(t!("analysis.run_and_chart"))
                             .fill(egui::Color32::from_rgb(60, 100, 60));
                         let run_chart_response = ui.add_enabled(channels_available, run_chart_btn);
 
@@ -403,16 +418,15 @@ impl UltraLogApp {
                         }
 
                         if !channels_available {
-                            run_chart_response.on_hover_text("Select valid channels first");
+                            run_chart_response.on_hover_text(t!("analysis.select_valid_channels"));
                         } else {
-                            run_chart_response
-                                .on_hover_text("Run analysis and add result to chart");
+                            run_chart_response.on_hover_text(t!("analysis.run_add_tooltip"));
                         }
 
                         ui.add_space(4.0);
 
                         // "Run" button (secondary - just adds to results)
-                        let run_btn = egui::Button::new("Run");
+                        let run_btn = egui::Button::new(t!("analysis.run"));
                         let run_response = ui.add_enabled(channels_available, run_btn);
 
                         if run_response.clicked() {
@@ -420,9 +434,9 @@ impl UltraLogApp {
                         }
 
                         if !channels_available {
-                            run_response.on_hover_text("Select valid channels first");
+                            run_response.on_hover_text(t!("analysis.select_valid_channels"));
                         } else {
-                            run_response.on_hover_text("Run analysis (add to chart later)");
+                            run_response.on_hover_text(t!("analysis.run_tooltip"));
                         }
                     });
                 });
@@ -649,7 +663,7 @@ impl UltraLogApp {
                         // Remove button
                         if ui
                             .small_button("x")
-                            .on_hover_text("Remove result")
+                            .on_hover_text(t!("analysis.remove_result_tooltip"))
                             .clicked()
                         {
                             action = Some(ResultAction::Remove);
@@ -659,8 +673,8 @@ impl UltraLogApp {
 
                         // Add to chart button
                         if ui
-                            .button("+ Chart")
-                            .on_hover_text("Add to chart as a channel")
+                            .button(t!("analysis.add_chart"))
+                            .on_hover_text(t!("analysis.add_to_chart_result"))
                             .clicked()
                         {
                             action = Some(ResultAction::AddToChart);
@@ -741,7 +755,7 @@ impl UltraLogApp {
             color_index,
         });
 
-        self.show_toast_success(&format!("Added '{}' to chart", result.name));
+        self.show_toast_success(&t!("toast.added_to_chart", name = result.name));
     }
 
     /// Run an analyzer by its ID
@@ -749,7 +763,7 @@ impl UltraLogApp {
         let file_idx = match self.selected_file {
             Some(idx) => idx,
             None => {
-                self.show_toast_error("No file selected");
+                self.show_toast_error(&t!("toast.no_file_selected"));
                 return;
             }
         };
@@ -758,7 +772,7 @@ impl UltraLogApp {
         let log = match self.files.get(file_idx) {
             Some(file) => &file.log,
             None => {
-                self.show_toast_error("File not found");
+                self.show_toast_error(&t!("toast.file_not_found"));
                 return;
             }
         };
@@ -778,14 +792,14 @@ impl UltraLogApp {
                         .entry(file_idx)
                         .or_default()
                         .push(result);
-                    self.show_toast_success(&format!("Analysis complete: {}", result_name));
+                    self.show_toast_success(&t!("toast.analysis_complete", name = result_name));
                 }
                 Err(e) => {
-                    self.show_toast_error(&format!("Analysis failed: {}", e));
+                    self.show_toast_error(&t!("toast.analysis_failed", error = e.to_string()));
                 }
             }
         } else {
-            self.show_toast_error(&format!("Analyzer not found: {}", analyzer_id));
+            self.show_toast_error(&t!("toast.analyzer_not_found", id = analyzer_id));
         }
     }
 
@@ -794,7 +808,7 @@ impl UltraLogApp {
         let file_idx = match self.selected_file {
             Some(idx) => idx,
             None => {
-                self.show_toast_error("No file selected");
+                self.show_toast_error(&t!("toast.no_file_selected"));
                 return;
             }
         };
@@ -803,7 +817,7 @@ impl UltraLogApp {
         let log = match self.files.get(file_idx) {
             Some(file) => &file.log,
             None => {
-                self.show_toast_error("File not found");
+                self.show_toast_error(&t!("toast.file_not_found"));
                 return;
             }
         };
@@ -835,14 +849,14 @@ impl UltraLogApp {
                     // Immediately add to chart
                     self.add_analysis_result_to_chart(result_idx);
 
-                    self.show_toast_success(&format!("'{}' added to chart", result_name));
+                    self.show_toast_success(&t!("toast.added_to_chart", name = result_name));
                 }
                 Err(e) => {
-                    self.show_toast_error(&format!("Analysis failed: {}", e));
+                    self.show_toast_error(&t!("toast.analysis_failed", error = e.to_string()));
                 }
             }
         } else {
-            self.show_toast_error(&format!("Analyzer not found: {}", analyzer_id));
+            self.show_toast_error(&t!("toast.analyzer_not_found", id = analyzer_id));
         }
     }
 }

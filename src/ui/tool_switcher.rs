@@ -4,6 +4,7 @@
 //! allowing users to switch between Log Viewer and Scatter Plots views.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::analytics;
 use crate::app::UltraLogApp;
@@ -44,10 +45,17 @@ impl UltraLogApp {
                     egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
                 };
 
+                // Get translated tool name
+                let tool_name = match tool {
+                    ActiveTool::LogViewer => t!("tools.log_viewer"),
+                    ActiveTool::ScatterPlot => t!("tools.scatter_plots"),
+                    ActiveTool::Histogram => t!("tools.histogram"),
+                };
+
                 // Create pill-style button
                 let response = ui.add(
                     egui::Button::new(
-                        egui::RichText::new(tool.name())
+                        egui::RichText::new(tool_name.as_ref())
                             .size(self.scaled_font(14.0))
                             .color(text_color),
                     )

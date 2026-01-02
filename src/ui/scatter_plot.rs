@@ -4,6 +4,7 @@
 //! relationships between channels as a 2D histogram with hit count coloring.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::normalize::{normalize_channel_name_with_custom, sort_channels_by_priority};
@@ -44,7 +45,7 @@ impl UltraLogApp {
         if self.active_tab.is_none() || self.files.is_empty() {
             ui.centered_and_justified(|ui| {
                 ui.label(
-                    egui::RichText::new("Load a log file to use scatter plots")
+                    egui::RichText::new(t!("scatter.no_file_loaded"))
                         .size(self.scaled_font(20.0))
                         .color(egui::Color32::GRAY),
                 );
@@ -193,7 +194,7 @@ impl UltraLogApp {
 
         ui.horizontal(|ui| {
             // X Axis selector
-            ui.label("X Axis:");
+            ui.label(t!("scatter.x_axis"));
             egui::ComboBox::from_id_salt(if is_left { "left_x" } else { "right_x" })
                 .selected_text(
                     current_x
@@ -212,7 +213,7 @@ impl UltraLogApp {
             ui.add_space(16.0);
 
             // Y Axis selector
-            ui.label("Y Axis:");
+            ui.label(t!("scatter.y_axis"));
             egui::ComboBox::from_id_salt(if is_left { "left_y" } else { "right_y" })
                 .selected_text(
                     current_y
@@ -231,8 +232,11 @@ impl UltraLogApp {
             ui.add_space(16.0);
 
             // Z Axis is always "Hits" (density)
-            ui.label("Z Axis:");
-            ui.label(egui::RichText::new("Hits").color(egui::Color32::from_rgb(150, 150, 150)));
+            ui.label(t!("scatter.z_axis"));
+            ui.label(
+                egui::RichText::new(t!("scatter.hits"))
+                    .color(egui::Color32::from_rgb(150, 150, 150)),
+            );
         });
 
         // Apply channel updates after UI is rendered
@@ -639,7 +643,7 @@ impl UltraLogApp {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new("Hits:")
+                            egui::RichText::new(t!("scatter.hits_label"))
                                 .size(font_11)
                                 .color(egui::Color32::WHITE),
                         );

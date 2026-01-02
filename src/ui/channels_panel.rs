@@ -3,6 +3,7 @@
 //! This panel provides channel selection functionality that works across all tool modes.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::normalize::sort_channels_by_priority;
@@ -42,12 +43,12 @@ impl UltraLogApp {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new("ƒ")
+                            egui::RichText::new("\u{0192}")
                                 .color(egui::Color32::WHITE)
                                 .size(font_14),
                         );
                         ui.label(
-                            egui::RichText::new("Computed Channels")
+                            egui::RichText::new(t!("channels.computed_channels"))
                                 .color(egui::Color32::WHITE)
                                 .size(font_14),
                         );
@@ -57,7 +58,7 @@ impl UltraLogApp {
             if computed_btn
                 .response
                 .interact(egui::Sense::click())
-                .on_hover_text("Create virtual channels from mathematical formulas")
+                .on_hover_text(t!("channels.computed_channels_tooltip"))
                 .clicked()
             {
                 self.show_computed_channels_manager = true;
@@ -79,13 +80,13 @@ impl UltraLogApp {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new("🔍")
+                            egui::RichText::new("\u{1F50D}")
                                 .size(font_14)
                                 .color(egui::Color32::GRAY),
                         );
                         let response = ui.add(
                             egui::TextEdit::singleline(&mut search_text)
-                                .hint_text("Search channels...")
+                                .hint_text(t!("channels.search_hint"))
                                 .desired_width(f32::INFINITY)
                                 .frame(false),
                         );
@@ -101,9 +102,11 @@ impl UltraLogApp {
 
             // Channel count
             ui.label(
-                egui::RichText::new(format!(
-                    "Selected: {} / {} | Total: {}",
-                    selected_count, MAX_CHANNELS, channel_count
+                egui::RichText::new(t!(
+                    "channels.selected_count",
+                    selected = selected_count,
+                    max = MAX_CHANNELS,
+                    total = channel_count
                 ))
                 .size(font_12)
                 .color(egui::Color32::GRAY),
@@ -120,19 +123,19 @@ impl UltraLogApp {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.label(
-                    egui::RichText::new("📊")
+                    egui::RichText::new("\u{1F4CA}")
                         .size(32.0)
                         .color(egui::Color32::from_rgb(100, 100, 100)),
                 );
                 ui.add_space(8.0);
                 ui.label(
-                    egui::RichText::new("No file selected")
+                    egui::RichText::new(t!("channels.no_file_selected"))
                         .size(font_14)
                         .color(egui::Color32::GRAY),
                 );
                 ui.add_space(4.0);
                 ui.label(
-                    egui::RichText::new("Load a file to view channels")
+                    egui::RichText::new(t!("channels.load_file_to_view"))
                         .size(font_12)
                         .color(egui::Color32::from_rgb(100, 100, 100)),
                 );
@@ -209,7 +212,7 @@ impl UltraLogApp {
             let response = frame
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        let check = if is_selected { "☑" } else { "☐" };
+                        let check = if is_selected { "\u{2611}" } else { "\u{2610}" };
                         ui.label(egui::RichText::new(check).size(font_14).color(text_color));
                         ui.label(
                             egui::RichText::new(display_name)
@@ -240,9 +243,12 @@ impl UltraLogApp {
                 // Channels with data
                 if !channels_with.is_empty() {
                     egui::CollapsingHeader::new(
-                        egui::RichText::new(format!("📊 With Data ({})", channels_with.len()))
-                            .size(font_14)
-                            .strong(),
+                        egui::RichText::new(format!(
+                            "\u{1F4CA} {}",
+                            t!("channels.with_data", count = channels_with.len())
+                        ))
+                        .size(font_14)
+                        .strong(),
                     )
                     .default_open(true)
                     .show(ui, |ui| {
@@ -264,9 +270,12 @@ impl UltraLogApp {
                 // Empty channels
                 if !channels_without.is_empty() {
                     egui::CollapsingHeader::new(
-                        egui::RichText::new(format!("📭 Empty ({})", channels_without.len()))
-                            .size(font_14)
-                            .color(egui::Color32::GRAY),
+                        egui::RichText::new(format!(
+                            "\u{1F4ED} {}",
+                            t!("channels.empty", count = channels_without.len())
+                        ))
+                        .size(font_14)
+                        .color(egui::Color32::GRAY),
                     )
                     .default_open(false)
                     .show(ui, |ui| {

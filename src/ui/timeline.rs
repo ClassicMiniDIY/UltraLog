@@ -1,6 +1,7 @@
 //! Timeline scrubber and playback controls UI.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::analytics;
 use crate::app::UltraLogApp;
@@ -77,7 +78,11 @@ impl UltraLogApp {
             let button_size = egui::vec2(28.0, 28.0);
 
             // Play/Pause button
-            let play_text = if self.is_playing { "⏸" } else { "▶" };
+            let play_text = if self.is_playing {
+                "\u{23F8}"
+            } else {
+                "\u{25B6}"
+            };
             let play_button = egui::Button::new(
                 egui::RichText::new(play_text)
                     .size(self.scaled_font(16.0))
@@ -109,7 +114,7 @@ impl UltraLogApp {
 
             // Stop button (resets to beginning)
             let stop_button = egui::Button::new(
-                egui::RichText::new("⏹")
+                egui::RichText::new("\u{23F9}")
                     .size(self.scaled_font(16.0))
                     .color(egui::Color32::from_rgb(191, 78, 48)), // Rust orange
             )
@@ -130,7 +135,7 @@ impl UltraLogApp {
 
             // Playback speed selector
             ui.label(
-                egui::RichText::new("Speed:")
+                egui::RichText::new(t!("timeline.speed"))
                     .color(egui::Color32::GRAY)
                     .size(font_14),
             );
@@ -150,7 +155,7 @@ impl UltraLogApp {
             // Current time display
             if let Some(time) = self.get_cursor_time() {
                 ui.label(
-                    egui::RichText::new(format!("Time: {}", Self::format_time(time)))
+                    egui::RichText::new(t!("timeline.time", time = Self::format_time(time)))
                         .strong()
                         .color(egui::Color32::from_rgb(0, 255, 255)) // Cyan to match cursor
                         .size(font_14),
@@ -166,10 +171,10 @@ impl UltraLogApp {
                     if file_index < self.files.len() {
                         let total_records = self.files[file_index].log.data.len();
                         ui.label(
-                            egui::RichText::new(format!(
-                                "Record {} of {}",
-                                record + 1,
-                                total_records
+                            egui::RichText::new(t!(
+                                "timeline.record",
+                                current = record + 1,
+                                total = total_records
                             ))
                             .color(egui::Color32::LIGHT_GRAY)
                             .size(font_14),

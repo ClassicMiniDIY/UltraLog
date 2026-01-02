@@ -4,6 +4,7 @@
 //! and apply computed channels to the active log file.
 
 use eframe::egui;
+use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::computed::{ComputedChannel, ComputedChannelTemplate};
@@ -26,7 +27,7 @@ impl UltraLogApp {
         let font_12 = self.scaled_font(12.0);
         let font_14 = self.scaled_font(14.0);
 
-        egui::Window::new("Computed Channels")
+        egui::Window::new(t!("computed.title"))
             .open(&mut open)
             .resizable(true)
             .default_width(500.0)
@@ -35,7 +36,7 @@ impl UltraLogApp {
             .show(ctx, |ui| {
                 // Header with help button
                 ui.horizontal(|ui| {
-                    ui.heading("Computed Channels");
+                    ui.heading(t!("computed.title"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Help button
                         let help_btn = ui.add(
@@ -45,9 +46,9 @@ impl UltraLogApp {
                         if help_btn.clicked() {
                             self.show_computed_channels_help = !self.show_computed_channels_help;
                         }
-                        help_btn.on_hover_text("Show formula syntax help");
+                        help_btn.on_hover_text(t!("computed.show_help"));
 
-                        if ui.button("+ New").clicked() {
+                        if ui.button(t!("computed.new")).clicked() {
                             self.formula_editor_state.open_new();
                         }
                     });
@@ -55,7 +56,7 @@ impl UltraLogApp {
 
                 ui.add_space(4.0);
                 ui.label(
-                    egui::RichText::new("Create virtual channels from mathematical formulas.")
+                    egui::RichText::new(t!("computed.description"))
                         .size(font_12)
                         .color(egui::Color32::GRAY),
                 );
@@ -63,43 +64,47 @@ impl UltraLogApp {
                 ui.add_space(8.0);
 
                 // Quick Create section
-                ui.label(egui::RichText::new("Quick Create:").size(font_12).strong());
+                ui.label(
+                    egui::RichText::new(t!("computed.quick_create"))
+                        .size(font_12)
+                        .strong(),
+                );
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     if ui
-                        .button("Rate of Change")
-                        .on_hover_text("Create: Channel - Channel[-1]")
+                        .button(t!("computed.rate_of_change"))
+                        .on_hover_text(t!("computed.rate_of_change_hint"))
                         .clicked()
                     {
                         self.formula_editor_state.open_with_pattern(
-                            "Rate of Change",
+                            &t!("computed.rate_of_change"),
                             "{channel} - {channel}[-1]",
                             "/sample",
-                            "Rate of change per sample",
+                            &t!("computed.rate_of_change_desc"),
                         );
                     }
                     if ui
-                        .button("Moving Avg")
-                        .on_hover_text("Create: 3-sample moving average")
+                        .button(t!("computed.moving_avg"))
+                        .on_hover_text(t!("computed.moving_avg_hint"))
                         .clicked()
                     {
                         self.formula_editor_state.open_with_pattern(
-                            "Moving Average",
+                            &t!("computed.moving_avg"),
                             "({channel} + {channel}[-1] + {channel}[-2]) / 3",
                             "",
-                            "3-sample moving average for smoothing",
+                            &t!("computed.moving_avg_desc"),
                         );
                     }
                     if ui
-                        .button("% Deviation")
-                        .on_hover_text("Create: Percentage deviation from a target")
+                        .button(t!("computed.deviation"))
+                        .on_hover_text(t!("computed.deviation_hint"))
                         .clicked()
                     {
                         self.formula_editor_state.open_with_pattern(
-                            "Deviation",
+                            &t!("computed.deviation"),
                             "({channel} - 14.7) / 14.7 * 100",
                             "%",
-                            "Percentage deviation from target value",
+                            &t!("computed.deviation_desc"),
                         );
                     }
                 });
@@ -111,9 +116,9 @@ impl UltraLogApp {
                 // Search filter
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new(format!(
-                            "Your Library ({})",
-                            self.computed_library.templates.len()
+                        egui::RichText::new(t!(
+                            "computed.your_library",
+                            count = self.computed_library.templates.len()
                         ))
                         .size(font_14)
                         .strong(),
@@ -121,7 +126,7 @@ impl UltraLogApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut self.computed_channels_search)
-                                .hint_text("🔍 Search...")
+                                .hint_text(t!("computed.search"))
                                 .desired_width(120.0),
                         );
                     });
@@ -134,12 +139,12 @@ impl UltraLogApp {
                     ui.vertical_centered(|ui| {
                         ui.add_space(20.0);
                         ui.label(
-                            egui::RichText::new("No computed channels yet")
+                            egui::RichText::new(t!("computed.no_channels"))
                                 .color(egui::Color32::GRAY),
                         );
                         ui.add_space(4.0);
                         ui.label(
-                            egui::RichText::new("Use Quick Create or click '+ New' to get started")
+                            egui::RichText::new(t!("computed.get_started"))
                                 .color(egui::Color32::GRAY)
                                 .size(font_12),
                         );
@@ -204,11 +209,11 @@ impl UltraLogApp {
                     if let Some(ref template) = template_to_duplicate {
                         let mut new_template = template.clone();
                         new_template.id = uuid::Uuid::new_v4().to_string();
-                        new_template.name = format!("{} (copy)", template.name);
+                        new_template.name = format!("{} ({})", template.name, t!("computed.copy"));
                         new_template.is_builtin = false;
                         self.computed_library.add_template(new_template);
                         let _ = self.computed_library.save();
-                        self.show_toast_success("Template duplicated");
+                        self.show_toast_success(&t!("toast.template_duplicated"));
                     }
                 }
 
@@ -276,7 +281,7 @@ impl UltraLogApp {
                                         .size(font_12)
                                         .color(egui::Color32::GOLD),
                                 )
-                                .on_hover_text("Built-in template");
+                                .on_hover_text(t!("computed.builtin_template"));
                             }
                         });
                         ui.label(
@@ -291,18 +296,18 @@ impl UltraLogApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Overflow menu for Edit/Delete/Duplicate
                         ui.menu_button("•••", |ui| {
-                            if ui.button("Edit").clicked() {
+                            if ui.button(t!("common.edit")).clicked() {
                                 *template_to_edit = Some(template.id.clone());
                                 ui.close();
                             }
-                            if ui.button("Duplicate").clicked() {
+                            if ui.button(t!("common.duplicate")).clicked() {
                                 *template_to_duplicate = Some(template.clone());
                                 ui.close();
                             }
                             ui.separator();
                             if ui
                                 .button(
-                                    egui::RichText::new("Delete")
+                                    egui::RichText::new(t!("common.delete"))
                                         .color(egui::Color32::from_rgb(255, 120, 120)),
                                 )
                                 .clicked()
@@ -315,7 +320,7 @@ impl UltraLogApp {
                         // Apply button (primary action)
                         if self.active_tab.is_some() {
                             let apply_btn = egui::Button::new(
-                                egui::RichText::new("Apply").color(egui::Color32::WHITE),
+                                egui::RichText::new(t!("common.apply")).color(egui::Color32::WHITE),
                             )
                             .fill(egui::Color32::from_rgb(80, 110, 80));
 
@@ -339,7 +344,7 @@ impl UltraLogApp {
                 .unwrap_or(0);
 
             ui.label(
-                egui::RichText::new(format!("Applied to Current File ({})", applied_count))
+                egui::RichText::new(t!("computed.applied_to_file", count = applied_count))
                     .size(font_14)
                     .strong(),
             );
@@ -347,7 +352,7 @@ impl UltraLogApp {
 
             if applied_count == 0 {
                 ui.label(
-                    egui::RichText::new("Apply templates from the library above")
+                    egui::RichText::new(t!("computed.apply_templates_hint"))
                         .color(egui::Color32::GRAY)
                         .size(font_12),
                 );
@@ -397,15 +402,15 @@ impl UltraLogApp {
                                         |ui| {
                                             if ui
                                                 .small_button("x")
-                                                .on_hover_text("Remove")
+                                                .on_hover_text(t!("common.remove"))
                                                 .clicked()
                                             {
                                                 channel_to_remove = Some(idx);
                                             }
                                             if channel.is_valid()
                                                 && ui
-                                                    .small_button("+ Chart")
-                                                    .on_hover_text("Add to chart")
+                                                    .small_button(t!("computed.add_chart"))
+                                                    .on_hover_text(t!("computed.add_to_chart"))
                                                     .clicked()
                                             {
                                                 channel_to_select = Some(idx);
@@ -428,7 +433,7 @@ impl UltraLogApp {
             }
         } else {
             ui.label(
-                egui::RichText::new("Load a log file to apply computed channels")
+                egui::RichText::new(t!("computed.load_file_hint"))
                     .color(egui::Color32::GRAY)
                     .size(font_12),
             );
@@ -439,7 +444,7 @@ impl UltraLogApp {
     fn render_computed_channels_help(&mut self, ctx: &egui::Context) {
         let mut open = true;
 
-        egui::Window::new("Formula Help")
+        egui::Window::new(t!("computed.help_title"))
             .open(&mut open)
             .resizable(false)
             .default_width(400.0)
@@ -450,49 +455,55 @@ impl UltraLogApp {
                     .max_height(400.0)
                     .show(ui, |ui| {
                         // Channel References
-                        ui.label(egui::RichText::new("Channel References").strong());
+                        ui.label(egui::RichText::new(t!("computed.help_channel_refs")).strong());
                         ui.add_space(4.0);
-                        Self::help_row(ui, "RPM", "Current value of RPM channel");
+                        Self::help_row(ui, "RPM", &t!("computed.help_current_value"));
                         Self::help_row(
                             ui,
                             "\"Manifold Pressure\"",
-                            "Channels with spaces (use quotes)",
+                            &t!("computed.help_quoted_channel"),
                         );
-                        Self::help_row(ui, "RPM[-1]", "Previous sample (index offset)");
-                        Self::help_row(ui, "RPM[+2]", "2 samples ahead");
-                        Self::help_row(ui, "RPM@-0.1s", "Value 100ms ago (time offset)");
+                        Self::help_row(ui, "RPM[-1]", &t!("computed.help_prev_sample"));
+                        Self::help_row(ui, "RPM[+2]", &t!("computed.help_samples_ahead"));
+                        Self::help_row(ui, "RPM@-0.1s", &t!("computed.help_time_offset"));
 
                         ui.add_space(12.0);
-                        ui.label(egui::RichText::new("Operators").strong());
+                        ui.label(egui::RichText::new(t!("computed.help_operators")).strong());
                         ui.add_space(4.0);
-                        Self::help_row(ui, "+ - * /", "Basic math");
-                        Self::help_row(ui, "^", "Power (e.g., RPM^2)");
-                        Self::help_row(ui, "( )", "Grouping");
+                        Self::help_row(ui, "+ - * /", &t!("computed.help_basic_math"));
+                        Self::help_row(ui, "^", &t!("computed.help_power"));
+                        Self::help_row(ui, "( )", &t!("computed.help_grouping"));
 
                         ui.add_space(12.0);
-                        ui.label(egui::RichText::new("Functions").strong());
+                        ui.label(egui::RichText::new(t!("computed.help_functions")).strong());
                         ui.add_space(4.0);
-                        Self::help_row(ui, "sin, cos, tan", "Trigonometry");
-                        Self::help_row(ui, "sqrt, abs", "Square root, absolute value");
-                        Self::help_row(ui, "ln, log, exp", "Logarithms, exponential");
-                        Self::help_row(ui, "min, max", "Minimum, maximum");
-                        Self::help_row(ui, "floor, ceil", "Rounding");
+                        Self::help_row(ui, "sin, cos, tan", &t!("computed.help_trig"));
+                        Self::help_row(ui, "sqrt, abs", &t!("computed.help_sqrt_abs"));
+                        Self::help_row(ui, "ln, log, exp", &t!("computed.help_log"));
+                        Self::help_row(ui, "min, max", &t!("computed.help_minmax"));
+                        Self::help_row(ui, "floor, ceil", &t!("computed.help_rounding"));
 
                         ui.add_space(12.0);
-                        ui.label(
-                            egui::RichText::new("Statistics (for anomaly detection)").strong(),
+                        ui.label(egui::RichText::new(t!("computed.help_statistics")).strong());
+                        ui.add_space(4.0);
+                        Self::help_row(ui, "_mean_RPM", &t!("computed.help_mean"));
+                        Self::help_row(ui, "_stdev_RPM", &t!("computed.help_stdev"));
+                        Self::help_row(ui, "_min_RPM / _max_RPM", &t!("computed.help_min_max"));
+
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new(t!("computed.help_examples")).strong());
+                        ui.add_space(4.0);
+                        Self::example_row(ui, "RPM - RPM[-1]", &t!("computed.help_ex_rate"));
+                        Self::example_row(
+                            ui,
+                            "(AFR - 14.7) / 14.7 * 100",
+                            &t!("computed.help_ex_deviation"),
                         );
-                        ui.add_space(4.0);
-                        Self::help_row(ui, "_mean_RPM", "Mean of entire RPM channel");
-                        Self::help_row(ui, "_stdev_RPM", "Standard deviation");
-                        Self::help_row(ui, "_min_RPM / _max_RPM", "Min/max values");
-
-                        ui.add_space(12.0);
-                        ui.label(egui::RichText::new("Examples").strong());
-                        ui.add_space(4.0);
-                        Self::example_row(ui, "RPM - RPM[-1]", "RPM change per sample");
-                        Self::example_row(ui, "(AFR - 14.7) / 14.7 * 100", "AFR % deviation");
-                        Self::example_row(ui, "(RPM - _mean_RPM) / _stdev_RPM", "Z-score");
+                        Self::example_row(
+                            ui,
+                            "(RPM - _mean_RPM) / _stdev_RPM",
+                            &t!("computed.help_ex_zscore"),
+                        );
                     });
             });
 
@@ -531,7 +542,7 @@ impl UltraLogApp {
     /// Apply a computed channel template to the current file
     pub fn apply_computed_channel_template(&mut self, template: &ComputedChannelTemplate) {
         let Some(tab_idx) = self.active_tab else {
-            self.show_toast_warning("No active tab");
+            self.show_toast_warning(&t!("toast.no_active_tab"));
             return;
         };
 
@@ -546,7 +557,7 @@ impl UltraLogApp {
         let bindings = match build_channel_bindings(&refs, &available_channels) {
             Ok(b) => b,
             Err(e) => {
-                self.show_toast_error(&format!("Failed to apply: {}", e));
+                self.show_toast_error(&t!("toast.failed_to_apply", error = e));
                 return;
             }
         };
@@ -572,7 +583,7 @@ impl UltraLogApp {
             ) {
                 Ok(data) => Some(data),
                 Err(e) => {
-                    self.show_toast_error(&format!("Evaluation failed: {}", e));
+                    self.show_toast_error(&t!("toast.evaluation_failed", error = e));
                     return;
                 }
             }
@@ -585,7 +596,7 @@ impl UltraLogApp {
             ) {
                 Ok(data) => Some(data),
                 Err(e) => {
-                    self.show_toast_error(&format!("Evaluation failed: {}", e));
+                    self.show_toast_error(&t!("toast.evaluation_failed", error = e));
                     return;
                 }
             }
@@ -602,7 +613,7 @@ impl UltraLogApp {
             .or_default()
             .push(channel);
 
-        self.show_toast_success(&format!("Applied '{}'", template.name));
+        self.show_toast_success(&t!("toast.applied_template", name = template.name.as_str()));
     }
 
     /// Add a computed channel to the chart
@@ -633,13 +644,13 @@ impl UltraLogApp {
             .iter()
             .any(|c| c.file_index == file_idx && c.channel_index == virtual_channel_index)
         {
-            self.show_toast_warning("Channel already on chart");
+            self.show_toast_warning(&t!("toast.channel_already_on_chart"));
             return;
         }
 
         // Check max channels
         if self.tabs[tab_idx].selected_channels.len() >= 10 {
-            self.show_toast_warning("Maximum 10 channels reached");
+            self.show_toast_warning(&t!("toast.max_channels_reached"));
             return;
         }
 
@@ -667,6 +678,6 @@ impl UltraLogApp {
             color_index,
         });
 
-        self.show_toast_success(&format!("Added '{}' to chart", computed.name()));
+        self.show_toast_success(&t!("toast.added_to_chart", name = computed.name()));
     }
 }
