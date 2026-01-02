@@ -14,6 +14,8 @@ use std::thread;
 use crate::analysis::{AnalysisResult, AnalyzerRegistry};
 use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
+use crate::ipc::IpcServer;
+use crate::mcp::{start_mcp_server, McpServerHandle, DEFAULT_MCP_PORT};
 use crate::parsers::{
     Aim, EcuMaster, EcuType, Emerald, Haltech, Link, Parseable, RomRaider, Speeduino,
 };
@@ -139,6 +141,11 @@ pub struct UltraLogApp {
     pub(crate) show_analysis_panel: bool,
     /// Selected category in analysis panel (None = show all)
     pub(crate) analysis_selected_category: Option<String>,
+    // === MCP Integration ===
+    /// IPC server for MCP integration (allows Claude to control the app)
+    ipc_server: Option<IpcServer>,
+    /// MCP HTTP server handle (embedded server for Claude Desktop connection)
+    mcp_server: Option<McpServerHandle>,
 }
 
 impl Default for UltraLogApp {
@@ -192,6 +199,8 @@ impl Default for UltraLogApp {
             analysis_results: HashMap::new(),
             show_analysis_panel: false,
             analysis_selected_category: None,
+            ipc_server: None,
+            mcp_server: None,
         }
     }
 }
@@ -231,7 +240,38 @@ impl UltraLogApp {
         // Apply fonts
         cc.egui_ctx.set_fonts(fonts);
 
-        Self::default()
+        // Start the IPC server for MCP integration
+        let mut app = Self::default();
+        let mut ipc_port = crate::ipc::DEFAULT_IPC_PORT;
+        match IpcServer::start() {
+            Ok(server) => {
+                ipc_port = server.port();
+                tracing::info!("MCP IPC server started on port {}", ipc_port);
+                app.ipc_server = Some(server);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to start MCP IPC server: {}", e);
+            }
+        }
+
+        // Start the MCP HTTP server (embedded, for Claude Desktop connection)
+        if app.ipc_server.is_some() {
+            match start_mcp_server(DEFAULT_MCP_PORT, ipc_port) {
+                Ok(handle) => {
+                    tracing::info!(
+                        "MCP HTTP server started at {} (port {} = 5-2-4-5-3, I5 firing order tribute)",
+                        handle.url(),
+                        handle.port()
+                    );
+                    app.mcp_server = Some(handle);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to start MCP HTTP server: {}", e);
+                }
+            }
+        }
+
+        app
     }
 
     // ========================================================================
@@ -1351,6 +1391,33 @@ impl UltraLogApp {
             }
         });
     }
+
+    // ========================================================================
+    // MCP Integration
+    // ========================================================================
+
+    /// Process pending IPC commands from the MCP server
+    fn process_ipc_commands(&mut self) {
+        // Collect commands first to avoid borrowing issues
+        let mut pending_commands = Vec::new();
+
+        if let Some(server) = &self.ipc_server {
+            // Collect up to 10 commands per frame to avoid blocking the UI
+            for _ in 0..10 {
+                if let Some(cmd) = server.poll_command() {
+                    pending_commands.push(cmd);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Now process the collected commands
+        for (command, response_sender) in pending_commands {
+            let response = self.handle_ipc_command(command);
+            let _ = response_sender.send(response);
+        }
+    }
 }
 
 // ============================================================================
@@ -1383,6 +1450,9 @@ impl eframe::App for UltraLogApp {
         // Handle keyboard shortcuts
         self.handle_keyboard_shortcuts(ctx);
 
+        // Handle IPC commands from MCP server
+        self.process_ipc_commands();
+
         // Apply dark theme
         ctx.set_visuals(egui::Visuals::dark());
 
@@ -1394,6 +1464,13 @@ impl eframe::App for UltraLogApp {
             )
         {
             ctx.request_repaint();
+        }
+
+        // When MCP server is active, request repaint at 10Hz to poll for IPC commands
+        // This is much more CPU-efficient than continuous repaint while still being
+        // responsive enough for MCP commands (100ms latency max).
+        if self.ipc_server.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
 
         // Toast notifications

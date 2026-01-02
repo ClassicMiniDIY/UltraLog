@@ -70,7 +70,13 @@ anyhow = "1.0"
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# MCP Server (Model Context Protocol)
+rmcp = { version = "0.12", features = ["server", "transport-streamable-http-server", "macros"] }
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+schemars = "1.0"
 
 # UUID generation for anonymous user IDs
 uuid = { version = "1.0", features = ["v4"] }
