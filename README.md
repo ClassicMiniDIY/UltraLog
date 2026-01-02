@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/SomethingNew71/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-2.0.0-green.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-green.svg)
 
 ---
 
@@ -145,6 +145,7 @@ Configurable units for 8 measurement categories:
 - **Font scaling** - Four font sizes (S, M, L, XL) for improved readability
 - **Custom font** - Clear, readable Outfit typeface
 - **Toast notifications** - Non-intrusive feedback for user actions
+- **Multilingual support** - 15 languages including English, Spanish, German, French, Italian, Portuguese, Chinese, Japanese, Hindi, Arabic, Bengali, Russian, Urdu, and Indonesian
 
 ---
 
@@ -542,6 +543,12 @@ Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
 - Four sizes available: S (Small), M (Medium - default), L (Large), XL (Extra Large)
 - Scales all UI text for improved readability
 - Settings persist across sessions
+
+**Language Selection:**
+- Access via Settings panel → Language
+- 15 languages supported: English, Spanish (Español), German (Deutsch), French (Français), Italian (Italiano), Portuguese Brazil (Português Brasil), Portuguese Portugal (Português Portugal), Chinese Simplified (简体中文), Japanese (日本語), Hindi (हिन्दी), Arabic (العربية), Bengali (বাংলা), Russian (Русский), Urdu (اردو), and Indonesian (Bahasa Indonesia)
+- Language preference persists across sessions
+- UI text and menus update immediately when language is changed
 
 ---
 
