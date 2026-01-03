@@ -1,6 +1,6 @@
 [package]
 name = "ultralog"
-version = "2.1.0"
+version = "2.1.2"
 edition = "2021"
 description = "A high-performance ECU log viewer written in Rust"
 authors = ["Cole Gentry"]
