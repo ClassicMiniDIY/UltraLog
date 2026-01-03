@@ -85,11 +85,7 @@ impl UltraLogApp {
                             // Save to persistent settings
                             self.user_settings.language = self.language;
                             if let Err(e) = self.user_settings.save() {
-                                self.show_toast_error(&format!(
-                                    "{}: {}",
-                                    t!("toast.library_save_failed", error = e),
-                                    e
-                                ));
+                                self.show_toast_error(&t!("toast.failed_to_save", error = e));
                             }
 
                             // Request repaint to refresh all UI text

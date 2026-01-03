@@ -5,6 +5,7 @@
 
 use eframe::egui;
 use memmap2::Mmap;
+use rust_i18n::t;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::PathBuf;
@@ -279,7 +280,7 @@ impl UltraLogApp {
     pub fn start_loading_file(&mut self, path: PathBuf) {
         // Check for duplicate
         if self.files.iter().any(|f| f.path == path) {
-            self.show_toast_warning("File already loaded");
+            self.show_toast_warning(&t!("toast.file_already_loaded"));
             return;
         }
 
@@ -536,7 +537,7 @@ impl UltraLogApp {
                         self.tabs.push(tab);
                         self.active_tab = Some(self.tabs.len() - 1);
 
-                        self.show_toast_success("File loaded successfully");
+                        self.show_toast_success(&t!("toast.file_loaded"));
 
                         // Switch to Channels panel so user can select channels
                         self.active_panel = ActivePanel::Channels;
@@ -804,7 +805,7 @@ impl UltraLogApp {
     /// Add a channel to the active tab's selection
     pub fn add_channel(&mut self, file_index: usize, channel_index: usize) {
         let Some(tab_idx) = self.active_tab else {
-            self.show_toast_warning("No active tab");
+            self.show_toast_warning(&t!("toast.no_active_tab"));
             return;
         };
 
@@ -812,12 +813,12 @@ impl UltraLogApp {
 
         // Only allow adding channels from the tab's file
         if file_index != tab.file_index {
-            self.show_toast_warning("Channel must be from the active tab's file");
+            self.show_toast_warning(&t!("toast.channel_from_active_tab"));
             return;
         }
 
         if tab.selected_channels.len() >= MAX_CHANNELS {
-            self.show_toast_warning("Maximum 10 channels reached");
+            self.show_toast_warning(&t!("toast.max_channels"));
             return;
         }
 
@@ -827,7 +828,7 @@ impl UltraLogApp {
             .iter()
             .any(|c| c.file_index == file_index && c.channel_index == channel_index)
         {
-            self.show_toast_warning("Channel already selected");
+            self.show_toast_warning(&t!("toast.channel_already_selected"));
             return;
         }
 
@@ -1081,7 +1082,7 @@ impl UltraLogApp {
     /// Add a computed channel to the active file
     pub fn add_computed_channel(&mut self, computed: ComputedChannel) {
         let Some(tab_idx) = self.active_tab else {
-            self.show_toast_warning("No active tab");
+            self.show_toast_warning(&t!("toast.no_active_tab"));
             return;
         };
 
@@ -1107,9 +1108,9 @@ impl UltraLogApp {
     /// Save the computed channel library to disk
     pub fn save_computed_library(&mut self) {
         if let Err(e) = self.computed_library.save() {
-            self.show_toast_error(&format!("Failed to save library: {}", e));
+            self.show_toast_error(&t!("toast.library_save_failed", error = e));
         } else {
-            self.show_toast_success("Library saved");
+            self.show_toast_success(&t!("toast.library_saved"));
         }
     }
 
@@ -1167,14 +1168,14 @@ impl UltraLogApp {
                         analytics::track_update_checked(false);
                         // Only show toast for manual checks (not startup)
                         if self.startup_check_done {
-                            self.show_toast_success("You're running the latest version");
+                            self.show_toast_success(&t!("toast.up_to_date"));
                         }
                     }
                     UpdateCheckResult::Error(e) => {
                         self.update_state = UpdateState::Error(e.clone());
                         // Only show error toast for manual checks
                         if self.startup_check_done {
-                            self.show_toast_error(&format!("Update check failed: {}", e));
+                            self.show_toast_error(&t!("toast.update_check_failed", error = &e));
                         }
                     }
                 }
@@ -1189,11 +1190,11 @@ impl UltraLogApp {
                 match result {
                     DownloadResult::Success(path) => {
                         self.update_state = UpdateState::ReadyToInstall(path);
-                        self.show_toast_success("Update downloaded successfully");
+                        self.show_toast_success(&t!("toast.update_downloaded"));
                     }
                     DownloadResult::Error(e) => {
                         self.update_state = UpdateState::Error(e.clone());
-                        self.show_toast_error(&format!("Download failed: {}", e));
+                        self.show_toast_error(&t!("toast.download_failed", error = &e));
                     }
                 }
                 self.update_download_receiver = None;
