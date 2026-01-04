@@ -104,16 +104,23 @@ fn main() -> eframe::Result<()> {
     // Load platform-specific app icon
     let icon = load_app_icon();
 
-    // Configure native options
+    // Configure native options with platform-appropriate sizes
+    // Linux needs smaller sizes due to DPI scaling issues across desktop environments
+    #[cfg(target_os = "linux")]
+    let (initial_size, min_size) = ([1280.0, 720.0], [640.0, 480.0]);
+    #[cfg(not(target_os = "linux"))]
+    let (initial_size, min_size) = ([1920.0, 1080.0], [1000.0, 900.0]);
+
     let mut viewport = eframe::egui::ViewportBuilder::default()
-        .with_inner_size([1920.0, 1080.0])
-        .with_min_inner_size([1000.0, 900.0])
+        .with_inner_size(initial_size)
+        .with_min_inner_size(min_size)
         .with_title("UltraLog - ECU Log Viewer")
         .with_app_id("UltraLog")
-        .with_drag_and_drop(true);
+        .with_drag_and_drop(true)
+        .with_resizable(true);
 
-    // On Linux, start maximized to avoid sizing/scaling issues across different
-    // desktop environments and display configurations
+    // On Linux, start maximized for best compatibility, but with smaller fallback sizes
+    // if maximized doesn't work properly on the window manager
     #[cfg(target_os = "linux")]
     {
         viewport = viewport.with_maximized(true);

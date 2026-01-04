@@ -8,8 +8,8 @@ use crate::state::ActivePanel;
 /// Default width of the side panel in pixels
 pub const SIDE_PANEL_WIDTH: f32 = 280.0;
 
-/// Minimum width of the side panel
-pub const SIDE_PANEL_MIN_WIDTH: f32 = 200.0;
+/// Minimum width of the side panel (small enough to work on compact screens)
+pub const SIDE_PANEL_MIN_WIDTH: f32 = 150.0;
 
 impl UltraLogApp {
     /// Render the side panel content based on the active panel selection
