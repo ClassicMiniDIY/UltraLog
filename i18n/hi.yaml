@@ -292,6 +292,18 @@ histogram:
   average_z: "औसत Z"
   hit_count: "हिट गणना"
   grid: "ग्रिड:"
+  min_hits: "न्यूनतम हिट्स"
+  x_range: "X श्रेणी"
+  y_range: "Y श्रेणी"
+  auto: "स्वचालित"
+  copy: "कॉपी"
+  paste: "पेस्ट"
+  clear: "मंज़ूर"
+  operation: "ऑपरेशन"
+  compare: "तुलना"
+  comparison_histogram: "हिस्टोग्राम"
+  comparison_pasted: "पेस्ट किया गया"
+  comparison_result: "परिणाम"
 
 # Chart (src/ui/chart.rs)
 chart:

@@ -292,6 +292,18 @@ histogram:
   average_z: "Среднее Z"
   hit_count: "Количество попаданий"
   grid: "Сетка:"
+  min_hits: "Минимальные попадания"
+  x_range: "Диапазон X"
+  y_range: "Диапазон Y"
+  auto: "Автоматическое"
+  copy: "Копировать"
+  paste: "Вставить"
+  clear: "Очистить"
+  operation: "Операция"
+  compare: "Сравнить"
+  comparison_histogram: "Гистограмма"
+  comparison_pasted: "Вставленное"
+  comparison_result: "Результат"
 
 # Chart (src/ui/chart.rs)
 chart:

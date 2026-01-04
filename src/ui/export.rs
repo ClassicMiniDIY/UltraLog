@@ -452,7 +452,7 @@ impl UltraLogApp {
 
         let file = &self.files[file_idx];
         let mode = config.mode;
-        let grid_size = config.grid_size.size();
+        let grid_size = config.effective_grid_size();
 
         let x_idx = config.x_channel.ok_or("X axis not selected")?;
         let y_idx = config.y_channel.ok_or("Y axis not selected")?;
@@ -933,7 +933,7 @@ impl UltraLogApp {
 
         let file = &self.files[file_idx];
         let mode = config.mode;
-        let grid_size = config.grid_size.size();
+        let grid_size = config.effective_grid_size();
 
         let x_idx = config.x_channel.ok_or("X axis not selected")?;
         let y_idx = config.y_channel.ok_or("Y axis not selected")?;

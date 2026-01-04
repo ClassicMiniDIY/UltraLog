@@ -292,6 +292,18 @@ histogram:
   average_z: "Promedio Z"
   hit_count: "Conteo de Impactos"
   grid: "Cuadricula:"
+  min_hits: "Impactos Mínimos"
+  x_range: "Rango X"
+  y_range: "Rango Y"
+  auto: "Automático"
+  copy: "Copiar"
+  paste: "Pegar"
+  clear: "Limpiar"
+  operation: "Operación"
+  compare: "Comparar"
+  comparison_histogram: "Histograma"
+  comparison_pasted: "Pegado"
+  comparison_result: "Resultado"
 
 # Grafico (src/ui/chart.rs)
 chart:

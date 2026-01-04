@@ -1,6 +1,6 @@
 [package]
 name = "ultralog"
-version = "2.1.4"
+version = "2.2.0"
 edition = "2021"
 description = "A high-performance ECU log viewer written in Rust"
 authors = ["Cole Gentry"]
@@ -78,6 +78,9 @@ tracing-subscriber = "0.3"
 
 # UUID generation for anonymous user IDs
 uuid = { version = "1.0", features = ["v4"] }
+
+# Clipboard support for histogram copy/paste
+arboard = "3.4"
 
 # Windows-specific: embed icon and manifest
 [target.'cfg(windows)'.build-dependencies]

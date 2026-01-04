@@ -292,6 +292,18 @@ histogram:
   average_z: "Durchschnitt Z"
   hit_count: "Trefferanzahl"
   grid: "Raster:"
+  min_hits: "Min. Treffer"
+  x_range: "X-Bereich"
+  y_range: "Y-Bereich"
+  auto: "Automatisch"
+  copy: "Kopieren"
+  paste: "Einfügen"
+  clear: "Löschen"
+  operation: "Betrieb"
+  compare: "Vergleichen"
+  comparison_histogram: "Histogramm"
+  comparison_pasted: "Eingefügt"
+  comparison_result: "Ergebnis"
 
 # Chart (src/ui/chart.rs)
 chart:
