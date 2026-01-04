@@ -292,6 +292,18 @@ histogram:
   average_z: "Rata-rata Z"
   hit_count: "Jumlah Hit"
   grid: "Grid:"
+  min_hits: "Hit Minimal"
+  x_range: "Rentang X"
+  y_range: "Rentang Y"
+  auto: "Otomatis"
+  copy: "Salin"
+  paste: "Tempel"
+  clear: "Bersihkan"
+  operation: "Operasi"
+  compare: "Bandingkan"
+  comparison_histogram: "Histogram"
+  comparison_pasted: "Ditempel"
+  comparison_result: "Hasil"
 
 # Chart (src/ui/chart.rs)
 chart:

@@ -292,6 +292,18 @@ histogram:
   average_z: "Z 轴平均值"
   hit_count: "命中次数"
   grid: "网格:"
+  min_hits: "最小命中次数"
+  x_range: "X 范围"
+  y_range: "Y 范围"
+  auto: "自动"
+  copy: "复制"
+  paste: "粘贴"
+  clear: "清除"
+  operation: "操作"
+  compare: "比较"
+  comparison_histogram: "直方图"
+  comparison_pasted: "已粘贴"
+  comparison_result: "结果"
 
 # 图表 (src/ui/chart.rs)
 chart:

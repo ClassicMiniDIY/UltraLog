@@ -292,6 +292,18 @@ histogram:
   average_z: "متوسط Z"
   hit_count: "عدد الإصابات"
   grid: "الشبكة:"
+  min_hits: "الحد الأدنى للإصابات"
+  x_range: "نطاق X"
+  y_range: "نطاق Y"
+  auto: "تلقائي"
+  copy: "نسخ"
+  paste: "لصق"
+  clear: "مسح"
+  operation: "العملية"
+  compare: "مقارنة"
+  comparison_histogram: "مدرج تكراري"
+  comparison_pasted: "ملصوق"
+  comparison_result: "النتيجة"
 
 # Chart (src/ui/chart.rs)
 chart:
