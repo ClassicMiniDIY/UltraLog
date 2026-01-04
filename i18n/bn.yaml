@@ -292,6 +292,18 @@ histogram:
   average_z: "গড় Z"
   hit_count: "হিট গণনা"
   grid: "গ্রিড:"
+  min_hits: "সর্বনিম্ন হিট"
+  x_range: "X পরিসীমা"
+  y_range: "Y পরিসীমা"
+  auto: "স্বয়ংক্রিয়"
+  copy: "কপি"
+  paste: "পেস্ট"
+  clear: "পরিষ্কার"
+  operation: "পরিচালনা"
+  compare: "তুলনা"
+  comparison_histogram: "হিস্টোগ্রাম"
+  comparison_pasted: "পেস্ট করা"
+  comparison_result: "ফলাফল"
 
 # Chart (src/ui/chart.rs)
 chart:

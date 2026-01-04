@@ -3818,9 +3818,10 @@ dependencies = [
 
 [[package]]
 name = "ultralog"
-version = "2.1.2"
+version = "2.2.0"
 dependencies = [
  "anyhow",
+ "arboard",
  "dirs",
  "eframe",
  "egui_extras",

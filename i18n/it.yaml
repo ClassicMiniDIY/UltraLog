@@ -292,6 +292,18 @@ histogram:
   average_z: "Media Z"
   hit_count: "Conteggio Occorrenze"
   grid: "Griglia:"
+  min_hits: "Occorrenze Minime"
+  x_range: "Intervallo X"
+  y_range: "Intervallo Y"
+  auto: "Automatico"
+  copy: "Copia"
+  paste: "Incolla"
+  clear: "Cancella"
+  operation: "Operazione"
+  compare: "Confronta"
+  comparison_histogram: "Istogramma"
+  comparison_pasted: "Incollato"
+  comparison_result: "Risultato"
 
 # Chart (src/ui/chart.rs)
 chart:

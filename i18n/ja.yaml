@@ -292,6 +292,18 @@ histogram:
   average_z: "Z平均"
   hit_count: "ヒット数"
   grid: "グリッド:"
+  min_hits: "最小ヒット数"
+  x_range: "X範囲"
+  y_range: "Y範囲"
+  auto: "自動"
+  copy: "コピー"
+  paste: "貼り付け"
+  clear: "クリア"
+  operation: "操作"
+  compare: "比較"
+  comparison_histogram: "ヒストグラム"
+  comparison_pasted: "貼り付け済み"
+  comparison_result: "結果"
 
 # Chart (src/ui/chart.rs)
 chart:
