@@ -292,6 +292,18 @@ histogram:
   average_z: "Average Z"
   hit_count: "Hit Count"
   grid: "Grid:"
+  min_hits: "Min Hits"
+  x_range: "X Range"
+  y_range: "Y Range"
+  auto: "Auto"
+  copy: "Copy"
+  paste: "Paste"
+  clear: "Clear"
+  operation: "Op"
+  compare: "Compare"
+  comparison_histogram: "Histogram"
+  comparison_pasted: "Pasted"
+  comparison_result: "Result"
 
 # Chart (src/ui/chart.rs)
 chart:

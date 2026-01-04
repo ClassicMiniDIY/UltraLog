@@ -293,6 +293,18 @@ histogram:
   average_z: "اوسط Z"
   hit_count: "ہٹ کاؤنٹ"
   grid: "گرڈ:"
+  min_hits: "کم سے کم ہٹس"
+  x_range: "X رینج"
+  y_range: "Y رینج"
+  auto: "خودکار"
+  copy: "نقل"
+  paste: "چسپاں"
+  clear: "صاف"
+  operation: "آپریشن"
+  compare: "موازنہ"
+  comparison_histogram: "ہسٹوگرام"
+  comparison_pasted: "چسپاں"
+  comparison_result: "نتیجہ"
 
 # Chart (src/ui/chart.rs)
 chart:

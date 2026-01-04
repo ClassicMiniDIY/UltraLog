@@ -292,6 +292,18 @@ histogram:
   average_z: "Moyenne Z"
   hit_count: "Nombre d'occurrences"
   grid: "Grille :"
+  min_hits: "Occurrences minimum"
+  x_range: "Plage X"
+  y_range: "Plage Y"
+  auto: "Automatique"
+  copy: "Copier"
+  paste: "Coller"
+  clear: "Effacer"
+  operation: "Opération"
+  compare: "Comparer"
+  comparison_histogram: "Histogramme"
+  comparison_pasted: "Collé"
+  comparison_result: "Résultat"
 
 # Chart (src/ui/chart.rs)
 chart:
