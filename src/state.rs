@@ -366,6 +366,88 @@ pub struct SelectedHistogramCell {
     pub maximum: f64,
 }
 
+/// Filter configuration for excluding samples based on channel value ranges
+#[derive(Clone)]
+pub struct SampleFilter {
+    /// Channel index to filter on
+    pub channel_idx: usize,
+    /// Display name for the channel (cached for UI)
+    pub channel_name: String,
+    /// Minimum value (samples below this are excluded)
+    pub min_value: Option<f64>,
+    /// Maximum value (samples above this are excluded)
+    pub max_value: Option<f64>,
+    /// Whether this filter is currently enabled
+    pub enabled: bool,
+}
+
+impl SampleFilter {
+    /// Create a new sample filter
+    pub fn new(channel_idx: usize, channel_name: String) -> Self {
+        Self {
+            channel_idx,
+            channel_name,
+            min_value: None,
+            max_value: None,
+            enabled: true,
+        }
+    }
+}
+
+/// Represents a pasted fuel/tune table for comparison operations
+#[derive(Clone, Default)]
+pub struct PastedTable {
+    /// The table data (row-major, y_bin outer, x_bin inner)
+    pub data: Vec<Vec<f64>>,
+    /// X-axis breakpoints from the pasted table (optional)
+    pub x_breakpoints: Vec<f64>,
+    /// Y-axis breakpoints from the pasted table (optional)
+    pub y_breakpoints: Vec<f64>,
+    /// Original dimensions before resampling
+    pub original_rows: usize,
+    pub original_cols: usize,
+    /// Whether the table has been resampled to match histogram grid
+    pub is_resampled: bool,
+}
+
+/// Operation to apply between histogram and pasted table
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum TableOperation {
+    #[default]
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
+
+impl TableOperation {
+    /// Get the display symbol for this operation
+    pub fn symbol(&self) -> &'static str {
+        match self {
+            TableOperation::Add => "+",
+            TableOperation::Subtract => "-",
+            TableOperation::Multiply => "×",
+            TableOperation::Divide => "÷",
+        }
+    }
+
+    /// Apply the operation to two values
+    pub fn apply(&self, histogram_val: f64, table_val: f64) -> f64 {
+        match self {
+            TableOperation::Add => histogram_val + table_val,
+            TableOperation::Subtract => histogram_val - table_val,
+            TableOperation::Multiply => histogram_val * table_val,
+            TableOperation::Divide => {
+                if table_val.abs() < f64::EPSILON {
+                    0.0
+                } else {
+                    histogram_val / table_val
+                }
+            }
+        }
+    }
+}
+
 /// Configuration for the histogram view
 #[derive(Clone, Default)]
 pub struct HistogramConfig {
@@ -377,10 +459,37 @@ pub struct HistogramConfig {
     pub z_channel: Option<usize>,
     /// Display mode (average Z vs hit count)
     pub mode: HistogramMode,
-    /// Grid size
+    /// Grid size (legacy enum, use custom_grid_size if set)
     pub grid_size: HistogramGridSize,
+    /// Custom grid size (arbitrary square grid, user-defined). 0 = use grid_size enum
+    pub custom_grid_size: usize,
     /// Currently selected cell (for statistics display)
     pub selected_cell: Option<SelectedHistogramCell>,
+    /// Minimum hits filter - cells with fewer hits are grayed out
+    pub min_hits_filter: u32,
+    /// Custom X axis range. None = auto from data
+    pub custom_x_range: Option<(f64, f64)>,
+    /// Custom Y axis range. None = auto from data
+    pub custom_y_range: Option<(f64, f64)>,
+    /// Sample filters - all must pass for sample to be included (AND logic)
+    pub sample_filters: Vec<SampleFilter>,
+    /// Pasted table for comparison operations
+    pub pasted_table: Option<PastedTable>,
+    /// Operation to apply between histogram and pasted table
+    pub table_operation: TableOperation,
+    /// Whether to show the side-by-side comparison view
+    pub show_comparison_view: bool,
+}
+
+impl HistogramConfig {
+    /// Get the effective grid size (custom if set, otherwise from enum)
+    pub fn effective_grid_size(&self) -> usize {
+        if self.custom_grid_size > 0 {
+            self.custom_grid_size.clamp(4, 256)
+        } else {
+            self.grid_size.size()
+        }
+    }
 }
 
 /// State for the histogram view
