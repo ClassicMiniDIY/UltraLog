@@ -305,6 +305,7 @@ histogram:
   comparison_histogram: "ہسٹوگرام"
   comparison_pasted: "چسپاں"
   comparison_result: "نتیجہ"
+  copy_result: "نتیجہ کاپی کریں"
 
 # Chart (src/ui/chart.rs)
 chart:

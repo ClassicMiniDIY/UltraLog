@@ -304,6 +304,7 @@ histogram:
   comparison_histogram: "مدرج تكراري"
   comparison_pasted: "ملصوق"
   comparison_result: "النتيجة"
+  copy_result: "نسخ النتيجة"
 
 # Chart (src/ui/chart.rs)
 chart:

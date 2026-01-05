@@ -304,6 +304,7 @@ histogram:
   comparison_histogram: "हिस्टोग्राम"
   comparison_pasted: "पेस्ट किया गया"
   comparison_result: "परिणाम"
+  copy_result: "परिणाम कॉपी करें"
 
 # Chart (src/ui/chart.rs)
 chart:
