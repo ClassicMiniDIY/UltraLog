@@ -304,6 +304,7 @@ histogram:
   comparison_histogram: "直方图"
   comparison_pasted: "已粘贴"
   comparison_result: "结果"
+  copy_result: "复制结果"
 
 # 图表 (src/ui/chart.rs)
 chart:

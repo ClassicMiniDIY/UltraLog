@@ -304,6 +304,7 @@ histogram:
   comparison_histogram: "Гистограмма"
   comparison_pasted: "Вставленное"
   comparison_result: "Результат"
+  copy_result: "Копировать результат"
 
 # Chart (src/ui/chart.rs)
 chart:

@@ -304,6 +304,7 @@ histogram:
   comparison_histogram: "ヒストグラム"
   comparison_pasted: "貼り付け済み"
   comparison_result: "結果"
+  copy_result: "結果をコピー"
 
 # Chart (src/ui/chart.rs)
 chart:
