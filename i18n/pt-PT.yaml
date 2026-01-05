@@ -304,6 +304,7 @@ histogram:
   comparison_histogram: "Histograma"
   comparison_pasted: "Colado"
   comparison_result: "Resultado"
+  copy_result: "Copiar Resultado"
 
 # Chart (src/ui/chart.rs)
 chart:
