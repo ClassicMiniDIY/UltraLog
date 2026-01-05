@@ -2,9 +2,16 @@
 //!
 //! This module provides mappings from various ECU-specific channel names to standardized names,
 //! making it easier for users to compare data from different logging systems.
+//!
+//! Normalization is applied in the following priority order:
+//! 1. Custom user-defined mappings (highest priority)
+//! 2. Built-in hard-coded mappings (this file)
+//! 3. OpenECU Alliance spec-based mappings (from adapter source_names)
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
+
+use crate::adapters;
 
 /// Mapping from normalized (standard) names to their possible source names
 static NORMALIZATION_MAP: LazyLock<HashMap<&'static str, Vec<&'static str>>> =
@@ -382,6 +389,18 @@ pub fn normalize_channel_name_with_custom(
         }
     }
 
+    // Fall back to OpenECU Alliance spec-based normalization
+    if let Some(normalized) = adapters::normalize_from_spec(name) {
+        return normalized;
+    }
+
+    // Try path-stripped version with spec normalization
+    if let Some(last_segment) = name.rsplit('/').next() {
+        if let Some(normalized) = adapters::normalize_from_spec(last_segment) {
+            return normalized;
+        }
+    }
+
     // No mapping found, return original
     name.to_string()
 }
@@ -403,6 +422,12 @@ pub fn get_display_name(name: &str, show_original: bool) -> String {
     } else {
         normalized
     }
+}
+
+/// Get channel metadata from OpenECU Alliance specs if available.
+/// This provides additional information like category, unit, min/max values.
+pub fn get_spec_metadata(name: &str) -> Option<&'static adapters::ChannelMetadata> {
+    adapters::get_channel_metadata(name)
 }
 
 /// Check if a channel name has a known normalization mapping.
@@ -433,6 +458,18 @@ pub fn has_normalization(name: &str, custom_mappings: Option<&HashMap<String, St
     if let Some(last_segment) = name.rsplit('/').next() {
         let segment_lower = last_segment.to_lowercase();
         if REVERSE_MAP.contains_key(&segment_lower) {
+            return true;
+        }
+    }
+
+    // Check OpenECU Alliance spec-based mappings
+    if adapters::has_spec_normalization(name) {
+        return true;
+    }
+
+    // Check path-stripped version with spec normalization
+    if let Some(last_segment) = name.rsplit('/').next() {
+        if adapters::has_spec_normalization(last_segment) {
             return true;
         }
     }

@@ -3840,6 +3840,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "serde_yaml",
  "strum",
  "tar",
  "thiserror 2.0.17",
