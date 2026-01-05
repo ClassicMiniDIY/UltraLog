@@ -34,6 +34,7 @@ egui_extras = { version = "0.33", features = ["image"] }
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"  # For OpenECU Alliance adapter specs
 
 # Parsing
 regex = "1.12"

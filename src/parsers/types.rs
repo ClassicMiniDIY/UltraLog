@@ -8,6 +8,7 @@ use super::haltech::{HaltechChannel, HaltechMeta};
 use super::link::{LinkChannel, LinkMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
+use crate::adapters::{get_channel_metadata, ChannelCategory, ChannelMetadata};
 
 /// Metadata enum supporting different ECU formats
 #[derive(Clone, Debug, Serialize, Default)]
@@ -107,8 +108,11 @@ impl Channel {
         }
     }
 
+    /// Get minimum display value for the channel.
+    /// Falls back to OpenECU Alliance spec metadata if parser doesn't provide min.
     pub fn display_min(&self) -> Option<f64> {
-        match self {
+        // First check parser-specific min
+        let parser_min = match self {
             Channel::Aim(_) => None,
             Channel::Emerald(_) => None,
             Channel::Haltech(h) => h.display_min,
@@ -117,11 +121,17 @@ impl Channel {
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
             Channel::Computed(_) => None,
-        }
+        };
+
+        // Fall back to spec metadata if parser doesn't provide min
+        parser_min.or_else(|| self.spec_metadata().and_then(|m| m.min))
     }
 
+    /// Get maximum display value for the channel.
+    /// Falls back to OpenECU Alliance spec metadata if parser doesn't provide max.
     pub fn display_max(&self) -> Option<f64> {
-        match self {
+        // First check parser-specific max
+        let parser_max = match self {
             Channel::Aim(_) => None,
             Channel::Emerald(_) => None,
             Channel::Haltech(h) => h.display_max,
@@ -130,7 +140,25 @@ impl Channel {
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
             Channel::Computed(_) => None,
-        }
+        };
+
+        // Fall back to spec metadata if parser doesn't provide max
+        parser_max.or_else(|| self.spec_metadata().and_then(|m| m.max))
+    }
+
+    /// Get display precision (decimal places) from spec metadata.
+    pub fn precision(&self) -> Option<u32> {
+        self.spec_metadata().and_then(|m| m.precision)
+    }
+
+    /// Get channel category from spec metadata.
+    pub fn category(&self) -> Option<ChannelCategory> {
+        self.spec_metadata().map(|m| m.category)
+    }
+
+    /// Get OpenECU Alliance spec metadata for this channel (if available).
+    pub fn spec_metadata(&self) -> Option<&'static ChannelMetadata> {
+        get_channel_metadata(&self.name())
     }
 
     pub fn unit(&self) -> &str {
@@ -470,6 +498,7 @@ mod tests {
     fn test_channel_display_min_max_haltech() {
         use super::super::haltech::{ChannelType, HaltechChannel};
 
+        // Channel with explicit parser-provided bounds uses those
         let channel_with_bounds = Channel::Haltech(HaltechChannel {
             name: "RPM".to_string(),
             id: "1".to_string(),
@@ -481,7 +510,9 @@ mod tests {
         assert_eq!(channel_with_bounds.display_min(), Some(0.0));
         assert_eq!(channel_with_bounds.display_max(), Some(10000.0));
 
-        let channel_without_bounds = Channel::Haltech(HaltechChannel {
+        // Channel without parser-provided bounds falls back to spec metadata
+        // "RPM" matches spec source_names, so it gets spec-defined min/max
+        let channel_with_spec_bounds = Channel::Haltech(HaltechChannel {
             name: "RPM".to_string(),
             id: "1".to_string(),
             r#type: ChannelType::EngineSpeed,
@@ -489,8 +520,21 @@ mod tests {
             display_max: None,
         });
 
-        assert_eq!(channel_without_bounds.display_min(), None);
-        assert_eq!(channel_without_bounds.display_max(), None);
+        // Spec provides min/max for RPM
+        assert!(channel_with_spec_bounds.display_min().is_some());
+        assert!(channel_with_spec_bounds.display_max().is_some());
+
+        // Channel with name not in specs has no fallback
+        let channel_no_spec = Channel::Haltech(HaltechChannel {
+            name: "Custom Proprietary Sensor XYZ".to_string(),
+            id: "999".to_string(),
+            r#type: ChannelType::EngineSpeed,
+            display_min: None,
+            display_max: None,
+        });
+
+        assert_eq!(channel_no_spec.display_min(), None);
+        assert_eq!(channel_no_spec.display_max(), None);
     }
 
     #[test]
@@ -577,5 +621,144 @@ mod tests {
         let meta = Meta::Empty;
         let meta_clone = meta.clone();
         assert!(matches!(meta_clone, Meta::Empty));
+    }
+
+    // ============================================
+    // Spec Metadata Tests
+    // ============================================
+
+    #[test]
+    fn test_channel_spec_metadata_lookup() {
+        use super::super::haltech::{ChannelType, HaltechChannel};
+
+        // Create a channel with a name that matches a spec source_name
+        let channel = Channel::Haltech(HaltechChannel {
+            name: "Engine RPM".to_string(),
+            id: "1".to_string(),
+            r#type: ChannelType::EngineSpeed,
+            display_min: None,
+            display_max: None,
+        });
+
+        // Should find spec metadata for "Engine RPM"
+        let metadata = channel.spec_metadata();
+        assert!(
+            metadata.is_some(),
+            "Should find spec metadata for Engine RPM"
+        );
+        let meta = metadata.unwrap();
+        assert_eq!(meta.canonical_id, "rpm");
+        assert_eq!(meta.unit, "rpm");
+    }
+
+    #[test]
+    fn test_channel_display_min_fallback_to_spec() {
+        use super::super::haltech::{ChannelType, HaltechChannel};
+
+        // Channel without parser-provided min should fall back to spec
+        let channel = Channel::Haltech(HaltechChannel {
+            name: "Engine RPM".to_string(),
+            id: "1".to_string(),
+            r#type: ChannelType::EngineSpeed,
+            display_min: None,
+            display_max: None,
+        });
+
+        // Spec defines min: 0 for rpm
+        let min = channel.display_min();
+        assert!(min.is_some(), "Should get min from spec metadata");
+        assert_eq!(min.unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_channel_display_max_fallback_to_spec() {
+        use super::super::haltech::{ChannelType, HaltechChannel};
+
+        // Channel without parser-provided max should fall back to spec
+        let channel = Channel::Haltech(HaltechChannel {
+            name: "Engine RPM".to_string(),
+            id: "1".to_string(),
+            r#type: ChannelType::EngineSpeed,
+            display_min: None,
+            display_max: None,
+        });
+
+        // Spec defines max for rpm (varies by adapter, but should be > 0)
+        let max = channel.display_max();
+        assert!(max.is_some(), "Should get max from spec metadata");
+        assert!(max.unwrap() > 0.0, "Max should be positive");
+    }
+
+    #[test]
+    fn test_channel_parser_min_overrides_spec() {
+        use super::super::haltech::{ChannelType, HaltechChannel};
+
+        // Channel with parser-provided min should use that over spec
+        let channel = Channel::Haltech(HaltechChannel {
+            name: "Engine RPM".to_string(),
+            id: "1".to_string(),
+            r#type: ChannelType::EngineSpeed,
+            display_min: Some(500.0), // Parser provides custom min
+            display_max: None,
+        });
+
+        let min = channel.display_min();
+        assert!(min.is_some());
+        assert_eq!(min.unwrap(), 500.0, "Parser min should override spec min");
+    }
+
+    #[test]
+    fn test_channel_precision_from_spec() {
+        use super::super::haltech::{ChannelType, HaltechChannel};
+
+        let channel = Channel::Haltech(HaltechChannel {
+            name: "Engine RPM".to_string(),
+            id: "1".to_string(),
+            r#type: ChannelType::EngineSpeed,
+            display_min: None,
+            display_max: None,
+        });
+
+        // RPM typically has precision of 0 (no decimal places)
+        let precision = channel.precision();
+        assert!(precision.is_some(), "Should get precision from spec");
+        assert_eq!(precision.unwrap(), 0, "RPM should have 0 decimal places");
+    }
+
+    #[test]
+    fn test_channel_category_from_spec() {
+        use super::super::haltech::{ChannelType, HaltechChannel};
+
+        let channel = Channel::Haltech(HaltechChannel {
+            name: "Engine RPM".to_string(),
+            id: "1".to_string(),
+            r#type: ChannelType::EngineSpeed,
+            display_min: None,
+            display_max: None,
+        });
+
+        let category = channel.category();
+        assert!(category.is_some(), "Should get category from spec");
+        assert_eq!(category.unwrap(), ChannelCategory::Engine);
+    }
+
+    #[test]
+    fn test_channel_no_spec_metadata_for_unknown() {
+        use super::super::haltech::{ChannelType, HaltechChannel};
+
+        // Channel with unknown name should not have spec metadata
+        let channel = Channel::Haltech(HaltechChannel {
+            name: "My Custom Unknown Channel XYZ123".to_string(),
+            id: "999".to_string(),
+            r#type: ChannelType::Decibel, // Use any type, name won't match spec
+            display_min: None,
+            display_max: None,
+        });
+
+        assert!(channel.spec_metadata().is_none());
+        assert!(channel.display_min().is_none());
+        assert!(channel.display_max().is_none());
+        assert!(channel.precision().is_none());
+        assert!(channel.category().is_none());
     }
 }

@@ -5,6 +5,7 @@
 //!
 //! ## Module Structure
 //!
+//! - [`adapters`] - OpenECU Alliance adapter specs for channel normalization
 //! - [`app`] - Main application state and eframe::App implementation
 //! - [`parsers`] - ECU log file parsers (Haltech, etc.)
 //! - [`state`] - Core data types and constants
@@ -31,6 +32,7 @@ extern crate rust_i18n;
 // Fallback to English if a translation is missing
 i18n!("i18n", fallback = "en");
 
+pub mod adapters;
 pub mod analysis;
 pub mod analytics;
 pub mod app;

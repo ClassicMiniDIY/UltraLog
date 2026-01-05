@@ -23,6 +23,161 @@ impl AimChannel {
     }
 }
 
+/// Infer unit from AiM channel name patterns
+/// Based on common AiM data logger channel naming conventions
+fn infer_unit_from_name(name: &str) -> &'static str {
+    let name_lower = name.to_lowercase();
+
+    // RPM
+    if name_lower.contains("rpm") || name_lower == "engine speed" {
+        return "rpm";
+    }
+
+    // Temperature (check before pressure due to "temp" being more specific)
+    if name_lower.contains("temp")
+        || name_lower.contains("egt")
+        || name_lower == "iat"
+        || name_lower == "ect"
+        || name_lower == "h2o"
+        || name_lower == "ambient"
+    {
+        return "°C";
+    }
+
+    // Lambda/AFR
+    if name_lower.contains("lambda") || name_lower.starts_with("lm") {
+        return "λ";
+    }
+    if name_lower.contains("afr") || name_lower.contains("a/f") || name_lower.contains("air fuel") {
+        return "AFR";
+    }
+
+    // G-force/Acceleration (check before general patterns)
+    if name_lower.contains(" g")
+        || name_lower.starts_with("g ")
+        || name_lower.contains("lateral g")
+        || name_lower.contains("longitudinal g")
+        || name_lower.contains("vertical g")
+        || name_lower.starts_with("accel")
+        || name_lower == "g lat"
+        || name_lower == "g long"
+        || name_lower == "g vert"
+        || name_lower == "lat g"
+        || name_lower == "long g"
+    {
+        return "g";
+    }
+
+    // Gyroscope/Rotation rate
+    if name_lower.contains("yaw")
+        || name_lower.contains("pitch")
+        || name_lower.contains("roll")
+        || name_lower.starts_with("gyro")
+    {
+        return "°/s";
+    }
+
+    // GPS coordinates
+    if name_lower.contains("latitude")
+        || name_lower.contains("longitude")
+        || (name_lower.contains("gps") && name_lower.contains("lat"))
+        || (name_lower.contains("gps") && name_lower.contains("long"))
+        || name_lower == "lat"
+        || name_lower == "lon"
+    {
+        return "°";
+    }
+
+    // GPS Altitude / Distance
+    if name_lower.contains("altitude")
+        || name_lower.contains("distance")
+        || name_lower.contains("odometer")
+        || name_lower == "alt"
+    {
+        return "m";
+    }
+
+    // Heading/Course/Steering angle
+    if name_lower.contains("heading")
+        || name_lower.contains("course")
+        || name_lower.contains("steering")
+        || name_lower.contains("steer")
+    {
+        return "°";
+    }
+
+    // Speed (check after steering to avoid conflicts)
+    if name_lower.contains("speed") || name_lower.contains("veh spd") {
+        return "km/h";
+    }
+
+    // Brake pressure
+    if name_lower.contains("brake") {
+        return "bar";
+    }
+
+    // Pressure - general (boost, oil, fuel, MAP)
+    if name_lower.contains("pressure")
+        || name_lower.contains("press")
+        || name_lower.contains("boost")
+        || name_lower == "map"
+    {
+        return "bar";
+    }
+
+    // Throttle/TPS/Percentage channels
+    if name_lower.contains("tps")
+        || name_lower.contains("throttle")
+        || name_lower.contains("duty")
+        || name_lower.contains("%")
+    {
+        return "%";
+    }
+
+    // Voltage/Battery
+    if name_lower.contains("voltage")
+        || name_lower.contains("battery")
+        || name_lower.contains("batt")
+        || name_lower.contains("vbatt")
+        || name_lower == "ecu voltage"
+    {
+        return "V";
+    }
+
+    // Suspension/Damper travel
+    if name_lower.contains("susp") || name_lower.contains("damper") {
+        return "mm";
+    }
+
+    // Lap time
+    if name_lower.contains("lap time") || name_lower.contains("laptime") {
+        return "s";
+    }
+
+    // Fuel flow
+    if name_lower.contains("fuel flow") || name_lower.contains("fuel consumption") {
+        return "L/h";
+    }
+
+    // Satellites count (no unit)
+    if name_lower.contains("satellite") || name_lower.contains("sats") {
+        return "";
+    }
+
+    // Gear/Lap number (no unit)
+    if name_lower == "gear"
+        || name_lower.contains("gear position")
+        || name_lower == "lap"
+        || name_lower.contains("lap number")
+        || name_lower.contains("lapnum")
+    {
+        return "";
+    }
+
+    // Default: no unit
+    ""
+}
+
 /// AIM log file metadata
 #[derive(Clone, Debug, Serialize, Default)]
 pub struct AimMeta {
@@ -150,10 +305,9 @@ impl Aim {
                 };
 
                 if !name.is_empty() {
-                    channels.push(AimChannel {
-                        name,
-                        unit: String::new(), // Units are not easily extractable from raw binary
-                    });
+                    // Infer unit from channel name since XRK binary doesn't reliably store units
+                    let unit = infer_unit_from_name(&name).to_string();
+                    channels.push(AimChannel { name, unit });
                 }
 
                 offset = pos + 6;
@@ -397,6 +551,75 @@ mod tests {
 
         let data2 = b"NoNull";
         assert_eq!(Aim::read_null_terminated_string(data2, 6), "NoNull");
+    }
+
+    #[test]
+    fn test_infer_unit_from_name() {
+        // RPM
+        assert_eq!(infer_unit_from_name("RPM"), "rpm");
+        assert_eq!(infer_unit_from_name("Engine RPM"), "rpm");
+        assert_eq!(infer_unit_from_name("Engine Speed"), "rpm");
+
+        // Temperature
+        assert_eq!(infer_unit_from_name("Water Temp"), "°C");
+        assert_eq!(infer_unit_from_name("Oil Temperature"), "°C");
+        assert_eq!(infer_unit_from_name("EGT"), "°C");
+        assert_eq!(infer_unit_from_name("IAT"), "°C");
+
+        // Lambda/AFR
+        assert_eq!(infer_unit_from_name("Lambda"), "λ");
+        assert_eq!(infer_unit_from_name("Lambda 1"), "λ");
+        assert_eq!(infer_unit_from_name("AFR"), "AFR");
+        assert_eq!(infer_unit_from_name("Air Fuel Ratio"), "AFR");
+
+        // G-force
+        assert_eq!(infer_unit_from_name("G Lat"), "g");
+        assert_eq!(infer_unit_from_name("Lateral G"), "g");
+        assert_eq!(infer_unit_from_name("G Long"), "g");
+        assert_eq!(infer_unit_from_name("AccelX"), "g");
+
+        // Gyro
+        assert_eq!(infer_unit_from_name("Yaw Rate"), "°/s");
+        assert_eq!(infer_unit_from_name("Pitch"), "°/s");
+        assert_eq!(infer_unit_from_name("GyroZ"), "°/s");
+
+        // GPS
+        assert_eq!(infer_unit_from_name("GPS Lat"), "°");
+        assert_eq!(infer_unit_from_name("Latitude"), "°");
+        assert_eq!(infer_unit_from_name("Altitude"), "m");
+        assert_eq!(infer_unit_from_name("Distance"), "m");
+
+        // Speed
+        assert_eq!(infer_unit_from_name("Speed"), "km/h");
+        assert_eq!(infer_unit_from_name("Vehicle Speed"), "km/h");
+        assert_eq!(infer_unit_from_name("Wheel Speed FL"), "km/h");
+
+        // Pressure
+        assert_eq!(infer_unit_from_name("Oil Pressure"), "bar");
+        assert_eq!(infer_unit_from_name("Boost"), "bar");
+        assert_eq!(infer_unit_from_name("Brake Front"), "bar");
+
+        // Throttle
+        assert_eq!(infer_unit_from_name("TPS"), "%");
+        assert_eq!(infer_unit_from_name("Throttle Position"), "%");
+
+        // Voltage
+        assert_eq!(infer_unit_from_name("Battery"), "V");
+        assert_eq!(infer_unit_from_name("Battery Voltage"), "V");
+
+        // Suspension
+        assert_eq!(infer_unit_from_name("Susp FL"), "mm");
+        assert_eq!(infer_unit_from_name("Damper FR"), "mm");
+
+        // Timing
+        assert_eq!(infer_unit_from_name("Lap Time"), "s");
+
+        // Gear (no unit)
+        assert_eq!(infer_unit_from_name("Gear"), "");
+        assert_eq!(infer_unit_from_name("Lap"), "");
+
+        // Unknown (no unit)
+        assert_eq!(infer_unit_from_name("Unknown Channel"), "");
     }
 
     #[test]
