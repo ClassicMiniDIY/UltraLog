@@ -31,6 +31,8 @@ const HEAT_COLORS: &[[u8; 3]] = &[
 /// Margin for axis labels and titles
 const AXIS_LABEL_MARGIN_LEFT: f32 = 75.0;
 const AXIS_LABEL_MARGIN_BOTTOM: f32 = 45.0;
+const AXIS_LABEL_MARGIN_TOP: f32 = 10.0;
+const AXIS_LABEL_MARGIN_RIGHT: f32 = 25.0;
 
 /// Height reserved for legend at bottom
 const LEGEND_HEIGHT: f32 = 55.0;
@@ -48,7 +50,7 @@ const SELECTED_CELL_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 165, 0);
 const CURSOR_CROSSHAIR_COLOR: egui::Color32 = egui::Color32::from_rgb(128, 128, 128); // Grey
 
 /// Maximum length for axis labels before truncation
-const MAX_AXIS_LABEL_LENGTH: usize = 12;
+const MAX_AXIS_LABEL_LENGTH: usize = 20;
 
 /// Calculate which bin a normalized value (0.0 to 1.0) falls into
 /// Uses floor-based calculation for consistent cell boundaries
@@ -153,14 +155,28 @@ impl UltraLogApp {
         }
 
         let file = &self.files[file_idx];
+        let base_channel_count = file.log.channels.len();
 
-        // Sort channels for dropdown
-        let sorted_channels = sort_channels_by_priority(
-            file.log.channels.len(),
+        // Sort channels for dropdown (including computed channels)
+        let mut sorted_channels = sort_channels_by_priority(
+            base_channel_count,
             |idx| file.log.channels[idx].name(),
             self.field_normalization,
             Some(&self.custom_normalizations),
         );
+
+        // Add computed channels to the dropdown
+        if let Some(computed_channels) = self.file_computed_channels.get(&file_idx) {
+            for (computed_idx, computed) in computed_channels.iter().enumerate() {
+                let channel_idx = base_channel_count + computed_idx;
+                // Add with is_priority=false (computed channels listed after prioritized channels)
+                sorted_channels.push((
+                    channel_idx,
+                    format!("📊 {}", &computed.template.name),
+                    false,
+                ));
+            }
+        }
 
         // Get current selections
         let config = &self.tabs[tab_idx].histogram_state.config;
@@ -176,6 +192,32 @@ impl UltraLogApp {
         let has_pasted_table = config.pasted_table.is_some();
         let current_table_op = config.table_operation;
         let current_show_compare = config.show_comparison_view;
+
+        // Calculate dynamic data bounds for use as defaults when unchecking Auto
+        let (dynamic_x_min, dynamic_x_max) = if let Some(x_idx) = current_x {
+            let x_data = self.get_channel_data(file_idx, x_idx);
+            if !x_data.is_empty() {
+                let min = x_data.iter().cloned().fold(f64::MAX, f64::min);
+                let max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+                (min, max)
+            } else {
+                (0.0, 100.0)
+            }
+        } else {
+            (0.0, 100.0)
+        };
+        let (dynamic_y_min, dynamic_y_max) = if let Some(y_idx) = current_y {
+            let y_data = self.get_channel_data(file_idx, y_idx);
+            if !y_data.is_empty() {
+                let min = y_data.iter().cloned().fold(f64::MAX, f64::min);
+                let max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+                (min, max)
+            } else {
+                (0.0, 100.0)
+            }
+        } else {
+            (0.0, 100.0)
+        };
 
         // Build channel name lookup
         let channel_names: std::collections::HashMap<usize, String> = sorted_channels
@@ -352,11 +394,17 @@ impl UltraLogApp {
             // X Range
             ui.label(egui::RichText::new(t!("histogram.x_range")).size(font_14));
             let mut x_auto = current_custom_x.is_none();
-            if ui.checkbox(&mut x_auto, t!("histogram.auto")).changed() && x_auto {
-                new_custom_x = Some(None);
+            if ui.checkbox(&mut x_auto, t!("histogram.auto")).changed() {
+                if x_auto {
+                    new_custom_x = Some(None);
+                } else {
+                    // When unchecking Auto, initialize with current dynamic values
+                    new_custom_x = Some(Some((dynamic_x_min, dynamic_x_max)));
+                }
             }
             if !x_auto {
-                let (mut x_min, mut x_max) = current_custom_x.unwrap_or((0.0, 100.0));
+                let (mut x_min, mut x_max) =
+                    current_custom_x.unwrap_or((dynamic_x_min, dynamic_x_max));
                 ui.add(egui::DragValue::new(&mut x_min).speed(1.0).prefix("Min: "));
                 ui.add(egui::DragValue::new(&mut x_max).speed(1.0).prefix("Max: "));
                 if x_max > x_min {
@@ -369,11 +417,17 @@ impl UltraLogApp {
             // Y Range
             ui.label(egui::RichText::new(t!("histogram.y_range")).size(font_14));
             let mut y_auto = current_custom_y.is_none();
-            if ui.checkbox(&mut y_auto, t!("histogram.auto")).changed() && y_auto {
-                new_custom_y = Some(None);
+            if ui.checkbox(&mut y_auto, t!("histogram.auto")).changed() {
+                if y_auto {
+                    new_custom_y = Some(None);
+                } else {
+                    // When unchecking Auto, initialize with current dynamic values
+                    new_custom_y = Some(Some((dynamic_y_min, dynamic_y_max)));
+                }
             }
             if !y_auto {
-                let (mut y_min, mut y_max) = current_custom_y.unwrap_or((0.0, 100.0));
+                let (mut y_min, mut y_max) =
+                    current_custom_y.unwrap_or((dynamic_y_min, dynamic_y_max));
                 ui.add(egui::DragValue::new(&mut y_min).speed(1.0).prefix("Min: "));
                 ui.add(egui::DragValue::new(&mut y_max).speed(1.0).prefix("Max: "));
                 if y_max > y_min {
@@ -443,6 +497,16 @@ impl UltraLogApp {
                 // Clear pasted table button
                 if ui.button(format!("❌ {}", t!("histogram.clear"))).clicked() {
                     clear_pasted_table = true;
+                }
+
+                ui.add_space(8.0);
+
+                // Copy Result button (for pasting back into ECU)
+                if ui
+                    .button(format!("📋 {}", t!("histogram.copy_result")))
+                    .clicked()
+                {
+                    self.copy_result_to_clipboard(tab_idx);
                 }
             }
         });
@@ -564,9 +628,9 @@ impl UltraLogApp {
         }
 
         let file = &self.files[file_idx];
-        let x_data = file.log.get_channel_data(x_idx);
-        let y_data = file.log.get_channel_data(y_idx);
-        let z_data = z_idx.map(|z| file.log.get_channel_data(z));
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
+        let z_data = z_idx.map(|z| self.get_channel_data(file_idx, z));
 
         if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
             return;
@@ -605,7 +669,7 @@ impl UltraLogApp {
         let filter_data: Vec<(&SampleFilter, Vec<f64>)> = sample_filters
             .iter()
             .filter(|f| f.enabled)
-            .map(|f| (f, file.log.get_channel_data(f.channel_idx)))
+            .map(|f| (f, self.get_channel_data(file_idx, f.channel_idx)))
             .collect();
 
         // Build histogram grid with full statistics
@@ -753,6 +817,8 @@ impl UltraLogApp {
                     max_value,
                     &t!("histogram.comparison_histogram"),
                     font_13,
+                    Some(&hit_counts),
+                    min_hits_filter,
                 );
 
                 Self::render_mini_heat_map(
@@ -763,6 +829,8 @@ impl UltraLogApp {
                     pasted_max,
                     &t!("histogram.comparison_pasted"),
                     font_13,
+                    None,
+                    0,
                 );
 
                 let op_symbol = match table_operation {
@@ -779,6 +847,8 @@ impl UltraLogApp {
                     result_max,
                     &format!("{} ({})", t!("histogram.comparison_result"), op_symbol),
                     font_13,
+                    None,
+                    0,
                 );
 
                 // Render legend with comparison info
@@ -829,9 +899,12 @@ impl UltraLogApp {
 
         // Create inner plot rect with margins
         let plot_rect = egui::Rect::from_min_max(
-            egui::pos2(full_rect.left() + AXIS_LABEL_MARGIN_LEFT, full_rect.top()),
             egui::pos2(
-                full_rect.right(),
+                full_rect.left() + AXIS_LABEL_MARGIN_LEFT,
+                full_rect.top() + AXIS_LABEL_MARGIN_TOP,
+            ),
+            egui::pos2(
+                full_rect.right() - AXIS_LABEL_MARGIN_RIGHT,
                 full_rect.bottom() - AXIS_LABEL_MARGIN_BOTTOM,
             ),
         );
@@ -931,9 +1004,28 @@ impl UltraLogApp {
             );
         }
 
-        // Get channel names for axis labels
-        let x_channel_name = file.log.channels[x_idx].name();
-        let y_channel_name = file.log.channels[y_idx].name();
+        // Get channel names for axis labels (handles computed channels)
+        let base_channel_count = file.log.channels.len();
+        let x_channel_name = if x_idx < base_channel_count {
+            file.log.channels[x_idx].name()
+        } else {
+            let computed_idx = x_idx - base_channel_count;
+            self.file_computed_channels
+                .get(&file_idx)
+                .and_then(|c| c.get(computed_idx))
+                .map(|c| c.template.name.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        };
+        let y_channel_name = if y_idx < base_channel_count {
+            file.log.channels[y_idx].name()
+        } else {
+            let computed_idx = y_idx - base_channel_count;
+            self.file_computed_channels
+                .get(&file_idx)
+                .and_then(|c| c.get(computed_idx))
+                .map(|c| c.template.name.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        };
 
         // Draw axis labels
         let text_color = egui::Color32::from_rgb(200, 200, 200);
@@ -953,26 +1045,68 @@ impl UltraLogApp {
             );
         }
 
-        // Y axis title (rotated text simulation - draw vertically)
-        // Truncate long names to prevent intersection with chart
+        // Y axis title (wrapped vertically on word boundaries)
         let y_title_x = full_rect.left() + 12.0;
-        let y_title_y = plot_rect.center().y;
-        let y_title_truncated = truncate_label(&y_channel_name, MAX_AXIS_LABEL_LENGTH);
-        let y_title_rect = painter.text(
-            egui::pos2(y_title_x, y_title_y),
-            egui::Align2::CENTER_CENTER,
-            &y_title_truncated,
-            egui::FontId::proportional(font_13),
-            axis_title_color,
-        );
-        // Show full name as tooltip if truncated
-        if y_title_truncated != y_channel_name {
-            let y_title_response = ui.interact(
-                y_title_rect,
-                ui.id().with("y_title_tooltip"),
-                egui::Sense::hover(),
+        let y_title_center_y = plot_rect.center().y;
+
+        // Wrap long names on word boundaries for vertical display
+        let y_title_display = if y_channel_name.len() > MAX_AXIS_LABEL_LENGTH {
+            // Try to wrap on spaces, showing up to 2 lines
+            let words: Vec<&str> = y_channel_name.split_whitespace().collect();
+            let mut lines = Vec::new();
+            let mut current_line = String::new();
+
+            for word in words {
+                if current_line.is_empty() {
+                    current_line = word.to_string();
+                } else if current_line.len() + 1 + word.len() <= MAX_AXIS_LABEL_LENGTH {
+                    current_line.push(' ');
+                    current_line.push_str(word);
+                } else {
+                    lines.push(current_line);
+                    current_line = word.to_string();
+                    if lines.len() >= 2 {
+                        // Truncate if more than 2 lines
+                        current_line = truncate_label(&current_line, MAX_AXIS_LABEL_LENGTH);
+                        break;
+                    }
+                }
+            }
+            if !current_line.is_empty() {
+                lines.push(current_line);
+            }
+            lines.join("\n")
+        } else {
+            y_channel_name.clone()
+        };
+
+        // Calculate text height for multi-line labels
+        let line_count = y_title_display.lines().count() as f32;
+        let line_height = font_13 * 1.2;
+        let total_height = line_count * line_height;
+        let y_start = y_title_center_y - total_height / 2.0 + line_height / 2.0;
+
+        // Draw each line centered
+        let mut combined_rect: Option<egui::Rect> = None;
+        for (i, line) in y_title_display.lines().enumerate() {
+            let line_y = y_start + i as f32 * line_height;
+            let rect = painter.text(
+                egui::pos2(y_title_x, line_y),
+                egui::Align2::CENTER_CENTER,
+                line,
+                egui::FontId::proportional(font_13),
+                axis_title_color,
             );
-            y_title_response.on_hover_text(&y_channel_name);
+            combined_rect = Some(combined_rect.map_or(rect, |r| r.union(rect)));
+        }
+
+        // Show full name as tooltip if wrapped or truncated
+        if y_title_display != y_channel_name || y_title_display.contains('\n') {
+            if let Some(rect) = combined_rect {
+                let y_title_response =
+                    ui.interact(rect, ui.id().with("y_title_tooltip"), egui::Sense::hover());
+                y_title_response.on_hover_text(&y_channel_name);
+            }
         }
 
         // X axis value labels
@@ -1546,9 +1680,13 @@ impl UltraLogApp {
             return vec![vec![0.0; target_size]; target_size];
         }
 
-        // If dimensions match, return as-is
+        // If dimensions match, just reverse Y (pasted table has 0 = top, we need 0 = bottom)
         if src_rows == target_size && src_cols == target_size {
-            return table.data.clone();
+            let mut result = Vec::with_capacity(target_size);
+            for y in 0..target_size {
+                result.push(table.data[src_rows - 1 - y].clone());
+            }
+            return result;
         }
 
         let mut result = vec![vec![0.0; target_size]; target_size];
@@ -1612,6 +1750,7 @@ impl UltraLogApp {
     }
 
     /// Apply an operation between histogram values and pasted table values
+    /// For cells where histogram has no data but pasted does, use 0 for histogram value
     fn apply_table_operation(
         hist_values: &[Vec<Option<f64>>],
         pasted_values: &[Vec<f64>],
@@ -1624,26 +1763,31 @@ impl UltraLogApp {
 
         for y in 0..rows {
             for x in 0..cols {
-                if let Some(hist_val) = hist_values[y][x] {
-                    let pasted_val = pasted_values
-                        .get(y)
-                        .and_then(|r| r.get(x))
-                        .copied()
-                        .unwrap_or(0.0);
-                    let res_val = match operation {
-                        TableOperation::Add => hist_val + pasted_val,
-                        TableOperation::Subtract => hist_val - pasted_val,
-                        TableOperation::Multiply => hist_val * pasted_val,
-                        TableOperation::Divide => {
-                            if pasted_val.abs() > f64::EPSILON {
-                                hist_val / pasted_val
-                            } else {
-                                0.0
-                            }
-                        }
-                    };
-                    result[y][x] = Some(res_val);
+                let pasted_val = pasted_values
+                    .get(y)
+                    .and_then(|r| r.get(x))
+                    .copied()
+                    .unwrap_or(0.0);
+
+                // Only skip if pasted value is effectively zero (no data there either)
+                if pasted_val.abs() < f64::EPSILON && hist_values[y][x].is_none() {
+                    continue;
                 }
+
+                let hist_val = hist_values[y][x].unwrap_or(0.0);
+                let res_val = match operation {
+                    TableOperation::Add => hist_val + pasted_val,
+                    TableOperation::Subtract => hist_val - pasted_val,
+                    TableOperation::Multiply => hist_val * pasted_val,
+                    TableOperation::Divide => {
+                        if pasted_val.abs() > f64::EPSILON {
+                            hist_val / pasted_val
+                        } else {
+                            0.0
+                        }
+                    }
+                };
+                result[y][x] = Some(res_val);
             }
         }
 
@@ -1651,6 +1795,8 @@ impl UltraLogApp {
     }
 
     /// Render a mini heat map panel (used in comparison view)
+    /// hit_counts is optional - when provided, cells below min_hits_filter are grayed out
+    #[allow(clippy::too_many_arguments)]
     fn render_mini_heat_map(
         painter: &egui::Painter,
         rect: egui::Rect,
@@ -1659,6 +1805,8 @@ impl UltraLogApp {
         max_value: f64,
         title: &str,
         font_size: f32,
+        hit_counts: Option<&[Vec<u32>]>,
+        min_hits_filter: u32,
     ) {
         let grid_size = values.len();
         if grid_size == 0 {
@@ -1700,10 +1848,43 @@ impl UltraLogApp {
                     egui::vec2(cell_width, cell_height),
                 );
 
+                // Check min hits filter if hit_counts provided
+                if let Some(hits) = hit_counts {
+                    if min_hits_filter > 0 {
+                        let cell_hits = hits
+                            .get(y_bin)
+                            .and_then(|r| r.get(x_bin))
+                            .copied()
+                            .unwrap_or(0);
+                        if cell_hits < min_hits_filter {
+                            painter.rect_filled(
+                                cell_rect,
+                                0.0,
+                                egui::Color32::from_rgb(30, 30, 30),
+                            );
+                            continue;
+                        }
+                    }
+                }
+
                 if let Some(value) = cell_value {
                     let normalized = ((value - min_value) / value_range).clamp(0.0, 1.0);
                     let color = Self::get_histogram_color(normalized);
                     painter.rect_filled(cell_rect, 0.0, color);
+
+                    // Draw value text if cell is large enough
+                    if cell_width > 20.0 && cell_height > 14.0 {
+                        let text = format!("{:.1}", value);
+                        let text_color = get_aaa_text_color(color);
+                        let text_size = if grid_size <= 16 { 9.0 } else { 7.0 };
+                        painter.text(
+                            cell_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            text,
+                            egui::FontId::proportional(text_size),
+                            text_color,
+                        );
+                    }
                 } else {
                     painter.rect_filled(cell_rect, 0.0, egui::Color32::from_rgb(30, 30, 30));
                 }
@@ -1746,14 +1927,13 @@ impl UltraLogApp {
             _ => return,
         };
 
-        let file = &self.files[file_idx];
         let grid_size = config.effective_grid_size();
         let mode = config.mode;
         let z_idx = config.z_channel;
 
-        let x_data = file.log.get_channel_data(x_idx);
-        let y_data = file.log.get_channel_data(y_idx);
-        let z_data = z_idx.map(|z| file.log.get_channel_data(z));
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
+        let z_data = z_idx.map(|z| self.get_channel_data(file_idx, z));
 
         if x_data.is_empty() || y_data.is_empty() {
             return;
@@ -1847,6 +2027,152 @@ impl UltraLogApp {
         }
     }
 
+    /// Copy the result of histogram + pasted table operation to clipboard
+    fn copy_result_to_clipboard(&self, tab_idx: usize) {
+        let config = &self.tabs[tab_idx].histogram_state.config;
+        let file_idx = self.tabs[tab_idx].file_index;
+
+        if file_idx >= self.files.len() {
+            return;
+        }
+
+        // Need a pasted table to have a result
+        let pasted_table = match &config.pasted_table {
+            Some(table) => table,
+            None => return,
+        };
+
+        let (x_idx, y_idx) = match (config.x_channel, config.y_channel) {
+            (Some(x), Some(y)) => (x, y),
+            _ => return,
+        };
+
+        let grid_size = config.effective_grid_size();
+        let mode = config.mode;
+        let z_idx = config.z_channel;
+        let table_operation = config.table_operation;
+
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
+        let z_data = z_idx.map(|z| self.get_channel_data(file_idx, z));
+
+        if x_data.is_empty() || y_data.is_empty() {
+            return;
+        }
+
+        // Calculate data bounds
+        let (x_min, x_max) = match config.custom_x_range {
+            Some((min, max)) if max > min => (min, max),
+            _ => {
+                let min = x_data.iter().cloned().fold(f64::MAX, f64::min);
+                let max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+                (min, max)
+            }
+        };
+        let (y_min, y_max) = match config.custom_y_range {
+            Some((min, max)) if max > min => (min, max),
+            _ => {
+                let min = y_data.iter().cloned().fold(f64::MAX, f64::min);
+                let max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+                (min, max)
+            }
+        };
+
+        let x_range = if (x_max - x_min).abs() < f64::EPSILON {
+            1.0
+        } else {
+            x_max - x_min
+        };
+        let y_range = if (y_max - y_min).abs() < f64::EPSILON {
+            1.0
+        } else {
+            y_max - y_min
+        };
+
+        // Build histogram grid
+        let mut hit_counts = vec![vec![0u32; grid_size]; grid_size];
+        let mut z_sums = vec![vec![0.0f64; grid_size]; grid_size];
+
+        for i in 0..x_data.len() {
+            let x_bin = calculate_data_bin(x_data[i], x_min, x_range, grid_size);
+            let y_bin = calculate_data_bin(y_data[i], y_min, y_range, grid_size);
+            hit_counts[y_bin][x_bin] += 1;
+            if let Some(ref z) = z_data {
+                z_sums[y_bin][x_bin] += z[i];
+            }
+        }
+
+        // Build histogram values
+        let hist_values: Vec<Vec<Option<f64>>> = (0..grid_size)
+            .map(|y_bin| {
+                (0..grid_size)
+                    .map(|x_bin| {
+                        let hits = hit_counts[y_bin][x_bin];
+                        if hits > 0 {
+                            Some(match mode {
+                                HistogramMode::HitCount => hits as f64,
+                                HistogramMode::AverageZ => z_sums[y_bin][x_bin] / hits as f64,
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+
+        // Resample pasted table and apply operation
+        let resampled = Self::resample_table(pasted_table, grid_size);
+        let result_values = Self::apply_table_operation(&hist_values, &resampled, table_operation);
+
+        // Generate TSV string with pasted table's breakpoints
+        let mut tsv = String::new();
+
+        // Header row: X breakpoints (use pasted table's breakpoints if they match grid size)
+        tsv.push('\t'); // Empty cell for Y label column
+        for x_bin in 0..grid_size {
+            let x_val = if !pasted_table.x_breakpoints.is_empty()
+                && pasted_table.x_breakpoints.len() == grid_size
+            {
+                pasted_table.x_breakpoints[x_bin]
+            } else {
+                x_min + (x_bin as f64 + 0.5) * (x_range / grid_size as f64)
+            };
+            tsv.push_str(&format!("{:.1}", x_val));
+            if x_bin < grid_size - 1 {
+                tsv.push('\t');
+            }
+        }
+        tsv.push('\n');
+
+        // Data rows (from top to bottom, so reverse Y order)
+        for y_bin in (0..grid_size).rev() {
+            // Y label (use pasted table's breakpoints if they match grid size)
+            let y_val = if !pasted_table.y_breakpoints.is_empty()
+                && pasted_table.y_breakpoints.len() == grid_size
+            {
+                pasted_table.y_breakpoints[grid_size - 1 - y_bin]
+            } else {
+                y_min + (y_bin as f64 + 0.5) * (y_range / grid_size as f64)
+            };
+            tsv.push_str(&format!("{:.1}\t", y_val));
+
+            for (x_bin, val) in result_values[y_bin].iter().enumerate().take(grid_size) {
+                let value = val.unwrap_or(0.0);
+                tsv.push_str(&format!("{:.2}", value));
+                if x_bin < grid_size - 1 {
+                    tsv.push('\t');
+                }
+            }
+            tsv.push('\n');
+        }
+
+        // Copy to clipboard
+        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            let _ = clipboard.set_text(tsv);
+        }
+    }
+
     /// Paste table data from clipboard for comparison operations
     fn paste_table_from_clipboard(&mut self, tab_idx: usize) {
         let clipboard_text = match arboard::Clipboard::new() {
@@ -1863,6 +2189,12 @@ impl UltraLogApp {
             return;
         }
 
+        // Helper to parse numbers that may have comma thousands separators (e.g., "1,234.56")
+        let parse_number = |s: &str| -> Option<f64> {
+            let cleaned = s.trim().replace(',', "");
+            cleaned.parse::<f64>().ok()
+        };
+
         // Try to parse first row as X breakpoints
         let first_row: Vec<&str> = lines[0].split('\t').collect();
         let x_start = if first_row
@@ -1876,7 +2208,7 @@ impl UltraLogApp {
         };
         let x_breakpoints: Vec<f64> = first_row[x_start..]
             .iter()
-            .filter_map(|s| s.trim().parse().ok())
+            .filter_map(|s| parse_number(s))
             .collect();
 
         let mut y_breakpoints = Vec::new();
@@ -1889,15 +2221,12 @@ impl UltraLogApp {
             }
 
             // First cell is Y breakpoint
-            if let Ok(y_val) = cells[0].trim().parse::<f64>() {
+            if let Some(y_val) = parse_number(cells[0]) {
                 y_breakpoints.push(y_val);
             }
 
             // Remaining cells are data
-            let row: Vec<f64> = cells[1..]
-                .iter()
-                .filter_map(|s| s.trim().parse().ok())
-                .collect();
+            let row: Vec<f64> = cells[1..].iter().filter_map(|s| parse_number(s)).collect();
             if !row.is_empty() {
                 data.push(row);
             }
