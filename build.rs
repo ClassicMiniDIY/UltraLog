@@ -39,9 +39,50 @@ const ADAPTER_SPECS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Protocol specs to download from GitHub if submodule is missing
+const PROTOCOL_SPECS: &[(&str, &str)] = &[
+    (
+        "haltech/haltech-elite-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/haltech/haltech-elite-broadcast.protocol.yaml",
+    ),
+    (
+        "ecumaster/ecumaster-emu-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/ecumaster/ecumaster-emu-broadcast.protocol.yaml",
+    ),
+    (
+        "speeduino/speeduino-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/speeduino/speeduino-broadcast.protocol.yaml",
+    ),
+    (
+        "rusefi/rusefi-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/rusefi/rusefi-broadcast.protocol.yaml",
+    ),
+    (
+        "aem/aem-infinity-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/aem/aem-infinity-broadcast.protocol.yaml",
+    ),
+    (
+        "megasquirt/megasquirt-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/megasquirt/megasquirt-broadcast.protocol.yaml",
+    ),
+    (
+        "maxxecu/maxxecu-default.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/maxxecu/maxxecu-default.protocol.yaml",
+    ),
+    (
+        "syvecs/syvecs-s7-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/syvecs/syvecs-s7-broadcast.protocol.yaml",
+    ),
+    (
+        "emtron/emtron-broadcast.protocol.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/protocols/emtron/emtron-broadcast.protocol.yaml",
+    ),
+];
+
 fn main() {
     // Ensure OpenECU Alliance specs are available
     ensure_adapter_specs();
+    ensure_protocol_specs();
 
     // Only run on Windows
     #[cfg(windows)]
@@ -95,10 +136,30 @@ fn ensure_adapter_specs() {
     download_adapter_specs(spec_dir);
 }
 
+/// Ensure protocol specs are available
+fn ensure_protocol_specs() {
+    let spec_dir = Path::new("spec/OECUASpecs/protocols");
+
+    // Check if submodule is initialized (has the haltech protocol)
+    let haltech_spec = spec_dir.join("haltech/haltech-elite-broadcast.protocol.yaml");
+    if haltech_spec.exists() {
+        println!("cargo:rerun-if-changed=spec/OECUASpecs/protocols");
+        return;
+    }
+
+    println!("cargo:warning=Protocol specs not found, downloading from GitHub...");
+    download_specs(spec_dir, PROTOCOL_SPECS);
+}
+
 /// Download adapter specs directly from GitHub
 fn download_adapter_specs(spec_dir: &Path) {
+    download_specs(spec_dir, ADAPTER_SPECS);
+}
+
+/// Generic spec downloader
+fn download_specs(spec_dir: &Path, specs: &[(&str, &str)]) {
     // Create directory structure
-    for (path, _) in ADAPTER_SPECS {
+    for (path, _) in specs {
         let full_path = spec_dir.join(path);
         if let Some(parent) = full_path.parent() {
             fs::create_dir_all(parent).ok();
@@ -106,7 +167,7 @@ fn download_adapter_specs(spec_dir: &Path) {
     }
 
     // Try curl first (available on most systems)
-    for (path, url) in ADAPTER_SPECS {
+    for (path, url) in specs {
         let full_path = spec_dir.join(path);
 
         if full_path.exists() {
@@ -169,7 +230,7 @@ fn download_adapter_specs(spec_dir: &Path) {
         // If we get here, all download methods failed
         // Create a placeholder that will cause a compile error with helpful message
         let error_content = format!(
-            r#"# ERROR: Failed to download adapter spec from GitHub
+            r#"# ERROR: Failed to download spec from GitHub
 # URL: {}
 #
 # Please run one of the following:
@@ -192,5 +253,5 @@ fn download_adapter_specs(spec_dir: &Path) {
         );
     }
 
-    println!("cargo:rerun-if-changed=spec/OECUASpecs/adapters");
+    println!("cargo:rerun-if-changed={}", spec_dir.display());
 }

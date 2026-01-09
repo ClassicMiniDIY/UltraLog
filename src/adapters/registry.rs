@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use super::types::{AdapterSpec, ChannelCategory, ChannelSpec};
+use super::types::{AdapterSpec, ChannelCategory, ChannelSpec, ProtocolSpec};
 
 // Embed adapter YAML files at compile time
 // These are loaded from the OECUASpecs git submodule (spec/OECUASpecs/)
@@ -29,6 +29,27 @@ const RUSEFI_MLG_YAML: &str =
 const EMERALD_LG_YAML: &str =
     include_str!("../../spec/OECUASpecs/adapters/emerald/emerald-lg.adapter.yaml");
 
+// Embed protocol YAML files at compile time
+// These define CAN bus message structures for real-time data streaming
+const HALTECH_ELITE_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/haltech/haltech-elite-broadcast.protocol.yaml");
+const ECUMASTER_EMU_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/ecumaster/ecumaster-emu-broadcast.protocol.yaml");
+const SPEEDUINO_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/speeduino/speeduino-broadcast.protocol.yaml");
+const RUSEFI_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/rusefi/rusefi-broadcast.protocol.yaml");
+const AEM_INFINITY_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/aem/aem-infinity-broadcast.protocol.yaml");
+const MEGASQUIRT_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/megasquirt/megasquirt-broadcast.protocol.yaml");
+const MAXXECU_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/maxxecu/maxxecu-default.protocol.yaml");
+const SYVECS_S7_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/syvecs/syvecs-s7-broadcast.protocol.yaml");
+const EMTRON_PROTOCOL_YAML: &str =
+    include_str!("../../spec/OECUASpecs/protocols/emtron/emtron-broadcast.protocol.yaml");
+
 /// All embedded adapter YAML strings
 static EMBEDDED_ADAPTERS: &[&str] = &[
     HALTECH_NSP_YAML,
@@ -41,6 +62,19 @@ static EMBEDDED_ADAPTERS: &[&str] = &[
     EMERALD_LG_YAML,
 ];
 
+/// All embedded protocol YAML strings
+static EMBEDDED_PROTOCOLS: &[&str] = &[
+    HALTECH_ELITE_PROTOCOL_YAML,
+    ECUMASTER_EMU_PROTOCOL_YAML,
+    SPEEDUINO_PROTOCOL_YAML,
+    RUSEFI_PROTOCOL_YAML,
+    AEM_INFINITY_PROTOCOL_YAML,
+    MEGASQUIRT_PROTOCOL_YAML,
+    MAXXECU_PROTOCOL_YAML,
+    SYVECS_S7_PROTOCOL_YAML,
+    EMTRON_PROTOCOL_YAML,
+];
+
 /// Parsed adapter specifications (loaded lazily)
 static ADAPTER_SPECS: LazyLock<Vec<AdapterSpec>> = LazyLock::new(|| {
     EMBEDDED_ADAPTERS
@@ -49,6 +83,20 @@ static ADAPTER_SPECS: LazyLock<Vec<AdapterSpec>> = LazyLock::new(|| {
             Ok(spec) => Some(spec),
             Err(e) => {
                 tracing::warn!("Failed to parse adapter YAML: {}", e);
+                None
+            }
+        })
+        .collect()
+});
+
+/// Parsed protocol specifications (loaded lazily)
+static PROTOCOL_SPECS: LazyLock<Vec<ProtocolSpec>> = LazyLock::new(|| {
+    EMBEDDED_PROTOCOLS
+        .iter()
+        .filter_map(|yaml| match serde_yaml::from_str(yaml) {
+            Ok(spec) => Some(spec),
+            Err(e) => {
+                tracing::warn!("Failed to parse protocol YAML: {}", e);
                 None
             }
         })
@@ -193,6 +241,29 @@ pub fn get_channels_by_category(category: ChannelCategory) -> Vec<&'static Chann
         .collect()
 }
 
+// ============================================================================
+// Protocol Registry Functions
+// ============================================================================
+
+/// Get all loaded protocol specifications
+pub fn get_protocols() -> &'static Vec<ProtocolSpec> {
+    &PROTOCOL_SPECS
+}
+
+/// Get protocol by ID
+pub fn get_protocol_by_id(id: &str) -> Option<&'static ProtocolSpec> {
+    PROTOCOL_SPECS.iter().find(|p| p.id == id)
+}
+
+/// Get protocols by vendor name
+pub fn find_protocols_by_vendor(vendor: &str) -> Vec<&'static ProtocolSpec> {
+    let vendor_lower = vendor.to_lowercase();
+    PROTOCOL_SPECS
+        .iter()
+        .filter(|p| p.vendor.to_lowercase() == vendor_lower)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,5 +314,42 @@ mod tests {
 
         let llg_adapters = find_adapters_by_extension("llg");
         assert!(!llg_adapters.is_empty(), "Should find LLG adapters");
+    }
+
+    #[test]
+    fn test_protocols_load() {
+        let protocols = get_protocols();
+        assert!(!protocols.is_empty(), "Should load at least one protocol");
+
+        // Check that we have the expected protocols
+        let protocol_ids: Vec<&str> = protocols.iter().map(|p| p.id.as_str()).collect();
+        assert!(
+            protocol_ids.contains(&"haltech-elite-broadcast"),
+            "Should have haltech-elite-broadcast protocol"
+        );
+    }
+
+    #[test]
+    fn test_get_protocol_by_id() {
+        let protocol = get_protocol_by_id("haltech-elite-broadcast");
+        assert!(protocol.is_some());
+        let proto = protocol.unwrap();
+        assert_eq!(proto.vendor, "haltech");
+        assert!(!proto.messages.is_empty(), "Protocol should have messages");
+    }
+
+    #[test]
+    fn test_find_protocols_by_vendor() {
+        let haltech_protocols = find_protocols_by_vendor("haltech");
+        assert!(
+            !haltech_protocols.is_empty(),
+            "Should find Haltech protocols"
+        );
+
+        let speeduino_protocols = find_protocols_by_vendor("speeduino");
+        assert!(
+            !speeduino_protocols.is_empty(),
+            "Should find Speeduino protocols"
+        );
     }
 }
