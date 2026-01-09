@@ -4,20 +4,26 @@ This document describes how UltraLog integrates with OpenECU Alliance adapter sp
 
 ## Implementation Status
 
-**Completed:**
+**Adapters (Log File Parsing):**
 
 - [x] Adapter specs embedded at compile time via `include_str!`
 - [x] Spec-driven channel normalization from `source_names`
 - [x] Integration with existing `normalize.rs` (spec as fallback)
 - [x] Channel metadata lookup (min/max/precision/category)
 - [x] 8 adapter specs integrated (Haltech, ECUMaster, Link, AiM, RomRaider, Speeduino, rusEFI, Emerald)
-
-**Not Yet Implemented:**
-
 - [ ] Runtime adapter loading from user directory
 - [ ] Generic CSV/binary parser driven by specs
 - [ ] Adapter marketplace integration
-- [ ] Build-time code generation
+
+**Protocols (CAN Bus Real-Time Streaming):**
+
+- [x] Protocol specs embedded at compile time via `include_str!`
+- [x] Protocol type definitions (ProtocolSpec, MessageSpec, SignalSpec)
+- [x] 9 protocol specs integrated (Haltech, ECUMaster, Speeduino, rusEFI, AEM, Megasquirt, MaxxECU, Syvecs, Emtron)
+- [x] Protocol registry API (get_protocols, get_protocol_by_id, find_protocols_by_vendor)
+- [ ] CAN bus message encoder/decoder
+- [ ] Real-time CAN streaming support
+- [ ] DBC file export from protocol specs
 
 ## Architecture
 
@@ -65,13 +71,15 @@ This document describes how UltraLog integrates with OpenECU Alliance adapter sp
 src/
 ├── adapters/
 │   ├── mod.rs           # Module exports and re-exports
-│   ├── types.rs         # AdapterSpec, ChannelSpec, ChannelCategory, etc.
-│   └── registry.rs      # Spec loading, normalization maps, metadata lookup
+│   ├── types.rs         # AdapterSpec, ProtocolSpec, ChannelSpec, MessageSpec, etc.
+│   └── registry.rs      # Spec loading, normalization maps, metadata lookup, protocol registry
 ├── normalize.rs         # Field normalization (uses adapters for fallback)
 └── parsers/
     └── types.rs         # Channel type enhanced with spec metadata methods
 
 spec/OECUASpecs/         # Git submodule: github.com/ClassicMiniDIY/OECUASpecs
+├── adapters/            # Log file format adapters (8 specs)
+└── protocols/           # CAN bus protocol definitions (9 specs)
 build.rs                 # Auto-downloads specs if submodule missing
 ```
 
@@ -177,6 +185,102 @@ impl Channel {
 }
 ```
 
+## CAN Bus Protocol Support
+
+In addition to adapter specs (for parsing log files), UltraLog also integrates with OpenECU Alliance protocol specifications. These define CAN bus message structures for real-time ECU data streaming.
+
+### Protocol vs Adapter Specs
+
+| Aspect | **Adapters** | **Protocols** |
+|--------|-------------|--------------|
+| Purpose | Parse saved log files | Real-time CAN bus streaming |
+| Format | CSV or binary files | CAN bus messages |
+| Use Case | Offline analysis | Live monitoring, dashboards |
+| Structure | Columns, headers, timestamps | Messages, signals, bit fields |
+| Examples | .csv, .llg, .xrk files | CAN 11-bit/29-bit messages |
+
+### Protocol Specs
+
+UltraLog embeds 9 CAN protocol specifications at compile time:
+
+| Vendor | Protocol ID | Baudrate | Messages | Extended ID |
+|--------|-------------|----------|----------|-------------|
+| Haltech | haltech-elite-broadcast | 1 Mbps | 50+ | No (11-bit) |
+| ECUMaster | ecumaster-emu-broadcast | 1 Mbps | 30+ | No (11-bit) |
+| Speeduino | speeduino-broadcast | 500 kbps | 12 | No (11-bit) |
+| rusEFI | rusefi-broadcast | 500 kbps | 20+ | No (11-bit) |
+| AEM Infinity | aem-infinity-broadcast | 500 kbps | 40+ | Yes (29-bit) |
+| Megasquirt | megasquirt-broadcast | 500 kbps | 25+ | Mixed |
+| MaxxECU | maxxecu-default | 1 Mbps | 35+ | No (11-bit) |
+| Syvecs S7 | syvecs-s7-broadcast | 1 Mbps | 30+ | No (11-bit) |
+| Emtron | emtron-broadcast | 1 Mbps | 25+ | No (11-bit) |
+
+### Protocol Structure
+
+Each protocol spec defines:
+
+- **CAN Configuration**: Baudrate, identifier type (11-bit/29-bit), byte order
+- **Messages**: CAN message IDs, lengths, broadcast intervals
+- **Signals**: Bit-level definitions with start_bit, length, scale, offset
+- **Enumerations**: Discrete value mappings (e.g., gear positions)
+- **Metadata**: Compatible tools, tested ECU models, known issues
+
+Example protocol signal definition:
+
+```yaml
+signals:
+  - name: "RPM"
+    description: "Engine rotational speed"
+    start_bit: 0
+    length: 16
+    byte_order: big_endian
+    data_type: unsigned
+    scale: 1.0
+    offset: 0
+    unit: "rpm"
+    min: 0
+    max: 65535
+```
+
+### Protocol API
+
+```rust
+use ultralog::adapters::{
+    // Protocol access
+    get_protocols,            // Get all loaded protocol specs
+    get_protocol_by_id,       // Get specific protocol by ID
+    find_protocols_by_vendor, // Get protocols for a vendor
+
+    // Protocol types
+    ProtocolSpec,             // Top-level protocol definition
+    ProtocolInfo,             // CAN configuration (baudrate, ID type)
+    MessageSpec,              // CAN message definition
+    SignalSpec,               // Signal within a message
+    EnumSpec,                 // Enumeration for discrete values
+
+    // Enums
+    ProtocolType,             // can, canfd, lin, k-line
+    ByteOrder,                // little_endian, big_endian
+    SignalDataType,           // unsigned, signed, float, double
+};
+```
+
+Example usage:
+
+```rust
+// Get all Haltech protocols
+let haltech_protos = ultralog::adapters::find_protocols_by_vendor("haltech");
+for proto in haltech_protos {
+    println!("{}: {} @ {} baud", proto.id, proto.name, proto.protocol.baudrate);
+    for msg in &proto.messages {
+        println!("  Message 0x{:X}: {}", msg.id, msg.name);
+        for signal in &msg.signals {
+            println!("    {}: {} {}", signal.name, signal.unit.as_deref().unwrap_or(""), signal.description.as_deref().unwrap_or(""));
+        }
+    }
+}
+```
+
 ## API Reference
 
 ### adapters module
@@ -198,16 +302,31 @@ use ultralog::adapters::{
     get_adapters_by_vendor,   // Get adapters for a vendor
     find_adapters_by_extension, // Find adapters supporting file extension
 
+    // Protocol access
+    get_protocols,            // Get all loaded protocol specs
+    get_protocol_by_id,       // Get specific protocol by ID
+    find_protocols_by_vendor, // Get protocols for a vendor
+
     // Categories
     get_all_categories,       // Get all unique ChannelCategory values
     get_channels_by_category, // Get all channels for a category
 
-    // Types
+    // Adapter types
     AdapterSpec,
     ChannelSpec,
     ChannelCategory,
     DataType,
     FileFormatSpec,
+
+    // Protocol types
+    ProtocolSpec,
+    ProtocolInfo,
+    ProtocolType,
+    MessageSpec,
+    SignalSpec,
+    ByteOrder,
+    SignalDataType,
+    EnumSpec,
 };
 ```
 
