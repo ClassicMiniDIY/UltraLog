@@ -48,7 +48,7 @@ meval = "0.2"
 dirs = "5.0"
 
 # File handling
-rfd = "0.16"  # Native file dialogs
+rfd = "0.17"  # Native file dialogs
 open = "5"    # Open URLs in default browser
 memmap2 = "0.9"  # Memory-mapped file loading for large files
 
