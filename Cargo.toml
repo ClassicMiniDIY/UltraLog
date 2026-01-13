@@ -21,15 +21,15 @@ path = "src/bin/test_parser.rs"
 
 [dependencies]
 # GUI Framework
-eframe = { version = "0.33", default-features = false, features = [
+eframe = { version = "0.33.3", default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",
     "x11",
     "wayland",
 ] }
-egui_plot = "0.34"
-egui_extras = { version = "0.33", features = ["image"] }
+egui_plot = "0.34.0"
+egui_extras = { version = "0.33.3", features = ["image"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -53,9 +53,9 @@ open = "5"    # Open URLs in default browser
 memmap2 = "0.9"  # Memory-mapped file loading for large files
 
 # Auto-update
-ureq = { version = "3.0", features = ["json"] }  # Minimal HTTP client
+ureq = { version = "3.1", features = ["json"] }  # Minimal HTTP client
 semver = "1.0"  # Version comparison
-zip = "2.2"     # ZIP extraction for Windows updates
+zip = "2.2"     # ZIP extraction for Windows updates (v7.0 has breaking changes)
 flate2 = "1.0"  # Gzip decompression for Linux updates
 tar = "0.4"     # Tar archive extraction for Linux updates
 
@@ -63,14 +63,14 @@ tar = "0.4"     # Tar archive extraction for Linux updates
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 # PDF generation for chart export
-printpdf = "0.7"
+printpdf = "0.7"  # v0.8 has breaking API changes requiring code refactoring
 
 # Error handling
-thiserror = "2.0"
+thiserror = "2.0.17"
 anyhow = "1.0"
 
 # Internationalization
-rust-i18n = "3"
+rust-i18n = "3.1"
 
 # Logging
 tracing = "0.1"
@@ -85,8 +85,8 @@ winresource = "0.1"
 
 # macOS-specific: set app name in dock
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6"
-objc2-foundation = "0.3"
+objc2 = "0.6.3"
+objc2-foundation = "0.3.2"
 
 [dev-dependencies]
 # Note: cargo-tarpaulin is installed as a cargo subcommand, not a library dependency
