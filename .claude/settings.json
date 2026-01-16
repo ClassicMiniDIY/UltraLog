@@ -28,7 +28,9 @@
       "Bash(cargo check:*)",
       "Bash(while read line)",
       "Bash(do echo \"=== $line ===\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(awk:*)",
+      "Bash(cargo add:*)"
     ]
   }
 }

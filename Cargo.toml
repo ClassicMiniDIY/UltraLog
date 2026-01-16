@@ -78,6 +78,7 @@ tracing-subscriber = "0.3"
 
 # UUID generation for anonymous user IDs
 uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4.43", features = ["serde"] }
 
 # Windows-specific: embed icon and manifest
 [target.'cfg(windows)'.build-dependencies]
