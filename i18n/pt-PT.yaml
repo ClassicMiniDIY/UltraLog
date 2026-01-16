@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "Colado"
   comparison_result: "Resultado"
   copy_result: "Copiar Resultado"
+  sample_filters: "Filtros de Amostra"
+  add_filter: "Adicionar Filtro"
+  remove_filter: "Remover"
+  filter_channel: "Canal:"
+  filter_min: "Min"
+  filter_max: "Max"
+  no_filters: "Nenhum filtro ativo"
 
 # Chart (src/ui/chart.rs)
 chart:

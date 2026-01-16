@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "ملصوق"
   comparison_result: "النتيجة"
   copy_result: "نسخ النتيجة"
+  sample_filters: "مرشحات العينات"
+  add_filter: "إضافة مرشح"
+  remove_filter: "إزالة"
+  filter_channel: "القناة:"
+  filter_min: "الحد الأدنى"
+  filter_max: "الحد الأقصى"
+  no_filters: "لا توجد مرشحات نشطة"
 
 # Chart (src/ui/chart.rs)
 chart:

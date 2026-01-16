@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "Ditempel"
   comparison_result: "Hasil"
   copy_result: "Salin Hasil"
+  sample_filters: "Filter Sampel"
+  add_filter: "Tambah Filter"
+  remove_filter: "Hapus"
+  filter_channel: "Saluran:"
+  filter_min: "Min"
+  filter_max: "Maks"
+  no_filters: "Tidak ada filter aktif"
 
 # Chart (src/ui/chart.rs)
 chart:

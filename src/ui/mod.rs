@@ -31,10 +31,10 @@
 
 // New activity bar architecture
 pub mod activity_bar;
-pub mod channels_panel;
 pub mod files_panel;
 pub mod settings_panel;
 pub mod side_panel;
+pub mod tool_properties_panel;
 pub mod tools_panel;
 
 // Core UI components

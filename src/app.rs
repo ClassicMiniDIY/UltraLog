@@ -540,7 +540,7 @@ impl UltraLogApp {
                         self.show_toast_success(&t!("toast.file_loaded"));
 
                         // Switch to Channels panel so user can select channels
-                        self.active_panel = ActivePanel::Channels;
+                        self.active_panel = ActivePanel::ToolProperties;
                     }
                     LoadResult::Error(e) => {
                         self.show_toast_error(&format!("Error: {}", e));
@@ -1337,7 +1337,7 @@ impl UltraLogApp {
                     return;
                 }
                 if i.key_pressed(egui::Key::C) {
-                    self.active_panel = crate::state::ActivePanel::Channels;
+                    self.active_panel = crate::state::ActivePanel::ToolProperties;
                     return;
                 }
                 if i.key_pressed(egui::Key::T) {

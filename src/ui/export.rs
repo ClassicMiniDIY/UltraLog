@@ -452,7 +452,7 @@ impl UltraLogApp {
 
         let file = &self.files[file_idx];
         let mode = config.mode;
-        let grid_size = config.effective_grid_size();
+        let (grid_cols, grid_rows) = config.effective_grid_size();
 
         let x_idx = config.x_channel.ok_or("X axis not selected")?;
         let y_idx = config.y_channel.ok_or("Y axis not selected")?;
@@ -495,14 +495,14 @@ impl UltraLogApp {
         };
 
         // Build histogram grid
-        let mut hit_counts = vec![vec![0u32; grid_size]; grid_size];
-        let mut z_sums = vec![vec![0.0f64; grid_size]; grid_size];
+        let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
+        let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
 
         for i in 0..x_data.len() {
-            let x_bin = (((x_data[i] - x_min) / x_range) * (grid_size - 1) as f64).round() as usize;
-            let y_bin = (((y_data[i] - y_min) / y_range) * (grid_size - 1) as f64).round() as usize;
-            let x_bin = x_bin.min(grid_size - 1);
-            let y_bin = y_bin.min(grid_size - 1);
+            let x_bin = (((x_data[i] - x_min) / x_range) * (grid_cols - 1) as f64).round() as usize;
+            let y_bin = (((y_data[i] - y_min) / y_range) * (grid_rows - 1) as f64).round() as usize;
+            let x_bin = x_bin.min(grid_cols - 1);
+            let y_bin = y_bin.min(grid_rows - 1);
 
             hit_counts[y_bin][x_bin] += 1;
             if let Some(ref z) = z_data {
@@ -511,12 +511,12 @@ impl UltraLogApp {
         }
 
         // Calculate cell values and find min/max for color scaling
-        let mut cell_values = vec![vec![None::<f64>; grid_size]; grid_size];
+        let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
         let mut min_value: f64 = f64::MAX;
         let mut max_value: f64 = f64::MIN;
 
-        for y_bin in 0..grid_size {
-            for x_bin in 0..grid_size {
+        for y_bin in 0..grid_rows {
+            for x_bin in 0..grid_cols {
                 let hits = hit_counts[y_bin][x_bin];
                 if hits > 0 {
                     let value = match mode {
@@ -566,8 +566,8 @@ impl UltraLogApp {
         let chart_width: f64 = chart_right - chart_left;
         let chart_height: f64 = chart_top - chart_bottom;
 
-        let cell_width = chart_width / grid_size as f64;
-        let cell_height = chart_height / grid_size as f64;
+        let cell_width = chart_width / grid_cols as f64;
+        let cell_height = chart_height / grid_rows as f64;
 
         // Draw title
         let font = doc.add_builtin_font(BuiltinFont::HelveticaBold)?;
@@ -584,8 +584,8 @@ impl UltraLogApp {
         let subtitle = format!(
             "{} | Grid: {}x{} | Mode: {}",
             file.name,
-            grid_size,
-            grid_size,
+            grid_cols,
+            grid_rows,
             if mode == HistogramMode::HitCount {
                 "Hit Count"
             } else {
@@ -605,8 +605,8 @@ impl UltraLogApp {
         );
 
         // Draw histogram cells
-        for y_bin in 0..grid_size {
-            for x_bin in 0..grid_size {
+        for y_bin in 0..grid_rows {
+            for x_bin in 0..grid_cols {
                 let cell_x = chart_left + x_bin as f64 * cell_width;
                 let cell_y = chart_bottom + y_bin as f64 * cell_height;
 
@@ -647,7 +647,7 @@ impl UltraLogApp {
                     current_layer.add_polygon(rect);
 
                     // Draw cell value text (only for smaller grids)
-                    if grid_size <= 32 {
+                    if grid_cols.max(grid_rows) <= 32 {
                         let text = if mode == HistogramMode::HitCount {
                             format!("{}", hit_counts[y_bin][x_bin])
                         } else {
@@ -663,7 +663,11 @@ impl UltraLogApp {
                         };
 
                         current_layer.set_fill_color(text_color);
-                        let font_size = if grid_size <= 16 { 6.0 } else { 4.0 };
+                        let font_size = if grid_cols.max(grid_rows) <= 16 {
+                            6.0
+                        } else {
+                            4.0
+                        };
                         current_layer.use_text(
                             &text,
                             font_size,
@@ -681,11 +685,9 @@ impl UltraLogApp {
         current_layer.set_outline_color(grid_color);
         current_layer.set_outline_thickness(0.25);
 
-        for i in 0..=grid_size {
+        // Vertical grid lines (X axis divisions)
+        for i in 0..=grid_cols {
             let x = chart_left + i as f64 * cell_width;
-            let y = chart_bottom + i as f64 * cell_height;
-
-            // Vertical line
             let vline = Line {
                 points: vec![
                     (Point::new(Mm(x as f32), Mm(chart_bottom as f32)), false),
@@ -694,8 +696,11 @@ impl UltraLogApp {
                 is_closed: false,
             };
             current_layer.add_line(vline);
+        }
 
-            // Horizontal line
+        // Horizontal grid lines (Y axis divisions)
+        for i in 0..=grid_rows {
+            let y = chart_bottom + i as f64 * cell_height;
             let hline = Line {
                 points: vec![
                     (Point::new(Mm(chart_left as f32), Mm(y as f32)), false),
@@ -933,7 +938,7 @@ impl UltraLogApp {
 
         let file = &self.files[file_idx];
         let mode = config.mode;
-        let grid_size = config.effective_grid_size();
+        let (grid_cols, grid_rows) = config.effective_grid_size();
 
         let x_idx = config.x_channel.ok_or("X axis not selected")?;
         let y_idx = config.y_channel.ok_or("Y axis not selected")?;
@@ -976,14 +981,14 @@ impl UltraLogApp {
         };
 
         // Build histogram grid
-        let mut hit_counts = vec![vec![0u32; grid_size]; grid_size];
-        let mut z_sums = vec![vec![0.0f64; grid_size]; grid_size];
+        let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
+        let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
 
         for i in 0..x_data.len() {
-            let x_bin = (((x_data[i] - x_min) / x_range) * (grid_size - 1) as f64).round() as usize;
-            let y_bin = (((y_data[i] - y_min) / y_range) * (grid_size - 1) as f64).round() as usize;
-            let x_bin = x_bin.min(grid_size - 1);
-            let y_bin = y_bin.min(grid_size - 1);
+            let x_bin = (((x_data[i] - x_min) / x_range) * (grid_cols - 1) as f64).round() as usize;
+            let y_bin = (((y_data[i] - y_min) / y_range) * (grid_rows - 1) as f64).round() as usize;
+            let x_bin = x_bin.min(grid_cols - 1);
+            let y_bin = y_bin.min(grid_rows - 1);
 
             hit_counts[y_bin][x_bin] += 1;
             if let Some(ref z) = z_data {
@@ -992,12 +997,12 @@ impl UltraLogApp {
         }
 
         // Calculate cell values and find min/max for color scaling
-        let mut cell_values = vec![vec![None::<f64>; grid_size]; grid_size];
+        let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
         let mut min_value: f64 = f64::MAX;
         let mut max_value: f64 = f64::MIN;
 
-        for y_bin in 0..grid_size {
-            for x_bin in 0..grid_size {
+        for y_bin in 0..grid_rows {
+            for x_bin in 0..grid_cols {
                 let hits = hit_counts[y_bin][x_bin];
                 if hits > 0 {
                     let value = match mode {
@@ -1030,8 +1035,8 @@ impl UltraLogApp {
 
         let chart_width = chart_right - chart_left;
         let chart_height = chart_bottom - chart_top;
-        let cell_width = chart_width as f64 / grid_size as f64;
-        let cell_height = chart_height as f64 / grid_size as f64;
+        let cell_width = chart_width as f64 / grid_cols as f64;
+        let cell_height = chart_height as f64 / grid_rows as f64;
 
         // Create image buffer
         let mut imgbuf = RgbaImage::new(width, height);
@@ -1043,8 +1048,8 @@ impl UltraLogApp {
 
         // Draw histogram cells
         #[allow(clippy::needless_range_loop)]
-        for y_bin in 0..grid_size {
-            for x_bin in 0..grid_size {
+        for y_bin in 0..grid_rows {
+            for x_bin in 0..grid_cols {
                 if let Some(value) = cell_values[y_bin][x_bin] {
                     // Calculate color
                     let normalized = if mode == HistogramMode::HitCount && max_value > 1.0 {
@@ -1072,18 +1077,20 @@ impl UltraLogApp {
 
         // Draw grid lines
         let grid_color = Rgba([80, 80, 80, 255]);
-        for i in 0..=grid_size {
-            let x = chart_left + (i as f64 * cell_width) as u32;
-            let y = chart_top + (i as f64 * cell_height) as u32;
 
-            // Vertical line
+        // Vertical grid lines (X axis divisions)
+        for i in 0..=grid_cols {
+            let x = chart_left + (i as f64 * cell_width) as u32;
             for py in chart_top..chart_bottom {
                 if x < width {
                     imgbuf.put_pixel(x, py, grid_color);
                 }
             }
+        }
 
-            // Horizontal line
+        // Horizontal grid lines (Y axis divisions)
+        for i in 0..=grid_rows {
+            let y = chart_top + (i as f64 * cell_height) as u32;
             for px in chart_left..chart_right {
                 if y < height {
                     imgbuf.put_pixel(px, y, grid_color);
