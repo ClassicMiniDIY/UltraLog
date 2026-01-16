@@ -306,6 +306,13 @@ histogram:
   comparison_pasted: "چسپاں"
   comparison_result: "نتیجہ"
   copy_result: "نتیجہ کاپی کریں"
+  sample_filters: "نمونہ فلٹرز"
+  add_filter: "فلٹر شامل کریں"
+  remove_filter: "ہٹائیں"
+  filter_channel: "چینل:"
+  filter_min: "کم سے کم"
+  filter_max: "زیادہ سے زیادہ"
+  no_filters: "کوئی فلٹر فعال نہیں"
 
 # Chart (src/ui/chart.rs)
 chart:

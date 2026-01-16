@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "পেস্ট করা"
   comparison_result: "ফলাফল"
   copy_result: "ফলাফল কপি করুন"
+  sample_filters: "নমুনা ফিল্টার"
+  add_filter: "ফিল্টার যোগ করুন"
+  remove_filter: "সরাও"
+  filter_channel: "চ্যানেল:"
+  filter_min: "ন্যূনতম"
+  filter_max: "সর্বোচ্চ"
+  no_filters: "কোনো সক্রিয় ফিল্টার নেই"
 
 # Chart (src/ui/chart.rs)
 chart:

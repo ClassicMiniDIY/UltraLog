@@ -202,8 +202,9 @@ pub enum ActivePanel {
     /// Files panel - file management, loading, file list
     #[default]
     Files,
-    /// Channels panel - channel selection and selected channels
-    Channels,
+    /// Tool Properties panel - dynamic panel showing controls for the current tool
+    /// (channels for Log Viewer, histogram controls for Histogram, scatter plot controls for Scatter Plot)
+    ToolProperties,
     /// Tools panel - analysis tools, computed channels, export
     Tools,
     /// Settings panel - all preferences consolidated
@@ -215,19 +216,20 @@ impl ActivePanel {
     pub fn name(&self) -> &'static str {
         match self {
             ActivePanel::Files => "Files",
-            ActivePanel::Channels => "Channels",
+            ActivePanel::ToolProperties => "Properties",
             ActivePanel::Tools => "Tools",
             ActivePanel::Settings => "Settings",
         }
     }
 
     /// Get the icon character for this panel (using Unicode symbols)
+    /// Note: Activity bar draws custom icons, this is kept for reference
     pub fn icon(&self) -> &'static str {
         match self {
-            ActivePanel::Files => "\u{1F4C1}",    // Folder icon
-            ActivePanel::Channels => "\u{1F4CA}", // Chart icon
-            ActivePanel::Tools => "\u{1F527}",    // Wrench icon
-            ActivePanel::Settings => "\u{2699}",  // Gear icon
+            ActivePanel::Files => "\u{1F4C1}",          // Folder icon
+            ActivePanel::ToolProperties => "\u{1F3DB}", // Sliders icon
+            ActivePanel::Tools => "\u{1F527}",          // Wrench icon
+            ActivePanel::Settings => "\u{2699}",        // Gear icon
         }
     }
 }
@@ -459,10 +461,12 @@ pub struct HistogramConfig {
     pub z_channel: Option<usize>,
     /// Display mode (average Z vs hit count)
     pub mode: HistogramMode,
-    /// Grid size (legacy enum, use custom_grid_size if set)
+    /// Grid size (legacy enum, use custom grid if set)
     pub grid_size: HistogramGridSize,
-    /// Custom grid size (arbitrary square grid, user-defined). 0 = use grid_size enum
-    pub custom_grid_size: usize,
+    /// Custom grid columns (X axis bins). 0 = use grid_size enum
+    pub custom_grid_columns: usize,
+    /// Custom grid rows (Y axis bins). 0 = use grid_size enum
+    pub custom_grid_rows: usize,
     /// Currently selected cell (for statistics display)
     pub selected_cell: Option<SelectedHistogramCell>,
     /// Minimum hits filter - cells with fewer hits are grayed out
@@ -482,12 +486,17 @@ pub struct HistogramConfig {
 }
 
 impl HistogramConfig {
-    /// Get the effective grid size (custom if set, otherwise from enum)
-    pub fn effective_grid_size(&self) -> usize {
-        if self.custom_grid_size > 0 {
-            self.custom_grid_size.clamp(4, 256)
+    /// Get the effective grid size as (columns, rows)
+    /// Returns custom grid if set, otherwise uses the square grid_size enum for both dimensions
+    pub fn effective_grid_size(&self) -> (usize, usize) {
+        if self.custom_grid_columns > 0 && self.custom_grid_rows > 0 {
+            (
+                self.custom_grid_columns.clamp(4, 256),
+                self.custom_grid_rows.clamp(4, 256),
+            )
         } else {
-            self.grid_size.size()
+            let size = self.grid_size.size();
+            (size, size)
         }
     }
 }

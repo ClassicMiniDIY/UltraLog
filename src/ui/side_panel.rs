@@ -27,7 +27,7 @@ impl UltraLogApp {
             .auto_shrink([false, false])
             .show(ui, |ui| match self.active_panel {
                 ActivePanel::Files => self.render_files_panel_content(ui),
-                ActivePanel::Channels => self.render_channels_panel_content(ui),
+                ActivePanel::ToolProperties => self.render_tool_properties_panel_content(ui),
                 ActivePanel::Tools => self.render_tools_panel_content(ui),
                 ActivePanel::Settings => self.render_settings_panel_content(ui),
             });

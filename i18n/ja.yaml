@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "貼り付け済み"
   comparison_result: "結果"
   copy_result: "結果をコピー"
+  sample_filters: "サンプルフィルター"
+  add_filter: "フィルターを追加"
+  remove_filter: "削除"
+  filter_channel: "チャンネル:"
+  filter_min: "最小"
+  filter_max: "最大"
+  no_filters: "アクティブなフィルターなし"
 
 # Chart (src/ui/chart.rs)
 chart:

@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "Вставленное"
   comparison_result: "Результат"
   copy_result: "Копировать результат"
+  sample_filters: "Фильтры образцов"
+  add_filter: "Добавить фильтр"
+  remove_filter: "Удалить"
+  filter_channel: "Канал:"
+  filter_min: "Мин"
+  filter_max: "Макс"
+  no_filters: "Активные фильтры отсутствуют"
 
 # Chart (src/ui/chart.rs)
 chart:

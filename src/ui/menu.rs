@@ -177,7 +177,7 @@ impl UltraLogApp {
                 if ui
                     .radio_value(
                         &mut self.active_panel,
-                        ActivePanel::Channels,
+                        ActivePanel::ToolProperties,
                         t!("menu.channels"),
                     )
                     .on_hover_text("\u{2318}\u{21E7}C")
