@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "पेस्ट किया गया"
   comparison_result: "परिणाम"
   copy_result: "परिणाम कॉपी करें"
+  sample_filters: "नमूना फ़िल्टर"
+  add_filter: "फ़िल्टर जोड़ें"
+  remove_filter: "हटाएँ"
+  filter_channel: "चैनल:"
+  filter_min: "न्यूनतम"
+  filter_max: "अधिकतम"
+  no_filters: "कोई सक्रिय फ़िल्टर नहीं"
 
 # Chart (src/ui/chart.rs)
 chart:

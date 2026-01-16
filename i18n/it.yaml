@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "Incollato"
   comparison_result: "Risultato"
   copy_result: "Copia Risultato"
+  sample_filters: "Filtri Campioni"
+  add_filter: "Aggiungi Filtro"
+  remove_filter: "Rimuovi"
+  filter_channel: "Canale:"
+  filter_min: "Min"
+  filter_max: "Max"
+  no_filters: "Nessun filtro attivo"
 
 # Chart (src/ui/chart.rs)
 chart:

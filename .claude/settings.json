@@ -30,7 +30,11 @@
       "Bash(do echo \"=== $line ===\")",
       "Bash(done)",
       "Bash(awk:*)",
-      "Bash(cargo add:*)"
+      "Bash(cargo add:*)",
+      "Bash(git checkout:*)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }

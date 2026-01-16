@@ -305,6 +305,13 @@ histogram:
   comparison_pasted: "已粘贴"
   comparison_result: "结果"
   copy_result: "复制结果"
+  sample_filters: "样本过滤器"
+  add_filter: "添加过滤器"
+  remove_filter: "删除"
+  filter_channel: "通道:"
+  filter_min: "最小值"
+  filter_max: "最大值"
+  no_filters: "没有活动过滤器"
 
 # 图表 (src/ui/chart.rs)
 chart:

@@ -24,7 +24,7 @@ impl UltraLogApp {
             // Render each panel icon
             for panel in [
                 ActivePanel::Files,
-                ActivePanel::Channels,
+                ActivePanel::ToolProperties,
                 ActivePanel::Tools,
                 ActivePanel::Settings,
             ] {
@@ -134,23 +134,29 @@ impl UltraLogApp {
                 );
                 painter.rect_filled(tab_rect, egui::CornerRadius::same(1), color);
             }
-            ActivePanel::Channels => {
-                // Bar chart icon
-                let bar_width = size * 0.15;
-                let spacing = size * 0.22;
-                let base_y = center.y + half * 0.6;
+            ActivePanel::ToolProperties => {
+                // Horizontal sliders icon (representing tool properties/controls)
+                let stroke = egui::Stroke::new(1.5, color);
+                let slider_height = size * 0.8;
+                let slider_width = size * 0.7;
+                let knob_size = size * 0.15;
 
-                // Three bars of different heights
-                let heights = [size * 0.5, size * 0.8, size * 0.35];
-                let start_x = center.x - spacing;
+                // Three horizontal sliders
+                let slider_spacing = slider_height / 3.0;
+                let start_y = center.y - slider_height / 2.0 + slider_spacing;
+                let left = center.x - slider_width / 2.0;
+                let right = center.x + slider_width / 2.0;
 
-                for (i, &height) in heights.iter().enumerate() {
-                    let x = start_x + (i as f32) * spacing;
-                    let bar_rect = egui::Rect::from_min_max(
-                        egui::pos2(x - bar_width / 2.0, base_y - height),
-                        egui::pos2(x + bar_width / 2.0, base_y),
-                    );
-                    painter.rect_filled(bar_rect, egui::CornerRadius::same(1), color);
+                for i in 0..3 {
+                    let y = start_y + (i as f32) * slider_spacing;
+
+                    // Draw slider track
+                    painter.line_segment([egui::pos2(left, y), egui::pos2(right, y)], stroke);
+
+                    // Draw slider knob at different positions
+                    let knob_positions = [0.3, 0.7, 0.5]; // Different positions for visual variety
+                    let knob_x = left + slider_width * knob_positions[i];
+                    painter.circle_filled(egui::pos2(knob_x, y), knob_size, color);
                 }
             }
             ActivePanel::Tools => {

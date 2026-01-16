@@ -135,16 +135,14 @@ impl UltraLogApp {
         self.render_tab_bar(ui);
         ui.add_space(10.0);
 
-        // Render axis selectors and mode toggle
-        self.render_histogram_controls(ui);
-        ui.add_space(8.0);
-
+        // Controls are now in the sidebar (tool properties panel)
         // Render the histogram grid
         self.render_histogram_grid(ui);
     }
 
     /// Render the control panel with axis selectors, mode toggle, and grid size
-    fn render_histogram_controls(&mut self, ui: &mut egui::Ui) {
+    /// This is now called from the tool properties sidebar panel
+    pub(crate) fn render_histogram_controls(&mut self, ui: &mut egui::Ui) {
         let Some(tab_idx) = self.active_tab else {
             return;
         };
@@ -185,7 +183,8 @@ impl UltraLogApp {
         let current_z = config.z_channel;
         let current_mode = config.mode;
         let current_grid_size = config.grid_size;
-        let current_custom_grid = config.custom_grid_size;
+        let current_custom_grid_cols = config.custom_grid_columns;
+        let current_custom_grid_rows = config.custom_grid_rows;
         let current_min_hits = config.min_hits_filter;
         let current_custom_x = config.custom_x_range;
         let current_custom_y = config.custom_y_range;
@@ -230,7 +229,8 @@ impl UltraLogApp {
         let mut new_y: Option<usize> = None;
         let mut new_z: Option<usize> = None;
         let mut new_mode: Option<HistogramMode> = None;
-        let mut new_custom_grid: Option<usize> = None;
+        let mut new_custom_grid_cols: Option<usize> = None;
+        let mut new_custom_grid_rows: Option<usize> = None;
         let mut new_min_hits: Option<u32> = None;
         let mut new_custom_x: Option<Option<(f64, f64)>> = None;
         let mut new_custom_y: Option<Option<(f64, f64)>> = None;
@@ -238,224 +238,378 @@ impl UltraLogApp {
         let mut new_show_compare: Option<bool> = None;
         let mut clear_pasted_table = false;
         let mut do_paste = false;
+        let mut sample_filter_updates: Vec<(usize, SampleFilter)> = Vec::new();
+        let mut sample_filters_to_remove: Vec<usize> = Vec::new();
+        let mut new_sample_filter: Option<SampleFilter> = None;
 
         // Pre-compute scaled font sizes
         let font_14 = self.scaled_font(14.0);
         let font_15 = self.scaled_font(15.0);
 
-        ui.horizontal(|ui| {
-            // X Axis selector
-            ui.label(egui::RichText::new(t!("histogram.x_axis")).size(font_15));
-            egui::ComboBox::from_id_salt("histogram_x")
-                .selected_text(
-                    egui::RichText::new(
-                        current_x
-                            .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
-                            .unwrap_or("Select..."),
-                    )
-                    .size(font_14),
-                )
-                .width(160.0)
-                .show_ui(ui, |ui| {
-                    for (idx, name, _) in &sorted_channels {
-                        if ui
-                            .selectable_label(
-                                current_x == Some(*idx),
-                                egui::RichText::new(name).size(font_14),
-                            )
-                            .clicked()
-                        {
-                            new_x = Some(*idx);
-                        }
+        // ============================================================================
+        // AXES SECTION
+        // ============================================================================
+        ui.label(egui::RichText::new("📊 Axes").size(font_15).strong());
+        ui.add_space(8.0);
+
+        // X Axis
+        ui.label(egui::RichText::new(t!("histogram.x_axis")).size(font_14));
+        egui::ComboBox::from_id_salt("histogram_x")
+            .selected_text(
+                current_x
+                    .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
+                    .unwrap_or("Select..."),
+            )
+            .width(ui.available_width())
+            .show_ui(ui, |ui| {
+                for (idx, name, _) in &sorted_channels {
+                    if ui.selectable_label(current_x == Some(*idx), name).clicked() {
+                        new_x = Some(*idx);
                     }
-                });
-
-            ui.add_space(16.0);
-
-            // Y Axis selector
-            ui.label(egui::RichText::new(t!("histogram.y_axis")).size(font_15));
-            egui::ComboBox::from_id_salt("histogram_y")
-                .selected_text(
-                    egui::RichText::new(
-                        current_y
-                            .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
-                            .unwrap_or("Select..."),
-                    )
-                    .size(font_14),
-                )
-                .width(160.0)
-                .show_ui(ui, |ui| {
-                    for (idx, name, _) in &sorted_channels {
-                        if ui
-                            .selectable_label(
-                                current_y == Some(*idx),
-                                egui::RichText::new(name).size(font_14),
-                            )
-                            .clicked()
-                        {
-                            new_y = Some(*idx);
-                        }
-                    }
-                });
-
-            ui.add_space(16.0);
-
-            // Z Axis selector (only enabled in AverageZ mode)
-            let z_enabled = current_mode == HistogramMode::AverageZ;
-            ui.add_enabled_ui(z_enabled, |ui| {
-                ui.label(egui::RichText::new(t!("histogram.z_axis")).size(font_15));
-                egui::ComboBox::from_id_salt("histogram_z")
-                    .selected_text(
-                        egui::RichText::new(
-                            current_z
-                                .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
-                                .unwrap_or("Select..."),
-                        )
-                        .size(font_14),
-                    )
-                    .width(160.0)
-                    .show_ui(ui, |ui| {
-                        for (idx, name, _) in &sorted_channels {
-                            if ui
-                                .selectable_label(
-                                    current_z == Some(*idx),
-                                    egui::RichText::new(name).size(font_14),
-                                )
-                                .clicked()
-                            {
-                                new_z = Some(*idx);
-                            }
-                        }
-                    });
+                }
             });
 
-            ui.add_space(20.0);
+        ui.add_space(8.0);
 
-            // Grid size selector - show both presets and custom input
-            ui.label(egui::RichText::new(t!("histogram.grid")).size(font_15));
+        // Y Axis
+        ui.label(egui::RichText::new(t!("histogram.y_axis")).size(font_14));
+        egui::ComboBox::from_id_salt("histogram_y")
+            .selected_text(
+                current_y
+                    .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
+                    .unwrap_or("Select..."),
+            )
+            .width(ui.available_width())
+            .show_ui(ui, |ui| {
+                for (idx, name, _) in &sorted_channels {
+                    if ui.selectable_label(current_y == Some(*idx), name).clicked() {
+                        new_y = Some(*idx);
+                    }
+                }
+            });
 
-            // Show current effective grid size
-            let effective_grid = if current_custom_grid > 0 {
-                current_custom_grid
-            } else {
-                current_grid_size.size()
-            };
+        ui.add_space(8.0);
 
-            // Custom grid size input
-            let mut grid_value = effective_grid as i32;
-            let drag = egui::DragValue::new(&mut grid_value)
-                .range(4..=256)
-                .speed(1.0)
-                .suffix("×");
-            if ui.add(drag).changed() {
-                new_custom_grid = Some(grid_value.clamp(4, 256) as usize);
-            }
-
-            ui.add_space(20.0);
-
-            // Mode toggle
-            ui.label(egui::RichText::new(t!("histogram.mode")).size(font_15));
-            if ui
-                .selectable_label(
-                    current_mode == HistogramMode::AverageZ,
-                    egui::RichText::new(t!("histogram.average_z")).size(font_14),
+        // Z Axis (only for Average Z mode)
+        let z_enabled = current_mode == HistogramMode::AverageZ;
+        ui.add_enabled_ui(z_enabled, |ui| {
+            ui.label(
+                egui::RichText::new(t!("histogram.z_axis"))
+                    .size(font_14)
+                    .color(if z_enabled {
+                        egui::Color32::WHITE
+                    } else {
+                        egui::Color32::GRAY
+                    }),
+            );
+            egui::ComboBox::from_id_salt("histogram_z")
+                .selected_text(
+                    current_z
+                        .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
+                        .unwrap_or("Select..."),
                 )
-                .clicked()
-            {
-                new_mode = Some(HistogramMode::AverageZ);
-            }
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    for (idx, name, _) in &sorted_channels {
+                        if ui.selectable_label(current_z == Some(*idx), name).clicked() {
+                            new_z = Some(*idx);
+                        }
+                    }
+                });
+        });
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(16.0);
+
+        // ============================================================================
+        // DISPLAY OPTIONS SECTION
+        // ============================================================================
+        ui.label(egui::RichText::new("⚙ Display").size(font_15).strong());
+        ui.add_space(8.0);
+
+        // Mode selector
+        ui.label(egui::RichText::new(t!("histogram.mode")).size(font_14));
+        ui.horizontal(|ui| {
             if ui
                 .selectable_label(
                     current_mode == HistogramMode::HitCount,
-                    egui::RichText::new(t!("histogram.hit_count")).size(font_14),
+                    t!("histogram.hit_count"),
                 )
                 .clicked()
             {
                 new_mode = Some(HistogramMode::HitCount);
             }
-
-            ui.add_space(20.0);
-
-            // Min hits filter
-            ui.label(egui::RichText::new(t!("histogram.min_hits")).size(font_15));
-            let mut min_hits_value = current_min_hits as i32;
-            let min_hits_drag = egui::DragValue::new(&mut min_hits_value)
-                .range(0..=1000)
-                .speed(1.0);
-            if ui.add(min_hits_drag).changed() {
-                new_min_hits = Some(min_hits_value.max(0) as u32);
+            if ui
+                .selectable_label(
+                    current_mode == HistogramMode::AverageZ,
+                    t!("histogram.average_z"),
+                )
+                .clicked()
+            {
+                new_mode = Some(HistogramMode::AverageZ);
             }
         });
 
-        // Second row: Custom ranges
-        ui.horizontal(|ui| {
+        ui.add_space(8.0);
+
+        // Grid columns
+        ui.label(egui::RichText::new("Columns (X bins)").size(font_14));
+        let effective_cols = if current_custom_grid_cols > 0 {
+            current_custom_grid_cols
+        } else {
+            current_grid_size.size()
+        };
+        let mut cols_value = effective_cols as i32;
+        ui.add(
+            egui::DragValue::new(&mut cols_value)
+                .range(4..=256)
+                .speed(1.0),
+        );
+        if cols_value != effective_cols as i32 {
+            new_custom_grid_cols = Some(cols_value.clamp(4, 256) as usize);
+        }
+
+        ui.add_space(8.0);
+
+        // Grid rows
+        ui.label(egui::RichText::new("Rows (Y bins)").size(font_14));
+        let effective_rows = if current_custom_grid_rows > 0 {
+            current_custom_grid_rows
+        } else {
+            current_grid_size.size()
+        };
+        let mut rows_value = effective_rows as i32;
+        ui.add(
+            egui::DragValue::new(&mut rows_value)
+                .range(4..=256)
+                .speed(1.0),
+        );
+        if rows_value != effective_rows as i32 {
+            new_custom_grid_rows = Some(rows_value.clamp(4, 256) as usize);
+        }
+
+        ui.add_space(8.0);
+
+        // Min hits filter
+        ui.label(egui::RichText::new(t!("histogram.min_hits")).size(font_14));
+        let mut min_hits_value = current_min_hits as i32;
+        ui.add(
+            egui::DragValue::new(&mut min_hits_value)
+                .range(0..=1000)
+                .speed(1.0),
+        );
+        if min_hits_value != current_min_hits as i32 {
+            new_min_hits = Some(min_hits_value.max(0) as u32);
+        }
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(16.0);
+
+        // ============================================================================
+        // DATA RANGE SECTION
+        // ============================================================================
+        ui.label(egui::RichText::new("📏 Data Range").size(font_15).strong());
+        ui.add_space(8.0);
+
+        // X Range
+        ui.label(egui::RichText::new(t!("histogram.x_range")).size(font_14));
+        let mut x_auto = current_custom_x.is_none();
+        if ui.checkbox(&mut x_auto, t!("histogram.auto")).changed() {
+            if x_auto {
+                new_custom_x = Some(None);
+            } else {
+                new_custom_x = Some(Some((dynamic_x_min, dynamic_x_max)));
+            }
+        }
+        if !x_auto {
+            let (mut x_min, mut x_max) = current_custom_x.unwrap_or((dynamic_x_min, dynamic_x_max));
+            ui.horizontal(|ui| {
+                ui.label("Min:");
+                ui.add(egui::DragValue::new(&mut x_min).speed(1.0));
+                ui.label("Max:");
+                ui.add(egui::DragValue::new(&mut x_max).speed(1.0));
+            });
+            if x_max > x_min {
+                new_custom_x = Some(Some((x_min, x_max)));
+            }
+        }
+
+        ui.add_space(8.0);
+
+        // Y Range
+        ui.label(egui::RichText::new(t!("histogram.y_range")).size(font_14));
+        let mut y_auto = current_custom_y.is_none();
+        if ui.checkbox(&mut y_auto, t!("histogram.auto")).changed() {
+            if y_auto {
+                new_custom_y = Some(None);
+            } else {
+                new_custom_y = Some(Some((dynamic_y_min, dynamic_y_max)));
+            }
+        }
+        if !y_auto {
+            let (mut y_min, mut y_max) = current_custom_y.unwrap_or((dynamic_y_min, dynamic_y_max));
+            ui.horizontal(|ui| {
+                ui.label("Min:");
+                ui.add(egui::DragValue::new(&mut y_min).speed(1.0));
+                ui.label("Max:");
+                ui.add(egui::DragValue::new(&mut y_max).speed(1.0));
+            });
+            if y_max > y_min {
+                new_custom_y = Some(Some((y_min, y_max)));
+            }
+        }
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(16.0);
+
+        // ============================================================================
+        // SAMPLE FILTERS SECTION
+        // ============================================================================
+        let current_sample_filters = config.sample_filters.clone();
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!("🔍 {}", t!("histogram.sample_filters"))).size(font_15),
+        )
+        .default_open(false)
+        .show(ui, |ui| {
             ui.add_space(4.0);
 
-            // X Range
-            ui.label(egui::RichText::new(t!("histogram.x_range")).size(font_14));
-            let mut x_auto = current_custom_x.is_none();
-            if ui.checkbox(&mut x_auto, t!("histogram.auto")).changed() {
-                if x_auto {
-                    new_custom_x = Some(None);
-                } else {
-                    // When unchecking Auto, initialize with current dynamic values
-                    new_custom_x = Some(Some((dynamic_x_min, dynamic_x_max)));
-                }
-            }
-            if !x_auto {
-                let (mut x_min, mut x_max) =
-                    current_custom_x.unwrap_or((dynamic_x_min, dynamic_x_max));
-                ui.add(egui::DragValue::new(&mut x_min).speed(1.0).prefix("Min: "));
-                ui.add(egui::DragValue::new(&mut x_max).speed(1.0).prefix("Max: "));
-                if x_max > x_min {
-                    new_custom_x = Some(Some((x_min, x_max)));
+            if current_sample_filters.is_empty() {
+                ui.label(
+                    egui::RichText::new(t!("histogram.no_filters"))
+                        .size(font_14)
+                        .color(egui::Color32::GRAY),
+                );
+            } else {
+                for (filter_idx, filter) in current_sample_filters.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        let mut enabled = filter.enabled;
+                        if ui.checkbox(&mut enabled, "").changed() {
+                            let mut updated_filter = filter.clone();
+                            updated_filter.enabled = enabled;
+                            sample_filter_updates.push((filter_idx, updated_filter));
+                        }
+
+                        ui.label(
+                            egui::RichText::new(&filter.channel_name)
+                                .size(font_14)
+                                .color(if enabled {
+                                    egui::Color32::WHITE
+                                } else {
+                                    egui::Color32::GRAY
+                                }),
+                        );
+
+                        if ui
+                            .button(egui::RichText::new("❌").size(font_14))
+                            .on_hover_text(t!("histogram.remove_filter"))
+                            .clicked()
+                        {
+                            sample_filters_to_remove.push(filter_idx);
+                        }
+                    });
+
+                    // Min/Max on separate row for cleaner layout
+                    if filter.enabled {
+                        ui.horizontal(|ui| {
+                            ui.add_space(20.0);
+                            let mut min_val = filter.min_value.unwrap_or(f64::NEG_INFINITY);
+                            let mut use_min = filter.min_value.is_some();
+                            if ui
+                                .checkbox(&mut use_min, t!("histogram.filter_min"))
+                                .changed()
+                                || (use_min
+                                    && ui
+                                        .add(
+                                            egui::DragValue::new(&mut min_val)
+                                                .speed(1.0)
+                                                .range(f64::NEG_INFINITY..=f64::INFINITY),
+                                        )
+                                        .changed())
+                            {
+                                let mut updated_filter = filter.clone();
+                                updated_filter.min_value =
+                                    if use_min { Some(min_val) } else { None };
+                                sample_filter_updates.push((filter_idx, updated_filter));
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.add_space(20.0);
+                            let mut max_val = filter.max_value.unwrap_or(f64::INFINITY);
+                            let mut use_max = filter.max_value.is_some();
+                            if ui
+                                .checkbox(&mut use_max, t!("histogram.filter_max"))
+                                .changed()
+                                || (use_max
+                                    && ui
+                                        .add(
+                                            egui::DragValue::new(&mut max_val)
+                                                .speed(1.0)
+                                                .range(f64::NEG_INFINITY..=f64::INFINITY),
+                                        )
+                                        .changed())
+                            {
+                                let mut updated_filter = filter.clone();
+                                updated_filter.max_value =
+                                    if use_max { Some(max_val) } else { None };
+                                sample_filter_updates.push((filter_idx, updated_filter));
+                            }
+                        });
+                    }
+
+                    ui.add_space(4.0);
                 }
             }
 
-            ui.add_space(16.0);
+            ui.add_space(8.0);
 
-            // Y Range
-            ui.label(egui::RichText::new(t!("histogram.y_range")).size(font_14));
-            let mut y_auto = current_custom_y.is_none();
-            if ui.checkbox(&mut y_auto, t!("histogram.auto")).changed() {
-                if y_auto {
-                    new_custom_y = Some(None);
-                } else {
-                    // When unchecking Auto, initialize with current dynamic values
-                    new_custom_y = Some(Some((dynamic_y_min, dynamic_y_max)));
-                }
-            }
-            if !y_auto {
-                let (mut y_min, mut y_max) =
-                    current_custom_y.unwrap_or((dynamic_y_min, dynamic_y_max));
-                ui.add(egui::DragValue::new(&mut y_min).speed(1.0).prefix("Min: "));
-                ui.add(egui::DragValue::new(&mut y_max).speed(1.0).prefix("Max: "));
-                if y_max > y_min {
-                    new_custom_y = Some(Some((y_min, y_max)));
-                }
-            }
+            // Add filter
+            ui.label(egui::RichText::new(t!("histogram.add_filter")).size(font_14));
+            egui::ComboBox::from_id_salt("add_sample_filter")
+                .selected_text(t!("histogram.filter_channel"))
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    for (idx, name, _) in &sorted_channels {
+                        if ui.selectable_label(false, name).clicked() {
+                            new_sample_filter = Some(SampleFilter::new(*idx, name.clone()));
+                        }
+                    }
+                });
+        });
 
-            ui.add_space(20.0);
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(16.0);
 
-            // Copy to clipboard button
+        // ============================================================================
+        // TABLE OPERATIONS SECTION
+        // ============================================================================
+        ui.label(
+            egui::RichText::new("📋 Table Operations")
+                .size(font_15)
+                .strong(),
+        );
+        ui.add_space(8.0);
+
+        // Copy/Paste buttons
+        ui.horizontal(|ui| {
             if ui.button(format!("📋 {}", t!("histogram.copy"))).clicked() {
                 self.copy_histogram_to_clipboard(tab_idx);
             }
-
-            // Paste from clipboard button
             if ui.button(format!("📥 {}", t!("histogram.paste"))).clicked() {
                 do_paste = true;
             }
+        });
 
-            // Show comparison controls if a table is pasted
-            if has_pasted_table {
-                ui.add_space(12.0);
-                ui.separator();
-                ui.add_space(12.0);
+        // Comparison controls (shown when table is pasted)
+        if has_pasted_table {
+            ui.add_space(12.0);
 
-                // Operation selector
-                ui.label(egui::RichText::new(t!("histogram.operation")).size(font_14));
-
+            ui.label(egui::RichText::new(t!("histogram.operation")).size(font_14));
+            ui.horizontal(|ui| {
                 if ui
                     .selectable_label(current_table_op == TableOperation::Add, "+")
                     .clicked()
@@ -480,38 +634,32 @@ impl UltraLogApp {
                 {
                     new_table_op = Some(TableOperation::Divide);
                 }
+            });
 
-                ui.add_space(8.0);
+            ui.add_space(8.0);
 
-                // Toggle comparison view
-                let mut show_compare = current_show_compare;
-                if ui
-                    .checkbox(&mut show_compare, t!("histogram.compare"))
-                    .changed()
-                {
-                    new_show_compare = Some(show_compare);
-                }
+            let mut show_compare = current_show_compare;
+            if ui
+                .checkbox(&mut show_compare, t!("histogram.compare"))
+                .changed()
+            {
+                new_show_compare = Some(show_compare);
+            }
 
-                ui.add_space(8.0);
+            ui.add_space(8.0);
 
-                // Clear pasted table button
+            ui.horizontal(|ui| {
                 if ui.button(format!("❌ {}", t!("histogram.clear"))).clicked() {
                     clear_pasted_table = true;
                 }
-
-                ui.add_space(8.0);
-
-                // Copy Result button (for pasting back into ECU)
                 if ui
                     .button(format!("📋 {}", t!("histogram.copy_result")))
                     .clicked()
                 {
                     self.copy_result_to_clipboard(tab_idx);
                 }
-            }
-        });
-
-        // Apply deferred updates
+            });
+        }
         let config = &mut self.tabs[tab_idx].histogram_state.config;
         if let Some(x) = new_x {
             config.x_channel = Some(x);
@@ -529,8 +677,12 @@ impl UltraLogApp {
             config.mode = mode;
             config.selected_cell = None;
         }
-        if let Some(size) = new_custom_grid {
-            config.custom_grid_size = size;
+        if let Some(cols) = new_custom_grid_cols {
+            config.custom_grid_columns = cols;
+            config.selected_cell = None;
+        }
+        if let Some(rows) = new_custom_grid_rows {
+            config.custom_grid_rows = rows;
             config.selected_cell = None;
         }
         if let Some(min_hits) = new_min_hits {
@@ -555,6 +707,25 @@ impl UltraLogApp {
             config.show_comparison_view = false;
         }
 
+        // Apply sample filter updates
+        for (idx, updated_filter) in sample_filter_updates {
+            if idx < config.sample_filters.len() {
+                config.sample_filters[idx] = updated_filter;
+            }
+        }
+
+        // Remove filters (in reverse order to preserve indices)
+        for idx in sample_filters_to_remove.iter().rev() {
+            if *idx < config.sample_filters.len() {
+                config.sample_filters.remove(*idx);
+            }
+        }
+
+        // Add new filter
+        if let Some(filter) = new_sample_filter {
+            config.sample_filters.push(filter);
+        }
+
         // Handle paste after all config updates are done
         if do_paste {
             self.paste_table_from_clipboard(tab_idx);
@@ -570,7 +741,7 @@ impl UltraLogApp {
         let config = &self.tabs[tab_idx].histogram_state.config;
         let file_idx = self.tabs[tab_idx].file_index;
         let mode = config.mode;
-        let grid_size = config.effective_grid_size();
+        let (grid_cols, grid_rows) = config.effective_grid_size();
         let min_hits_filter = config.min_hits_filter;
         let custom_x_range = config.custom_x_range;
         let custom_y_range = config.custom_y_range;
@@ -673,11 +844,12 @@ impl UltraLogApp {
             .collect();
 
         // Build histogram grid with full statistics
-        let mut hit_counts = vec![vec![0u32; grid_size]; grid_size];
-        let mut z_sums = vec![vec![0.0f64; grid_size]; grid_size];
-        let mut z_sum_sq = vec![vec![0.0f64; grid_size]; grid_size];
-        let mut z_mins = vec![vec![f64::MAX; grid_size]; grid_size];
-        let mut z_maxs = vec![vec![f64::MIN; grid_size]; grid_size];
+        // Grid is [row][col] = [y][x]
+        let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
+        let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
+        let mut z_sum_sq = vec![vec![0.0f64; grid_cols]; grid_rows];
+        let mut z_mins = vec![vec![f64::MAX; grid_cols]; grid_rows];
+        let mut z_maxs = vec![vec![f64::MIN; grid_cols]; grid_rows];
 
         'sample_loop: for i in 0..x_data.len() {
             // Check all sample filters (AND logic)
@@ -706,8 +878,8 @@ impl UltraLogApp {
                 continue;
             }
 
-            let x_bin = calculate_data_bin(x_data[i], x_min, x_range, grid_size);
-            let y_bin = calculate_data_bin(y_data[i], y_min, y_range, grid_size);
+            let x_bin = calculate_data_bin(x_data[i], x_min, x_range, grid_cols);
+            let y_bin = calculate_data_bin(y_data[i], y_min, y_range, grid_rows);
 
             hit_counts[y_bin][x_bin] += 1;
             if let Some(ref z) = z_data {
@@ -720,12 +892,12 @@ impl UltraLogApp {
         }
 
         // Calculate cell values and find min/max for color scaling
-        let mut cell_values = vec![vec![None::<f64>; grid_size]; grid_size];
+        let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
         let mut min_value: f64 = f64::MAX;
         let mut max_value: f64 = f64::MIN;
 
-        for y_bin in 0..grid_size {
-            for x_bin in 0..grid_size {
+        for y_bin in 0..grid_rows {
+            for x_bin in 0..grid_cols {
                 let hits = hit_counts[y_bin][x_bin];
                 if hits > 0 {
                     let value = match mode {
@@ -750,7 +922,7 @@ impl UltraLogApp {
         if show_comparison {
             if let Some(ref pasted) = pasted_table {
                 // Resample pasted table to match grid size
-                let resampled = Self::resample_table(pasted, grid_size);
+                let resampled = Self::resample_table(pasted, grid_cols, grid_rows);
                 let pasted_values: Vec<Vec<Option<f64>>> = resampled
                     .iter()
                     .map(|row| row.iter().map(|&v| Some(v)).collect())
@@ -912,8 +1084,8 @@ impl UltraLogApp {
         let painter = ui.painter_at(full_rect);
         painter.rect_filled(plot_rect, 0.0, egui::Color32::BLACK);
 
-        let cell_width = plot_rect.width() / grid_size as f32;
-        let cell_height = plot_rect.height() / grid_size as f32;
+        let cell_width = plot_rect.width() / grid_cols as f32;
+        let cell_height = plot_rect.height() / grid_rows as f32;
 
         // Get selected cell for highlighting
         let selected_cell = self.tabs[tab_idx]
@@ -923,8 +1095,8 @@ impl UltraLogApp {
             .clone();
 
         // Draw grid cells with values
-        for y_bin in 0..grid_size {
-            for x_bin in 0..grid_size {
+        for y_bin in 0..grid_rows {
+            for x_bin in 0..grid_cols {
                 let cell_x = plot_rect.left() + x_bin as f32 * cell_width;
                 let cell_y = plot_rect.bottom() - (y_bin + 1) as f32 * cell_height;
                 let cell_rect = egui::Rect::from_min_size(
@@ -962,9 +1134,10 @@ impl UltraLogApp {
                         // Choose text color for AAA contrast compliance
                         let text_color = get_aaa_text_color(color);
 
-                        let base_font_size = if grid_size <= 16 {
+                        let max_dim = grid_cols.max(grid_rows);
+                        let base_font_size = if max_dim <= 16 {
                             11.0
-                        } else if grid_size <= 32 {
+                        } else if max_dim <= 32 {
                             9.0
                         } else {
                             7.0
@@ -985,9 +1158,9 @@ impl UltraLogApp {
 
         // Draw grid lines
         let grid_color = egui::Color32::from_rgb(60, 60, 60);
-        for i in 0..=grid_size {
+        // Vertical lines (X axis divisions)
+        for i in 0..=grid_cols {
             let x = plot_rect.left() + i as f32 * cell_width;
-            let y = plot_rect.top() + i as f32 * cell_height;
             painter.line_segment(
                 [
                     egui::pos2(x, plot_rect.top()),
@@ -995,6 +1168,10 @@ impl UltraLogApp {
                 ],
                 egui::Stroke::new(0.5, grid_color),
             );
+        }
+        // Horizontal lines (Y axis divisions)
+        for i in 0..=grid_rows {
+            let y = plot_rect.top() + i as f32 * cell_height;
             painter.line_segment(
                 [
                     egui::pos2(plot_rect.left(), y),
@@ -1146,7 +1323,7 @@ impl UltraLogApp {
 
         // Draw selected cell highlight
         if let Some(ref sel) = selected_cell {
-            if sel.x_bin < grid_size && sel.y_bin < grid_size {
+            if sel.x_bin < grid_cols && sel.y_bin < grid_rows {
                 let sel_x = plot_rect.left() + sel.x_bin as f32 * cell_width;
                 let sel_y = plot_rect.bottom() - (sel.y_bin + 1) as f32 * cell_height;
                 let sel_rect = egui::Rect::from_min_size(
@@ -1191,8 +1368,8 @@ impl UltraLogApp {
                     );
 
                     // Highlight the cell containing the cursor
-                    let cell_x_bin = calculate_bin(rel_x, grid_size);
-                    let cell_y_bin = calculate_bin(rel_y, grid_size);
+                    let cell_x_bin = calculate_bin(rel_x, grid_cols);
+                    let cell_y_bin = calculate_bin(rel_y, grid_rows);
 
                     let highlight_x = plot_rect.left() + cell_x_bin as f32 * cell_width;
                     let highlight_y = plot_rect.bottom() - (cell_y_bin + 1) as f32 * cell_height;
@@ -1240,8 +1417,8 @@ impl UltraLogApp {
                     let x_val = x_min + rel_x as f64 * x_range;
                     let y_val = y_min + rel_y as f64 * y_range;
 
-                    let x_bin = calculate_bin(rel_x, grid_size);
-                    let y_bin = calculate_bin(rel_y, grid_size);
+                    let x_bin = calculate_bin(rel_x, grid_cols);
+                    let y_bin = calculate_bin(rel_y, grid_rows);
 
                     let hits = hit_counts[y_bin][x_bin];
                     let cell_value = cell_values[y_bin][x_bin];
@@ -1307,14 +1484,14 @@ impl UltraLogApp {
                     let rel_y = 1.0 - (pos.y - plot_rect.top()) / plot_rect.height();
 
                     if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
-                        let x_bin = calculate_bin(rel_x, grid_size);
-                        let y_bin = calculate_bin(rel_y, grid_size);
+                        let x_bin = calculate_bin(rel_x, grid_cols);
+                        let y_bin = calculate_bin(rel_y, grid_rows);
 
                         let hits = hit_counts[y_bin][x_bin];
 
                         // Calculate cell value ranges
-                        let bin_width_x = x_range / grid_size as f64;
-                        let bin_width_y = y_range / grid_size as f64;
+                        let bin_width_x = x_range / grid_cols as f64;
+                        let bin_width_y = y_range / grid_rows as f64;
                         let cell_x_min = x_min + x_bin as f64 * bin_width_x;
                         let cell_x_max = cell_x_min + bin_width_x;
                         let cell_y_min = y_min + y_bin as f64 * bin_width_y;
@@ -1670,34 +1847,38 @@ impl UltraLogApp {
         }
     }
 
-    /// Resample a pasted table to a target grid size using bilinear interpolation
+    /// Resample a pasted table to target dimensions using bilinear interpolation
     #[allow(clippy::needless_range_loop)]
-    fn resample_table(table: &PastedTable, target_size: usize) -> Vec<Vec<f64>> {
+    fn resample_table(
+        table: &PastedTable,
+        target_cols: usize,
+        target_rows: usize,
+    ) -> Vec<Vec<f64>> {
         let src_rows = table.data.len();
         let src_cols = if src_rows > 0 { table.data[0].len() } else { 0 };
 
         if src_rows == 0 || src_cols == 0 {
-            return vec![vec![0.0; target_size]; target_size];
+            return vec![vec![0.0; target_cols]; target_rows];
         }
 
         // If dimensions match, just reverse Y (pasted table has 0 = top, we need 0 = bottom)
-        if src_rows == target_size && src_cols == target_size {
-            let mut result = Vec::with_capacity(target_size);
-            for y in 0..target_size {
+        if src_rows == target_rows && src_cols == target_cols {
+            let mut result = Vec::with_capacity(target_rows);
+            for y in 0..target_rows {
                 result.push(table.data[src_rows - 1 - y].clone());
             }
             return result;
         }
 
-        let mut result = vec![vec![0.0; target_size]; target_size];
+        let mut result = vec![vec![0.0; target_cols]; target_rows];
 
-        for target_y in 0..target_size {
-            for target_x in 0..target_size {
+        for target_y in 0..target_rows {
+            for target_x in 0..target_cols {
                 // Map target coordinates to source coordinates
                 let src_x =
-                    target_x as f64 * (src_cols - 1) as f64 / (target_size - 1).max(1) as f64;
+                    target_x as f64 * (src_cols - 1) as f64 / (target_cols - 1).max(1) as f64;
                 let src_y =
-                    target_y as f64 * (src_rows - 1) as f64 / (target_size - 1).max(1) as f64;
+                    target_y as f64 * (src_rows - 1) as f64 / (target_rows - 1).max(1) as f64;
 
                 // Bilinear interpolation
                 let x0 = src_x.floor() as usize;
@@ -1808,8 +1989,12 @@ impl UltraLogApp {
         hit_counts: Option<&[Vec<u32>]>,
         min_hits_filter: u32,
     ) {
-        let grid_size = values.len();
-        if grid_size == 0 {
+        let grid_rows = values.len();
+        if grid_rows == 0 {
+            return;
+        }
+        let grid_cols = values.get(0).map(|row| row.len()).unwrap_or(0);
+        if grid_cols == 0 {
             return;
         }
 
@@ -1830,8 +2015,8 @@ impl UltraLogApp {
 
         painter.rect_filled(plot_rect, 0.0, egui::Color32::BLACK);
 
-        let cell_width = plot_rect.width() / grid_size as f32;
-        let cell_height = plot_rect.height() / grid_size as f32;
+        let cell_width = plot_rect.width() / grid_cols as f32;
+        let cell_height = plot_rect.height() / grid_rows as f32;
 
         let value_range = if (max_value - min_value).abs() < f64::EPSILON {
             1.0
@@ -1839,8 +2024,8 @@ impl UltraLogApp {
             max_value - min_value
         };
 
-        for (y_bin, row) in values.iter().enumerate().take(grid_size) {
-            for (x_bin, cell_value) in row.iter().enumerate().take(grid_size) {
+        for (y_bin, row) in values.iter().enumerate().take(grid_rows) {
+            for (x_bin, cell_value) in row.iter().enumerate().take(grid_cols) {
                 let cell_x = plot_rect.left() + x_bin as f32 * cell_width;
                 let cell_y = plot_rect.bottom() - (y_bin + 1) as f32 * cell_height;
                 let cell_rect = egui::Rect::from_min_size(
@@ -1876,7 +2061,8 @@ impl UltraLogApp {
                     if cell_width > 20.0 && cell_height > 14.0 {
                         let text = format!("{:.1}", value);
                         let text_color = get_aaa_text_color(color);
-                        let text_size = if grid_size <= 16 { 9.0 } else { 7.0 };
+                        let max_dim = grid_cols.max(grid_rows);
+                        let text_size = if max_dim <= 16 { 9.0 } else { 7.0 };
                         painter.text(
                             cell_rect.center(),
                             egui::Align2::CENTER_CENTER,
@@ -1893,9 +2079,9 @@ impl UltraLogApp {
 
         // Draw grid lines
         let grid_color = egui::Color32::from_rgb(60, 60, 60);
-        for i in 0..=grid_size {
+        // Vertical lines (X axis divisions)
+        for i in 0..=grid_cols {
             let x = plot_rect.left() + i as f32 * cell_width;
-            let y = plot_rect.top() + i as f32 * cell_height;
             painter.line_segment(
                 [
                     egui::pos2(x, plot_rect.top()),
@@ -1903,6 +2089,10 @@ impl UltraLogApp {
                 ],
                 egui::Stroke::new(0.5, grid_color),
             );
+        }
+        // Horizontal lines (Y axis divisions)
+        for i in 0..=grid_rows {
+            let y = plot_rect.top() + i as f32 * cell_height;
             painter.line_segment(
                 [
                     egui::pos2(plot_rect.left(), y),
@@ -1927,7 +2117,7 @@ impl UltraLogApp {
             _ => return,
         };
 
-        let grid_size = config.effective_grid_size();
+        let (grid_cols, grid_rows) = config.effective_grid_size();
         let mode = config.mode;
         let z_idx = config.z_channel;
 
@@ -1969,12 +2159,12 @@ impl UltraLogApp {
         };
 
         // Build histogram grid
-        let mut hit_counts = vec![vec![0u32; grid_size]; grid_size];
-        let mut z_sums = vec![vec![0.0f64; grid_size]; grid_size];
+        let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
+        let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
 
         for i in 0..x_data.len() {
-            let x_bin = calculate_data_bin(x_data[i], x_min, x_range, grid_size);
-            let y_bin = calculate_data_bin(y_data[i], y_min, y_range, grid_size);
+            let x_bin = calculate_data_bin(x_data[i], x_min, x_range, grid_cols);
+            let y_bin = calculate_data_bin(y_data[i], y_min, y_range, grid_rows);
             hit_counts[y_bin][x_bin] += 1;
             if let Some(ref z) = z_data {
                 z_sums[y_bin][x_bin] += z[i];
@@ -1986,22 +2176,22 @@ impl UltraLogApp {
 
         // Header row: X breakpoints
         tsv.push('\t'); // Empty cell for Y label column
-        for x_bin in 0..grid_size {
-            let x_val = x_min + (x_bin as f64 + 0.5) * (x_range / grid_size as f64);
+        for x_bin in 0..grid_cols {
+            let x_val = x_min + (x_bin as f64 + 0.5) * (x_range / grid_cols as f64);
             tsv.push_str(&format!("{:.1}", x_val));
-            if x_bin < grid_size - 1 {
+            if x_bin < grid_cols - 1 {
                 tsv.push('\t');
             }
         }
         tsv.push('\n');
 
         // Data rows (from top to bottom, so reverse Y order)
-        for y_bin in (0..grid_size).rev() {
+        for y_bin in (0..grid_rows).rev() {
             // Y label
-            let y_val = y_min + (y_bin as f64 + 0.5) * (y_range / grid_size as f64);
+            let y_val = y_min + (y_bin as f64 + 0.5) * (y_range / grid_rows as f64);
             tsv.push_str(&format!("{:.1}\t", y_val));
 
-            for x_bin in 0..grid_size {
+            for x_bin in 0..grid_cols {
                 let value = match mode {
                     HistogramMode::HitCount => hit_counts[y_bin][x_bin] as f64,
                     HistogramMode::AverageZ => {
@@ -2014,7 +2204,7 @@ impl UltraLogApp {
                     }
                 };
                 tsv.push_str(&format!("{:.2}", value));
-                if x_bin < grid_size - 1 {
+                if x_bin < grid_cols - 1 {
                     tsv.push('\t');
                 }
             }
@@ -2047,7 +2237,7 @@ impl UltraLogApp {
             _ => return,
         };
 
-        let grid_size = config.effective_grid_size();
+        let (grid_cols, grid_rows) = config.effective_grid_size();
         let mode = config.mode;
         let z_idx = config.z_channel;
         let table_operation = config.table_operation;
@@ -2090,12 +2280,12 @@ impl UltraLogApp {
         };
 
         // Build histogram grid
-        let mut hit_counts = vec![vec![0u32; grid_size]; grid_size];
-        let mut z_sums = vec![vec![0.0f64; grid_size]; grid_size];
+        let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
+        let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
 
         for i in 0..x_data.len() {
-            let x_bin = calculate_data_bin(x_data[i], x_min, x_range, grid_size);
-            let y_bin = calculate_data_bin(y_data[i], y_min, y_range, grid_size);
+            let x_bin = calculate_data_bin(x_data[i], x_min, x_range, grid_cols);
+            let y_bin = calculate_data_bin(y_data[i], y_min, y_range, grid_rows);
             hit_counts[y_bin][x_bin] += 1;
             if let Some(ref z) = z_data {
                 z_sums[y_bin][x_bin] += z[i];
@@ -2103,9 +2293,9 @@ impl UltraLogApp {
         }
 
         // Build histogram values
-        let hist_values: Vec<Vec<Option<f64>>> = (0..grid_size)
+        let hist_values: Vec<Vec<Option<f64>>> = (0..grid_rows)
             .map(|y_bin| {
-                (0..grid_size)
+                (0..grid_cols)
                     .map(|x_bin| {
                         let hits = hit_counts[y_bin][x_bin];
                         if hits > 0 {
@@ -2122,7 +2312,7 @@ impl UltraLogApp {
             .collect();
 
         // Resample pasted table and apply operation
-        let resampled = Self::resample_table(pasted_table, grid_size);
+        let resampled = Self::resample_table(pasted_table, grid_cols, grid_rows);
         let result_values = Self::apply_table_operation(&hist_values, &resampled, table_operation);
 
         // Generate TSV string with pasted table's breakpoints
@@ -2130,37 +2320,37 @@ impl UltraLogApp {
 
         // Header row: X breakpoints (use pasted table's breakpoints if they match grid size)
         tsv.push('\t'); // Empty cell for Y label column
-        for x_bin in 0..grid_size {
+        for x_bin in 0..grid_cols {
             let x_val = if !pasted_table.x_breakpoints.is_empty()
-                && pasted_table.x_breakpoints.len() == grid_size
+                && pasted_table.x_breakpoints.len() == grid_cols
             {
                 pasted_table.x_breakpoints[x_bin]
             } else {
-                x_min + (x_bin as f64 + 0.5) * (x_range / grid_size as f64)
+                x_min + (x_bin as f64 + 0.5) * (x_range / grid_cols as f64)
             };
             tsv.push_str(&format!("{:.1}", x_val));
-            if x_bin < grid_size - 1 {
+            if x_bin < grid_cols - 1 {
                 tsv.push('\t');
             }
         }
         tsv.push('\n');
 
         // Data rows (from top to bottom, so reverse Y order)
-        for y_bin in (0..grid_size).rev() {
+        for y_bin in (0..grid_rows).rev() {
             // Y label (use pasted table's breakpoints if they match grid size)
             let y_val = if !pasted_table.y_breakpoints.is_empty()
-                && pasted_table.y_breakpoints.len() == grid_size
+                && pasted_table.y_breakpoints.len() == grid_rows
             {
-                pasted_table.y_breakpoints[grid_size - 1 - y_bin]
+                pasted_table.y_breakpoints[grid_rows - 1 - y_bin]
             } else {
-                y_min + (y_bin as f64 + 0.5) * (y_range / grid_size as f64)
+                y_min + (y_bin as f64 + 0.5) * (y_range / grid_rows as f64)
             };
             tsv.push_str(&format!("{:.1}\t", y_val));
 
-            for (x_bin, val) in result_values[y_bin].iter().enumerate().take(grid_size) {
+            for (x_bin, val) in result_values[y_bin].iter().enumerate().take(grid_cols) {
                 let value = val.unwrap_or(0.0);
                 tsv.push_str(&format!("{:.2}", value));
-                if x_bin < grid_size - 1 {
+                if x_bin < grid_cols - 1 {
                     tsv.push('\t');
                 }
             }
