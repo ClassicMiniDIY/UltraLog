@@ -3,7 +3,9 @@ use std::fs;
 use std::path::Path;
 
 // Import from the library
-use ultralog::parsers::{EcuMaster, EcuType, Emerald, Haltech, Link, Parseable, Speeduino};
+use ultralog::parsers::{
+    EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, Speeduino,
+};
 
 fn main() {
     // Get file path from command line or use default
@@ -62,6 +64,17 @@ fn main() {
             let parser = EcuMaster;
             match parser.parse(&contents) {
                 Ok(log) => (EcuType::EcuMaster, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if Locomotive::detect(&contents) {
+            println!("\nDetected: Locomotive format");
+            println!("Parsing Locomotive log...");
+            let parser = Locomotive;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::Locomotive, log),
                 Err(e) => {
                     eprintln!("Parse error: {}", e);
                     std::process::exit(1);

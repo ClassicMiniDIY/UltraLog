@@ -6,6 +6,7 @@ use super::ecumaster::{EcuMasterChannel, EcuMasterMeta};
 use super::emerald::{EmeraldChannel, EmeraldMeta};
 use super::haltech::{HaltechChannel, HaltechMeta};
 use super::link::{LinkChannel, LinkMeta};
+use super::locomotive::{LocomotiveChannel, LocomotiveMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
 use crate::adapters::{get_channel_metadata, ChannelCategory, ChannelMetadata};
@@ -18,6 +19,7 @@ pub enum Meta {
     Haltech(HaltechMeta),
     EcuMaster(EcuMasterMeta),
     Link(LinkMeta),
+    Locomotive(LocomotiveMeta),
     RomRaider(RomRaiderMeta),
     Speeduino(SpeeduinoMeta),
     #[default]
@@ -43,6 +45,7 @@ pub enum Channel {
     Haltech(HaltechChannel),
     EcuMaster(EcuMasterChannel),
     Link(LinkChannel),
+    Locomotive(LocomotiveChannel),
     RomRaider(RomRaiderChannel),
     Speeduino(SpeeduinoChannel),
     /// A computed/virtual channel derived from a formula
@@ -60,6 +63,7 @@ impl Serialize for Channel {
             Channel::Haltech(h) => h.serialize(serializer),
             Channel::EcuMaster(e) => e.serialize(serializer),
             Channel::Link(l) => l.serialize(serializer),
+            Channel::Locomotive(l) => l.serialize(serializer),
             Channel::RomRaider(r) => r.serialize(serializer),
             Channel::Speeduino(s) => s.serialize(serializer),
             Channel::Computed(c) => c.serialize(serializer),
@@ -75,6 +79,7 @@ impl Channel {
             Channel::Haltech(h) => h.name.clone(),
             Channel::EcuMaster(e) => e.name.clone(),
             Channel::Link(l) => l.name.clone(),
+            Channel::Locomotive(l) => l.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
             Channel::Computed(c) => c.name.clone(),
@@ -89,6 +94,7 @@ impl Channel {
             Channel::Haltech(h) => h.id.clone(),
             Channel::EcuMaster(e) => e.path.clone(),
             Channel::Link(l) => l.channel_id.to_string(),
+            Channel::Locomotive(l) => l.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
             Channel::Computed(c) => format!("computed_{}", c.name),
@@ -102,6 +108,7 @@ impl Channel {
             Channel::Haltech(h) => h.r#type.as_ref().to_string(),
             Channel::EcuMaster(e) => e.path.clone(),
             Channel::Link(_) => "Link".to_string(),
+            Channel::Locomotive(_) => "Locomotive".to_string(),
             Channel::RomRaider(_) => "RomRaider".to_string(),
             Channel::Speeduino(_) => "Speeduino/rusEFI".to_string(),
             Channel::Computed(_) => "Computed".to_string(),
@@ -118,6 +125,7 @@ impl Channel {
             Channel::Haltech(h) => h.display_min,
             Channel::EcuMaster(_) => None,
             Channel::Link(_) => None,
+            Channel::Locomotive(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
             Channel::Computed(_) => None,
@@ -137,6 +145,7 @@ impl Channel {
             Channel::Haltech(h) => h.display_max,
             Channel::EcuMaster(_) => None,
             Channel::Link(_) => None,
+            Channel::Locomotive(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
             Channel::Computed(_) => None,
@@ -168,6 +177,7 @@ impl Channel {
             Channel::Haltech(h) => h.unit(),
             Channel::EcuMaster(e) => e.unit(),
             Channel::Link(l) => l.unit(),
+            Channel::Locomotive(l) => l.unit(),
             Channel::RomRaider(r) => r.unit(),
             Channel::Speeduino(s) => s.unit(),
             Channel::Computed(c) => &c.unit,
@@ -261,6 +271,7 @@ pub enum EcuType {
     MaxxEcu,
     MotEc,
     Link,
+    Locomotive,
     RomRaider,
     Speeduino,
     Unknown,
@@ -278,6 +289,7 @@ impl EcuType {
             EcuType::MaxxEcu => "MaxxECU",
             EcuType::MotEc => "MoTeC",
             EcuType::Link => "Link",
+            EcuType::Locomotive => "Locomotive",
             EcuType::RomRaider => "RomRaider",
             EcuType::Speeduino => "Speeduino/rusEFI",
             EcuType::Unknown => "Unknown",

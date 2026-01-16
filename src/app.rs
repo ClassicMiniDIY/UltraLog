@@ -17,7 +17,7 @@ use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::i18n::Language;
 use crate::parsers::{
-    Aim, EcuMaster, EcuType, Emerald, Haltech, Link, Parseable, RomRaider, Speeduino,
+    Aim, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, RomRaider, Speeduino,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -477,6 +477,16 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::RomRaider)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse RomRaider file: {}",
+                    e
+                ))),
+            }
+        } else if Locomotive::detect(contents) {
+            // Locomotive format detected
+            let parser = Locomotive;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::Locomotive)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse Locomotive file: {}",
                     e
                 ))),
             }
