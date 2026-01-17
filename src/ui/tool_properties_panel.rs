@@ -411,7 +411,6 @@ impl UltraLogApp {
 
     /// Render stacked plot list with channels organized by plot
     fn render_stacked_plot_list(&mut self, ui: &mut egui::Ui, file_index: usize, search: &str) {
-        let font_12 = self.scaled_font(12.0);
         let font_14 = self.scaled_font(14.0);
         let search_lower = search.to_lowercase();
 
@@ -603,7 +602,7 @@ impl UltraLogApp {
                                         ui.add_space(30.0);
                                         ui.label(
                                             egui::RichText::new("Drag channels here")
-                                                .size(font_12)
+                                                .size(font_14)
                                                 .color(egui::Color32::GRAY)
                                                 .italics(),
                                         );
@@ -739,7 +738,7 @@ impl UltraLogApp {
                                             ui.add_space(4.0);
                                             ui.label(
                                                 egui::RichText::new(display_name)
-                                                    .size(font_12)
+                                                    .size(font_14)
                                                     .color(if is_hovered {
                                                         egui::Color32::WHITE
                                                     } else {
