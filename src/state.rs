@@ -11,8 +11,23 @@ use crate::parsers::{Channel, EcuType, Log};
 // Constants
 // ============================================================================
 
-/// Maximum number of channels that can be selected simultaneously
+/// Maximum number of channels that can be selected simultaneously (in single-plot mode)
 pub const MAX_CHANNELS: usize = 10;
+
+/// Maximum number of channels per plot area in stacked mode
+pub const MAX_CHANNELS_PER_PLOT: usize = 10;
+
+/// Maximum total channels across all plots in stacked mode (6 plots × 10 channels)
+pub const MAX_TOTAL_CHANNELS: usize = 60;
+
+/// Minimum height for a plot area in pixels (stacked mode)
+pub const MIN_PLOT_HEIGHT: f32 = 100.0;
+
+/// Height of plot area header (title, controls) in pixels (stacked mode)
+pub const PLOT_AREA_HEADER_HEIGHT: f32 = 35.0;
+
+/// Height of resize handle between plots in pixels (stacked mode)
+pub const PLOT_RESIZE_HANDLE_HEIGHT: f32 = 8.0;
 
 /// Maximum points to render in chart (for performance via LTTB downsampling)
 pub const MAX_CHART_POINTS: usize = 2000;
@@ -167,6 +182,8 @@ impl ToastType {
 pub struct CacheKey {
     pub file_index: usize,
     pub channel_index: usize,
+    /// Plot area ID (0 in single-plot mode, or actual ID in stacked mode)
+    pub plot_area_id: usize,
 }
 
 // ============================================================================
@@ -509,6 +526,48 @@ pub struct HistogramState {
 }
 
 // ============================================================================
+// Plot Area Types (for Stacked Plot Mode)
+// ============================================================================
+
+/// Represents a single plot area in stacked mode
+#[derive(Clone)]
+pub struct PlotArea {
+    /// Unique identifier for this plot area
+    pub id: usize,
+    /// User-defined name for the plot area
+    pub name: String,
+    /// Indices into Tab::selected_channels that belong to this plot
+    pub channel_indices: Vec<usize>,
+    /// Absolute height in pixels for this plot
+    pub height_pixels: f32,
+    /// Whether this plot area is collapsed (minimized)
+    pub collapsed: bool,
+}
+
+impl PlotArea {
+    /// Create a new plot area with default settings
+    pub fn new(id: usize, name: String) -> Self {
+        Self {
+            id,
+            name,
+            channel_indices: Vec::new(),
+            height_pixels: 300.0, // Default to 300px height
+            collapsed: false,
+        }
+    }
+
+    /// Get the number of channels in this plot area
+    pub fn channel_count(&self) -> usize {
+        self.channel_indices.len()
+    }
+
+    /// Check if this plot area can accept more channels
+    pub fn has_capacity(&self) -> bool {
+        self.channel_indices.len() < MAX_CHANNELS_PER_PLOT
+    }
+}
+
+// ============================================================================
 // Tab Types
 // ============================================================================
 
@@ -537,6 +596,12 @@ pub struct Tab {
     pub histogram_state: HistogramState,
     /// Request to jump the view to a specific time (used for min/max jump buttons)
     pub jump_to_time: Option<f64>,
+    /// Plot areas for stacked mode (ordered top to bottom)
+    pub plot_areas: Vec<PlotArea>,
+    /// Whether stacked plot mode is enabled
+    pub stacked_mode: bool,
+    /// Next available plot area ID (for unique identification)
+    pub next_plot_area_id: usize,
 }
 
 impl Tab {
@@ -546,6 +611,9 @@ impl Tab {
         let mut scatter_plot_state = ScatterPlotState::default();
         scatter_plot_state.left.file_index = Some(file_index);
         scatter_plot_state.right.file_index = Some(file_index);
+
+        // Initialize with a single default plot area
+        let default_plot = PlotArea::new(0, "Plot 1".to_string());
 
         Self {
             file_index,
@@ -559,6 +627,9 @@ impl Tab {
             scatter_plot_state,
             histogram_state: HistogramState::default(),
             jump_to_time: None,
+            plot_areas: vec![default_plot],
+            stacked_mode: false,
+            next_plot_area_id: 1,
         }
     }
 }

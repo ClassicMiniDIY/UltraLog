@@ -212,14 +212,17 @@ fn test_cache_key_equality() {
     let key1 = CacheKey {
         file_index: 0,
         channel_index: 1,
+        plot_area_id: 0,
     };
     let key2 = CacheKey {
         file_index: 0,
         channel_index: 1,
+        plot_area_id: 0,
     };
     let key3 = CacheKey {
         file_index: 0,
         channel_index: 2,
+        plot_area_id: 0,
     };
 
     // Use direct comparison since CacheKey doesn't implement Debug
@@ -235,10 +238,12 @@ fn test_cache_key_hash() {
     let key1 = CacheKey {
         file_index: 0,
         channel_index: 1,
+        plot_area_id: 0,
     };
     let key2 = CacheKey {
         file_index: 0,
         channel_index: 2,
+        plot_area_id: 0,
     };
 
     set.insert(key1.clone());
@@ -253,6 +258,7 @@ fn test_cache_key_clone() {
     let key1 = CacheKey {
         file_index: 5,
         channel_index: 10,
+        plot_area_id: 0,
     };
     let key2 = key1.clone();
 

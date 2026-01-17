@@ -3465,6 +3465,7 @@ dependencies = [
  "eframe",
  "egui_extras",
  "egui_plot",
+ "encoding_rs",
  "flate2",
  "image",
  "memmap2",

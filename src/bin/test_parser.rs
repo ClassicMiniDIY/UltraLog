@@ -4,8 +4,10 @@ use std::path::Path;
 
 // Import from the library
 use ultralog::parsers::{
-    EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, Speeduino,
+    BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, Speeduino,
 };
+
+use encoding_rs::{UTF_16BE, UTF_16LE};
 
 fn main() {
     // Get file path from command line or use default
@@ -52,10 +54,29 @@ fn main() {
             }
         }
     } else {
-        // Try text-based formats
-        let contents = match std::str::from_utf8(&binary_data) {
-            Ok(c) => c.to_string(),
-            Err(_) => String::from_utf8_lossy(&binary_data).to_string(),
+        // Try text-based formats with proper encoding detection
+        let contents = if binary_data.len() >= 2 {
+            if binary_data[0] == 0xFF && binary_data[1] == 0xFE {
+                // UTF-16 LE BOM detected
+                let (decoded, _, _) = UTF_16LE.decode(&binary_data);
+                decoded.into_owned()
+            } else if binary_data[0] == 0xFE && binary_data[1] == 0xFF {
+                // UTF-16 BE BOM detected
+                let (decoded, _, _) = UTF_16BE.decode(&binary_data);
+                decoded.into_owned()
+            } else {
+                // No UTF-16 BOM, try UTF-8
+                match std::str::from_utf8(&binary_data) {
+                    Ok(c) => c.to_string(),
+                    Err(_) => String::from_utf8_lossy(&binary_data).to_string(),
+                }
+            }
+        } else {
+            // File too small
+            match std::str::from_utf8(&binary_data) {
+                Ok(c) => c.to_string(),
+                Err(_) => String::from_utf8_lossy(&binary_data).to_string(),
+            }
         };
 
         if EcuMaster::detect(&contents) {
@@ -64,6 +85,17 @@ fn main() {
             let parser = EcuMaster;
             match parser.parse(&contents) {
                 Ok(log) => (EcuType::EcuMaster, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if BlueDriver::detect(&contents) {
+            println!("\nDetected: BlueDriver OBD-II format");
+            println!("Parsing BlueDriver log...");
+            let parser = BlueDriver;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::BlueDriver, log),
                 Err(e) => {
                     eprintln!("Parse error: {}", e);
                     std::process::exit(1);

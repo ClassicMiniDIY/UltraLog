@@ -4,6 +4,7 @@
 //! implementation. UI rendering is delegated to the `ui` submodules.
 
 use eframe::egui;
+use encoding_rs::{UTF_16BE, UTF_16LE};
 use memmap2::Mmap;
 use rust_i18n::t;
 use std::collections::HashMap;
@@ -17,13 +18,14 @@ use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::i18n::Language;
 use crate::parsers::{
-    Aim, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, RomRaider, Speeduino,
+    Aim, BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, RomRaider,
+    Speeduino,
 };
 use crate::settings::UserSettings;
 use crate::state::{
-    ActivePanel, ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState,
+    ActivePanel, ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState, PlotArea,
     ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS,
-    COLORBLIND_COLORS, MAX_CHANNELS,
+    COLORBLIND_COLORS, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS, MIN_PLOT_HEIGHT,
 };
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
@@ -470,6 +472,16 @@ impl UltraLogApp {
                     e
                 ))),
             }
+        } else if BlueDriver::detect(contents) {
+            // BlueDriver OBD-II format detected
+            let parser = BlueDriver;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::BlueDriver)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse BlueDriver file: {}",
+                    e
+                ))),
+            }
         } else if RomRaider::detect(contents) {
             // RomRaider format detected
             let parser = RomRaider;
@@ -500,12 +512,40 @@ impl UltraLogApp {
         }
     }
 
-    /// Parse text with lossy UTF-8 conversion for files with encoding issues
+    /// Parse text with proper encoding detection (UTF-16, UTF-8 with BOM, etc.)
     fn parse_text_lossy(
         binary_data: &[u8],
         _path: &PathBuf,
     ) -> Result<(crate::parsers::Log, EcuType), LoadResult> {
-        let contents = String::from_utf8_lossy(binary_data);
+        // Check for UTF-16 BOM markers
+        let contents = if binary_data.len() >= 2 {
+            if binary_data[0] == 0xFF && binary_data[1] == 0xFE {
+                // UTF-16 LE BOM detected
+                let (decoded, _, had_errors) = UTF_16LE.decode(binary_data);
+                if had_errors {
+                    return Err(LoadResult::Error(
+                        "File appears to be UTF-16 LE but has decoding errors".to_string(),
+                    ));
+                }
+                decoded.into_owned()
+            } else if binary_data[0] == 0xFE && binary_data[1] == 0xFF {
+                // UTF-16 BE BOM detected
+                let (decoded, _, had_errors) = UTF_16BE.decode(binary_data);
+                if had_errors {
+                    return Err(LoadResult::Error(
+                        "File appears to be UTF-16 BE but has decoding errors".to_string(),
+                    ));
+                }
+                decoded.into_owned()
+            } else {
+                // No UTF-16 BOM, fall back to UTF-8 lossy conversion
+                String::from_utf8_lossy(binary_data).into_owned()
+            }
+        } else {
+            // File too small for BOM check
+            String::from_utf8_lossy(binary_data).into_owned()
+        };
+
         Self::parse_text_content(&contents)
     }
 
@@ -698,6 +738,7 @@ impl UltraLogApp {
         let cache_key = CacheKey {
             file_index,
             channel_index,
+            plot_area_id: 0, // Min/max cache is plot-independent
         };
         if let Some(&cached) = self.minmax_cache.get(&cache_key) {
             return Some(cached);
@@ -743,6 +784,7 @@ impl UltraLogApp {
                         CacheKey {
                             file_index: key.file_index - 1,
                             channel_index: key.channel_index,
+                            plot_area_id: key.plot_area_id,
                         },
                         value,
                     );
@@ -762,6 +804,7 @@ impl UltraLogApp {
                         CacheKey {
                             file_index: key.file_index - 1,
                             channel_index: key.channel_index,
+                            plot_area_id: key.plot_area_id,
                         },
                         value,
                     );
@@ -827,6 +870,19 @@ impl UltraLogApp {
             return;
         }
 
+        // Check if stacked mode is enabled
+        if tab.stacked_mode {
+            // In stacked mode, add to first plot with capacity
+            let plot_with_capacity = tab.plot_areas.iter().find(|p| p.has_capacity());
+            if let Some(plot) = plot_with_capacity {
+                self.add_channel_to_plot(file_index, channel_index, plot.id);
+            } else {
+                self.show_toast_warning("All plots are full. Create a new plot area.");
+            }
+            return;
+        }
+
+        // Single-plot mode logic (original)
         if tab.selected_channels.len() >= MAX_CHANNELS {
             self.show_toast_warning(&t!("toast.max_channels"));
             return;
@@ -863,6 +919,14 @@ impl UltraLogApp {
             color_index,
         });
 
+        // In single-plot mode, also add to the default plot area
+        if !self.tabs[tab_idx].plot_areas.is_empty() {
+            let new_idx = self.tabs[tab_idx].selected_channels.len() - 1;
+            self.tabs[tab_idx].plot_areas[0]
+                .channel_indices
+                .push(new_idx);
+        }
+
         // Track channel selection for analytics
         analytics::track_channel_selected(self.tabs[tab_idx].selected_channels.len());
     }
@@ -873,8 +937,28 @@ impl UltraLogApp {
             return;
         };
 
-        if index < self.tabs[tab_idx].selected_channels.len() {
-            self.tabs[tab_idx].selected_channels.remove(index);
+        // Check if stacked mode is enabled
+        if self.tabs[tab_idx].stacked_mode {
+            // Use the stacked mode removal method
+            self.remove_channel_from_plot(index);
+        } else {
+            // Single-plot mode: remove from selected_channels and plot_areas
+            if index < self.tabs[tab_idx].selected_channels.len() {
+                self.tabs[tab_idx].selected_channels.remove(index);
+
+                // Also remove from plot area indices
+                if !self.tabs[tab_idx].plot_areas.is_empty() {
+                    self.tabs[tab_idx].plot_areas[0]
+                        .channel_indices
+                        .retain(|&idx| idx != index);
+                    // Shift down indices
+                    for idx in &mut self.tabs[tab_idx].plot_areas[0].channel_indices {
+                        if *idx > index {
+                            *idx -= 1;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -902,6 +986,316 @@ impl UltraLogApp {
             self.tabs[tab_idx].channel_search = search;
         }
     }
+
+    // ============================================================================
+    // Stacked Plot Area Management
+    // ============================================================================
+
+    /// Toggle stacked plot mode for the active tab
+    pub fn toggle_stacked_mode(&mut self) {
+        let Some(tab_idx) = self.active_tab else {
+            return;
+        };
+
+        let tab = &mut self.tabs[tab_idx];
+        tab.stacked_mode = !tab.stacked_mode;
+
+        if tab.stacked_mode {
+            // Entering stacked mode
+            if tab.plot_areas.is_empty() {
+                // Create default plot if none exist
+                tab.plot_areas.push(PlotArea::new(0, "Plot 1".to_string()));
+                tab.next_plot_area_id = 1;
+            }
+
+            // If all channels need to be assigned to a plot
+            if !tab.selected_channels.is_empty() && tab.plot_areas[0].channel_indices.is_empty() {
+                // All channels go to first plot by default
+                tab.plot_areas[0].channel_indices = (0..tab.selected_channels.len()).collect();
+            }
+
+            self.show_toast_success("Stacked plot mode enabled");
+            // TODO: Add analytics tracking for stacked plots
+        } else {
+            // Exiting stacked mode - consolidate to single plot
+            if !tab.plot_areas.is_empty() {
+                tab.plot_areas[0].channel_indices = (0..tab.selected_channels.len()).collect();
+                tab.plot_areas.truncate(1);
+            }
+
+            self.show_toast_success("Stacked plot mode disabled");
+        }
+    }
+
+    /// Create a new plot area in the active tab
+    pub fn create_plot_area(&mut self, name: String) {
+        let Some(tab_idx) = self.active_tab else {
+            self.show_toast_warning("No active tab");
+            return;
+        };
+
+        let tab = &mut self.tabs[tab_idx];
+
+        // Limit number of plot areas (reasonable maximum)
+        if tab.plot_areas.len() >= 10 {
+            self.show_toast_warning("Maximum 10 plot areas allowed");
+            return;
+        }
+
+        let new_id = tab.next_plot_area_id;
+        tab.next_plot_area_id += 1;
+
+        let new_plot = PlotArea::new(new_id, name);
+
+        // No need to redistribute heights - each plot has its own independent pixel height
+
+        tab.plot_areas.push(new_plot);
+        self.show_toast_success("Plot area created");
+    }
+
+    /// Delete a plot area and remove its channels
+    pub fn delete_plot_area(&mut self, plot_area_id: usize) {
+        let Some(tab_idx) = self.active_tab else {
+            return;
+        };
+
+        let tab = &mut self.tabs[tab_idx];
+
+        // Can't delete if it's the only plot
+        if tab.plot_areas.len() <= 1 {
+            self.show_toast_warning("Cannot delete the last plot area");
+            return;
+        }
+
+        // Find plot area index
+        let plot_idx = tab.plot_areas.iter().position(|p| p.id == plot_area_id);
+        if plot_idx.is_none() {
+            return;
+        }
+
+        let plot_idx = plot_idx.unwrap();
+        let plot = &tab.plot_areas[plot_idx];
+
+        // Remove all channels in this plot (in reverse order to maintain indices)
+        let mut indices_to_remove: Vec<usize> = plot.channel_indices.clone();
+        indices_to_remove.sort_by(|a, b| b.cmp(a)); // Sort descending
+
+        for idx in indices_to_remove {
+            if idx < tab.selected_channels.len() {
+                tab.selected_channels.remove(idx);
+            }
+        }
+
+        // Update all plot areas' channel indices (shift down for removed channels)
+        let removed_indices: std::collections::HashSet<usize> =
+            plot.channel_indices.iter().copied().collect();
+
+        for other_plot in &mut tab.plot_areas {
+            if other_plot.id != plot_area_id {
+                // Remove indices that were in the deleted plot
+                other_plot
+                    .channel_indices
+                    .retain(|idx| !removed_indices.contains(idx));
+
+                // Shift indices down for channels after the removed ones
+                for idx in &mut other_plot.channel_indices {
+                    let shift_amount = removed_indices.iter().filter(|&&r| r < *idx).count();
+                    *idx -= shift_amount;
+                }
+            }
+        }
+
+        // Remove the plot area
+        tab.plot_areas.remove(plot_idx);
+
+        // No need to redistribute heights - each plot maintains its own pixel height
+
+        self.show_toast_success("Plot area deleted");
+    }
+
+    /// Add a channel to a specific plot area (stacked mode)
+    pub fn add_channel_to_plot(
+        &mut self,
+        file_index: usize,
+        channel_index: usize,
+        plot_area_id: usize,
+    ) {
+        let Some(tab_idx) = self.active_tab else {
+            self.show_toast_warning(&t!("toast.no_active_tab"));
+            return;
+        };
+
+        let tab = &self.tabs[tab_idx];
+
+        // Validate file index matches tab
+        if file_index != tab.file_index {
+            self.show_toast_warning(&t!("toast.channel_from_active_tab"));
+            return;
+        }
+
+        // Check total channel limit
+        if tab.selected_channels.len() >= MAX_TOTAL_CHANNELS {
+            self.show_toast_warning(&format!(
+                "Maximum {} total channels reached",
+                MAX_TOTAL_CHANNELS
+            ));
+            return;
+        }
+
+        // Find the plot area
+        let plot_idx = tab.plot_areas.iter().position(|p| p.id == plot_area_id);
+        if plot_idx.is_none() {
+            self.show_toast_error("Plot area not found");
+            return;
+        }
+
+        let plot = &tab.plot_areas[plot_idx.unwrap()];
+
+        // Check plot area capacity
+        if !plot.has_capacity() {
+            self.show_toast_warning(&format!(
+                "Plot '{}' is full (max {} channels)",
+                plot.name, MAX_CHANNELS_PER_PLOT
+            ));
+            return;
+        }
+
+        // Check for duplicate
+        if tab
+            .selected_channels
+            .iter()
+            .any(|c| c.file_index == file_index && c.channel_index == channel_index)
+        {
+            self.show_toast_warning(&t!("toast.channel_already_selected"));
+            return;
+        }
+
+        // Add the channel to selected_channels
+        let file = &self.files[file_index];
+        let channel = file.log.channels[channel_index].clone();
+
+        let used_colors: std::collections::HashSet<usize> = tab
+            .selected_channels
+            .iter()
+            .map(|c| c.color_index)
+            .collect();
+
+        let color_index = (0..CHART_COLORS.len())
+            .find(|i| !used_colors.contains(i))
+            .unwrap_or(0);
+
+        let selected_channel = SelectedChannel {
+            file_index,
+            channel_index,
+            channel,
+            color_index,
+        };
+
+        // Add to selected_channels and track its index
+        self.tabs[tab_idx].selected_channels.push(selected_channel);
+        let new_channel_idx = self.tabs[tab_idx].selected_channels.len() - 1;
+
+        // Add the index to the plot area's channel list
+        let plot = &mut self.tabs[tab_idx].plot_areas[plot_idx.unwrap()];
+        plot.channel_indices.push(new_channel_idx);
+
+        // Track channel selection for analytics
+        analytics::track_channel_selected(self.tabs[tab_idx].selected_channels.len());
+    }
+
+    /// Remove a channel from a plot area and from selected channels
+    pub fn remove_channel_from_plot(&mut self, channel_idx: usize) {
+        let Some(tab_idx) = self.active_tab else {
+            return;
+        };
+
+        let tab = &mut self.tabs[tab_idx];
+
+        if channel_idx >= tab.selected_channels.len() {
+            return;
+        }
+
+        // Remove from all plot areas' channel indices
+        for plot in &mut tab.plot_areas {
+            plot.channel_indices.retain(|&idx| idx != channel_idx);
+
+            // Shift down indices greater than the removed one
+            for idx in &mut plot.channel_indices {
+                if *idx > channel_idx {
+                    *idx -= 1;
+                }
+            }
+        }
+
+        // Remove from selected_channels
+        tab.selected_channels.remove(channel_idx);
+    }
+
+    /// Move a channel from one plot area to another
+    pub fn move_channel_to_plot(&mut self, channel_idx: usize, target_plot_id: usize) {
+        let Some(tab_idx) = self.active_tab else {
+            return;
+        };
+
+        let tab = &mut self.tabs[tab_idx];
+
+        // Find current plot containing this channel
+        let current_plot_idx = tab
+            .plot_areas
+            .iter()
+            .position(|p| p.channel_indices.contains(&channel_idx));
+
+        // Find target plot
+        let target_plot_idx = tab.plot_areas.iter().position(|p| p.id == target_plot_id);
+
+        if current_plot_idx.is_none() || target_plot_idx.is_none() {
+            return;
+        }
+
+        let current_idx = current_plot_idx.unwrap();
+        let target_idx = target_plot_idx.unwrap();
+
+        if current_idx == target_idx {
+            return; // Already in target plot
+        }
+
+        // Check target plot capacity
+        if !tab.plot_areas[target_idx].has_capacity() {
+            self.show_toast_warning("Target plot is full");
+            return;
+        }
+
+        // Remove from current plot
+        tab.plot_areas[current_idx]
+            .channel_indices
+            .retain(|&idx| idx != channel_idx);
+
+        // Add to target plot
+        tab.plot_areas[target_idx].channel_indices.push(channel_idx);
+    }
+
+    /// Adjust plot heights after resize drag
+    pub fn adjust_plot_heights(&mut self, plot_idx: usize, delta_pixels: f32) {
+        let Some(tab_idx) = self.active_tab else {
+            return;
+        };
+
+        let plot_count = self.tabs[tab_idx].plot_areas.len();
+
+        if plot_idx >= plot_count {
+            return; // Invalid plot index
+        }
+
+        // Adjust only the current plot's height (independent of others)
+        let current_height = self.tabs[tab_idx].plot_areas[plot_idx].height_pixels;
+        let new_height = (current_height + delta_pixels).max(MIN_PLOT_HEIGHT);
+
+        self.tabs[tab_idx].plot_areas[plot_idx].height_pixels = new_height;
+
+        // No need to adjust other plots - each plot has independent height
+    }
+
+    // ============================================================================
 
     /// Switch to a tab for the given file, creating one if it doesn't exist
     pub fn switch_to_file_tab(&mut self, file_index: usize) {

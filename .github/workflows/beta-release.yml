@@ -264,6 +264,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Get tag name
         id: tag
         run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
@@ -290,38 +293,6 @@ jobs:
           prerelease: true
           name: "${{ steps.tag.outputs.TAG }} (Beta)"
           generate_release_notes: true
-          body: |
-            ## Beta Release
-
-            **This is a pre-release version for testing purposes.**
-
-            This build may contain experimental features, bugs, or incomplete functionality.
-            Please report any issues you encounter on [GitHub Issues](https://github.com/${{ github.repository }}/issues).
-
-            ---
-
-            ## Installation
-
-            ### macOS
-            1. Download the appropriate `.dmg` file for your Mac:
-               - **Intel Mac**: `ultralog-macos-intel-beta.dmg`
-               - **Apple Silicon (M1/M2/M3/M4)**: `ultralog-macos-arm64-beta.dmg`
-            2. Open the DMG and drag UltraLog to your Applications folder
-            3. On first run, right-click the app and select "Open" to bypass Gatekeeper
-
-            ### Windows
-            1. Download `ultralog-windows-beta.zip`
-            2. Extract the zip file
-            3. Run `ultralog-windows-beta.exe`
-
-            ### Linux
-            1. Download `ultralog-linux-beta.tar.gz`
-            2. Extract: `tar -xzf ultralog-linux-beta.tar.gz`
-            3. Run: `./ultralog-linux`
-
-            ---
-
-            **Note:** Beta releases are not shown by default in the releases list.
-            Users must explicitly opt-in to view pre-releases.
+          body_path: .github/RELEASE_TEMPLATE_BETA.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
