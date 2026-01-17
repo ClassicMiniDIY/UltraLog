@@ -328,22 +328,79 @@ impl UltraLogApp {
         ui.label(egui::RichText::new("⚙ Display").size(font_15).strong());
         ui.add_space(8.0);
 
-        // Mode selector
-        ui.label(egui::RichText::new(t!("histogram.mode")).size(font_14));
+        // Mode selector - Pill style
+        ui.label(
+            egui::RichText::new(t!("histogram.mode"))
+                .size(font_14)
+                .strong(),
+        );
         ui.horizontal(|ui| {
+            // Hit Count button
+            let is_hit_count = current_mode == HistogramMode::HitCount;
+            let hit_fill = if is_hit_count {
+                egui::Color32::from_rgb(70, 70, 70)
+            } else {
+                egui::Color32::from_rgb(45, 45, 45)
+            };
+            let hit_text = if is_hit_count {
+                egui::Color32::WHITE
+            } else {
+                egui::Color32::from_rgb(180, 180, 180)
+            };
+            let hit_stroke = if is_hit_count {
+                egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+            } else {
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+            };
+
             if ui
-                .selectable_label(
-                    current_mode == HistogramMode::HitCount,
-                    t!("histogram.hit_count"),
+                .add(
+                    egui::Button::new(
+                        egui::RichText::new(t!("histogram.hit_count"))
+                            .size(font_14)
+                            .color(hit_text),
+                    )
+                    .fill(hit_fill)
+                    .stroke(hit_stroke)
+                    .corner_radius(egui::CornerRadius::same(16))
+                    .min_size(egui::vec2(80.0, 28.0)),
                 )
                 .clicked()
             {
                 new_mode = Some(HistogramMode::HitCount);
             }
+
+            ui.add_space(4.0);
+
+            // Average Z button
+            let is_avg_z = current_mode == HistogramMode::AverageZ;
+            let avg_fill = if is_avg_z {
+                egui::Color32::from_rgb(70, 70, 70)
+            } else {
+                egui::Color32::from_rgb(45, 45, 45)
+            };
+            let avg_text = if is_avg_z {
+                egui::Color32::WHITE
+            } else {
+                egui::Color32::from_rgb(180, 180, 180)
+            };
+            let avg_stroke = if is_avg_z {
+                egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+            } else {
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+            };
+
             if ui
-                .selectable_label(
-                    current_mode == HistogramMode::AverageZ,
-                    t!("histogram.average_z"),
+                .add(
+                    egui::Button::new(
+                        egui::RichText::new(t!("histogram.average_z"))
+                            .size(font_14)
+                            .color(avg_text),
+                    )
+                    .fill(avg_fill)
+                    .stroke(avg_stroke)
+                    .corner_radius(egui::CornerRadius::same(16))
+                    .min_size(egui::vec2(80.0, 28.0)),
                 )
                 .clicked()
             {
@@ -596,10 +653,27 @@ impl UltraLogApp {
 
         // Copy/Paste buttons
         ui.horizontal(|ui| {
-            if ui.button(format!("📋 {}", t!("histogram.copy"))).clicked() {
+            let copy_button = egui::Button::new(
+                egui::RichText::new(format!("📋 {}", t!("histogram.copy"))).size(font_14),
+            )
+            .fill(egui::Color32::from_rgb(45, 45, 45))
+            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+            .corner_radius(4);
+
+            if ui.add(copy_button).clicked() {
                 self.copy_histogram_to_clipboard(tab_idx);
             }
-            if ui.button(format!("📥 {}", t!("histogram.paste"))).clicked() {
+
+            ui.add_space(6.0);
+
+            let paste_button = egui::Button::new(
+                egui::RichText::new(format!("📥 {}", t!("histogram.paste"))).size(font_14),
+            )
+            .fill(egui::Color32::from_rgb(45, 45, 45))
+            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+            .corner_radius(4);
+
+            if ui.add(paste_button).clicked() {
                 do_paste = true;
             }
         });
@@ -608,28 +682,129 @@ impl UltraLogApp {
         if has_pasted_table {
             ui.add_space(12.0);
 
-            ui.label(egui::RichText::new(t!("histogram.operation")).size(font_14));
+            ui.label(
+                egui::RichText::new(t!("histogram.operation"))
+                    .size(font_14)
+                    .strong(),
+            );
             ui.horizontal(|ui| {
+                // Add button
+                let is_selected = current_table_op == TableOperation::Add;
                 if ui
-                    .selectable_label(current_table_op == TableOperation::Add, "+")
+                    .add(
+                        egui::Button::new(egui::RichText::new("+").size(font_14).color(
+                            if is_selected {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::from_rgb(180, 180, 180)
+                            },
+                        ))
+                        .fill(if is_selected {
+                            egui::Color32::from_rgb(70, 70, 70)
+                        } else {
+                            egui::Color32::from_rgb(45, 45, 45)
+                        })
+                        .stroke(if is_selected {
+                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                        } else {
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                        })
+                        .corner_radius(egui::CornerRadius::same(16))
+                        .min_size(egui::vec2(40.0, 28.0)),
+                    )
                     .clicked()
                 {
                     new_table_op = Some(TableOperation::Add);
                 }
+
+                ui.add_space(4.0);
+
+                // Subtract button
+                let is_selected = current_table_op == TableOperation::Subtract;
                 if ui
-                    .selectable_label(current_table_op == TableOperation::Subtract, "−")
+                    .add(
+                        egui::Button::new(egui::RichText::new("−").size(font_14).color(
+                            if is_selected {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::from_rgb(180, 180, 180)
+                            },
+                        ))
+                        .fill(if is_selected {
+                            egui::Color32::from_rgb(70, 70, 70)
+                        } else {
+                            egui::Color32::from_rgb(45, 45, 45)
+                        })
+                        .stroke(if is_selected {
+                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                        } else {
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                        })
+                        .corner_radius(egui::CornerRadius::same(16))
+                        .min_size(egui::vec2(40.0, 28.0)),
+                    )
                     .clicked()
                 {
                     new_table_op = Some(TableOperation::Subtract);
                 }
+
+                ui.add_space(4.0);
+
+                // Multiply button
+                let is_selected = current_table_op == TableOperation::Multiply;
                 if ui
-                    .selectable_label(current_table_op == TableOperation::Multiply, "×")
+                    .add(
+                        egui::Button::new(egui::RichText::new("×").size(font_14).color(
+                            if is_selected {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::from_rgb(180, 180, 180)
+                            },
+                        ))
+                        .fill(if is_selected {
+                            egui::Color32::from_rgb(70, 70, 70)
+                        } else {
+                            egui::Color32::from_rgb(45, 45, 45)
+                        })
+                        .stroke(if is_selected {
+                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                        } else {
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                        })
+                        .corner_radius(egui::CornerRadius::same(16))
+                        .min_size(egui::vec2(40.0, 28.0)),
+                    )
                     .clicked()
                 {
                     new_table_op = Some(TableOperation::Multiply);
                 }
+
+                ui.add_space(4.0);
+
+                // Divide button
+                let is_selected = current_table_op == TableOperation::Divide;
                 if ui
-                    .selectable_label(current_table_op == TableOperation::Divide, "÷")
+                    .add(
+                        egui::Button::new(egui::RichText::new("÷").size(font_14).color(
+                            if is_selected {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::from_rgb(180, 180, 180)
+                            },
+                        ))
+                        .fill(if is_selected {
+                            egui::Color32::from_rgb(70, 70, 70)
+                        } else {
+                            egui::Color32::from_rgb(45, 45, 45)
+                        })
+                        .stroke(if is_selected {
+                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                        } else {
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                        })
+                        .corner_radius(egui::CornerRadius::same(16))
+                        .min_size(egui::vec2(40.0, 28.0)),
+                    )
                     .clicked()
                 {
                     new_table_op = Some(TableOperation::Divide);
@@ -649,13 +824,28 @@ impl UltraLogApp {
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
-                if ui.button(format!("❌ {}", t!("histogram.clear"))).clicked() {
+                let clear_button = egui::Button::new(
+                    egui::RichText::new(format!("❌ {}", t!("histogram.clear"))).size(font_14),
+                )
+                .fill(egui::Color32::from_rgb(45, 45, 45))
+                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+                .corner_radius(4);
+
+                if ui.add(clear_button).clicked() {
                     clear_pasted_table = true;
                 }
-                if ui
-                    .button(format!("📋 {}", t!("histogram.copy_result")))
-                    .clicked()
-                {
+
+                ui.add_space(6.0);
+
+                let copy_result_button = egui::Button::new(
+                    egui::RichText::new(format!("📋 {}", t!("histogram.copy_result")))
+                        .size(font_14),
+                )
+                .fill(egui::Color32::from_rgb(45, 45, 45))
+                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+                .corner_radius(4);
+
+                if ui.add(copy_result_button).clicked() {
                     self.copy_result_to_clipboard(tab_idx);
                 }
             });
