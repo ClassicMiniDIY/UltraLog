@@ -649,138 +649,196 @@ impl UltraLogApp {
             .map(|(idx, name, _)| (*idx, name.clone()))
             .collect();
 
-        // Left plot
-        ui.label(egui::RichText::new("📊 Left Plot").size(font_15).strong());
-        ui.add_space(8.0);
+        let font_12 = self.scaled_font(12.0);
 
-        let left_config = &self.tabs[tab_idx].scatter_plot_state.left;
-        let mut left_new_x = None;
-        let mut left_new_y = None;
+        // ============================================================================
+        // LEFT PLOT SECTION
+        // ============================================================================
+        let frame_left = egui::Frame::NONE
+            .fill(egui::Color32::from_rgb(40, 40, 40))
+            .corner_radius(6)
+            .inner_margin(egui::Margin::same(12));
 
-        ui.label(egui::RichText::new(t!("scatter.x_axis")).size(font_14));
-        egui::ComboBox::from_id_salt("left_x_sidebar")
-            .selected_text(
-                left_config
-                    .x_channel
-                    .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
-                    .unwrap_or("Select..."),
-            )
-            .width(ui.available_width())
-            .show_ui(ui, |ui| {
-                for (idx, name, _) in &sorted_channels {
-                    if ui
-                        .selectable_label(left_config.x_channel == Some(*idx), name)
-                        .clicked()
-                    {
-                        left_new_x = Some(*idx);
+        frame_left.show(ui, |ui| {
+            ui.label(egui::RichText::new("📊 Left Plot").size(font_15).strong());
+            ui.add_space(12.0);
+
+            let left_config = &self.tabs[tab_idx].scatter_plot_state.left;
+            let mut left_new_x = None;
+            let mut left_new_y = None;
+
+            ui.label(
+                egui::RichText::new(t!("scatter.x_axis"))
+                    .size(font_14)
+                    .strong(),
+            );
+            egui::ComboBox::from_id_salt("left_x_sidebar")
+                .selected_text(
+                    left_config
+                        .x_channel
+                        .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
+                        .unwrap_or("Select..."),
+                )
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    for (idx, name, _) in &sorted_channels {
+                        if ui
+                            .selectable_label(left_config.x_channel == Some(*idx), name)
+                            .clicked()
+                        {
+                            left_new_x = Some(*idx);
+                        }
                     }
-                }
+                });
+
+            ui.add_space(8.0);
+
+            // Y Axis
+            ui.label(
+                egui::RichText::new(t!("scatter.y_axis"))
+                    .size(font_14)
+                    .strong(),
+            );
+            egui::ComboBox::from_id_salt("left_y_sidebar")
+                .selected_text(
+                    left_config
+                        .y_channel
+                        .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
+                        .unwrap_or("Select..."),
+                )
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    for (idx, name, _) in &sorted_channels {
+                        if ui
+                            .selectable_label(left_config.y_channel == Some(*idx), name)
+                            .clicked()
+                        {
+                            left_new_y = Some(*idx);
+                        }
+                    }
+                });
+
+            ui.add_space(12.0);
+
+            // Z Axis info
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{}: ", t!("scatter.z_axis")))
+                        .size(font_12)
+                        .color(egui::Color32::from_rgb(150, 150, 150)),
+                );
+                ui.label(
+                    egui::RichText::new(t!("scatter.hits"))
+                        .size(font_12)
+                        .color(egui::Color32::from_rgb(180, 180, 180))
+                        .italics(),
+                );
             });
 
-        ui.add_space(8.0);
+            // Apply left plot updates
+            if let Some(x) = left_new_x {
+                self.tabs[tab_idx].scatter_plot_state.left.x_channel = Some(x);
+            }
+            if let Some(y) = left_new_y {
+                self.tabs[tab_idx].scatter_plot_state.left.y_channel = Some(y);
+            }
+        });
 
-        ui.label(egui::RichText::new(t!("scatter.y_axis")).size(font_14));
-        egui::ComboBox::from_id_salt("left_y_sidebar")
-            .selected_text(
-                left_config
-                    .y_channel
-                    .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
-                    .unwrap_or("Select..."),
-            )
-            .width(ui.available_width())
-            .show_ui(ui, |ui| {
-                for (idx, name, _) in &sorted_channels {
-                    if ui
-                        .selectable_label(left_config.y_channel == Some(*idx), name)
-                        .clicked()
-                    {
-                        left_new_y = Some(*idx);
-                    }
-                }
-            });
-
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(format!("{}: {}", t!("scatter.z_axis"), t!("scatter.hits")))
-                .size(font_14)
-                .color(egui::Color32::from_rgb(150, 150, 150)),
-        );
-
-        // Apply left plot updates
-        if let Some(x) = left_new_x {
-            self.tabs[tab_idx].scatter_plot_state.left.x_channel = Some(x);
-        }
-        if let Some(y) = left_new_y {
-            self.tabs[tab_idx].scatter_plot_state.left.y_channel = Some(y);
-        }
-
-        ui.add_space(20.0);
+        ui.add_space(16.0);
         ui.separator();
-        ui.add_space(20.0);
+        ui.add_space(16.0);
 
-        // Right plot
-        ui.label(egui::RichText::new("📊 Right Plot").size(font_15).strong());
-        ui.add_space(8.0);
+        // ============================================================================
+        // RIGHT PLOT SECTION
+        // ============================================================================
+        let frame_right = egui::Frame::NONE
+            .fill(egui::Color32::from_rgb(40, 40, 40))
+            .corner_radius(6)
+            .inner_margin(egui::Margin::same(12));
 
-        let right_config = &self.tabs[tab_idx].scatter_plot_state.right;
-        let mut right_new_x = None;
-        let mut right_new_y = None;
+        frame_right.show(ui, |ui| {
+            ui.label(egui::RichText::new("📊 Right Plot").size(font_15).strong());
+            ui.add_space(12.0);
 
-        ui.label(egui::RichText::new(t!("scatter.x_axis")).size(font_14));
-        egui::ComboBox::from_id_salt("right_x_sidebar")
-            .selected_text(
-                right_config
-                    .x_channel
-                    .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
-                    .unwrap_or("Select..."),
-            )
-            .width(ui.available_width())
-            .show_ui(ui, |ui| {
-                for (idx, name, _) in &sorted_channels {
-                    if ui
-                        .selectable_label(right_config.x_channel == Some(*idx), name)
-                        .clicked()
-                    {
-                        right_new_x = Some(*idx);
+            let right_config = &self.tabs[tab_idx].scatter_plot_state.right;
+            let mut right_new_x = None;
+            let mut right_new_y = None;
+
+            ui.label(
+                egui::RichText::new(t!("scatter.x_axis"))
+                    .size(font_14)
+                    .strong(),
+            );
+            egui::ComboBox::from_id_salt("right_x_sidebar")
+                .selected_text(
+                    right_config
+                        .x_channel
+                        .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
+                        .unwrap_or("Select..."),
+                )
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    for (idx, name, _) in &sorted_channels {
+                        if ui
+                            .selectable_label(right_config.x_channel == Some(*idx), name)
+                            .clicked()
+                        {
+                            right_new_x = Some(*idx);
+                        }
                     }
-                }
+                });
+
+            ui.add_space(8.0);
+
+            // Y Axis
+            ui.label(
+                egui::RichText::new(t!("scatter.y_axis"))
+                    .size(font_14)
+                    .strong(),
+            );
+            egui::ComboBox::from_id_salt("right_y_sidebar")
+                .selected_text(
+                    right_config
+                        .y_channel
+                        .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
+                        .unwrap_or("Select..."),
+                )
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    for (idx, name, _) in &sorted_channels {
+                        if ui
+                            .selectable_label(right_config.y_channel == Some(*idx), name)
+                            .clicked()
+                        {
+                            right_new_y = Some(*idx);
+                        }
+                    }
+                });
+
+            ui.add_space(12.0);
+
+            // Z Axis info
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{}: ", t!("scatter.z_axis")))
+                        .size(font_12)
+                        .color(egui::Color32::from_rgb(150, 150, 150)),
+                );
+                ui.label(
+                    egui::RichText::new(t!("scatter.hits"))
+                        .size(font_12)
+                        .color(egui::Color32::from_rgb(180, 180, 180))
+                        .italics(),
+                );
             });
 
-        ui.add_space(8.0);
-
-        ui.label(egui::RichText::new(t!("scatter.y_axis")).size(font_14));
-        egui::ComboBox::from_id_salt("right_y_sidebar")
-            .selected_text(
-                right_config
-                    .y_channel
-                    .and_then(|i| channel_names.get(&i).map(|n| n.as_str()))
-                    .unwrap_or("Select..."),
-            )
-            .width(ui.available_width())
-            .show_ui(ui, |ui| {
-                for (idx, name, _) in &sorted_channels {
-                    if ui
-                        .selectable_label(right_config.y_channel == Some(*idx), name)
-                        .clicked()
-                    {
-                        right_new_y = Some(*idx);
-                    }
-                }
-            });
-
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(format!("{}: {}", t!("scatter.z_axis"), t!("scatter.hits")))
-                .size(font_14)
-                .color(egui::Color32::from_rgb(150, 150, 150)),
-        );
-
-        // Apply right plot updates
-        if let Some(x) = right_new_x {
-            self.tabs[tab_idx].scatter_plot_state.right.x_channel = Some(x);
-        }
-        if let Some(y) = right_new_y {
-            self.tabs[tab_idx].scatter_plot_state.right.y_channel = Some(y);
-        }
+            // Apply right plot updates
+            if let Some(x) = right_new_x {
+                self.tabs[tab_idx].scatter_plot_state.right.x_channel = Some(x);
+            }
+            if let Some(y) = right_new_y {
+                self.tabs[tab_idx].scatter_plot_state.right.y_channel = Some(y);
+            }
+        });
     }
 }
