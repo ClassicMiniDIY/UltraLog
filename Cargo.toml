@@ -51,6 +51,7 @@ dirs = "5.0"
 rfd = "0.17"  # Native file dialogs
 open = "5"    # Open URLs in default browser
 memmap2 = "0.9"  # Memory-mapped file loading for large files
+encoding_rs = "0.8"  # Character encoding detection and conversion (UTF-16, etc.)
 
 # Auto-update
 ureq = { version = "3.1", features = ["json"] }  # Minimal HTTP client

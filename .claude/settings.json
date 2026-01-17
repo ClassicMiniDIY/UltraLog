@@ -33,7 +33,11 @@
       "Bash(cargo add:*)",
       "Bash(git checkout:*)",
       "Bash(gh pr view:*)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "Read(//Users/colegentry/Development/OpenECUAlliance/**)",
+      "Bash(xargs:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)"
     ],
     "additionalDirectories": [
       "/tmp"

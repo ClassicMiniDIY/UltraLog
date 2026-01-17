@@ -1,4 +1,5 @@
 pub mod aim;
+pub mod bluedriver;
 pub mod dynamicefi;
 pub mod ecumaster;
 pub mod emerald;
@@ -11,6 +12,7 @@ pub mod speeduino;
 pub mod types;
 
 pub use aim::Aim;
+pub use bluedriver::BlueDriver;
 pub use dynamicefi::DynamicEfi;
 pub use ecumaster::EcuMaster;
 pub use emerald::Emerald;
