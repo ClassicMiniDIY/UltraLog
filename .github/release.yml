@@ -1,0 +1,52 @@
+changelog:
+  categories:
+    - title: 🚀 New Features
+      labels:
+        - feature
+        - enhancement
+        - new-feature
+    - title: 🐛 Bug Fixes
+      labels:
+        - bug
+        - bugfix
+        - fix
+    - title: ⚡ Performance Improvements
+      labels:
+        - performance
+        - optimization
+    - title: 📊 Parser Updates
+      labels:
+        - parser
+        - ecu-support
+    - title: 🎨 UI/UX Improvements
+      labels:
+        - ui
+        - ux
+        - design
+    - title: 📚 Documentation
+      labels:
+        - documentation
+        - docs
+    - title: 🔧 Maintenance
+      labels:
+        - maintenance
+        - refactor
+        - chore
+    - title: 🔒 Security
+      labels:
+        - security
+    - title: 🧪 Testing
+      labels:
+        - test
+        - testing
+    - title: 📦 Dependencies
+      labels:
+        - dependencies
+        - deps
+    - title: 🔄 Other Changes
+      labels:
+        - "*"
+  exclude:
+    labels:
+      - ignore-for-release
+      - skip-changelog
