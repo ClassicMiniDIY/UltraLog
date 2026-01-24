@@ -426,7 +426,7 @@ pub fn get_display_name(name: &str, show_original: bool) -> String {
 
 /// Get channel metadata from OpenECU Alliance specs if available.
 /// This provides additional information like category, unit, min/max values.
-pub fn get_spec_metadata(name: &str) -> Option<&'static adapters::ChannelMetadata> {
+pub fn get_spec_metadata(name: &str) -> Option<adapters::ChannelMetadata> {
     adapters::get_channel_metadata(name)
 }
 

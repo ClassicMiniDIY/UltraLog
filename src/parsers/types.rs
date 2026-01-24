@@ -166,7 +166,7 @@ impl Channel {
     }
 
     /// Get OpenECU Alliance spec metadata for this channel (if available).
-    pub fn spec_metadata(&self) -> Option<&'static ChannelMetadata> {
+    pub fn spec_metadata(&self) -> Option<ChannelMetadata> {
         get_channel_metadata(&self.name())
     }
 

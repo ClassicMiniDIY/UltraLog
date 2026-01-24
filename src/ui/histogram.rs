@@ -1993,7 +1993,7 @@ impl UltraLogApp {
         if grid_rows == 0 {
             return;
         }
-        let grid_cols = values.get(0).map(|row| row.len()).unwrap_or(0);
+        let grid_cols = values.first().map(|row| row.len()).unwrap_or(0);
         if grid_cols == 0 {
             return;
         }

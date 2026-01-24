@@ -3,10 +3,10 @@
 //! These types mirror the OpenECU Alliance adapter schema for parsing
 //! adapter YAML files that define ECU log format specifications.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// OpenECU Alliance adapter specification
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AdapterSpec {
     /// Specification version (e.g., "1.0")
     pub openecualliance: String,
@@ -37,7 +37,7 @@ pub struct AdapterSpec {
 }
 
 /// Branding assets for the vendor
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct BrandingSpec {
     /// Logo file path (relative to assets/logos/)
     #[serde(default)]
@@ -57,7 +57,7 @@ pub struct BrandingSpec {
 }
 
 /// File format specification
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileFormatSpec {
     /// Format type: "csv" or "binary"
     #[serde(rename = "type")]
@@ -100,7 +100,7 @@ pub struct FileFormatSpec {
 }
 
 /// Channel specification
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChannelSpec {
     /// Canonical channel identifier (e.g., "rpm", "coolant_temp")
     pub id: String,
@@ -138,7 +138,7 @@ pub struct ChannelSpec {
 }
 
 /// Channel categories
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChannelCategory {
     Engine,
@@ -188,7 +188,7 @@ impl ChannelCategory {
 }
 
 /// Data types for channel values
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DataType {
     Float,
@@ -199,7 +199,7 @@ pub enum DataType {
 }
 
 /// Adapter metadata
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MetadataSpec {
     /// Adapter author
     #[serde(default)]
@@ -222,7 +222,7 @@ pub struct MetadataSpec {
 }
 
 /// Changelog entry
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChangelogEntry {
     /// Version
     pub version: String,
@@ -237,7 +237,7 @@ pub struct ChangelogEntry {
 // ============================================================================
 
 /// OpenECU Alliance CAN protocol specification
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProtocolSpec {
     /// Specification version (e.g., "1.0")
     pub openecualliance: String,
@@ -274,7 +274,7 @@ pub struct ProtocolSpec {
 }
 
 /// Protocol configuration
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProtocolInfo {
     /// Protocol type: "can", "canfd", "lin", "k-line"
     #[serde(rename = "type")]
@@ -299,7 +299,7 @@ pub struct ProtocolInfo {
 }
 
 /// Protocol types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProtocolType {
     Can,
@@ -310,7 +310,7 @@ pub enum ProtocolType {
 }
 
 /// CAN message definition
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MessageSpec {
     /// CAN message ID (supports hex strings like "0x360" or decimal integers)
     #[serde(deserialize_with = "deserialize_message_id")]
@@ -333,7 +333,7 @@ pub struct MessageSpec {
 }
 
 /// Signal within a CAN message
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SignalSpec {
     /// Signal name
     pub name: String,
@@ -376,7 +376,7 @@ fn default_scale() -> f64 {
 }
 
 /// Byte order for multi-byte signals
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ByteOrder {
     LittleEndian,
@@ -384,7 +384,7 @@ pub enum ByteOrder {
 }
 
 /// Signal data types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SignalDataType {
     Unsigned,
@@ -394,7 +394,7 @@ pub enum SignalDataType {
 }
 
 /// Enumeration definition for discrete signal values
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EnumSpec {
     /// Enumeration name
     pub name: String,
