@@ -11,6 +11,10 @@ This document describes how UltraLog integrates with OpenECU Alliance adapter sp
 - [x] Integration with existing `normalize.rs` (spec as fallback)
 - [x] Channel metadata lookup (min/max/precision/category)
 - [x] 8 adapter specs integrated (Haltech, ECUMaster, Link, AiM, RomRaider, Speeduino, rusEFI, Emerald)
+- [x] **API client for fetching specs from openecualliance.org**
+- [x] **Local disk cache at `{app_data_dir}/UltraLog/oecua_specs/`**
+- [x] **Background API refresh with fallback chain (cache → embedded → API)**
+- [x] **24-hour cache staleness threshold**
 - [ ] Runtime adapter loading from user directory
 - [ ] Generic CSV/binary parser driven by specs
 - [ ] Adapter marketplace integration
@@ -21,6 +25,9 @@ This document describes how UltraLog integrates with OpenECU Alliance adapter sp
 - [x] Protocol type definitions (ProtocolSpec, MessageSpec, SignalSpec)
 - [x] 9 protocol specs integrated (Haltech, ECUMaster, Speeduino, rusEFI, AEM, Megasquirt, MaxxECU, Syvecs, Emtron)
 - [x] Protocol registry API (get_protocols, get_protocol_by_id, find_protocols_by_vendor)
+- [x] **API client for fetching protocol specs**
+- [x] **Local disk cache for protocols**
+- [x] **Background API refresh for protocols**
 - [ ] CAN bus message encoder/decoder
 - [ ] Real-time CAN streaming support
 - [ ] DBC file export from protocol specs
@@ -72,7 +79,9 @@ src/
 ├── adapters/
 │   ├── mod.rs           # Module exports and re-exports
 │   ├── types.rs         # AdapterSpec, ProtocolSpec, ChannelSpec, MessageSpec, etc.
-│   └── registry.rs      # Spec loading, normalization maps, metadata lookup, protocol registry
+│   ├── registry.rs      # Spec loading, normalization maps, metadata lookup, protocol registry
+│   ├── api.rs           # API client for fetching specs from openecualliance.org
+│   └── cache.rs         # Local disk cache at {app_data_dir}/UltraLog/oecua_specs/
 ├── normalize.rs         # Field normalization (uses adapters for fallback)
 └── parsers/
     └── types.rs         # Channel type enhanced with spec metadata methods
@@ -81,9 +90,50 @@ spec/OECUASpecs/         # Git submodule: github.com/ClassicMiniDIY/OECUASpecs
 ├── adapters/            # Log file format adapters (8 specs)
 └── protocols/           # CAN bus protocol definitions (9 specs)
 build.rs                 # Auto-downloads specs if submodule missing
+
+Cache locations:
+- Linux: ~/.local/share/UltraLog/oecua_specs/
+- macOS: ~/Library/Application Support/UltraLog/oecua_specs/
+- Windows: %APPDATA%\UltraLog\oecua_specs\
 ```
 
 ## How It Works
+
+### Spec Loading Architecture: Multi-Tier Fallback
+
+UltraLog uses a **three-tier fallback system** for loading adapter and protocol specifications, optimizing for fast startup while keeping specs up-to-date:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Application Startup                   │
+├─────────────────────────────────────────────────────────┤
+│  1. Load specs via registry.rs (FAST, non-blocking)     │
+│     ┌───────────────────────────────────────────────┐   │
+│     │ Check cache freshness (< 24 hours?)          │   │
+│     │   ├── YES → Load from disk cache (fastest)   │   │
+│     │   └── NO → Load embedded YAML specs          │   │
+│     └───────────────────────────────────────────────┘   │
+│                                                          │
+│  2. Spawn background thread (non-blocking)              │
+│     ┌───────────────────────────────────────────────┐   │
+│     │ Fetch from openecualliance.org API            │   │
+│     │   ├── Success → Update cache & registry       │   │
+│     │   └── Failure → Continue with cache/embedded  │   │
+│     └───────────────────────────────────────────────┘   │
+│                                                          │
+│  3. User experience                                     │
+│     - App starts immediately with cached/embedded specs │
+│     - Background refresh happens silently               │
+│     - Next startup gets latest specs from cache         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key Design Principles:**
+
+- **Zero blocking** - App never waits for API calls
+- **Always available** - Embedded specs ensure offline functionality
+- **Auto-updating** - Latest specs fetched in background
+- **Cache efficiency** - 24-hour staleness threshold reduces API load
 
 ### 1. Spec Source: GitHub Submodule
 
@@ -103,32 +153,76 @@ The `build.rs` script ensures specs are available:
 2. If not, attempts `git submodule update --init`
 3. If git fails, downloads specs directly from GitHub raw content
 
-### 2. Compile-Time Spec Embedding
+### 2. Runtime Spec Loading with Fallback
 
-Adapter YAML files are embedded at compile time using `include_str!`:
+Adapter specs are loaded at runtime via a fallback chain:
 
 ```rust
 // src/adapters/registry.rs
+
+// Embedded YAML as compile-time fallback
 const HALTECH_NSP_YAML: &str =
     include_str!("../../spec/OECUASpecs/adapters/haltech/haltech-nsp.adapter.yaml");
 // ... 7 more adapters
 
-static ADAPTER_SPECS: LazyLock<Vec<AdapterSpec>> = LazyLock::new(|| {
-    EMBEDDED_ADAPTERS.iter()
-        .filter_map(|yaml| serde_yaml::from_str(yaml).ok())
-        .collect()
+// Load with cache -> embedded fallback
+fn load_adapters_with_fallback() -> Vec<AdapterSpec> {
+    // 1. Try cache first (if fresh)
+    if !cache::is_cache_stale() {
+        if let Some(cached) = cache::load_cached_adapters() {
+            return cached; // Fast path: use cache
+        }
+    }
+
+    // 2. Fall back to embedded specs
+    parse_embedded_adapters()
+}
+
+// Dynamic registry with RwLock for API updates
+static ADAPTER_SPECS: LazyLock<RwLock<Vec<AdapterSpec>>> =
+    LazyLock::new(|| RwLock::new(load_adapters_with_fallback()));
+```
+
+### 3. Background API Refresh
+
+On app startup, a background thread fetches latest specs from the API:
+
+```rust
+// src/app.rs
+thread::spawn(|| match adapters::refresh_specs_from_api() {
+    RefreshResult::Success { adapters_count, protocols_count } => {
+        tracing::info!("Refreshed {} adapters, {} protocols",
+                      adapters_count, protocols_count);
+    }
+    RefreshResult::Failed(e) => {
+        tracing::debug!("API refresh failed (using cache/embedded): {}", e);
+    }
+    RefreshResult::AlreadyRefreshed => {}
 });
 ```
 
-### 2. Normalization Map Building
+The refresh process:
 
-A reverse lookup map is built from all adapter `source_names`:
+1. Fetches from `https://openecualliance.org/api/adapters` and `/api/protocols`
+2. Saves to local disk cache (`{app_data_dir}/UltraLog/oecua_specs/`)
+3. Updates in-memory registry (`ADAPTER_SPECS` and `PROTOCOL_SPECS`)
+4. Rebuilds normalization and metadata maps
+5. Next startup loads fresh specs from cache
+
+### 4. Normalization Map Building
+
+A reverse lookup map is built from all adapter `source_names` (dynamically updated on API refresh):
 
 ```rust
 // src/adapters/registry.rs
-static SPEC_NORMALIZATION_MAP: LazyLock<HashMap<String, String>> = LazyLock::new(|| {
+
+// RwLock allows dynamic updates when API refresh completes
+static SPEC_NORMALIZATION_MAP: LazyLock<RwLock<HashMap<String, String>>> =
+    LazyLock::new(|| RwLock::new(build_normalization_map(&ADAPTER_SPECS.read().unwrap())));
+
+fn build_normalization_map(adapters: &[AdapterSpec]) -> HashMap<String, String> {
     let mut map = HashMap::new();
-    for adapter in ADAPTER_SPECS.iter() {
+    for adapter in adapters {
         for channel in &adapter.channels {
             for source_name in &channel.source_names {
                 map.insert(source_name.to_lowercase(), channel.name.clone());
@@ -136,10 +230,19 @@ static SPEC_NORMALIZATION_MAP: LazyLock<HashMap<String, String>> = LazyLock::new
         }
     }
     map
-});
+}
 ```
 
-### 3. Normalization Integration
+When API refresh completes, the map is rebuilt:
+
+```rust
+// After successful API fetch
+if let Ok(mut norm_lock) = SPEC_NORMALIZATION_MAP.write() {
+    *norm_lock = build_normalization_map(&new_adapters);
+}
+```
+
+### 5. Normalization Integration
 
 The `normalize.rs` module uses spec normalization as a fallback:
 
@@ -160,7 +263,7 @@ pub fn normalize_channel_name_with_custom(
 }
 ```
 
-### 4. Channel Metadata Access
+### 6. Channel Metadata Access
 
 The `Channel` type provides methods that fall back to spec metadata:
 
@@ -184,6 +287,104 @@ impl Channel {
     }
 }
 ```
+
+## API Client and Caching
+
+### OpenECU Alliance API
+
+The API client (`src/adapters/api.rs`) fetches specs from the OpenECU Alliance website:
+
+**Base URL:** `https://openecualliance.org`
+
+**Endpoints:**
+
+| Endpoint | Method | Description | Response |
+|----------|--------|-------------|----------|
+| `/api/adapters` | GET | List all adapters (summary) | `{ data: [AdapterSummary] }` |
+| `/api/adapters/{vendor}/{id}` | GET | Get full adapter spec | `AdapterSpec` |
+| `/api/protocols` | GET | List all protocols (summary) | `{ data: [ProtocolSummary] }` |
+| `/api/protocols/{vendor}/{id}` | GET | Get full protocol spec | `ProtocolSpec` |
+
+**Fetch Strategy:**
+
+```rust
+// Fetch all adapters (list + individual fetches)
+pub fn fetch_all_adapters() -> Result<Vec<AdapterSpec>, ApiError> {
+    let summaries = fetch_adapter_list()?;  // GET /api/adapters
+
+    let mut adapters = Vec::new();
+    for summary in summaries {
+        // GET /api/adapters/{vendor}/{id} for each
+        if let Ok(adapter) = fetch_adapter(&summary.vendor, &summary.id) {
+            adapters.push(adapter);
+        }
+    }
+    Ok(adapters)
+}
+```
+
+**Error Handling:**
+
+- Network failures → Fall back to cache or embedded specs
+- API errors (4xx/5xx) → Log warning, continue with fallback
+- Parse errors → Log warning, skip that spec
+- Non-blocking: API failures don't prevent app startup
+
+### Local Disk Cache
+
+The cache module (`src/adapters/cache.rs`) manages persistent storage of fetched specs:
+
+**Cache Structure:**
+
+```
+{app_data_dir}/UltraLog/oecua_specs/
+├── metadata.json          # Cache metadata (timestamp, counts)
+├── adapters/
+│   ├── haltech-haltech-nsp.json
+│   ├── ecumaster-ecumaster-emu-csv.json
+│   └── ... (8 adapter files)
+└── protocols/
+    ├── haltech-haltech-elite-broadcast.json
+    ├── ecumaster-ecumaster-emu-broadcast.json
+    └── ... (9 protocol files)
+```
+
+**Cache Metadata:**
+
+```json
+{
+  "last_fetch_timestamp": 1706123456,
+  "cache_version": 1,
+  "adapter_count": 8,
+  "protocol_count": 9
+}
+```
+
+**Cache Functions:**
+
+```rust
+// Check if cache is stale (> 24 hours old)
+pub fn is_cache_stale() -> bool
+
+// Load cached adapters/protocols
+pub fn load_cached_adapters() -> Option<Vec<AdapterSpec>>
+pub fn load_cached_protocols() -> Option<Vec<ProtocolSpec>>
+
+// Save fetched specs to cache
+pub fn save_adapters_to_cache(adapters: &[AdapterSpec]) -> Result<()>
+pub fn save_protocols_to_cache(protocols: &[ProtocolSpec]) -> Result<()>
+
+// Utility functions
+pub fn get_cache_age() -> Option<Duration>
+pub fn clear_cache() -> Result<()>
+```
+
+**Staleness Threshold:**
+
+- Default: 24 hours
+- Configurable via `is_cache_stale_with_max_age(secs)`
+- Prevents excessive API requests
+- Balance between freshness and performance
 
 ## CAN Bus Protocol Support
 
@@ -311,6 +512,11 @@ use ultralog::adapters::{
     get_all_categories,       // Get all unique ChannelCategory values
     get_channels_by_category, // Get all channels for a category
 
+    // API and cache
+    refresh_specs_from_api,   // Trigger background refresh (returns RefreshResult)
+    specs_refreshed,          // Check if specs have been refreshed from API
+    get_spec_source,          // Get current spec source ("API", "Cache", "Embedded")
+
     // Adapter types
     AdapterSpec,
     ChannelSpec,
@@ -327,6 +533,9 @@ use ultralog::adapters::{
     ByteOrder,
     SignalDataType,
     EnumSpec,
+
+    // Result types
+    RefreshResult,            // Success/Failed/AlreadyRefreshed
 };
 ```
 
@@ -378,18 +587,21 @@ static EMBEDDED_ADAPTERS: &[&str] = &[
 
 ## Future Enhancements
 
-### Runtime Adapter Loading
+### Runtime Adapter Loading (User Directory)
 
-Load user adapters from `~/.ultralog/adapters/`:
+Load user-created adapters from local directory (not yet implemented):
 
 ```rust
 impl AdapterRegistry {
     pub fn load_user_adapters(path: &Path) -> Result<Vec<AdapterSpec>> {
-        // Read YAML files from user directory
-        // Merge with embedded adapters
+        // Read YAML files from ~/.ultralog/adapters/
+        // Merge with embedded/cached adapters
+        // Allow users to test custom adapters without rebuilding
     }
 }
 ```
+
+**Note:** The OpenECU Alliance API integration (implemented) provides runtime spec updates from the official repository. User directory loading would be for custom/experimental adapters not yet in the official specs.
 
 ### Generic CSV Parser
 

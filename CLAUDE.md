@@ -60,6 +60,12 @@ src/
 ├── expression.rs     # Formula parsing and evaluation engine
 ├── updater.rs        # Auto-update functionality
 ├── analytics.rs      # Privacy-respecting analytics
+├── adapters/
+│   ├── mod.rs        # Adapter module exports
+│   ├── types.rs      # OpenECU Alliance spec types (AdapterSpec, ProtocolSpec, etc.)
+│   ├── api.rs        # API client for fetching specs from openecualliance.org
+│   ├── cache.rs      # Local disk cache at {app_data_dir}/UltraLog/oecua_specs/
+│   └── registry.rs   # Spec registry with fallback chain (cache -> embedded -> API)
 ├── parsers/
 │   ├── mod.rs        # Parser module exports
 │   ├── types.rs      # Core parser types (Log, Channel, Value, etc.)
@@ -130,6 +136,38 @@ src/
   - Handles installation on Windows, macOS, and Linux
   - Supports seamless background updates
 
+### Adapter System (src/adapters/)
+
+The adapter system integrates with the **OpenECU Alliance** specification ecosystem, providing runtime access to adapter and protocol definitions with automatic updates.
+
+- **`types.rs`** - OpenECU Alliance spec types:
+  - `AdapterSpec` - Log file format adapter definitions with channel specifications
+  - `ProtocolSpec` - CAN/network protocol definitions for real-time streaming
+  - `ChannelSpec` - Channel metadata (name, category, unit, min/max, precision)
+  - `MessageSpec`, `SignalSpec` - CAN message and signal definitions
+  - `ChannelCategory` - Categorization enum (Engine, Fuel, Ignition, etc.)
+
+- **`api.rs`** - OpenECU Alliance API client:
+  - Fetches specs from `https://openecualliance.org/api/`
+  - Endpoints: `/api/adapters`, `/api/adapters/{vendor}/{id}`, `/api/protocols`, `/api/protocols/{vendor}/{id}`
+  - HTTP client using `ureq` with custom user agent
+  - Error handling for network and parsing failures
+
+- **`cache.rs`** - Local disk cache:
+  - Cache location: `{app_data_dir}/UltraLog/oecua_specs/adapters/` and `.../protocols/`
+  - Cache metadata tracks last fetch timestamp, version, and counts
+  - 24-hour staleness threshold (configurable)
+  - Individual JSON files per adapter/protocol (e.g., `haltech-haltech-nsp.json`)
+  - Cache clearing and age inspection utilities
+
+- **`registry.rs`** - Spec registry with multi-tier fallback:
+  - **Embedded specs** - Compile-time YAML files from `spec/OECUASpecs/` git submodule
+  - **Cache layer** - Loads from disk cache if fresh (< 24 hours old)
+  - **API refresh** - Background thread fetches updates on app startup (non-blocking)
+  - **Normalization maps** - Builds source_name → display_name mappings for field normalization
+  - **Metadata lookup** - Provides channel metadata (category, unit, min/max, precision)
+  - Thread-safe `RwLock` for dynamic spec updates without restart
+
 ### UI Modules (src/ui/)
 
 UI rendering is split into focused modules that implement methods on `UltraLogApp`:
@@ -182,13 +220,34 @@ To add a new ECU format:
 
 ### Data Flow
 
+**Startup and Spec Loading:**
+
+1. **App initialization** - `registry.rs` loads adapter/protocol specs via fallback chain:
+   - If cache is fresh (< 24 hours old) → load from disk cache
+   - Else → load embedded YAML specs from `spec/OECUASpecs/`
+   - Background thread spawned to fetch latest specs from OpenECU Alliance API
+2. **Background refresh** - Non-blocking API fetch updates cache and registry for next startup
+3. **Normalization maps built** - Extract `source_names` from adapter specs to build field name mappings
+
+**File Loading and Visualization:**
+
 1. Files are loaded asynchronously via `start_loading_file()` → background thread
 2. Parser converts file (CSV or binary) to `Log` struct with channels, times, and data vectors
-3. Field normalization optionally applied to standardize channel names
+3. Field normalization optionally applied using spec-driven or custom mappings to standardize channel names
 4. User selects channels (raw or computed) → added to `selected_channels` with unique color assignment
 5. Computed channels evaluate formulas across all records with time-shifting support
 6. Chart renders downsampled data from cache, limited to 2000 points per channel using LTTB algorithm
 7. Unit conversions applied at display time based on `unit_preferences`
+
+**Adapter Spec Fallback Chain:**
+
+```text
+1. Startup (fast, non-blocking):
+   Cache (< 24h old) → Embedded YAML → Background API fetch
+
+2. Background API fetch (async):
+   OpenECU Alliance API → Update cache → Rebuild normalization maps → Ready for next startup
+```
 
 ## Key Features
 
@@ -215,12 +274,14 @@ To add a new ECU format:
 - **strum** (0.27) - Enum string conversion for channel types
 - **regex** (1.12) - Log file parsing
 - **meval** (0.2) - Mathematical expression evaluation for computed channels
-- **ureq** (3.0) - HTTP client for auto-updates
+- **ureq** (3.0) - HTTP client for auto-updates and OpenECU Alliance API
 - **semver** (1.0) - Version comparison
+- **serde_yaml** (0.9) - YAML parsing for adapter/protocol specs
 - **printpdf** (0.7) - PDF generation
 - **image** (0.25) - PNG export
 - **memmap2** (0.9) - Memory-mapped file loading for large files
 - **rayon** (1.11) - Parallel iteration for parsing
+- **dirs** (5.0) - Cross-platform app data directory detection for cache
 
 ## Test Data
 
