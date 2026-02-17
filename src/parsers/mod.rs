@@ -1,4 +1,5 @@
 pub mod aim;
+pub mod dynamicefi;
 pub mod ecumaster;
 pub mod emerald;
 pub mod haltech;
@@ -9,6 +10,7 @@ pub mod speeduino;
 pub mod types;
 
 pub use aim::Aim;
+pub use dynamicefi::DynamicEfi;
 pub use ecumaster::EcuMaster;
 pub use emerald::Emerald;
 pub use haltech::Haltech;

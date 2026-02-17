@@ -18,7 +18,8 @@ use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::i18n::Language;
 use crate::parsers::{
-    Aim, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, RomRaider, Speeduino,
+    Aim, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, RomRaider,
+    Speeduino,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -492,6 +493,16 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::Locomotive)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse Locomotive file: {}",
+                    e
+                ))),
+            }
+        } else if DynamicEfi::detect(contents) {
+            // DynamicEFI EBL WhatsUp format detected
+            let parser = DynamicEfi;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::DynamicEfi)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse DynamicEFI file: {}",
                     e
                 ))),
             }
