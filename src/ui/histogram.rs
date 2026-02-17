@@ -798,7 +798,6 @@ impl UltraLogApp {
             return;
         }
 
-        let file = &self.files[file_idx];
         let x_data = self.get_channel_data(file_idx, x_idx);
         let y_data = self.get_channel_data(file_idx, y_idx);
         let z_data = z_idx.map(|z| self.get_channel_data(file_idx, z));
@@ -1182,27 +1181,8 @@ impl UltraLogApp {
         }
 
         // Get channel names for axis labels (handles computed channels)
-        let base_channel_count = file.log.channels.len();
-        let x_channel_name = if x_idx < base_channel_count {
-            file.log.channels[x_idx].name()
-        } else {
-            let computed_idx = x_idx - base_channel_count;
-            self.file_computed_channels
-                .get(&file_idx)
-                .and_then(|c| c.get(computed_idx))
-                .map(|c| c.template.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string())
-        };
-        let y_channel_name = if y_idx < base_channel_count {
-            file.log.channels[y_idx].name()
-        } else {
-            let computed_idx = y_idx - base_channel_count;
-            self.file_computed_channels
-                .get(&file_idx)
-                .and_then(|c| c.get(computed_idx))
-                .map(|c| c.template.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string())
-        };
+        let x_channel_name = self.get_channel_name(file_idx, x_idx);
+        let y_channel_name = self.get_channel_name(file_idx, y_idx);
 
         // Draw axis labels
         let text_color = egui::Color32::from_rgb(200, 200, 200);
