@@ -31,7 +31,9 @@
       "Bash(done)",
       "Bash(awk:*)",
       "Bash(cargo add:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh api:*)"
     ],
     "additionalDirectories": [
       "/tmp"
