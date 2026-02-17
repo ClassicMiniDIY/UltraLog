@@ -700,6 +700,27 @@ impl UltraLogApp {
         }
     }
 
+    /// Get the display name of a channel by index (handles both regular and computed channels)
+    pub fn get_channel_name(&self, file_index: usize, channel_index: usize) -> String {
+        if file_index >= self.files.len() {
+            return "Unknown".to_string();
+        }
+
+        let file = &self.files[file_index];
+        let regular_count = file.log.channels.len();
+
+        if channel_index < regular_count {
+            file.log.channels[channel_index].name()
+        } else {
+            let computed_idx = channel_index - regular_count;
+            self.file_computed_channels
+                .get(&file_index)
+                .and_then(|c| c.get(computed_idx))
+                .map(|c| c.template.name.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        }
+    }
+
     /// Get min and max values for a channel across all records (cached, handles computed channels)
     pub fn get_channel_min_max(
         &mut self,

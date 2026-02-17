@@ -537,38 +537,10 @@ impl UltraLogApp {
         };
 
         // Get channel names (handles both regular and computed channels)
-        let base_channel_count = file.log.channels.len();
-        let x_name = if x_idx < base_channel_count {
-            file.log.channels[x_idx].name()
-        } else {
-            let computed_idx = x_idx - base_channel_count;
-            self.file_computed_channels
-                .get(&file_idx)
-                .and_then(|c| c.get(computed_idx))
-                .map(|c| c.template.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string())
-        };
-        let y_name = if y_idx < base_channel_count {
-            file.log.channels[y_idx].name()
-        } else {
-            let computed_idx = y_idx - base_channel_count;
-            self.file_computed_channels
-                .get(&file_idx)
-                .and_then(|c| c.get(computed_idx))
-                .map(|c| c.template.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string())
-        };
+        let x_name = self.get_channel_name(file_idx, x_idx);
+        let y_name = self.get_channel_name(file_idx, y_idx);
         let z_name = if mode == HistogramMode::AverageZ {
-            if z_idx < base_channel_count {
-                file.log.channels[z_idx].name()
-            } else {
-                let computed_idx = z_idx - base_channel_count;
-                self.file_computed_channels
-                    .get(&file_idx)
-                    .and_then(|c| c.get(computed_idx))
-                    .map(|c| c.template.name.clone())
-                    .unwrap_or_else(|| "Unknown".to_string())
-            }
+            self.get_channel_name(file_idx, z_idx)
         } else {
             "Hit Count".to_string()
         };
@@ -1423,7 +1395,6 @@ impl UltraLogApp {
             return Err("Invalid file index".into());
         }
 
-        let file = &self.files[file_idx];
         let x_data = self.get_channel_data(file_idx, x_idx);
         let y_data = self.get_channel_data(file_idx, y_idx);
 
@@ -1432,27 +1403,8 @@ impl UltraLogApp {
         }
 
         // Get channel names for labels (handles both regular and computed channels)
-        let base_channel_count = file.log.channels.len();
-        let x_name = if x_idx < base_channel_count {
-            file.log.channels[x_idx].name()
-        } else {
-            let computed_idx = x_idx - base_channel_count;
-            self.file_computed_channels
-                .get(&file_idx)
-                .and_then(|c| c.get(computed_idx))
-                .map(|c| c.template.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string())
-        };
-        let y_name = if y_idx < base_channel_count {
-            file.log.channels[y_idx].name()
-        } else {
-            let computed_idx = y_idx - base_channel_count;
-            self.file_computed_channels
-                .get(&file_idx)
-                .and_then(|c| c.get(computed_idx))
-                .map(|c| c.template.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string())
-        };
+        let x_name = self.get_channel_name(file_idx, x_idx);
+        let y_name = self.get_channel_name(file_idx, y_idx);
 
         // Draw axis labels
         layer.use_text(
