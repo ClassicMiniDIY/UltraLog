@@ -118,24 +118,24 @@ fn test_speeduino_parse_invalid_header() {
 }
 
 #[test]
-#[should_panic(expected = "index out of bounds")]
 fn test_speeduino_parse_truncated_header() {
-    // This tests that truncated data causes a panic (parser doesn't handle gracefully yet)
+    // Truncated data should return an error, not panic
     let truncated = b"MLVLG\x00";
-    let _ = Speeduino::parse_binary(truncated);
+    let result = Speeduino::parse_binary(truncated);
+    assert!(result.is_err(), "Should error on truncated header");
 }
 
 #[test]
-#[should_panic(expected = "index out of bounds")]
 fn test_speeduino_parse_unreasonable_field_count() {
-    // Create header with unreasonable field count - parser doesn't validate this yet
+    // Create header with unreasonable field count - should return error
     let mut data = b"MLVLG\x00".to_vec();
     data.extend_from_slice(&[0x00, 0x01]); // format version 1
     data.extend_from_slice(&[0x00, 0x00, 0x10, 0x00]); // timestamp
     data.extend_from_slice(&[0x00, 0x00]); // info string length
     data.extend_from_slice(&[0x05, 0x00]); // field count = 5 (but not enough data)
 
-    let _ = Speeduino::parse_binary(&data);
+    let result = Speeduino::parse_binary(&data);
+    assert!(result.is_err(), "Should error on unreasonable field count");
 }
 
 // ============================================

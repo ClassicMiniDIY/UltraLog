@@ -256,13 +256,28 @@ fn prepare_formula_for_meval(formula: &str, refs: &[ChannelReference]) -> String
     result
 }
 
-/// Sanitize a channel reference into a valid meval variable name
+/// Sanitize a channel reference into a valid meval variable name.
+/// Encodes special characters distinctly to avoid collisions
+/// (e.g., `RPM[-1]` vs `RPM[+1]` must produce different names).
 fn sanitize_var_name(full_match: &str) -> String {
-    // Replace non-alphanumeric chars with underscores, ensure starts with letter
-    let sanitized: String = full_match
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect();
+    let mut sanitized = String::with_capacity(full_match.len());
+    for c in full_match.chars() {
+        if c.is_alphanumeric() {
+            sanitized.push(c);
+        } else {
+            // Encode special chars distinctly to prevent collisions
+            match c {
+                '+' => sanitized.push_str("_plus_"),
+                '-' => sanitized.push_str("_neg_"),
+                '[' => sanitized.push_str("_lb_"),
+                ']' => sanitized.push_str("_rb_"),
+                '@' => sanitized.push_str("_at_"),
+                '.' => sanitized.push_str("_dot_"),
+                '"' => sanitized.push_str("_q_"),
+                _ => sanitized.push('_'),
+            }
+        }
+    }
 
     if sanitized
         .chars()

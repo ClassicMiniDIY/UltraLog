@@ -177,7 +177,7 @@ pub struct ChannelMetadata {
 /// Uses RwLock to allow dynamic updates from API refresh
 static SPEC_NORMALIZATION_MAP: LazyLock<RwLock<HashMap<String, String>>> = LazyLock::new(|| {
     RwLock::new(build_normalization_map(
-        &ADAPTER_SPECS.read().expect("Failed to read adapter specs"),
+        &ADAPTER_SPECS.read().unwrap_or_else(|e| e.into_inner()),
     ))
 });
 
@@ -186,7 +186,7 @@ static SPEC_NORMALIZATION_MAP: LazyLock<RwLock<HashMap<String, String>>> = LazyL
 static CHANNEL_METADATA_MAP: LazyLock<RwLock<HashMap<String, ChannelMetadata>>> =
     LazyLock::new(|| {
         RwLock::new(build_metadata_map(
-            &ADAPTER_SPECS.read().expect("Failed to read adapter specs"),
+            &ADAPTER_SPECS.read().unwrap_or_else(|e| e.into_inner()),
         ))
     });
 
@@ -227,30 +227,44 @@ fn build_metadata_map(adapters: &[AdapterSpec]) -> HashMap<String, ChannelMetada
     map
 }
 
+/// Read adapter specs, recovering from poisoned locks via `into_inner()`.
+fn read_adapter_specs() -> std::sync::RwLockReadGuard<'static, Vec<AdapterSpec>> {
+    ADAPTER_SPECS.read().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Read protocol specs, recovering from poisoned locks.
+fn read_protocol_specs() -> std::sync::RwLockReadGuard<'static, Vec<ProtocolSpec>> {
+    PROTOCOL_SPECS.read().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Read normalization map, recovering from poisoned locks.
+fn read_normalization_map() -> std::sync::RwLockReadGuard<'static, HashMap<String, String>> {
+    SPEC_NORMALIZATION_MAP
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+/// Read metadata map, recovering from poisoned locks.
+fn read_metadata_map() -> std::sync::RwLockReadGuard<'static, HashMap<String, ChannelMetadata>> {
+    CHANNEL_METADATA_MAP
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
 /// Get all loaded adapter specifications
 pub fn get_adapters() -> Vec<AdapterSpec> {
-    ADAPTER_SPECS
-        .read()
-        .expect("Failed to read adapter specs")
-        .clone()
+    read_adapter_specs().clone()
 }
 
 /// Get adapter by ID
 pub fn get_adapter_by_id(id: &str) -> Option<AdapterSpec> {
-    ADAPTER_SPECS
-        .read()
-        .expect("Failed to read adapter specs")
-        .iter()
-        .find(|a| a.id == id)
-        .cloned()
+    read_adapter_specs().iter().find(|a| a.id == id).cloned()
 }
 
 /// Get adapter by vendor name
 pub fn get_adapters_by_vendor(vendor: &str) -> Vec<AdapterSpec> {
     let vendor_lower = vendor.to_lowercase();
-    ADAPTER_SPECS
-        .read()
-        .expect("Failed to read adapter specs")
+    read_adapter_specs()
         .iter()
         .filter(|a| a.vendor.to_lowercase() == vendor_lower)
         .cloned()
@@ -260,28 +274,18 @@ pub fn get_adapters_by_vendor(vendor: &str) -> Vec<AdapterSpec> {
 /// Normalize a channel name using the spec-driven normalization map.
 /// Returns the canonical display name if found, otherwise returns the original name.
 pub fn normalize_from_spec(name: &str) -> Option<String> {
-    SPEC_NORMALIZATION_MAP
-        .read()
-        .expect("Failed to read normalization map")
-        .get(&name.to_lowercase())
-        .cloned()
+    read_normalization_map().get(&name.to_lowercase()).cloned()
 }
 
 /// Get channel metadata by source name
 pub fn get_channel_metadata(name: &str) -> Option<ChannelMetadata> {
-    CHANNEL_METADATA_MAP
-        .read()
-        .expect("Failed to read metadata map")
-        .get(&name.to_lowercase())
-        .cloned()
+    read_metadata_map().get(&name.to_lowercase()).cloned()
 }
 
 /// Get all spec-based normalization mappings as (source_name, display_name) pairs.
 /// This can be used to merge with or enhance the existing normalize.rs mappings.
 pub fn get_spec_normalizations() -> Vec<(String, String)> {
-    SPEC_NORMALIZATION_MAP
-        .read()
-        .expect("Failed to read normalization map")
+    read_normalization_map()
         .iter()
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect()
@@ -289,10 +293,7 @@ pub fn get_spec_normalizations() -> Vec<(String, String)> {
 
 /// Check if a channel name has spec-based normalization
 pub fn has_spec_normalization(name: &str) -> bool {
-    SPEC_NORMALIZATION_MAP
-        .read()
-        .expect("Failed to read normalization map")
-        .contains_key(&name.to_lowercase())
+    read_normalization_map().contains_key(&name.to_lowercase())
 }
 
 /// Find matching adapters for a file based on extension
@@ -303,9 +304,7 @@ pub fn find_adapters_by_extension(extension: &str) -> Vec<AdapterSpec> {
         format!(".{}", extension.to_lowercase())
     };
 
-    ADAPTER_SPECS
-        .read()
-        .expect("Failed to read adapter specs")
+    read_adapter_specs()
         .iter()
         .filter(|a| {
             a.file_format
@@ -319,9 +318,7 @@ pub fn find_adapters_by_extension(extension: &str) -> Vec<AdapterSpec> {
 
 /// Get all unique channel categories from loaded adapters
 pub fn get_all_categories() -> Vec<ChannelCategory> {
-    let mut categories: Vec<ChannelCategory> = ADAPTER_SPECS
-        .read()
-        .expect("Failed to read adapter specs")
+    let mut categories: Vec<ChannelCategory> = read_adapter_specs()
         .iter()
         .flat_map(|a| a.channels.iter().map(|c| c.category))
         .collect();
@@ -332,9 +329,7 @@ pub fn get_all_categories() -> Vec<ChannelCategory> {
 
 /// Get all channels for a specific category across all adapters
 pub fn get_channels_by_category(category: ChannelCategory) -> Vec<ChannelSpec> {
-    ADAPTER_SPECS
-        .read()
-        .expect("Failed to read adapter specs")
+    read_adapter_specs()
         .iter()
         .flat_map(|a| a.channels.iter().cloned())
         .filter(|c| c.category == category)
@@ -347,28 +342,18 @@ pub fn get_channels_by_category(category: ChannelCategory) -> Vec<ChannelSpec> {
 
 /// Get all loaded protocol specifications
 pub fn get_protocols() -> Vec<ProtocolSpec> {
-    PROTOCOL_SPECS
-        .read()
-        .expect("Failed to read protocol specs")
-        .clone()
+    read_protocol_specs().clone()
 }
 
 /// Get protocol by ID
 pub fn get_protocol_by_id(id: &str) -> Option<ProtocolSpec> {
-    PROTOCOL_SPECS
-        .read()
-        .expect("Failed to read protocol specs")
-        .iter()
-        .find(|p| p.id == id)
-        .cloned()
+    read_protocol_specs().iter().find(|p| p.id == id).cloned()
 }
 
 /// Get protocols by vendor name
 pub fn find_protocols_by_vendor(vendor: &str) -> Vec<ProtocolSpec> {
     let vendor_lower = vendor.to_lowercase();
-    PROTOCOL_SPECS
-        .read()
-        .expect("Failed to read protocol specs")
+    read_protocol_specs()
         .iter()
         .filter(|p| p.vendor.to_lowercase() == vendor_lower)
         .cloned()
@@ -407,28 +392,17 @@ pub fn refresh_specs_from_api() -> RefreshResult {
     let adapters_result = api::fetch_all_adapters();
     let protocols_result = api::fetch_all_protocols();
 
-    match (adapters_result, protocols_result) {
-        (Ok(adapters), Ok(protocols)) => {
-            let adapters_count = adapters.len();
-            let protocols_count = protocols.len();
-
-            // Save to cache
+    // Update adapters if fetched successfully
+    let adapters_count = match adapters_result {
+        Ok(adapters) => {
+            let count = adapters.len();
             if let Err(e) = cache::save_adapters_to_cache(&adapters) {
                 tracing::warn!("Failed to cache adapters: {}", e);
             }
-            if let Err(e) = cache::save_protocols_to_cache(&protocols) {
-                tracing::warn!("Failed to cache protocols: {}", e);
+            if let Ok(mut lock) = ADAPTER_SPECS.write() {
+                *lock = adapters;
             }
-
-            // Update the registry
-            if let Ok(mut adapter_lock) = ADAPTER_SPECS.write() {
-                *adapter_lock = adapters;
-            }
-            if let Ok(mut protocol_lock) = PROTOCOL_SPECS.write() {
-                *protocol_lock = protocols;
-            }
-
-            // Rebuild derived maps
+            // Rebuild derived maps from new adapter specs
             if let Ok(specs) = ADAPTER_SPECS.read() {
                 if let Ok(mut norm_lock) = SPEC_NORMALIZATION_MAP.write() {
                     *norm_lock = build_normalization_map(&specs);
@@ -437,27 +411,66 @@ pub fn refresh_specs_from_api() -> RefreshResult {
                     *meta_lock = build_metadata_map(&specs);
                 }
             }
+            Some(count)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to fetch adapters from API: {}", e);
+            None
+        }
+    };
 
+    // Update protocols if fetched successfully
+    let protocols_count = match protocols_result {
+        Ok(protocols) => {
+            let count = protocols.len();
+            if let Err(e) = cache::save_protocols_to_cache(&protocols) {
+                tracing::warn!("Failed to cache protocols: {}", e);
+            }
+            if let Ok(mut lock) = PROTOCOL_SPECS.write() {
+                *lock = protocols;
+            }
+            Some(count)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to fetch protocols from API: {}", e);
+            None
+        }
+    };
+
+    match (adapters_count, protocols_count) {
+        (Some(ac), Some(pc)) => {
             SPECS_REFRESHED.store(true, Ordering::SeqCst);
             tracing::info!(
                 "Successfully refreshed {} adapters and {} protocols from API",
-                adapters_count,
-                protocols_count
+                ac,
+                pc
             );
-
             RefreshResult::Success {
-                adapters_count,
-                protocols_count,
+                adapters_count: ac,
+                protocols_count: pc,
             }
         }
-        (Err(e), _) => {
-            tracing::warn!("Failed to fetch adapters from API: {}", e);
-            RefreshResult::Failed(format!("Adapter fetch failed: {}", e))
+        (Some(ac), None) => {
+            tracing::info!(
+                "Partially refreshed: {} adapters updated, protocols failed",
+                ac
+            );
+            RefreshResult::Success {
+                adapters_count: ac,
+                protocols_count: 0,
+            }
         }
-        (_, Err(e)) => {
-            tracing::warn!("Failed to fetch protocols from API: {}", e);
-            RefreshResult::Failed(format!("Protocol fetch failed: {}", e))
+        (None, Some(pc)) => {
+            tracing::info!(
+                "Partially refreshed: adapters failed, {} protocols updated",
+                pc
+            );
+            RefreshResult::Success {
+                adapters_count: 0,
+                protocols_count: pc,
+            }
         }
+        (None, None) => RefreshResult::Failed("Both adapter and protocol fetch failed".to_string()),
     }
 }
 

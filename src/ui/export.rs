@@ -108,15 +108,15 @@ impl UltraLogApp {
             }
             let file = &self.files[selected.file_index];
             let times = file.log.get_times_as_f64();
-            let data = file.log.get_channel_data(selected.channel_index);
+            let data = self.get_channel_data(selected.file_index, selected.channel_index);
 
             if data.is_empty() {
                 continue;
             }
 
             // Find min/max for normalization
-            let mut data_min = f64::MAX;
-            let mut data_max = f64::MIN;
+            let mut data_min = f64::INFINITY;
+            let mut data_max = f64::NEG_INFINITY;
             for &val in &data {
                 data_min = data_min.min(val);
                 data_max = data_max.max(val);
@@ -261,15 +261,15 @@ impl UltraLogApp {
             }
             let file = &self.files[selected.file_index];
             let times = file.log.get_times_as_f64();
-            let data = file.log.get_channel_data(selected.channel_index);
+            let data = self.get_channel_data(selected.file_index, selected.channel_index);
 
             if data.is_empty() {
                 continue;
             }
 
             // Find min/max for normalization
-            let mut data_min = f64::MAX;
-            let mut data_max = f64::MIN;
+            let mut data_min = f64::INFINITY;
+            let mut data_max = f64::NEG_INFINITY;
             for &val in &data {
                 data_min = data_min.min(val);
                 data_max = data_max.max(val);
@@ -464,11 +464,11 @@ impl UltraLogApp {
             0 // unused
         };
 
-        // Get channel data
-        let x_data = file.log.get_channel_data(x_idx);
-        let y_data = file.log.get_channel_data(y_idx);
+        // Get channel data (handles both regular and computed channels)
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
         let z_data = if mode == HistogramMode::AverageZ {
-            Some(file.log.get_channel_data(z_idx))
+            Some(self.get_channel_data(file_idx, z_idx))
         } else {
             None
         };
@@ -478,10 +478,10 @@ impl UltraLogApp {
         }
 
         // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::MIN, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
         let x_range = if (x_max - x_min).abs() < f64::EPSILON {
             1.0
@@ -512,8 +512,8 @@ impl UltraLogApp {
 
         // Calculate cell values and find min/max for color scaling
         let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
-        let mut min_value: f64 = f64::MAX;
-        let mut max_value: f64 = f64::MIN;
+        let mut min_value: f64 = f64::INFINITY;
+        let mut max_value: f64 = f64::NEG_INFINITY;
 
         for y_bin in 0..grid_rows {
             for x_bin in 0..grid_cols {
@@ -536,11 +536,39 @@ impl UltraLogApp {
             max_value - min_value
         };
 
-        // Get channel names
-        let x_name = file.log.channels[x_idx].name();
-        let y_name = file.log.channels[y_idx].name();
+        // Get channel names (handles both regular and computed channels)
+        let base_channel_count = file.log.channels.len();
+        let x_name = if x_idx < base_channel_count {
+            file.log.channels[x_idx].name()
+        } else {
+            let computed_idx = x_idx - base_channel_count;
+            self.file_computed_channels
+                .get(&file_idx)
+                .and_then(|c| c.get(computed_idx))
+                .map(|c| c.template.name.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        };
+        let y_name = if y_idx < base_channel_count {
+            file.log.channels[y_idx].name()
+        } else {
+            let computed_idx = y_idx - base_channel_count;
+            self.file_computed_channels
+                .get(&file_idx)
+                .and_then(|c| c.get(computed_idx))
+                .map(|c| c.template.name.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        };
         let z_name = if mode == HistogramMode::AverageZ {
-            file.log.channels[z_idx].name()
+            if z_idx < base_channel_count {
+                file.log.channels[z_idx].name()
+            } else {
+                let computed_idx = z_idx - base_channel_count;
+                self.file_computed_channels
+                    .get(&file_idx)
+                    .and_then(|c| c.get(computed_idx))
+                    .map(|c| c.template.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string())
+            }
         } else {
             "Hit Count".to_string()
         };
@@ -936,7 +964,6 @@ impl UltraLogApp {
             return Err("Invalid file index".into());
         }
 
-        let file = &self.files[file_idx];
         let mode = config.mode;
         let (grid_cols, grid_rows) = config.effective_grid_size();
 
@@ -950,11 +977,11 @@ impl UltraLogApp {
             0 // unused
         };
 
-        // Get channel data
-        let x_data = file.log.get_channel_data(x_idx);
-        let y_data = file.log.get_channel_data(y_idx);
+        // Get channel data (handles both regular and computed channels)
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
         let z_data = if mode == HistogramMode::AverageZ {
-            Some(file.log.get_channel_data(z_idx))
+            Some(self.get_channel_data(file_idx, z_idx))
         } else {
             None
         };
@@ -964,10 +991,10 @@ impl UltraLogApp {
         }
 
         // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::MIN, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
         let x_range = if (x_max - x_min).abs() < f64::EPSILON {
             1.0
@@ -998,8 +1025,8 @@ impl UltraLogApp {
 
         // Calculate cell values and find min/max for color scaling
         let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
-        let mut min_value: f64 = f64::MAX;
-        let mut max_value: f64 = f64::MIN;
+        let mut min_value: f64 = f64::INFINITY;
+        let mut max_value: f64 = f64::NEG_INFINITY;
 
         for y_bin in 0..grid_rows {
             for x_bin in 0..grid_cols {
@@ -1195,19 +1222,18 @@ impl UltraLogApp {
             return Err("Invalid file index".into());
         }
 
-        let file = &self.files[file_idx];
-        let x_data = file.log.get_channel_data(x_idx);
-        let y_data = file.log.get_channel_data(y_idx);
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
 
         if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
             return Err("No data available".into());
         }
 
         // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::MIN, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
         let x_range = if (x_max - x_min).abs() < f64::EPSILON {
             1.0
@@ -1398,16 +1424,35 @@ impl UltraLogApp {
         }
 
         let file = &self.files[file_idx];
-        let x_data = file.log.get_channel_data(x_idx);
-        let y_data = file.log.get_channel_data(y_idx);
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
 
         if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
             return Err("No data available".into());
         }
 
-        // Get channel names for labels
-        let x_name = file.log.channels[x_idx].name();
-        let y_name = file.log.channels[y_idx].name();
+        // Get channel names for labels (handles both regular and computed channels)
+        let base_channel_count = file.log.channels.len();
+        let x_name = if x_idx < base_channel_count {
+            file.log.channels[x_idx].name()
+        } else {
+            let computed_idx = x_idx - base_channel_count;
+            self.file_computed_channels
+                .get(&file_idx)
+                .and_then(|c| c.get(computed_idx))
+                .map(|c| c.template.name.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        };
+        let y_name = if y_idx < base_channel_count {
+            file.log.channels[y_idx].name()
+        } else {
+            let computed_idx = y_idx - base_channel_count;
+            self.file_computed_channels
+                .get(&file_idx)
+                .and_then(|c| c.get(computed_idx))
+                .map(|c| c.template.name.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        };
 
         // Draw axis labels
         layer.use_text(
@@ -1419,10 +1464,10 @@ impl UltraLogApp {
         );
 
         // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::MIN, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
         let x_range = if (x_max - x_min).abs() < f64::EPSILON {
             1.0
