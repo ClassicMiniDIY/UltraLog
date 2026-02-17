@@ -196,8 +196,8 @@ impl UltraLogApp {
         let (dynamic_x_min, dynamic_x_max) = if let Some(x_idx) = current_x {
             let x_data = self.get_channel_data(file_idx, x_idx);
             if !x_data.is_empty() {
-                let min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             } else {
                 (0.0, 100.0)
@@ -208,8 +208,8 @@ impl UltraLogApp {
         let (dynamic_y_min, dynamic_y_max) = if let Some(y_idx) = current_y {
             let y_data = self.get_channel_data(file_idx, y_idx);
             if !y_data.is_empty() {
-                let min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             } else {
                 (0.0, 100.0)
@@ -811,16 +811,16 @@ impl UltraLogApp {
         let (x_min, x_max) = match custom_x_range {
             Some((min, max)) if max > min => (min, max),
             _ => {
-                let min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             }
         };
         let (y_min, y_max) = match custom_y_range {
             Some((min, max)) if max > min => (min, max),
             _ => {
-                let min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             }
         };
@@ -848,8 +848,8 @@ impl UltraLogApp {
         let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
         let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
         let mut z_sum_sq = vec![vec![0.0f64; grid_cols]; grid_rows];
-        let mut z_mins = vec![vec![f64::MAX; grid_cols]; grid_rows];
-        let mut z_maxs = vec![vec![f64::MIN; grid_cols]; grid_rows];
+        let mut z_mins = vec![vec![f64::INFINITY; grid_cols]; grid_rows];
+        let mut z_maxs = vec![vec![f64::NEG_INFINITY; grid_cols]; grid_rows];
 
         'sample_loop: for i in 0..x_data.len() {
             // Check all sample filters (AND logic)
@@ -893,8 +893,8 @@ impl UltraLogApp {
 
         // Calculate cell values and find min/max for color scaling
         let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
-        let mut min_value: f64 = f64::MAX;
-        let mut max_value: f64 = f64::MIN;
+        let mut min_value: f64 = f64::INFINITY;
+        let mut max_value: f64 = f64::NEG_INFINITY;
 
         for y_bin in 0..grid_rows {
             for x_bin in 0..grid_cols {
@@ -933,8 +933,8 @@ impl UltraLogApp {
                     Self::apply_table_operation(&cell_values, &resampled, table_operation);
 
                 // Find min/max for pasted and result
-                let mut pasted_min = f64::MAX;
-                let mut pasted_max = f64::MIN;
+                let mut pasted_min = f64::INFINITY;
+                let mut pasted_max = f64::NEG_INFINITY;
                 for row in &resampled {
                     for &v in row {
                         pasted_min = pasted_min.min(v);
@@ -942,8 +942,8 @@ impl UltraLogApp {
                     }
                 }
 
-                let mut result_min = f64::MAX;
-                let mut result_max = f64::MIN;
+                let mut result_min = f64::INFINITY;
+                let mut result_max = f64::NEG_INFINITY;
                 for row in &result_values {
                     for val in row.iter().flatten() {
                         result_min = result_min.min(*val);
@@ -1515,13 +1515,13 @@ impl UltraLogApp {
                         let std_dev = variance.sqrt();
                         let cell_weight = z_sums[y_bin][x_bin];
 
-                        let minimum = if hits > 0 && z_mins[y_bin][x_bin] != f64::MAX {
+                        let minimum = if hits > 0 && z_mins[y_bin][x_bin] != f64::INFINITY {
                             z_mins[y_bin][x_bin]
                         } else {
                             0.0
                         };
 
-                        let maximum = if hits > 0 && z_maxs[y_bin][x_bin] != f64::MIN {
+                        let maximum = if hits > 0 && z_maxs[y_bin][x_bin] != f64::NEG_INFINITY {
                             z_maxs[y_bin][x_bin]
                         } else {
                             0.0
@@ -2133,16 +2133,16 @@ impl UltraLogApp {
         let (x_min, x_max) = match config.custom_x_range {
             Some((min, max)) if max > min => (min, max),
             _ => {
-                let min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             }
         };
         let (y_min, y_max) = match config.custom_y_range {
             Some((min, max)) if max > min => (min, max),
             _ => {
-                let min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             }
         };
@@ -2254,16 +2254,16 @@ impl UltraLogApp {
         let (x_min, x_max) = match config.custom_x_range {
             Some((min, max)) if max > min => (min, max),
             _ => {
-                let min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             }
         };
         let (y_min, y_max) = match config.custom_y_range {
             Some((min, max)) if max > min => (min, max),
             _ => {
-                let min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-                let max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+                let min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
                 (min, max)
             }
         };

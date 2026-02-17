@@ -97,6 +97,12 @@ impl Speeduino {
         if data.len() < 6 || &data[0..5] != b"MLVLG" {
             return Err("Invalid MLG file header".into());
         }
+        // Header requires at least 22 bytes (v1): 6 (magic) + 2 (version) + 4 (timestamp)
+        // + 2 (info_data_start) + 4 (data_begin) + 2 (record_length) + 2 (num_fields)
+        // v2 needs 24 bytes (info_data_start is 4 bytes), checked implicitly by field reads
+        if data.len() < 22 {
+            return Err("MLG file header truncated".into());
+        }
         offset += 6;
 
         // Read format version (int16, big-endian like DataView default)

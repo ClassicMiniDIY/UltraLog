@@ -584,8 +584,8 @@ impl UltraLogApp {
 
     /// Update the total time range based on all loaded files
     fn update_time_range(&mut self) {
-        let mut min_time = f64::MAX;
-        let mut max_time = f64::MIN;
+        let mut min_time = f64::INFINITY;
+        let mut max_time = f64::NEG_INFINITY;
 
         for file in &self.files {
             let times = file.log.get_times_as_f64();
@@ -726,9 +726,11 @@ impl UltraLogApp {
             return None;
         }
 
-        let (min_val, max_val) = data.iter().fold((f64::MAX, f64::MIN), |(min, max), &v| {
-            (min.min(v), max.max(v))
-        });
+        let (min_val, max_val) = data
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), &v| {
+                (min.min(v), max.max(v))
+            });
 
         // Cache the result
         self.minmax_cache.insert(cache_key, (min_val, max_val));
@@ -814,13 +816,12 @@ impl UltraLogApp {
 
             self.files.remove(index);
 
-            // Update selected file
-            if let Some(selected) = self.selected_file {
-                if selected == index {
-                    self.selected_file = if self.files.is_empty() { None } else { Some(0) };
-                } else if selected > index {
-                    self.selected_file = Some(selected - 1);
-                }
+            // Reconcile selected_file from the active tab (close_tab may have set it
+            // using pre-removal file indices, so re-derive from the active tab).
+            if let Some(tab_idx) = self.active_tab {
+                self.selected_file = Some(self.tabs[tab_idx].file_index);
+            } else {
+                self.selected_file = None;
             }
 
             // Update time range after file removal
