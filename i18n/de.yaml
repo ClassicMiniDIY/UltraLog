@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Cursor-Verfolgung"
   cursor_tracking_desc: "Cursor beim Scrubben zentriert halten"
   window: "Fenster:"
+  scroll_to_zoom: "Scrollen zum Zoomen"
+  scroll_to_zoom_desc: "Mausrad zoomt direkt in das Diagramm, anstatt es zu verschieben"
   field_names: "Feldnamen"
   field_normalization: "Feldnormalisierung"
   field_normalization_desc: "Kanalnamen über ECU-Typen hinweg standardisieren"

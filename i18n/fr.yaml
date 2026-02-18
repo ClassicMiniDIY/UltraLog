@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Suivi du curseur"
   cursor_tracking_desc: "Garder le curseur centre pendant le defilement"
   window: "Fenetre :"
+  scroll_to_zoom: "Scroll pour Zoomer"
+  scroll_to_zoom_desc: "La molette de la souris zoome le graphique directement au lieu de faire defiler"
   field_names: "Noms des champs"
   field_normalization: "Normalisation des champs"
   field_normalization_desc: "Standardiser les noms de canaux entre les types d'ECU"

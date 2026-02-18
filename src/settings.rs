@@ -16,6 +16,9 @@ pub struct UserSettings {
     /// Selected language
     #[serde(default)]
     pub language: Language,
+    /// When true, scroll wheel zooms chart directly instead of panning
+    #[serde(default)]
+    pub scroll_to_zoom: bool,
 }
 
 fn default_version() -> u32 {
@@ -27,6 +30,7 @@ impl Default for UserSettings {
         Self {
             version: 1,
             language: Language::default(),
+            scroll_to_zoom: false,
         }
     }
 }

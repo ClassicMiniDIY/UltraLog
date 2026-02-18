@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Seguimiento del Cursor"
   cursor_tracking_desc: "Mantener el cursor centrado al desplazar"
   window: "Ventana:"
+  scroll_to_zoom: "Desplazar para Zoom"
+  scroll_to_zoom_desc: "La rueda de desplazamiento amplía el gráfico directamente en lugar de desplazarse"
   field_names: "Nombres de Campos"
   field_normalization: "Normalizacion de Campos"
   field_normalization_desc: "Estandarizar nombres de canales entre tipos de ECU"

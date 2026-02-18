@@ -60,6 +60,8 @@ settings:
   cursor_tracking: "کرسر ٹریکنگ"
   cursor_tracking_desc: "سکربنگ کے دوران کرسر کو مرکز میں رکھیں"
   window: "ونڈو:"
+  scroll_to_zoom: "سکرول کریں تاکہ تقریب ہو"
+  scroll_to_zoom_desc: "ماؤس وہیل براہ راست چارٹ کو بڑھاتا ہے بجائے پیننگ کے"
   field_names: "فیلڈ کے نام"
   field_normalization: "فیلڈ نارملائزیشن"
   field_normalization_desc: "ECU اقسام میں چینل ناموں کو معیاری بنائیں"

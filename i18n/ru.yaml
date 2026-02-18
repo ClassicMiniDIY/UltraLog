@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Отслеживание курсора"
   cursor_tracking_desc: "Удерживать курсор в центре при прокрутке"
   window: "Окно:"
+  scroll_to_zoom: "Прокрутка для увеличения"
+  scroll_to_zoom_desc: "Колесико мыши увеличивает график напрямую вместо панорамирования"
   field_names: "Имена полей"
   field_normalization: "Нормализация полей"
   field_normalization_desc: "Стандартизировать имена каналов для разных типов ECU"

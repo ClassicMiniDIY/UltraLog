@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Pelacakan Kursor"
   cursor_tracking_desc: "Pertahankan kursor di tengah saat menggulir"
   window: "Jendela:"
+  scroll_to_zoom: "Gulir untuk Zoom"
+  scroll_to_zoom_desc: "Roda mouse memperbesar grafik secara langsung daripada menggeser"
   field_names: "Nama Field"
   field_normalization: "Normalisasi Field"
   field_normalization_desc: "Standarisasi nama kanal antar jenis ECU"
