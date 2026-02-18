@@ -110,6 +110,8 @@ impl UltraLogApp {
         // Fixed Y bounds for normalized data (0-1 with small padding)
         const Y_MIN: f64 = -0.05;
         const Y_MAX: f64 = 1.05;
+        /// Sensitivity multiplier for scroll-to-zoom (higher = faster zoom per scroll tick)
+        const SCROLL_ZOOM_SENSITIVITY: f64 = 0.003;
 
         // Build the plot - X-axis zoom only, Y fixed
         // When scroll_to_zoom is enabled, disable scroll-to-pan so we handle scroll as zoom
@@ -182,7 +184,8 @@ impl UltraLogApp {
             // Apply scroll-to-zoom: use scroll delta to zoom centered on pointer
             if scroll_to_zoom && scroll_delta_y.abs() > 0.1 {
                 if let Some((min_t, max_t)) = time_range {
-                    let zoom_factor = (1.0 - scroll_delta_y as f64 * 0.003).clamp(0.8, 1.25);
+                    let zoom_factor =
+                        (1.0 - scroll_delta_y as f64 * SCROLL_ZOOM_SENSITIVITY).clamp(0.8, 1.25);
                     let width = x_max - x_min;
                     let new_width = (width * zoom_factor).clamp(0.01, max_t - min_t);
 
