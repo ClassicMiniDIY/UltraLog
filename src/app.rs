@@ -1360,6 +1360,12 @@ impl UltraLogApp {
         }
     }
 
+    /// Stop playback and reset the frame timer
+    fn stop_playback(&mut self) {
+        self.is_playing = false;
+        self.last_frame_time = None;
+    }
+
     // ========================================================================
     // Keyboard Shortcuts
     // ========================================================================
@@ -1439,8 +1445,7 @@ impl UltraLogApp {
 
             // Arrow Left - step one record backward (Shift = 10 records)
             if i.key_pressed(egui::Key::ArrowLeft) {
-                self.is_playing = false;
-                self.last_frame_time = None;
+                self.stop_playback();
                 if let Some(tab_idx) = self.active_tab {
                     let file_index = self.tabs[tab_idx].file_index;
                     if file_index < self.files.len() {
@@ -1459,8 +1464,7 @@ impl UltraLogApp {
 
             // Arrow Right - step one record forward (Shift = 10 records)
             if i.key_pressed(egui::Key::ArrowRight) {
-                self.is_playing = false;
-                self.last_frame_time = None;
+                self.stop_playback();
                 if let Some(tab_idx) = self.active_tab {
                     let file_index = self.tabs[tab_idx].file_index;
                     if file_index < self.files.len() {
@@ -1479,8 +1483,7 @@ impl UltraLogApp {
 
             // Home - jump to start of log
             if i.key_pressed(egui::Key::Home) {
-                self.is_playing = false;
-                self.last_frame_time = None;
+                self.stop_playback();
                 if let Some((min, _)) = self.get_time_range() {
                     self.set_cursor_time(Some(min));
                     let record = self.find_record_at_time(min);
@@ -1491,8 +1494,7 @@ impl UltraLogApp {
 
             // End - jump to end of log
             if i.key_pressed(egui::Key::End) {
-                self.is_playing = false;
-                self.last_frame_time = None;
+                self.stop_playback();
                 if let Some((_, max)) = self.get_time_range() {
                     self.set_cursor_time(Some(max));
                     let record = self.find_record_at_time(max);
