@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "कर्सर ट्रैकिंग"
   cursor_tracking_desc: "स्क्रबिंग के दौरान कर्सर को केंद्रित रखें"
   window: "विंडो:"
+  scroll_to_zoom: "स्क्रॉल करके ज़ूम करें"
+  scroll_to_zoom_desc: "माउस व्हील सीधे चार्ट को ज़ूम करता है, पैन करने के बजाय"
   field_names: "फ़ील्ड नाम"
   field_normalization: "फ़ील्ड नॉर्मलाइज़ेशन"
   field_normalization_desc: "ECU प्रकारों में चैनल नामों को मानकीकृत करें"

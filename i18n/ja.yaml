@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "カーソル追従"
   cursor_tracking_desc: "スクラブ中にカーソルを中央に保持"
   window: "ウィンドウ:"
+  scroll_to_zoom: "スクロールしてズーム"
+  scroll_to_zoom_desc: "マウスホイールでチャートを直接ズームします（パンの代わりに）"
   field_names: "フィールド名"
   field_normalization: "フィールド正規化"
   field_normalization_desc: "ECUタイプ間でチャンネル名を標準化"

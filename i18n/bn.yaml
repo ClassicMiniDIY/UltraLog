@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "কার্সর ট্র্যাকিং"
   cursor_tracking_desc: "স্ক্রাবিংয়ের সময় কার্সর কেন্দ্রে রাখুন"
   window: "উইন্ডো:"
+  scroll_to_zoom: "স্ক্রল করে জুম করুন"
+  scroll_to_zoom_desc: "মাউস হুইল সরাসরি চার্টকে জুম করে প্যানিং এর পরিবর্তে"
   field_names: "ফিল্ড নাম"
   field_normalization: "ফিল্ড নরমালাইজেশন"
   field_normalization_desc: "ECU টাইপ জুড়ে চ্যানেল নাম মানসম্মত করুন"

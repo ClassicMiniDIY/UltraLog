@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Cursor Tracking"
   cursor_tracking_desc: "Keep cursor centered while scrubbing"
   window: "Window:"
+  scroll_to_zoom: "Scroll to Zoom"
+  scroll_to_zoom_desc: "Scroll wheel zooms the chart directly instead of panning"
   field_names: "Field Names"
   field_normalization: "Field Normalization"
   field_normalization_desc: "Standardize channel names across ECU types"

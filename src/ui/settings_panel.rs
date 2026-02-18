@@ -159,6 +159,26 @@ impl UltraLogApp {
                     );
                 });
             }
+
+            ui.add_space(8.0);
+
+            // Scroll to zoom
+            let old_scroll_to_zoom = self.scroll_to_zoom;
+            ui.checkbox(
+                &mut self.scroll_to_zoom,
+                egui::RichText::new(t!("settings.scroll_to_zoom")).size(font_14),
+            );
+            ui.label(
+                egui::RichText::new(t!("settings.scroll_to_zoom_desc"))
+                    .size(font_12)
+                    .color(egui::Color32::GRAY),
+            );
+            if self.scroll_to_zoom != old_scroll_to_zoom {
+                self.user_settings.scroll_to_zoom = self.scroll_to_zoom;
+                if let Err(e) = self.user_settings.save() {
+                    self.show_toast_error(&t!("toast.failed_to_save", error = e));
+                }
+            }
         });
     }
 

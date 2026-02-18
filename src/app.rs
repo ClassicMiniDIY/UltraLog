@@ -78,6 +78,8 @@ pub struct UltraLogApp {
     // === Chart View State ===
     /// Initial view window in seconds (shown before user interacts with chart)
     pub(crate) initial_view_seconds: f64,
+    /// When true, scroll wheel zooms chart directly instead of panning
+    pub(crate) scroll_to_zoom: bool,
     // === Unit Preferences ===
     /// User preferences for display units
     pub(crate) unit_preferences: UnitPreferences,
@@ -176,6 +178,7 @@ impl Default for UltraLogApp {
             color_blind_mode: false,
             field_normalization: true, // Enabled by default for better readability
             initial_view_seconds: 60.0, // Start with 60 second view
+            scroll_to_zoom: false,
             unit_preferences: UnitPreferences::default(),
             font_scale: FontScale::default(),
             custom_normalizations: HashMap::new(),
@@ -254,6 +257,7 @@ impl UltraLogApp {
         Self {
             user_settings: user_settings.clone(),
             language: user_settings.language,
+            scroll_to_zoom: user_settings.scroll_to_zoom,
             ..Self::default()
         }
     }
@@ -1430,6 +1434,70 @@ impl UltraLogApp {
 
             // Playback shortcuts (require file loaded with channels selected)
             if self.files.is_empty() || self.get_selected_channels().is_empty() {
+                return;
+            }
+
+            // Arrow Left - step one record backward (Shift = 10 records)
+            if i.key_pressed(egui::Key::ArrowLeft) {
+                self.is_playing = false;
+                self.last_frame_time = None;
+                if let Some(tab_idx) = self.active_tab {
+                    let file_index = self.tabs[tab_idx].file_index;
+                    if file_index < self.files.len() {
+                        let times = self.files[file_index].log.get_times_as_f64();
+                        if !times.is_empty() {
+                            let current = self.get_cursor_record().unwrap_or(0);
+                            let step = if shift { 10 } else { 1 };
+                            let new_record = current.saturating_sub(step);
+                            self.set_cursor_time(Some(times[new_record]));
+                            self.set_cursor_record(Some(new_record));
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Arrow Right - step one record forward (Shift = 10 records)
+            if i.key_pressed(egui::Key::ArrowRight) {
+                self.is_playing = false;
+                self.last_frame_time = None;
+                if let Some(tab_idx) = self.active_tab {
+                    let file_index = self.tabs[tab_idx].file_index;
+                    if file_index < self.files.len() {
+                        let times = self.files[file_index].log.get_times_as_f64();
+                        if !times.is_empty() {
+                            let current = self.get_cursor_record().unwrap_or(0);
+                            let step = if shift { 10 } else { 1 };
+                            let new_record = (current + step).min(times.len() - 1);
+                            self.set_cursor_time(Some(times[new_record]));
+                            self.set_cursor_record(Some(new_record));
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Home - jump to start of log
+            if i.key_pressed(egui::Key::Home) {
+                self.is_playing = false;
+                self.last_frame_time = None;
+                if let Some((min, _)) = self.get_time_range() {
+                    self.set_cursor_time(Some(min));
+                    let record = self.find_record_at_time(min);
+                    self.set_cursor_record(record);
+                }
+                return;
+            }
+
+            // End - jump to end of log
+            if i.key_pressed(egui::Key::End) {
+                self.is_playing = false;
+                self.last_frame_time = None;
+                if let Some((_, max)) = self.get_time_range() {
+                    self.set_cursor_time(Some(max));
+                    let record = self.find_record_at_time(max);
+                    self.set_cursor_record(record);
+                }
                 return;
             }
 

@@ -110,6 +110,7 @@ fn test_settings_roundtrip() {
     let original = UserSettings {
         version: 1,
         language: Language::Spanish,
+        scroll_to_zoom: false,
     };
 
     let json = serde_json::to_string(&original).unwrap();
@@ -125,6 +126,7 @@ fn test_settings_roundtrip_all_languages() {
         let settings = UserSettings {
             version: 1,
             language: *lang,
+            scroll_to_zoom: false,
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -223,6 +225,7 @@ fn test_settings_clone() {
     let original = UserSettings {
         version: 1,
         language: Language::Spanish,
+        scroll_to_zoom: false,
     };
 
     let cloned = original.clone();

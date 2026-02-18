@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "光标跟踪"
   cursor_tracking_desc: "拖动时保持光标居中"
   window: "窗口:"
+  scroll_to_zoom: "滚动以缩放"
+  scroll_to_zoom_desc: "鼠标滚轮直接缩放图表，而不是平移"
   field_names: "字段名称"
   field_normalization: "字段标准化"
   field_normalization_desc: "统一不同 ECU 类型的通道名称"

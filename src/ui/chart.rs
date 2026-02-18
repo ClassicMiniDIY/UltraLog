@@ -98,19 +98,28 @@ impl UltraLogApp {
         let chart_interacted = self.get_chart_interacted();
         let initial_view_seconds = self.initial_view_seconds;
         let jump_to_time = self.get_jump_to_time();
+        let scroll_to_zoom = self.scroll_to_zoom;
+
+        // Read scroll input before plot consumes it (for scroll-to-zoom mode)
+        let scroll_delta_y = if scroll_to_zoom && !cursor_tracking {
+            ui.input(|i| i.smooth_scroll_delta.y)
+        } else {
+            0.0
+        };
 
         // Fixed Y bounds for normalized data (0-1 with small padding)
         const Y_MIN: f64 = -0.05;
         const Y_MAX: f64 = 1.05;
 
         // Build the plot - X-axis zoom only, Y fixed
+        // When scroll_to_zoom is enabled, disable scroll-to-pan so we handle scroll as zoom
         let plot = Plot::new("log_chart")
             .legend(egui_plot::Legend::default())
             .y_axis_label("") // Hide Y axis label since values are normalized
             .show_axes([true, false]) // Show X axis (time), hide Y axis (normalized 0-1)
             .allow_zoom([true, false]) // Only allow X-axis zoom
             .allow_drag([!cursor_tracking, false]) // Only allow X-axis drag, never Y
-            .allow_scroll([!cursor_tracking, false]); // Only allow X-axis scroll, never Y
+            .allow_scroll([!cursor_tracking && !scroll_to_zoom, false]); // Disable scroll-pan when scroll-to-zoom enabled
 
         let response = plot.show(ui, |plot_ui| {
             // Get current bounds
@@ -170,6 +179,39 @@ impl UltraLogApp {
                 }
             }
 
+            // Apply scroll-to-zoom: use scroll delta to zoom centered on pointer
+            if scroll_to_zoom && scroll_delta_y.abs() > 0.1 {
+                if let Some((min_t, max_t)) = time_range {
+                    let zoom_factor = (1.0 - scroll_delta_y as f64 * 0.003).clamp(0.8, 1.25);
+                    let width = x_max - x_min;
+                    let new_width = (width * zoom_factor).clamp(0.01, max_t - min_t);
+
+                    // Zoom around pointer position if hovering, otherwise center
+                    let center = plot_ui
+                        .pointer_coordinate()
+                        .map(|p| p.x.clamp(x_min, x_max))
+                        .unwrap_or((x_min + x_max) / 2.0);
+                    let ratio = if width > 0.0 {
+                        (center - x_min) / width
+                    } else {
+                        0.5
+                    };
+
+                    x_min = center - new_width * ratio;
+                    x_max = center + new_width * (1.0 - ratio);
+
+                    // Clamp to data range
+                    if x_min < min_t {
+                        x_min = min_t;
+                        x_max = (min_t + new_width).min(max_t);
+                    }
+                    if x_max > max_t {
+                        x_max = max_t;
+                        x_min = (max_t - new_width).max(min_t);
+                    }
+                }
+            }
+
             // Always enforce bounds: X clamped to data, Y fixed to normalized range
             let new_bounds = PlotBounds::from_min_max([x_min, Y_MIN], [x_max, Y_MAX]);
             plot_ui.set_plot_bounds(new_bounds);
@@ -224,6 +266,7 @@ impl UltraLogApp {
             || response.response.drag_started()
             || ui.input(|i| i.zoom_delta() != 1.0)
             || ui.input(|i| i.smooth_scroll_delta.x != 0.0)
+            || (scroll_to_zoom && scroll_delta_y.abs() > 0.1)
         {
             self.set_chart_interacted(true);
         }

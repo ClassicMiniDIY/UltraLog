@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Tracciamento Cursore"
   cursor_tracking_desc: "Mantieni il cursore centrato durante lo scorrimento"
   window: "Finestra:"
+  scroll_to_zoom: "Scroll per Zoom"
+  scroll_to_zoom_desc: "La rotella del mouse ingrandisce il grafico direttamente invece di scorrere"
   field_names: "Nomi dei Campi"
   field_normalization: "Normalizzazione Campi"
   field_normalization_desc: "Standardizza i nomi dei canali tra diversi tipi di ECU"

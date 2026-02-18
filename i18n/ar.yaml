@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "تتبع المؤشر"
   cursor_tracking_desc: "إبقاء المؤشر في المنتصف أثناء التمرير"
   window: "النافذة:"
+  scroll_to_zoom: "التمرير للتكبير"
+  scroll_to_zoom_desc: "عجلة الماوس تكبر المخطط مباشرة بدلاً من الإزاحة"
   field_names: "أسماء الحقول"
   field_normalization: "توحيد الحقول"
   field_normalization_desc: "توحيد أسماء القنوات عبر أنواع ECU"

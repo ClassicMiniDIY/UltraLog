@@ -59,6 +59,8 @@ settings:
   cursor_tracking: "Seguimento do Cursor"
   cursor_tracking_desc: "Manter o cursor centrado durante a navegação"
   window: "Janela:"
+  scroll_to_zoom: "Scroll para Ampliação"
+  scroll_to_zoom_desc: "A roda do rato amplia o gráfico diretamente em vez de fazer pan"
   field_names: "Nomes dos Campos"
   field_normalization: "Normalização de Campos"
   field_normalization_desc: "Uniformizar nomes de canais entre tipos de ECU"
