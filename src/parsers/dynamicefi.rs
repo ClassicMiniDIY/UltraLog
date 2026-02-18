@@ -97,12 +97,15 @@ impl DynamicEfi {
         Some(hours * 3600.0 + minutes * 60.0 + seconds)
     }
 
-    /// Parse a single cell value, handling Y/N flags and P/N gear indicator
+    /// Parse a single cell value, handling Y/N flags and string gear positions
     fn parse_value(value: &str) -> f64 {
         let value = value.trim();
         match value {
             "Y" => 1.0,
             "N" | "P/N" => 0.0,
+            "D" => 4.0,  // Drive
+            "R" => -1.0, // Reverse
+            "L" => 1.0,  // Low
             _ => value.parse::<f64>().unwrap_or(0.0),
         }
     }
@@ -275,6 +278,10 @@ mod tests {
         assert_eq!(DynamicEfi::parse_value("Y"), 1.0);
         assert_eq!(DynamicEfi::parse_value("N"), 0.0);
         assert_eq!(DynamicEfi::parse_value("P/N"), 0.0);
+        assert_eq!(DynamicEfi::parse_value(" D"), 4.0); // Drive (with leading space)
+        assert_eq!(DynamicEfi::parse_value("D"), 4.0); // Drive
+        assert_eq!(DynamicEfi::parse_value("R"), -1.0); // Reverse
+        assert_eq!(DynamicEfi::parse_value("L"), 1.0); // Low
         assert_eq!(DynamicEfi::parse_value(" 775 "), 775.0);
         assert_eq!(DynamicEfi::parse_value("1.587"), 1.587);
         assert_eq!(DynamicEfi::parse_value("invalid"), 0.0);
@@ -327,7 +334,8 @@ mod tests {
     #[test]
     fn test_parse_flags() {
         let sample = "RUNTIME,RPM,Sf,Ay,Gr,BLM,BPC,\n\
-                       00:00:00, 750,Y,N,P/N,128,140,\n";
+                       00:00:00, 750,Y,N,P/N,128,140,\n\
+                       00:00:00, 800,Y,N, D,128,140,\n";
 
         let parser = DynamicEfi;
         let log = parser.parse(sample).unwrap();
@@ -335,6 +343,7 @@ mod tests {
         assert_eq!(log.data[0][1].as_f64(), 1.0); // Y -> 1.0
         assert_eq!(log.data[0][2].as_f64(), 0.0); // N -> 0.0
         assert_eq!(log.data[0][3].as_f64(), 0.0); // P/N -> 0.0
+        assert_eq!(log.data[1][3].as_f64(), 4.0); // " D" -> 4.0 (Drive)
     }
 
     #[test]
