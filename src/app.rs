@@ -18,8 +18,8 @@ use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::i18n::Language;
 use crate::parsers::{
-    Aim, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, RomRaider,
-    Speeduino,
+    Aim, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Parseable,
+    RomRaider, Speeduino,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -470,7 +470,17 @@ impl UltraLogApp {
 
     /// Parse text content after UTF-8 validation
     fn parse_text_content(contents: &str) -> Result<(crate::parsers::Log, EcuType), LoadResult> {
-        if EcuMaster::detect(contents) {
+        if MegaSquirt::detect(contents) {
+            // MegaSquirt TunerStudio datalog detected
+            let parser = MegaSquirt;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::MegaSquirt)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse MegaSquirt file: {}",
+                    e
+                ))),
+            }
+        } else if EcuMaster::detect(contents) {
             // ECUMaster format detected
             let parser = EcuMaster;
             match parser.parse(contents) {
