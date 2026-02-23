@@ -4,7 +4,7 @@ use std::path::Path;
 
 // Import from the library
 use ultralog::parsers::{
-    EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, Parseable, Speeduino,
+    EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Parseable, Speeduino,
 };
 
 fn main() {
@@ -58,7 +58,18 @@ fn main() {
             Err(_) => String::from_utf8_lossy(&binary_data).to_string(),
         };
 
-        if EcuMaster::detect(&contents) {
+        if MegaSquirt::detect(&contents) {
+            println!("\nDetected: MegaSquirt format");
+            println!("Parsing MegaSquirt log...");
+            let parser = MegaSquirt;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::MegaSquirt, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if EcuMaster::detect(&contents) {
             println!("\nDetected: ECUMaster format");
             println!("Parsing ECUMaster log...");
             let parser = EcuMaster;

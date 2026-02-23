@@ -8,6 +8,7 @@ use super::emerald::{EmeraldChannel, EmeraldMeta};
 use super::haltech::{HaltechChannel, HaltechMeta};
 use super::link::{LinkChannel, LinkMeta};
 use super::locomotive::{LocomotiveChannel, LocomotiveMeta};
+use super::megasquirt::{MegaSquirtChannel, MegaSquirtMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
 use crate::adapters::{get_channel_metadata, ChannelCategory, ChannelMetadata};
@@ -22,6 +23,7 @@ pub enum Meta {
     EcuMaster(EcuMasterMeta),
     Link(LinkMeta),
     Locomotive(LocomotiveMeta),
+    MegaSquirt(MegaSquirtMeta),
     RomRaider(RomRaiderMeta),
     Speeduino(SpeeduinoMeta),
     #[default]
@@ -49,6 +51,7 @@ pub enum Channel {
     EcuMaster(EcuMasterChannel),
     Link(LinkChannel),
     Locomotive(LocomotiveChannel),
+    MegaSquirt(MegaSquirtChannel),
     RomRaider(RomRaiderChannel),
     Speeduino(SpeeduinoChannel),
     /// A computed/virtual channel derived from a formula
@@ -68,6 +71,7 @@ impl Serialize for Channel {
             Channel::EcuMaster(e) => e.serialize(serializer),
             Channel::Link(l) => l.serialize(serializer),
             Channel::Locomotive(l) => l.serialize(serializer),
+            Channel::MegaSquirt(m) => m.serialize(serializer),
             Channel::RomRaider(r) => r.serialize(serializer),
             Channel::Speeduino(s) => s.serialize(serializer),
             Channel::Computed(c) => c.serialize(serializer),
@@ -85,6 +89,7 @@ impl Channel {
             Channel::EcuMaster(e) => e.name.clone(),
             Channel::Link(l) => l.name.clone(),
             Channel::Locomotive(l) => l.name.clone(),
+            Channel::MegaSquirt(m) => m.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
             Channel::Computed(c) => c.name.clone(),
@@ -101,6 +106,7 @@ impl Channel {
             Channel::EcuMaster(e) => e.path.clone(),
             Channel::Link(l) => l.channel_id.to_string(),
             Channel::Locomotive(l) => l.name.clone(),
+            Channel::MegaSquirt(m) => m.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
             Channel::Computed(c) => format!("computed_{}", c.name),
@@ -116,6 +122,7 @@ impl Channel {
             Channel::EcuMaster(e) => e.path.clone(),
             Channel::Link(_) => "Link".to_string(),
             Channel::Locomotive(_) => "Locomotive".to_string(),
+            Channel::MegaSquirt(_) => "MegaSquirt".to_string(),
             Channel::RomRaider(_) => "RomRaider".to_string(),
             Channel::Speeduino(_) => "Speeduino/rusEFI".to_string(),
             Channel::Computed(_) => "Computed".to_string(),
@@ -134,6 +141,7 @@ impl Channel {
             Channel::EcuMaster(_) => None,
             Channel::Link(_) => None,
             Channel::Locomotive(_) => None,
+            Channel::MegaSquirt(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
             Channel::Computed(_) => None,
@@ -155,6 +163,7 @@ impl Channel {
             Channel::EcuMaster(_) => None,
             Channel::Link(_) => None,
             Channel::Locomotive(_) => None,
+            Channel::MegaSquirt(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
             Channel::Computed(_) => None,
@@ -188,6 +197,7 @@ impl Channel {
             Channel::EcuMaster(e) => e.unit(),
             Channel::Link(l) => l.unit(),
             Channel::Locomotive(l) => l.unit(),
+            Channel::MegaSquirt(m) => m.unit(),
             Channel::RomRaider(r) => r.unit(),
             Channel::Speeduino(s) => s.unit(),
             Channel::Computed(c) => &c.unit,
