@@ -50,7 +50,7 @@ Before contributing, ensure you have:
 
 3. **Add the upstream remote:**
    ```bash
-   git remote add upstream https://github.com/SomethingNew71/UltraLog.git
+   git remote add upstream https://github.com/ClassicMiniDIY/UltraLog.git
    ```
 
 4. **Install dependencies:**
@@ -109,8 +109,8 @@ We welcome many types of contributions:
 
 ### Finding Issues to Work On
 
-- Look for issues labeled [`good first issue`](https://github.com/SomethingNew71/UltraLog/labels/good%20first%20issue) for beginner-friendly tasks
-- Check [`help wanted`](https://github.com/SomethingNew71/UltraLog/labels/help%20wanted) for issues where we need community help
+- Look for issues labeled [`good first issue`](https://github.com/ClassicMiniDIY/UltraLog/labels/good%20first%20issue) for beginner-friendly tasks
+- Check [`help wanted`](https://github.com/ClassicMiniDIY/UltraLog/labels/help%20wanted) for issues where we need community help
 - Feel free to propose new features by opening an issue first
 
 ### Before Starting Work
@@ -470,8 +470,8 @@ Discuss the new format before implementing. Include:
 
 ### Getting Help
 
-- **Questions**: Open a [Discussion](https://github.com/SomethingNew71/UltraLog/discussions)
-- **Bugs**: Open an [Issue](https://github.com/SomethingNew71/UltraLog/issues)
+- **Questions**: Open a [Discussion](https://github.com/ClassicMiniDIY/UltraLog/discussions)
+- **Bugs**: Open an [Issue](https://github.com/ClassicMiniDIY/UltraLog/issues)
 - **Features**: Open an Issue to discuss first
 
 ### Recognition

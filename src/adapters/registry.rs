@@ -15,8 +15,7 @@ use super::cache;
 use super::types::{AdapterSpec, ChannelCategory, ChannelSpec, ProtocolSpec};
 
 // Embed adapter YAML files at compile time
-// These are loaded from the OECUASpecs git submodule (spec/OECUASpecs/)
-// If building from source, run: git submodule update --init
+// These are downloaded from the OpenECU Alliance repository by build.rs
 const HALTECH_NSP_YAML: &str =
     include_str!("../../spec/OECUASpecs/adapters/haltech/haltech-nsp.adapter.yaml");
 const ECUMASTER_EMU_YAML: &str =
@@ -32,6 +31,8 @@ const RUSEFI_MLG_YAML: &str =
     include_str!("../../spec/OECUASpecs/adapters/rusefi/rusefi-mlg.adapter.yaml");
 const EMERALD_LG_YAML: &str =
     include_str!("../../spec/OECUASpecs/adapters/emerald/emerald-lg.adapter.yaml");
+const MEGASQUIRT_ADAPTER_YAML: &str =
+    include_str!("../../spec/OECUASpecs/adapters/megasquirt/megasquirt-tunerstudio.adapter.yaml");
 
 // Embed protocol YAML files at compile time
 // These define CAN bus message structures for real-time data streaming
@@ -64,6 +65,7 @@ static EMBEDDED_ADAPTERS: &[&str] = &[
     SPEEDUINO_MLG_YAML,
     RUSEFI_MLG_YAML,
     EMERALD_LG_YAML,
+    MEGASQUIRT_ADAPTER_YAML,
 ];
 
 /// All embedded protocol YAML strings

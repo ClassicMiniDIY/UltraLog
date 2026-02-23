@@ -384,7 +384,7 @@ This documentation is provided "as is" without warranty. Implementation of parse
 This document is intended for publication to Technical Disclosure Commons (TDCommons) or similar defensive publication repositories to establish prior art and prevent patenting of these interoperability techniques.
 
 **Submitter:** Cole Gentry
-**Project:** UltraLog (https://github.com/SomethingNew71/UltraLog)
+**Project:** UltraLog (https://github.com/ClassicMiniDIY/UltraLog)
 **License:** AGPL-3.0
 
 ---

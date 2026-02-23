@@ -1,11 +1,11 @@
 # UltraLog - ECU Log Viewer
-# https://classicminidiy.github.io/UltraLog/
+# https://ultralog.co/
 
 User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://classicminidiy.github.io/UltraLog/sitemap.xml
+Sitemap: https://ultralog.co/sitemap.xml
 
 # Crawl delay (optional, be polite to search engines)
 Crawl-delay: 1

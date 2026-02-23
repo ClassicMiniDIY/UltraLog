@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 
-/// Adapter specs to download from GitHub if submodule is missing
+/// Adapter specs to download from OpenECU Alliance GitHub
 const ADAPTER_SPECS: &[(&str, &str)] = &[
     (
         "haltech/haltech-nsp.adapter.yaml",
@@ -37,9 +37,13 @@ const ADAPTER_SPECS: &[(&str, &str)] = &[
         "emerald/emerald-lg.adapter.yaml",
         "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/adapters/emerald/emerald-lg.adapter.yaml",
     ),
+    (
+        "megasquirt/megasquirt-tunerstudio.adapter.yaml",
+        "https://raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs/main/adapters/megasquirt/megasquirt-tunerstudio.adapter.yaml",
+    ),
 ];
 
-/// Protocol specs to download from GitHub if submodule is missing
+/// Protocol specs to download from OpenECU Alliance GitHub
 const PROTOCOL_SPECS: &[(&str, &str)] = &[
     (
         "haltech/haltech-elite-broadcast.protocol.yaml",
@@ -96,7 +100,7 @@ fn main() {
         res.set_icon("assets/icons/windows.ico")
             .set("ProductName", "UltraLog")
             .set("FileDescription", "High-performance ECU log viewer")
-            .set("LegalCopyright", "Copyright (c) 2025 Cole Gentry");
+            .set("LegalCopyright", "Copyright (c) 2026 Cole Gentry");
 
         // Only compile if icon exists
         if std::path::Path::new("assets/icons/windows.ico").exists() {
@@ -105,34 +109,18 @@ fn main() {
     }
 }
 
-/// Ensure adapter specs are available, either from submodule or by downloading
+/// Ensure adapter specs are available by downloading from OpenECU Alliance
 fn ensure_adapter_specs() {
     let spec_dir = Path::new("spec/OECUASpecs/adapters");
 
-    // Check if submodule is initialized (has the haltech adapter)
+    // Check if specs are already downloaded
     let haltech_spec = spec_dir.join("haltech/haltech-nsp.adapter.yaml");
     if haltech_spec.exists() {
         println!("cargo:rerun-if-changed=spec/OECUASpecs/adapters");
         return;
     }
 
-    println!("cargo:warning=OECUASpecs submodule not initialized, attempting to initialize...");
-
-    // Try to initialize submodule
-    let submodule_result = Command::new("git")
-        .args(["submodule", "update", "--init", "--recursive"])
-        .status();
-
-    if let Ok(status) = submodule_result {
-        if status.success() && haltech_spec.exists() {
-            println!("cargo:warning=Successfully initialized OECUASpecs submodule");
-            println!("cargo:rerun-if-changed=spec/OECUASpecs/adapters");
-            return;
-        }
-    }
-
-    // Submodule init failed, try downloading directly
-    println!("cargo:warning=Submodule init failed, downloading adapter specs from GitHub...");
+    println!("cargo:warning=Adapter specs not found, downloading from OpenECU Alliance...");
     download_adapter_specs(spec_dir);
 }
 
@@ -230,12 +218,10 @@ fn download_specs(spec_dir: &Path, specs: &[(&str, &str)]) {
         // If we get here, all download methods failed
         // Create a placeholder that will cause a compile error with helpful message
         let error_content = format!(
-            r#"# ERROR: Failed to download spec from GitHub
+            r#"# ERROR: Failed to download spec from OpenECU Alliance
 # URL: {}
 #
-# Please run one of the following:
-#   git submodule update --init
-# OR
+# Please download manually:
 #   curl -sSL -o {} {}
 "#,
             url,

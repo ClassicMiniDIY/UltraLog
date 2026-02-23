@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::io::Write;
 use std::path::PathBuf;
 
-const GITHUB_API_URL: &str = "https://api.github.com/repos/SomethingNew71/UltraLog/releases/latest";
+const GITHUB_API_URL: &str = "https://api.github.com/repos/ClassicMiniDIY/UltraLog/releases/latest";
 const USER_AGENT: &str = concat!("UltraLog/", env!("CARGO_PKG_VERSION"));
 
 // ============================================================================

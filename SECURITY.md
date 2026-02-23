@@ -24,7 +24,7 @@ We take security seriously. If you discover a security vulnerability in UltraLog
 Instead, report vulnerabilities by:
 
 1. **Email:** Send details to the maintainer privately
-2. **GitHub Security Advisories:** Use [GitHub's private vulnerability reporting](https://github.com/SomethingNew71/UltraLog/security/advisories/new)
+2. **GitHub Security Advisories:** Use [GitHub's private vulnerability reporting](https://github.com/ClassicMiniDIY/UltraLog/security/advisories/new)
 
 ### What to Include
 
@@ -143,8 +143,8 @@ UltraLog does not auto-update. Users must manually download new releases. This i
 
 ### Downloading UltraLog
 
-- Always download from official [GitHub Releases](https://github.com/SomethingNew71/UltraLog/releases)
-- Verify you're on the correct repository (SomethingNew71/UltraLog)
+- Always download from official [GitHub Releases](https://github.com/ClassicMiniDIY/UltraLog/releases)
+- Verify you're on the correct repository (ClassicMiniDIY/UltraLog)
 - Consider building from source for maximum assurance
 
 ### File Safety
@@ -205,8 +205,8 @@ We appreciate security researchers who help keep UltraLog safe. With your permis
 
 For security concerns, contact the maintainer:
 
-- **GitHub:** [@SomethingNew71](https://github.com/SomethingNew71)
-- **Security Advisories:** [Report a vulnerability](https://github.com/SomethingNew71/UltraLog/security/advisories/new)
+- **GitHub:** [@ClassicMiniDIY](https://github.com/ClassicMiniDIY)
+- **Security Advisories:** [Report a vulnerability](https://github.com/ClassicMiniDIY/UltraLog/security/advisories/new)
 
 ---
 

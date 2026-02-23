@@ -4,7 +4,7 @@
 
 A high-performance, cross-platform ECU log viewer written in Rust.
 
-![CI](https://github.com/SomethingNew71/UltraLog/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Version](https://img.shields.io/badge/version-2.5.0-green.svg)
 
@@ -153,7 +153,7 @@ Configurable units for 8 measurement categories:
 
 ### Pre-built Binaries
 
-Download the latest release for your platform from the [Releases](https://github.com/SomethingNew71/UltraLog/releases) page:
+Download the latest release for your platform from the [Releases](https://github.com/ClassicMiniDIY/UltraLog/releases) page:
 
 | Platform            | Download                      | Notes              |
 | ------------------- | ----------------------------- | ------------------ |
@@ -216,7 +216,7 @@ xcode-select --install
 
 ```bash
 # Clone the repository
-git clone https://github.com/SomethingNew71/UltraLog.git
+git clone https://github.com/ClassicMiniDIY/UltraLog.git
 cd UltraLog
 
 # Build release version (optimized)
@@ -621,7 +621,7 @@ UltraLog/
 - Some ECU systems report data in specific units - UltraLog attempts to convert automatically but may need manual adjustment
 
 ### "My ECU format isn't supported"
-- Open an issue on [GitHub](https://github.com/SomethingNew71/UltraLog/issues) with a sample log file
+- Open an issue on [GitHub](https://github.com/ClassicMiniDIY/UltraLog/issues) with a sample log file
 - Include the ECU system name and software version used to export
 
 ---
@@ -689,7 +689,7 @@ Learn more at [openinventionnetwork.com](https://openinventionnetwork.com).
 
 **Cole Gentry**
 
-- GitHub: [@SomethingNew71](https://github.com/SomethingNew71)
+- GitHub: [@ClassicMiniDIY](https://github.com/ClassicMiniDIY)
 - Website: [Classic Mini DIY](https://classicminidiy.com)
 
 ---

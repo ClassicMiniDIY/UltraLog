@@ -54,3 +54,6 @@ dist-ssr
 
 # Rust related ignores
 /target
+
+# Downloaded OpenECU Alliance specs (fetched by build.rs)
+spec/OECUASpecs/

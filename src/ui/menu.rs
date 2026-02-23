@@ -217,19 +217,19 @@ impl UltraLogApp {
                     .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 if ui.button(t!("menu.documentation")).clicked() {
-                    let _ = open::that("https://github.com/SomethingNew71/UltraLog/wiki");
+                    let _ = open::that("https://github.com/ClassicMiniDIY/UltraLog/wiki");
                     ui.close();
                 }
 
                 if ui.button(t!("menu.report_issue")).clicked() {
-                    let _ = open::that("https://github.com/SomethingNew71/UltraLog/issues");
+                    let _ = open::that("https://github.com/ClassicMiniDIY/UltraLog/issues");
                     ui.close();
                 }
 
                 ui.separator();
 
                 if ui.button(t!("menu.support_development")).clicked() {
-                    let _ = open::that("https://github.com/sponsors/SomethingNew71");
+                    let _ = open::that("https://github.com/sponsors/ClassicMiniDIY");
                     ui.close();
                 }
 
