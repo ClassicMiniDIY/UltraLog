@@ -41,23 +41,15 @@ pub struct MegaSquirtChannel {
 impl MegaSquirtChannel {
     /// Create a channel from a header column like "MAP(mBar)" or "RPM"
     pub fn from_header(header: &str) -> Self {
-        let header = header.trim().to_string();
+        let header = header.trim();
 
         // Parse "Name(unit)" format — no space before the parenthesis
-        let (name, unit) = if let Some(paren_start) = header.rfind('(') {
-            if let Some(paren_end) = header.rfind(')') {
-                if paren_end > paren_start {
-                    let unit = header[paren_start + 1..paren_end].trim().to_string();
-                    let name = header[..paren_start].trim().to_string();
-                    (name, unit)
-                } else {
-                    (header.clone(), Self::infer_unit(&header))
-                }
-            } else {
-                (header.clone(), Self::infer_unit(&header))
+        let (name, unit) = match header.rsplit_once('(') {
+            Some((name_part, unit_part)) if unit_part.ends_with(')') => {
+                let unit = unit_part[..unit_part.len() - 1].trim().to_string();
+                (name_part.trim().to_string(), unit)
             }
-        } else {
-            (header.clone(), Self::infer_unit(&header))
+            _ => (header.to_string(), Self::infer_unit(header)),
         };
 
         Self { name, unit }
@@ -190,9 +182,7 @@ impl Parseable for MegaSquirt {
             }
 
             // Pad row to match channel count
-            while row.len() < channels.len() {
-                row.push(Value::Float(0.0));
-            }
+            row.resize(channels.len(), Value::Float(0.0));
 
             data.push(row);
         }

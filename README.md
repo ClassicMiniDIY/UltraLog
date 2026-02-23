@@ -135,8 +135,14 @@ Configurable units for 8 measurement categories:
 - **Supported data:** TPS, Air Temp, MAP, Lambda, Oil/Fuel Pressure, Oil/Fuel Temp, Exhaust Temp, Boost Target/Duty, RPM, Coolant Temp, Battery Voltage, Ignition Advance, Injector Pulse Width, and more
 - **Note:** Both `.lg1` (data) and `.lg2` (channel definitions) files must be in the same directory
 
+### MegaSquirt / Honda Tuning Studio - Full Support
+
+- **File type:** CSV datalogs exported from TunerStudio
+- **Features:** Automatic channel and unit extraction, boolean value parsing (MIL lamp ON/OFF), anomalous first-row timestamp handling
+- **Supported devices:** MegaSquirt MS1, MS2, MS3, MS3Pro, Honda Tuning Studio, and any TunerStudio-compatible ECU
+- **Supported data:** RPM, MAP, TPS, injector duration/duty, ignition timing, ECT, IAT, AFR, battery voltage, boost, VSS, gear, and all logged channels
+
 ### Coming Soon
-- MegaSquirt
 - AEM
 - MaxxECU
 - MoTeC
