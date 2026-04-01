@@ -225,6 +225,46 @@ impl AccelerationUnit {
     }
 }
 
+/// AFR/Lambda unit preference
+///
+/// ECU logs may output mixture data as either AFR (Air Fuel Ratio, e.g. 14.7 for stoich gasoline)
+/// or Lambda (normalized ratio, e.g. 1.0 for stoich). This preference controls which format
+/// is displayed regardless of what the source ECU outputs.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum AfrLambdaUnit {
+    #[default]
+    AFR,
+    Lambda,
+}
+
+impl AfrLambdaUnit {
+    pub fn symbol(&self) -> &'static str {
+        match self {
+            AfrLambdaUnit::AFR => "AFR",
+            AfrLambdaUnit::Lambda => "λ",
+        }
+    }
+
+    /// Stoichiometric AFR for gasoline
+    const GASOLINE_STOICH: f64 = 14.7;
+
+    /// Convert from AFR to the selected unit
+    pub fn convert_from_afr(&self, afr: f64) -> f64 {
+        match self {
+            AfrLambdaUnit::AFR => afr,
+            AfrLambdaUnit::Lambda => afr / Self::GASOLINE_STOICH,
+        }
+    }
+
+    /// Convert from Lambda to the selected unit
+    pub fn convert_from_lambda(&self, lambda: f64) -> f64 {
+        match self {
+            AfrLambdaUnit::AFR => lambda * Self::GASOLINE_STOICH,
+            AfrLambdaUnit::Lambda => lambda,
+        }
+    }
+}
+
 /// User preferences for display units
 #[derive(Clone, Debug, Default)]
 pub struct UnitPreferences {
@@ -236,6 +276,7 @@ pub struct UnitPreferences {
     pub volume: VolumeUnit,
     pub flow: FlowUnit,
     pub acceleration: AccelerationUnit,
+    pub afr_lambda: AfrLambdaUnit,
 }
 
 impl UnitPreferences {
@@ -270,6 +311,16 @@ impl UnitPreferences {
             "m/s²" => (
                 self.acceleration.convert_from_m_per_s2(value),
                 self.acceleration.symbol(),
+            ),
+            // AFR (source is AFR, e.g. 14.7)
+            "AFR" => (
+                self.afr_lambda.convert_from_afr(value),
+                self.afr_lambda.symbol(),
+            ),
+            // Lambda (source is λ, e.g. 1.0)
+            "λ" => (
+                self.afr_lambda.convert_from_lambda(value),
+                self.afr_lambda.symbol(),
             ),
             // No conversion needed for other units
             _ => (value, source_unit),
@@ -551,6 +602,7 @@ mod tests {
         assert_eq!(prefs.volume, VolumeUnit::Liters);
         assert_eq!(prefs.flow, FlowUnit::CcPerMin);
         assert_eq!(prefs.acceleration, AccelerationUnit::MPerS2);
+        assert_eq!(prefs.afr_lambda, AfrLambdaUnit::AFR);
     }
 
     #[test]
@@ -593,9 +645,9 @@ mod tests {
         assert_eq!(value, 42.0);
         assert_eq!(unit, "RPM");
 
-        let (value, unit) = prefs.convert_value(14.7, "AFR");
-        assert_eq!(value, 14.7);
-        assert_eq!(unit, "AFR");
+        let (value, unit) = prefs.convert_value(100.0, "%");
+        assert_eq!(value, 100.0);
+        assert_eq!(unit, "%");
     }
 
     #[test]
@@ -609,6 +661,7 @@ mod tests {
             volume: VolumeUnit::Gallons,
             flow: FlowUnit::LbPerHr,
             acceleration: AccelerationUnit::G,
+            afr_lambda: AfrLambdaUnit::Lambda,
         };
 
         // Test each conversion
@@ -635,5 +688,91 @@ mod tests {
 
         let (_, unit) = prefs.convert_value(9.8, "m/s²");
         assert_eq!(unit, "g");
+
+        let (_, unit) = prefs.convert_value(14.7, "AFR");
+        assert_eq!(unit, "λ");
+
+        let (_, unit) = prefs.convert_value(1.0, "λ");
+        assert_eq!(unit, "λ");
+    }
+
+    // ============================================
+    // AFR/Lambda Unit Tests
+    // ============================================
+
+    #[test]
+    fn test_afr_lambda_default_is_afr() {
+        let unit = AfrLambdaUnit::default();
+        assert_eq!(unit, AfrLambdaUnit::AFR);
+    }
+
+    #[test]
+    fn test_afr_lambda_symbols() {
+        assert_eq!(AfrLambdaUnit::AFR.symbol(), "AFR");
+        assert_eq!(AfrLambdaUnit::Lambda.symbol(), "λ");
+    }
+
+    #[test]
+    fn test_afr_to_afr_identity() {
+        let unit = AfrLambdaUnit::AFR;
+        assert_eq!(unit.convert_from_afr(14.7), 14.7);
+        assert_eq!(unit.convert_from_afr(12.0), 12.0);
+    }
+
+    #[test]
+    fn test_afr_to_lambda() {
+        let unit = AfrLambdaUnit::Lambda;
+        // Stoich: 14.7 AFR = 1.0 λ
+        assert!((unit.convert_from_afr(14.7) - 1.0).abs() < 0.001);
+        // Rich: 12.0 AFR ≈ 0.816 λ
+        assert!((unit.convert_from_afr(12.0) - 0.8163).abs() < 0.001);
+        // Lean: 16.0 AFR ≈ 1.088 λ
+        assert!((unit.convert_from_afr(16.0) - 1.0884).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_lambda_to_lambda_identity() {
+        let unit = AfrLambdaUnit::Lambda;
+        assert_eq!(unit.convert_from_lambda(1.0), 1.0);
+        assert_eq!(unit.convert_from_lambda(0.85), 0.85);
+    }
+
+    #[test]
+    fn test_lambda_to_afr() {
+        let unit = AfrLambdaUnit::AFR;
+        // Stoich: 1.0 λ = 14.7 AFR
+        assert!((unit.convert_from_lambda(1.0) - 14.7).abs() < 0.001);
+        // Rich: 0.85 λ = 12.495 AFR
+        assert!((unit.convert_from_lambda(0.85) - 12.495).abs() < 0.001);
+        // Lean: 1.1 λ = 16.17 AFR
+        assert!((unit.convert_from_lambda(1.1) - 16.17).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_afr_lambda_convert_value_integration() {
+        let mut prefs = UnitPreferences::default();
+
+        // Default is AFR — AFR source passes through
+        let (value, unit) = prefs.convert_value(14.7, "AFR");
+        assert!((value - 14.7).abs() < 0.001);
+        assert_eq!(unit, "AFR");
+
+        // Default is AFR — Lambda source converts to AFR
+        let (value, unit) = prefs.convert_value(1.0, "λ");
+        assert!((value - 14.7).abs() < 0.001);
+        assert_eq!(unit, "AFR");
+
+        // Switch to Lambda
+        prefs.afr_lambda = AfrLambdaUnit::Lambda;
+
+        // Lambda pref — AFR source converts to Lambda
+        let (value, unit) = prefs.convert_value(14.7, "AFR");
+        assert!((value - 1.0).abs() < 0.001);
+        assert_eq!(unit, "λ");
+
+        // Lambda pref — Lambda source passes through
+        let (value, unit) = prefs.convert_value(1.0, "λ");
+        assert!((value - 1.0).abs() < 0.001);
+        assert_eq!(unit, "λ");
     }
 }

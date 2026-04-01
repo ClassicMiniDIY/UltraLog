@@ -76,6 +76,7 @@ settings:
   volume: "Volume:"
   flow_rate: "Laju Aliran:"
   acceleration: "Akselerasi:"
+  afr_lambda: "AFR / Lambda:"
   updates: "Pembaruan"
   check_on_startup: "Periksa saat mulai"
   auto_check_desc: "Periksa versi baru secara otomatis"

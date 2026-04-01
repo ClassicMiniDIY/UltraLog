@@ -77,6 +77,7 @@ settings:
   volume: "حجم:"
   flow_rate: "بہاؤ کی شرح:"
   acceleration: "ایکسلریشن:"
+  afr_lambda: "AFR / Lambda:"
   updates: "اپڈیٹس"
   check_on_startup: "شروع میں جانچ کریں"
   auto_check_desc: "خودکار طور پر نئے ورژن کی جانچ کریں"

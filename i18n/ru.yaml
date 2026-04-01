@@ -76,6 +76,7 @@ settings:
   volume: "Объём:"
   flow_rate: "Расход:"
   acceleration: "Ускорение:"
+  afr_lambda: "AFR / Lambda:"
   updates: "Обновления"
   check_on_startup: "Проверять при запуске"
   auto_check_desc: "Автоматически проверять наличие новых версий"

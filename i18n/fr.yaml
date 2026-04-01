@@ -76,6 +76,7 @@ settings:
   volume: "Volume :"
   flow_rate: "Debit :"
   acceleration: "Acceleration :"
+  afr_lambda: "AFR / Lambda:"
   updates: "Mises a jour"
   check_on_startup: "Verifier au demarrage"
   auto_check_desc: "Verifier automatiquement les nouvelles versions"
