@@ -64,14 +64,6 @@ pub struct ProtocolSummary {
     pub description: Option<String>,
 }
 
-/// Response wrapper for list endpoints
-#[derive(Debug, Clone, Deserialize)]
-pub struct ListResponse<T> {
-    pub data: Vec<T>,
-    #[serde(default)]
-    pub count: Option<u32>,
-}
-
 // ============================================================================
 // API Client Functions
 // ============================================================================
@@ -91,12 +83,12 @@ pub fn fetch_adapter_list() -> Result<Vec<AdapterSummary>, ApiError> {
             _ => ApiError::NetworkError(e.to_string()),
         })?;
 
-    let list: ListResponse<AdapterSummary> = response
+    let adapters: Vec<AdapterSummary> = response
         .body_mut()
         .read_json()
-        .map_err(|e| ApiError::ParseError(e.to_string()))?;
+        .map_err(|e| ApiError::ParseError(format!("json: {}", e)))?;
 
-    Ok(list.data)
+    Ok(adapters)
 }
 
 /// Fetch a single adapter with full details
@@ -159,12 +151,12 @@ pub fn fetch_protocol_list() -> Result<Vec<ProtocolSummary>, ApiError> {
             _ => ApiError::NetworkError(e.to_string()),
         })?;
 
-    let list: ListResponse<ProtocolSummary> = response
+    let protocols: Vec<ProtocolSummary> = response
         .body_mut()
         .read_json()
-        .map_err(|e| ApiError::ParseError(e.to_string()))?;
+        .map_err(|e| ApiError::ParseError(format!("json: {}", e)))?;
 
-    Ok(list.data)
+    Ok(protocols)
 }
 
 /// Fetch a single protocol with full details
