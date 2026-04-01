@@ -56,7 +56,7 @@ encoding_rs = "0.8"  # Character encoding detection and conversion (UTF-16, etc.
 # Auto-update
 ureq = { version = "3.3", features = ["json"] }  # Minimal HTTP client
 semver = "1.0"  # Version comparison
-zip = "2.2"     # ZIP extraction for Windows updates (v7.0 has breaking changes)
+zip = "8.5"     # ZIP extraction for Windows updates
 flate2 = "1.1"  # Gzip decompression for Linux updates
 tar = "0.4"     # Tar archive extraction for Linux updates
 
@@ -64,7 +64,7 @@ tar = "0.4"     # Tar archive extraction for Linux updates
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 # PDF generation for chart export
-printpdf = "0.7"  # v0.8 has breaking API changes requiring code refactoring
+printpdf = "0.9"
 
 # Error handling
 thiserror = "2.0.17"
