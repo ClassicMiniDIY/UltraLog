@@ -1,10 +1,7 @@
 //! Chart export functionality (PNG, PDF).
 
-use printpdf::path::{PaintMode, WindingOrder};
 use printpdf::*;
 use rust_i18n::t;
-use std::fs::File;
-use std::io::BufWriter;
 
 // Use fully qualified path to disambiguate from printpdf's image module
 use ::image::{Rgba, RgbaImage};
@@ -13,6 +10,81 @@ use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
 use crate::state::HistogramMode;
+
+/// Helper to push text ops into a Vec<Op>
+fn push_text(ops: &mut Vec<Op>, text: &str, size: f32, x: Mm, y: Mm, font: &PdfFontHandle) {
+    ops.push(Op::StartTextSection);
+    ops.push(Op::SetFont {
+        font: font.clone(),
+        size: Pt(size),
+    });
+    ops.push(Op::SetTextCursor {
+        pos: Point::new(x, y),
+    });
+    ops.push(Op::ShowText {
+        items: vec![TextItem::Text(text.to_string())],
+    });
+    ops.push(Op::EndTextSection);
+}
+
+/// Helper to push a filled rectangle (polygon) into ops
+fn push_filled_rect(ops: &mut Vec<Op>, x: f32, y: f32, w: f32, h: f32) {
+    let rect = Polygon {
+        rings: vec![PolygonRing {
+            points: vec![
+                LinePoint {
+                    p: Point::new(Mm(x), Mm(y)),
+                    bezier: false,
+                },
+                LinePoint {
+                    p: Point::new(Mm(x + w), Mm(y)),
+                    bezier: false,
+                },
+                LinePoint {
+                    p: Point::new(Mm(x + w), Mm(y + h)),
+                    bezier: false,
+                },
+                LinePoint {
+                    p: Point::new(Mm(x), Mm(y + h)),
+                    bezier: false,
+                },
+            ],
+        }],
+        mode: PaintMode::Fill,
+        winding_order: WindingOrder::NonZero,
+    };
+    ops.push(Op::DrawPolygon { polygon: rect });
+}
+
+/// Helper to push a closed line (border) into ops
+fn push_closed_line(ops: &mut Vec<Op>, points: &[(f32, f32)]) {
+    let line = Line {
+        points: points
+            .iter()
+            .map(|&(x, y)| LinePoint {
+                p: Point::new(Mm(x), Mm(y)),
+                bezier: false,
+            })
+            .collect(),
+        is_closed: true,
+    };
+    ops.push(Op::DrawLine { line });
+}
+
+/// Helper to push an open line into ops
+fn push_open_line(ops: &mut Vec<Op>, points: &[(f32, f32)]) {
+    let line = Line {
+        points: points
+            .iter()
+            .map(|&(x, y)| LinePoint {
+                p: Point::new(Mm(x), Mm(y)),
+                bezier: false,
+            })
+            .collect(),
+        is_closed: false,
+    };
+    ops.push(Op::DrawLine { line });
+}
 
 impl UltraLogApp {
     /// Export the current chart view as PNG
@@ -165,11 +237,10 @@ impl UltraLogApp {
         &self,
         path: &std::path::Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Create PDF document (A4 landscape)
-        let (doc, page1, layer1) =
-            PdfDocument::new("UltraLog Chart Export", Mm(297.0), Mm(210.0), "Chart");
+        let mut ops: Vec<Op> = Vec::new();
 
-        let current_layer = doc.get_page(page1).get_layer(layer1);
+        let font_bold = PdfFontHandle::Builtin(BuiltinFont::HelveticaBold);
+        let font_regular = PdfFontHandle::Builtin(BuiltinFont::Helvetica);
 
         // Get time range
         let Some((min_time, max_time)) = self.time_range else {
@@ -192,17 +263,16 @@ impl UltraLogApp {
         let chart_height: f64 = chart_top - chart_bottom;
 
         // Draw title
-        let font = doc.add_builtin_font(BuiltinFont::HelveticaBold)?;
-        current_layer.use_text(
+        push_text(
+            &mut ops,
             "UltraLog Chart Export",
             16.0,
             Mm(margin as f32),
             Mm(200.0),
-            &font,
+            &font_bold,
         );
 
         // Draw subtitle with file info
-        let font_regular = doc.add_builtin_font(BuiltinFont::Helvetica)?;
         if let Some(file) = self.files.first() {
             let subtitle = format!(
                 "{} | {} channels selected | Time: {:.1}s - {:.1}s",
@@ -211,36 +281,30 @@ impl UltraLogApp {
                 min_time,
                 max_time
             );
-            current_layer.use_text(&subtitle, 10.0, Mm(margin as f32), Mm(192.0), &font_regular);
+            push_text(
+                &mut ops,
+                &subtitle,
+                10.0,
+                Mm(margin as f32),
+                Mm(192.0),
+                &font_regular,
+            );
         }
 
         // Draw chart border
         let border_color = Color::Rgb(Rgb::new(0.3, 0.3, 0.3, None));
-        current_layer.set_outline_color(border_color);
-        current_layer.set_outline_thickness(0.5);
+        ops.push(Op::SetOutlineColor { col: border_color });
+        ops.push(Op::SetOutlineThickness { pt: Pt(0.5) });
 
-        let border = Line {
-            points: vec![
-                (
-                    Point::new(Mm(chart_left as f32), Mm(chart_bottom as f32)),
-                    false,
-                ),
-                (
-                    Point::new(Mm(chart_right as f32), Mm(chart_bottom as f32)),
-                    false,
-                ),
-                (
-                    Point::new(Mm(chart_right as f32), Mm(chart_top as f32)),
-                    false,
-                ),
-                (
-                    Point::new(Mm(chart_left as f32), Mm(chart_top as f32)),
-                    false,
-                ),
+        push_closed_line(
+            &mut ops,
+            &[
+                (chart_left as f32, chart_bottom as f32),
+                (chart_right as f32, chart_bottom as f32),
+                (chart_right as f32, chart_top as f32),
+                (chart_left as f32, chart_top as f32),
             ],
-            is_closed: true,
-        };
-        current_layer.add_line(border);
+        );
 
         // Draw each channel
         for selected in self.get_selected_channels() {
@@ -252,8 +316,8 @@ impl UltraLogApp {
                 None,
             ));
 
-            current_layer.set_outline_color(line_color);
-            current_layer.set_outline_thickness(0.75);
+            ops.push(Op::SetOutlineColor { col: line_color });
+            ops.push(Op::SetOutlineThickness { pt: Pt(0.75) });
 
             // Get channel data
             if selected.file_index >= self.files.len() {
@@ -282,7 +346,7 @@ impl UltraLogApp {
             };
 
             // Build line points (downsample for PDF)
-            let mut points: Vec<(Point, bool)> = Vec::new();
+            let mut points: Vec<LinePoint> = Vec::new();
             let step = (times.len() / 500).max(1); // Max ~500 points per channel
 
             for (i, (&time, &value)) in times.iter().zip(data.iter()).enumerate() {
@@ -300,7 +364,10 @@ impl UltraLogApp {
                 let x = chart_left + x_ratio * chart_width;
                 let y = chart_bottom + y_ratio * chart_height;
 
-                points.push((Point::new(Mm(x as f32), Mm(y as f32)), false));
+                points.push(LinePoint {
+                    p: Point::new(Mm(x as f32), Mm(y as f32)),
+                    bezier: false,
+                });
             }
 
             if points.len() >= 2 {
@@ -308,7 +375,7 @@ impl UltraLogApp {
                     points,
                     is_closed: false,
                 };
-                current_layer.add_line(line);
+                ops.push(Op::DrawLine { line });
             }
         }
 
@@ -333,8 +400,9 @@ impl UltraLogApp {
                 channel_name
             };
 
-            current_layer.set_fill_color(text_color);
-            current_layer.use_text(
+            ops.push(Op::SetFillColor { col: text_color });
+            push_text(
+                &mut ops,
                 &display_name,
                 8.0,
                 Mm(legend_x as f32),
@@ -348,10 +416,13 @@ impl UltraLogApp {
             }
         }
 
-        // Save PDF
-        let file = File::create(path)?;
-        let mut writer = BufWriter::new(file);
-        doc.save(&mut writer)?;
+        // Build page and save PDF
+        let page = PdfPage::new(Mm(297.0), Mm(210.0), ops);
+        let mut doc = PdfDocument::new("UltraLog Chart Export");
+        doc.with_pages(vec![page]);
+        let mut warnings = Vec::new();
+        let pdf_bytes = doc.save(&PdfSaveOptions::default(), &mut warnings);
+        std::fs::write(path, pdf_bytes)?;
 
         Ok(())
     }
@@ -545,15 +616,10 @@ impl UltraLogApp {
             "Hit Count".to_string()
         };
 
-        // Create PDF document (A4 landscape)
-        let (doc, page1, layer1) = PdfDocument::new(
-            "UltraLog Histogram Export",
-            Mm(297.0),
-            Mm(210.0),
-            "Histogram",
-        );
+        let font_bold = PdfFontHandle::Builtin(BuiltinFont::HelveticaBold);
+        let font_regular = PdfFontHandle::Builtin(BuiltinFont::Helvetica);
 
-        let current_layer = doc.get_page(page1).get_layer(layer1);
+        let mut ops: Vec<Op> = Vec::new();
 
         // Chart dimensions in mm (A4 landscape with margins)
         let margin: f64 = 20.0;
@@ -570,17 +636,16 @@ impl UltraLogApp {
         let cell_height = chart_height / grid_rows as f64;
 
         // Draw title
-        let font = doc.add_builtin_font(BuiltinFont::HelveticaBold)?;
-        current_layer.use_text(
+        push_text(
+            &mut ops,
             "UltraLog Histogram Export",
             16.0,
             Mm(margin as f32),
             Mm(200.0),
-            &font,
+            &font_bold,
         );
 
         // Draw subtitle
-        let font_regular = doc.add_builtin_font(BuiltinFont::Helvetica)?;
         let subtitle = format!(
             "{} | Grid: {}x{} | Mode: {}",
             file.name,
@@ -592,11 +657,19 @@ impl UltraLogApp {
                 "Average Z"
             }
         );
-        current_layer.use_text(&subtitle, 10.0, Mm(margin as f32), Mm(192.0), &font_regular);
+        push_text(
+            &mut ops,
+            &subtitle,
+            10.0,
+            Mm(margin as f32),
+            Mm(192.0),
+            &font_regular,
+        );
 
         // Draw axis labels
         let axis_subtitle = format!("X: {} | Y: {} | Z: {}", x_name, y_name, z_name);
-        current_layer.use_text(
+        push_text(
+            &mut ops,
             &axis_subtitle,
             9.0,
             Mm(margin as f32),
@@ -619,32 +692,15 @@ impl UltraLogApp {
                     };
                     let color = Self::get_pdf_heat_color(normalized);
 
-                    current_layer.set_fill_color(color);
+                    ops.push(Op::SetFillColor { col: color });
 
-                    // Draw filled rectangle
-                    let rect = printpdf::Polygon {
-                        rings: vec![vec![
-                            (Point::new(Mm(cell_x as f32), Mm(cell_y as f32)), false),
-                            (
-                                Point::new(Mm((cell_x + cell_width) as f32), Mm(cell_y as f32)),
-                                false,
-                            ),
-                            (
-                                Point::new(
-                                    Mm((cell_x + cell_width) as f32),
-                                    Mm((cell_y + cell_height) as f32),
-                                ),
-                                false,
-                            ),
-                            (
-                                Point::new(Mm(cell_x as f32), Mm((cell_y + cell_height) as f32)),
-                                false,
-                            ),
-                        ]],
-                        mode: PaintMode::Fill,
-                        winding_order: WindingOrder::NonZero,
-                    };
-                    current_layer.add_polygon(rect);
+                    push_filled_rect(
+                        &mut ops,
+                        cell_x as f32,
+                        cell_y as f32,
+                        cell_width as f32,
+                        cell_height as f32,
+                    );
 
                     // Draw cell value text (only for smaller grids)
                     if grid_cols.max(grid_rows) <= 32 {
@@ -662,13 +718,14 @@ impl UltraLogApp {
                             Color::Rgb(Rgb::new(1.0, 1.0, 1.0, None)) // White
                         };
 
-                        current_layer.set_fill_color(text_color);
+                        ops.push(Op::SetFillColor { col: text_color });
                         let font_size = if grid_cols.max(grid_rows) <= 16 {
                             6.0
                         } else {
                             4.0
                         };
-                        current_layer.use_text(
+                        push_text(
+                            &mut ops,
                             &text,
                             font_size,
                             Mm((cell_x + cell_width / 2.0 - 2.0) as f32),
@@ -682,46 +739,45 @@ impl UltraLogApp {
 
         // Draw grid lines
         let grid_color = Color::Rgb(Rgb::new(0.4, 0.4, 0.4, None));
-        current_layer.set_outline_color(grid_color);
-        current_layer.set_outline_thickness(0.25);
+        ops.push(Op::SetOutlineColor { col: grid_color });
+        ops.push(Op::SetOutlineThickness { pt: Pt(0.25) });
 
         // Vertical grid lines (X axis divisions)
         for i in 0..=grid_cols {
             let x = chart_left + i as f64 * cell_width;
-            let vline = Line {
-                points: vec![
-                    (Point::new(Mm(x as f32), Mm(chart_bottom as f32)), false),
-                    (Point::new(Mm(x as f32), Mm(chart_top as f32)), false),
+            push_open_line(
+                &mut ops,
+                &[
+                    (x as f32, chart_bottom as f32),
+                    (x as f32, chart_top as f32),
                 ],
-                is_closed: false,
-            };
-            current_layer.add_line(vline);
+            );
         }
 
         // Horizontal grid lines (Y axis divisions)
         for i in 0..=grid_rows {
             let y = chart_bottom + i as f64 * cell_height;
-            let hline = Line {
-                points: vec![
-                    (Point::new(Mm(chart_left as f32), Mm(y as f32)), false),
-                    (Point::new(Mm(chart_right as f32), Mm(y as f32)), false),
+            push_open_line(
+                &mut ops,
+                &[
+                    (chart_left as f32, y as f32),
+                    (chart_right as f32, y as f32),
                 ],
-                is_closed: false,
-            };
-            current_layer.add_line(hline);
+            );
         }
 
         // Draw axis value labels
         let label_color = Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None));
-        current_layer.set_fill_color(label_color);
+        ops.push(Op::SetFillColor { col: label_color });
 
         // Y axis labels
         for i in 0..=4 {
             let t = i as f64 / 4.0;
             let value = y_min + t * y_range;
             let y_pos = chart_bottom + t * chart_height;
-            current_layer.use_text(
-                format!("{:.0}", value),
+            push_text(
+                &mut ops,
+                &format!("{:.0}", value),
                 7.0,
                 Mm((chart_left - 12.0) as f32),
                 Mm((y_pos - 1.0) as f32),
@@ -734,8 +790,9 @@ impl UltraLogApp {
             let t = i as f64 / 4.0;
             let value = x_min + t * x_range;
             let x_pos = chart_left + t * chart_width;
-            current_layer.use_text(
-                format!("{:.0}", value),
+            push_text(
+                &mut ops,
+                &format!("{:.0}", value),
                 7.0,
                 Mm((x_pos - 4.0) as f32),
                 Mm((chart_bottom - 8.0) as f32),
@@ -750,18 +807,21 @@ impl UltraLogApp {
         let legend_height: f64 = chart_height;
 
         // Draw legend title
-        current_layer.set_fill_color(Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)));
+        ops.push(Op::SetFillColor {
+            col: Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)),
+        });
         let legend_title = if mode == HistogramMode::HitCount {
             "Hits"
         } else {
             "Value"
         };
-        current_layer.use_text(
+        push_text(
+            &mut ops,
             legend_title,
             9.0,
             Mm(legend_left as f32),
             Mm((legend_bottom + legend_height + 5.0) as f32),
-            &font,
+            &font_bold,
         );
 
         // Draw color gradient bar
@@ -771,36 +831,22 @@ impl UltraLogApp {
         for i in 0..gradient_steps {
             let t = i as f64 / gradient_steps as f64;
             let color = Self::get_pdf_heat_color(t);
-            current_layer.set_fill_color(color);
+            ops.push(Op::SetFillColor { col: color });
 
             let y = legend_bottom + i as f64 * step_height;
-            let rect = printpdf::Polygon {
-                rings: vec![vec![
-                    (Point::new(Mm(legend_left as f32), Mm(y as f32)), false),
-                    (
-                        Point::new(Mm((legend_left + legend_width) as f32), Mm(y as f32)),
-                        false,
-                    ),
-                    (
-                        Point::new(
-                            Mm((legend_left + legend_width) as f32),
-                            Mm((y + step_height + 0.5) as f32),
-                        ),
-                        false,
-                    ),
-                    (
-                        Point::new(Mm(legend_left as f32), Mm((y + step_height + 0.5) as f32)),
-                        false,
-                    ),
-                ]],
-                mode: PaintMode::Fill,
-                winding_order: WindingOrder::NonZero,
-            };
-            current_layer.add_polygon(rect);
+            push_filled_rect(
+                &mut ops,
+                legend_left as f32,
+                y as f32,
+                legend_width as f32,
+                (step_height + 0.5) as f32,
+            );
         }
 
         // Draw legend min/max labels
-        current_layer.set_fill_color(Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)));
+        ops.push(Op::SetFillColor {
+            col: Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)),
+        });
         let min_label = if mode == HistogramMode::HitCount {
             "0".to_string()
         } else {
@@ -812,14 +858,16 @@ impl UltraLogApp {
             format!("{:.1}", max_value)
         };
 
-        current_layer.use_text(
+        push_text(
+            &mut ops,
             &min_label,
             7.0,
             Mm((legend_left + legend_width + 3.0) as f32),
             Mm(legend_bottom as f32),
             &font_regular,
         );
-        current_layer.use_text(
+        push_text(
+            &mut ops,
             &max_label,
             7.0,
             Mm((legend_left + legend_width + 3.0) as f32),
@@ -829,18 +877,22 @@ impl UltraLogApp {
 
         // Draw statistics
         let stats_y = legend_bottom - 15.0;
-        current_layer.use_text(
-            format!("Total Points: {}", x_data.len()),
+        push_text(
+            &mut ops,
+            &format!("Total Points: {}", x_data.len()),
             8.0,
             Mm(legend_left as f32),
             Mm(stats_y as f32),
             &font_regular,
         );
 
-        // Save PDF
-        let file = File::create(path)?;
-        let mut writer = BufWriter::new(file);
-        doc.save(&mut writer)?;
+        // Build page and save PDF
+        let page = PdfPage::new(Mm(297.0), Mm(210.0), ops);
+        let mut doc = PdfDocument::new("UltraLog Histogram Export");
+        doc.with_pages(vec![page]);
+        let mut warnings = Vec::new();
+        let pdf_bytes = doc.save(&PdfSaveOptions::default(), &mut warnings);
+        std::fs::write(path, pdf_bytes)?;
 
         Ok(())
     }
@@ -1287,33 +1339,33 @@ impl UltraLogApp {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let tab_idx = self.active_tab.ok_or("No active tab")?;
 
-        // Create PDF document (A4 landscape)
-        let (doc, page1, layer1) = PdfDocument::new(
-            "UltraLog Scatter Plot Export",
-            Mm(297.0),
-            Mm(210.0),
-            "Scatter Plot",
-        );
+        let font_bold = PdfFontHandle::Builtin(BuiltinFont::HelveticaBold);
+        let font_regular = PdfFontHandle::Builtin(BuiltinFont::Helvetica);
 
-        let current_layer = doc.get_page(page1).get_layer(layer1);
+        let mut ops: Vec<Op> = Vec::new();
 
         // Draw title
-        let font = doc.add_builtin_font(BuiltinFont::HelveticaBold)?;
-        let font_regular = doc.add_builtin_font(BuiltinFont::Helvetica)?;
-
-        current_layer.use_text(
+        push_text(
+            &mut ops,
             "UltraLog Scatter Plot Export",
             16.0,
             Mm(20.0),
             Mm(200.0),
-            &font,
+            &font_bold,
         );
 
         // Subtitle with file info
         if let Some(file_idx) = self.selected_file {
             if file_idx < self.files.len() {
                 let file = &self.files[file_idx];
-                current_layer.use_text(&file.name, 10.0, Mm(20.0), Mm(192.0), &font_regular);
+                push_text(
+                    &mut ops,
+                    &file.name,
+                    10.0,
+                    Mm(20.0),
+                    Mm(192.0),
+                    &font_regular,
+                );
             }
         }
 
@@ -1329,7 +1381,7 @@ impl UltraLogApp {
         let left_config = &self.tabs[tab_idx].scatter_plot_state.left;
         let left_rect = (margin, plot_bottom, plot_width, plot_height);
         self.render_scatter_plot_to_pdf_region(
-            &current_layer,
+            &mut ops,
             &font_regular,
             left_config,
             left_rect,
@@ -1345,17 +1397,20 @@ impl UltraLogApp {
             plot_height,
         );
         self.render_scatter_plot_to_pdf_region(
-            &current_layer,
+            &mut ops,
             &font_regular,
             right_config,
             right_rect,
             tab_idx,
         )?;
 
-        // Save PDF
-        let file = File::create(path)?;
-        let mut writer = BufWriter::new(file);
-        doc.save(&mut writer)?;
+        // Build page and save PDF
+        let page = PdfPage::new(Mm(297.0), Mm(210.0), ops);
+        let mut doc = PdfDocument::new("UltraLog Scatter Plot Export");
+        doc.with_pages(vec![page]);
+        let mut warnings = Vec::new();
+        let pdf_bytes = doc.save(&PdfSaveOptions::default(), &mut warnings);
+        std::fs::write(path, pdf_bytes)?;
 
         Ok(())
     }
@@ -1363,8 +1418,8 @@ impl UltraLogApp {
     /// Helper to render a single scatter plot to a PDF region
     fn render_scatter_plot_to_pdf_region(
         &self,
-        layer: &printpdf::PdfLayerReference,
-        font: &printpdf::IndirectFontRef,
+        ops: &mut Vec<Op>,
+        font: &PdfFontHandle,
         config: &crate::state::ScatterPlotConfig,
         rect: (f64, f64, f64, f64),
         tab_idx: usize,
@@ -1380,7 +1435,8 @@ impl UltraLogApp {
             (Some(x), Some(y)) => (x, y),
             _ => {
                 // Draw placeholder text
-                layer.use_text(
+                push_text(
+                    ops,
                     "No axes selected",
                     10.0,
                     Mm((left + width / 2.0 - 15.0) as f32),
@@ -1407,8 +1463,9 @@ impl UltraLogApp {
         let y_name = self.get_channel_name(file_idx, y_idx);
 
         // Draw axis labels
-        layer.use_text(
-            format!("{} vs {}", y_name, x_name),
+        push_text(
+            ops,
+            &format!("{} vs {}", y_name, x_name),
             9.0,
             Mm(left as f32),
             Mm((top + 3.0) as f32),
@@ -1465,65 +1522,49 @@ impl UltraLogApp {
                     };
                     let color = Self::get_pdf_heat_color(normalized);
 
-                    layer.set_fill_color(color);
+                    ops.push(Op::SetFillColor { col: color });
 
                     let cell_x = left + x_bin as f64 * cell_width;
                     let cell_y = bottom + y_bin as f64 * cell_height;
 
-                    let rect = printpdf::Polygon {
-                        rings: vec![vec![
-                            (Point::new(Mm(cell_x as f32), Mm(cell_y as f32)), false),
-                            (
-                                Point::new(Mm((cell_x + cell_width) as f32), Mm(cell_y as f32)),
-                                false,
-                            ),
-                            (
-                                Point::new(
-                                    Mm((cell_x + cell_width) as f32),
-                                    Mm((cell_y + cell_height) as f32),
-                                ),
-                                false,
-                            ),
-                            (
-                                Point::new(Mm(cell_x as f32), Mm((cell_y + cell_height) as f32)),
-                                false,
-                            ),
-                        ]],
-                        mode: PaintMode::Fill,
-                        winding_order: WindingOrder::NonZero,
-                    };
-                    layer.add_polygon(rect);
+                    push_filled_rect(
+                        ops,
+                        cell_x as f32,
+                        cell_y as f32,
+                        cell_width as f32,
+                        cell_height as f32,
+                    );
                 }
             }
         }
 
         // Draw border
         let border_color = Color::Rgb(Rgb::new(0.5, 0.5, 0.5, None));
-        layer.set_outline_color(border_color);
-        layer.set_outline_thickness(0.5);
+        ops.push(Op::SetOutlineColor { col: border_color });
+        ops.push(Op::SetOutlineThickness { pt: Pt(0.5) });
 
-        let border = Line {
-            points: vec![
-                (Point::new(Mm(left as f32), Mm(bottom as f32)), false),
-                (Point::new(Mm(right as f32), Mm(bottom as f32)), false),
-                (Point::new(Mm(right as f32), Mm(top as f32)), false),
-                (Point::new(Mm(left as f32), Mm(top as f32)), false),
+        push_closed_line(
+            ops,
+            &[
+                (left as f32, bottom as f32),
+                (right as f32, bottom as f32),
+                (right as f32, top as f32),
+                (left as f32, top as f32),
             ],
-            is_closed: true,
-        };
-        layer.add_line(border);
+        );
 
         // Draw axis labels
         let label_color = Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None));
-        layer.set_fill_color(label_color);
+        ops.push(Op::SetFillColor { col: label_color });
 
         // X axis labels
         for i in 0..=4 {
             let t = i as f64 / 4.0;
             let value = x_min + t * x_range;
             let x_pos = left + t * width;
-            layer.use_text(
-                format!("{:.0}", value),
+            push_text(
+                ops,
+                &format!("{:.0}", value),
                 6.0,
                 Mm((x_pos - 3.0) as f32),
                 Mm((bottom - 5.0) as f32),
@@ -1536,8 +1577,9 @@ impl UltraLogApp {
             let t = i as f64 / 4.0;
             let value = y_min + t * y_range;
             let y_pos = bottom + t * height;
-            layer.use_text(
-                format!("{:.0}", value),
+            push_text(
+                ops,
+                &format!("{:.0}", value),
                 6.0,
                 Mm((left - 10.0) as f32),
                 Mm((y_pos - 1.0) as f32),
