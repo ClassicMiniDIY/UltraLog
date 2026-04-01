@@ -336,9 +336,9 @@ impl UltraLogApp {
         };
 
         let plot_areas = self.tabs[tab_idx].plot_areas.clone();
-        let selected_channels = self.tabs[tab_idx].selected_channels.clone();
+        let num_selected = self.tabs[tab_idx].selected_channels.len();
 
-        if selected_channels.is_empty() {
+        if num_selected == 0 {
             ui.centered_and_justified(|ui| {
                 ui.label(
                     egui::RichText::new(t!("chart.select_channels"))
@@ -385,7 +385,7 @@ impl UltraLogApp {
                     let plot_channels: Vec<SelectedChannel> = plot_area
                         .channel_indices
                         .iter()
-                        .filter_map(|&idx| selected_channels.get(idx).cloned())
+                        .filter_map(|&idx| self.tabs[tab_idx].selected_channels.get(idx).cloned())
                         .collect();
 
                     if plot_channels.is_empty() {

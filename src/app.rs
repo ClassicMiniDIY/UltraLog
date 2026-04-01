@@ -984,33 +984,8 @@ impl UltraLogApp {
 
     /// Remove a channel from the active tab's selection
     pub fn remove_channel(&mut self, index: usize) {
-        let Some(tab_idx) = self.active_tab else {
-            return;
-        };
-
-        // Check if stacked mode is enabled
-        if self.tabs[tab_idx].stacked_mode {
-            // Use the stacked mode removal method
-            self.remove_channel_from_plot(index);
-        } else {
-            // Single-plot mode: remove from selected_channels and plot_areas
-            if index < self.tabs[tab_idx].selected_channels.len() {
-                self.tabs[tab_idx].selected_channels.remove(index);
-
-                // Also remove from plot area indices
-                if !self.tabs[tab_idx].plot_areas.is_empty() {
-                    self.tabs[tab_idx].plot_areas[0]
-                        .channel_indices
-                        .retain(|&idx| idx != index);
-                    // Shift down indices
-                    for idx in &mut self.tabs[tab_idx].plot_areas[0].channel_indices {
-                        if *idx > index {
-                            *idx -= 1;
-                        }
-                    }
-                }
-            }
-        }
+        // remove_channel_from_plot handles both stacked and single-plot modes
+        self.remove_channel_from_plot(index);
     }
 
     /// Get the selected channels for the active tab
