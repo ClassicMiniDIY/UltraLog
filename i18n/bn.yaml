@@ -76,6 +76,7 @@ settings:
   volume: "আয়তন:"
   flow_rate: "প্রবাহ হার:"
   acceleration: "ত্বরণ:"
+  afr_lambda: "AFR / Lambda:"
   updates: "আপডেট"
   check_on_startup: "স্টার্টআপে চেক করুন"
   auto_check_desc: "স্বয়ংক্রিয়ভাবে নতুন সংস্করণ চেক করুন"

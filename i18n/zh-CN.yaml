@@ -76,6 +76,7 @@ settings:
   volume: "容积:"
   flow_rate: "流量:"
   acceleration: "加速度:"
+  afr_lambda: "AFR / Lambda:"
   updates: "更新"
   check_on_startup: "启动时检查"
   auto_check_desc: "自动检查新版本"

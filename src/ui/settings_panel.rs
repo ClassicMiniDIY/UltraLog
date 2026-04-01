@@ -10,8 +10,8 @@ use crate::app::UltraLogApp;
 use crate::i18n::Language;
 use crate::state::FontScale;
 use crate::units::{
-    AccelerationUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit, SpeedUnit,
-    TemperatureUnit, VolumeUnit,
+    AccelerationUnit, AfrLambdaUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit,
+    SpeedUnit, TemperatureUnit, VolumeUnit,
 };
 use crate::updater::UpdateState;
 
@@ -426,6 +426,25 @@ impl UltraLogApp {
                                 &mut self.unit_preferences.acceleration,
                                 AccelerationUnit::G,
                                 "g",
+                            );
+                        });
+                    ui.end_row();
+
+                    // AFR/Lambda
+                    ui.label(egui::RichText::new(t!("settings.afr_lambda")).size(font_12));
+                    egui::ComboBox::from_id_salt("afr_lambda_unit")
+                        .selected_text(self.unit_preferences.afr_lambda.symbol())
+                        .width(80.0)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut self.unit_preferences.afr_lambda,
+                                AfrLambdaUnit::AFR,
+                                "AFR",
+                            );
+                            ui.selectable_value(
+                                &mut self.unit_preferences.afr_lambda,
+                                AfrLambdaUnit::Lambda,
+                                "λ",
                             );
                         });
                     ui.end_row();

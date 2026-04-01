@@ -171,7 +171,7 @@ impl Default for UltraLogApp {
             cursor_time: None,
             time_range: None,
             cursor_record: None,
-            cursor_tracking: false,
+            cursor_tracking: true,
             view_window_seconds: 30.0, // Default 30 second window
             is_playing: false,
             last_frame_time: None,

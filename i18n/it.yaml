@@ -76,6 +76,7 @@ settings:
   volume: "Volume:"
   flow_rate: "Portata:"
   acceleration: "Accelerazione:"
+  afr_lambda: "AFR / Lambda:"
   updates: "Aggiornamenti"
   check_on_startup: "Verifica all'avvio"
   auto_check_desc: "Verifica automaticamente la disponibilita' di nuove versioni"
