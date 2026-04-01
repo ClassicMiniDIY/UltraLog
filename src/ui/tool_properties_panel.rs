@@ -191,7 +191,7 @@ impl UltraLogApp {
                             egui::TextEdit::singleline(&mut search_text)
                                 .hint_text(t!("channels.search_hint"))
                                 .desired_width(f32::INFINITY)
-                                .frame(false),
+                                .frame(egui::Frame::NONE),
                         );
                         search_changed = response.changed();
                     });

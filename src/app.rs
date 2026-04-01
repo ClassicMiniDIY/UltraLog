@@ -1931,7 +1931,7 @@ impl UltraLogApp {
 // ============================================================================
 
 impl eframe::App for UltraLogApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Exit if update installation requires it (updater script is waiting)
         if self.should_exit_for_update {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -1981,7 +1981,9 @@ impl eframe::App for UltraLogApp {
         self.render_computed_channels_manager(ctx);
         self.render_formula_editor(ctx);
         self.render_analysis_panel(ctx);
+    }
 
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Menu bar at top with padding
         let menu_frame = egui::Frame::NONE.inner_margin(egui::Margin {
             left: 10,
@@ -1990,9 +1992,9 @@ impl eframe::App for UltraLogApp {
             bottom: 8,
         });
 
-        egui::TopBottomPanel::top("menu_bar")
+        egui::Panel::top("menu_bar")
             .frame(menu_frame)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 self.render_menu_bar(ui);
             });
 
@@ -2006,9 +2008,9 @@ impl eframe::App for UltraLogApp {
                 bottom: 8,
             });
 
-        egui::TopBottomPanel::top("tool_switcher")
+        egui::Panel::top("tool_switcher")
             .frame(tool_switcher_frame)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 self.render_tool_switcher(ui);
             });
 
@@ -2024,21 +2026,21 @@ impl eframe::App for UltraLogApp {
             .fill(activity_bar_bg)
             .inner_margin(egui::Margin::symmetric(4, 8));
 
-        egui::SidePanel::left("activity_bar")
-            .exact_width(crate::ui::activity_bar::ACTIVITY_BAR_WIDTH)
+        egui::Panel::left("activity_bar")
+            .exact_size(crate::ui::activity_bar::ACTIVITY_BAR_WIDTH)
             .resizable(false)
             .frame(activity_bar_frame)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 self.render_activity_bar(ui);
             });
 
         // Side panel (context-sensitive based on activity bar selection)
-        egui::SidePanel::left("side_panel")
-            .default_width(crate::ui::side_panel::SIDE_PANEL_WIDTH)
-            .min_width(crate::ui::side_panel::SIDE_PANEL_MIN_WIDTH)
+        egui::Panel::left("side_panel")
+            .default_size(crate::ui::side_panel::SIDE_PANEL_WIDTH)
+            .min_size(crate::ui::side_panel::SIDE_PANEL_MIN_WIDTH)
             .resizable(true)
             .frame(panel_frame)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 self.render_side_panel(ui);
             });
 
@@ -2047,10 +2049,10 @@ impl eframe::App for UltraLogApp {
             self.get_time_range().is_some() && self.active_tool != ActiveTool::ScatterPlot;
 
         if show_timeline {
-            egui::TopBottomPanel::bottom("timeline_panel")
+            egui::Panel::bottom("timeline_panel")
                 .resizable(false)
-                .min_height(60.0)
-                .show(ctx, |ui| {
+                .min_size(60.0)
+                .show_inside(ui, |ui| {
                     ui.add_space(5.0);
                     self.render_record_indicator(ui);
                     ui.separator();
@@ -2060,7 +2062,7 @@ impl eframe::App for UltraLogApp {
         }
 
         // Main content area - render based on active tool
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             match self.active_tool {
                 ActiveTool::LogViewer => {
                     // Tab bar at top (Chrome-style tabs for log files)
