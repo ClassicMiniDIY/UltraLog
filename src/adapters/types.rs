@@ -158,6 +158,7 @@ pub enum ChannelCategory {
     Timing,
     Traction,
     DriverInput,
+    Diagnostics,
     Custom,
 }
 
@@ -182,6 +183,7 @@ impl ChannelCategory {
             Self::Timing => "Timing",
             Self::Traction => "Traction",
             Self::DriverInput => "Driver Input",
+            Self::Diagnostics => "Diagnostics",
             Self::Custom => "Custom",
         }
     }
