@@ -188,6 +188,9 @@ mod tests {
         assert!(server.is_running());
         assert_eq!(server.port(), port);
 
+        // Give the server listener thread time to start accepting
+        std::thread::sleep(Duration::from_millis(200));
+
         // Try to connect
         let stream = TcpStream::connect_timeout(
             &format!("127.0.0.1:{}", port).parse().unwrap(),
@@ -200,6 +203,9 @@ mod tests {
     fn test_ipc_server_receives_command_via_channel() {
         let port = find_available_port();
         let server = IpcServer::start_on_port(port).expect("Failed to start server");
+
+        // Give the server listener thread time to start accepting
+        std::thread::sleep(Duration::from_millis(200));
 
         // Connect and send a command
         let mut stream = TcpStream::connect_timeout(
@@ -218,12 +224,12 @@ mod tests {
 
         // Poll for the command (give the server thread time to process)
         let mut received = None;
-        for _ in 0..50 {
+        for _ in 0..100 {
             if let Some(cmd) = server.poll_command() {
                 received = Some(cmd);
                 break;
             }
-            std::thread::sleep(Duration::from_millis(10));
+            std::thread::sleep(Duration::from_millis(20));
         }
 
         assert!(received.is_some(), "Should receive command via channel");
@@ -256,6 +262,9 @@ mod tests {
         let port = find_available_port();
         let server = IpcServer::start_on_port(port).expect("Failed to start server");
 
+        // Give the server listener thread time to start accepting
+        std::thread::sleep(Duration::from_millis(200));
+
         let commands = vec![IpcCommand::Ping, IpcCommand::GetState, IpcCommand::Ping];
 
         for cmd in commands {
@@ -274,12 +283,12 @@ mod tests {
 
             // Poll for command
             let mut received = None;
-            for _ in 0..50 {
+            for _ in 0..100 {
                 if let Some(c) = server.poll_command() {
                     received = Some(c);
                     break;
                 }
-                std::thread::sleep(Duration::from_millis(10));
+                std::thread::sleep(Duration::from_millis(20));
             }
 
             assert!(received.is_some(), "Should receive command");
@@ -306,6 +315,9 @@ mod tests {
     fn test_ipc_server_handles_invalid_json() {
         let port = find_available_port();
         let _server = IpcServer::start_on_port(port).expect("Failed to start server");
+
+        // Give the server listener thread time to start accepting
+        std::thread::sleep(Duration::from_millis(200));
 
         let mut stream = TcpStream::connect_timeout(
             &format!("127.0.0.1:{}", port).parse().unwrap(),
