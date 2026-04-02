@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-2.5.0-green.svg)
+![Version](https://img.shields.io/badge/version-2.8.0-green.svg)
 
 ---
 
@@ -33,6 +33,7 @@ UltraLog is an **independent, open-source** desktop application designed for aut
 - **Min/Max legend** - Peak values displayed for each channel at a glance
 - **Real-time cursor values** - Legend shows live values at cursor position with proper units
 - **High-performance rendering** - LTTB (Largest Triangle Three Buckets) algorithm reduces millions of points to 2,000 while preserving visual fidelity
+- **Stacked plot areas** - Split the chart into up to 10 independent vertically-stacked panels, each with its own Y-axis and channel set — ideal for comparing channels with wildly different scales
 
 ### Timeline and Playback
 - **Interactive timeline** - Click anywhere on the chart or use the scrubber to navigate
@@ -56,6 +57,7 @@ Configurable units for 8 measurement categories:
 - **Volume** - Liters, Gallons
 - **Flow Rate** - L/min, GPM
 - **Acceleration** - m/s², g
+- **AFR/Lambda** - Air-Fuel Ratio, Lambda
 
 ### Export Options
 - **PNG Export** - Save chart views as PNG images
@@ -76,6 +78,7 @@ Configurable units for 8 measurement categories:
 ### Additional Tools
 - **Scatter Plot** - XY scatter visualization for channel correlation analysis
 - **Histogram** - 2D heatmap visualization with configurable grid sizes (10x10 to 25x25) for analyzing channel distributions
+- **MCP Server** - Built-in Model Context Protocol server lets Claude Desktop (or any MCP client) control UltraLog — load files, select channels, get stats, create computed channels, and run analysis via `http://localhost:52453/mcp`
 - **Analysis Tools** - Built-in signal processing and statistics:
   - **Filters** - Moving average, Kalman filter, and other signal processing tools
   - **Statistics** - Min/max, percentiles, standard deviation calculations
@@ -141,6 +144,12 @@ Configurable units for 8 measurement categories:
 - **Features:** Automatic channel and unit extraction, boolean value parsing (MIL lamp ON/OFF), anomalous first-row timestamp handling
 - **Supported devices:** MegaSquirt MS1, MS2, MS3, MS3Pro, Honda Tuning Studio, and any TunerStudio-compatible ECU
 - **Supported data:** RPM, MAP, TPS, injector duration/duty, ignition timing, ECT, IAT, AFR, battery voltage, boost, VSS, gear, and all logged channels
+
+### BlueDriver OBD-II - Full Support
+
+- **File type:** CSV exports from BlueDriver Bluetooth OBD-II scanner app
+- **Features:** Automatic channel and unit detection from BlueDriver live data exports
+- **Supported data:** All OBD-II PIDs logged by BlueDriver including RPM, speed, coolant temp, MAF, fuel trims, O2 sensors, and more
 
 ### Coming Soon
 - AEM
@@ -519,11 +528,11 @@ Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
 | Component        | Technology                                                                                                     |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
 | Language         | Rust (Edition 2021)                                                                                            |
-| GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.29 |
-| Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.29                                   |
-| File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.15                                                                  |
+| GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.34 |
+| Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.35                                   |
+| File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.17                                                                  |
 | Image Processing | [image](https://github.com/image-rs/image) 0.25                                                                |
-| PDF Generation   | [printpdf](https://github.com/fschutt/printpdf) 0.7                                                            |
+| PDF Generation   | [printpdf](https://github.com/fschutt/printpdf) 0.9                                                            |
 | Serialization    | serde / serde_json 1.0                                                                                         |
 | Error Handling   | thiserror 2.0 / anyhow 1.0                                                                                     |
 | Logging          | tracing / tracing-subscriber 0.3                                                                               |
@@ -571,12 +580,20 @@ UltraLog/
 │   │   ├── speeduino.rs   # Speeduino MLG parser
 │   │   ├── aim.rs         # AiM XRK/DRK parser
 │   │   ├── link.rs        # Link ECU LLG parser
-│   │   └── emerald.rs     # Emerald ECU parser
+│   │   ├── emerald.rs     # Emerald ECU parser
+│   │   └── bluedriver.rs  # BlueDriver OBD-II parser
 │   ├── analysis/          # Analysis tools
 │   │   ├── filters.rs     # Signal processing filters
 │   │   ├── statistics.rs  # Statistical analysis
 │   │   ├── afr.rs         # AFR analysis tools
 │   │   └── derived.rs     # Derived channel calculations
+│   ├── ipc/               # MCP inter-process communication
+│   │   ├── commands.rs    # IPC command/response types
+│   │   ├── handler.rs     # Command handler implementation
+│   │   └── server.rs      # TCP server for MCP bridge
+│   ├── mcp/               # Model Context Protocol server
+│   │   ├── server.rs      # MCP HTTP server (23 tools)
+│   │   └── client.rs      # GUI client for IPC
 │   └── ui/                # User interface components
 │       ├── activity_bar.rs        # VS Code-style activity bar
 │       ├── files_panel.rs         # Files panel
@@ -648,6 +665,7 @@ The following trademarks are the property of their respective owners:
 - **RomRaider** is a trademark of the RomRaider project
 - **Subaru** is a trademark of Subaru Corporation
 - **MegaSquirt** is a trademark of Bowling and Grippo
+- **BlueDriver** is a trademark of Lemur Vehicle Monitors
 - **AEM** is a trademark of AEM Performance Electronics
 - **MoTeC** is a trademark of MoTeC Pty Ltd
 - **MaxxECU** is a trademark of MaxxECU

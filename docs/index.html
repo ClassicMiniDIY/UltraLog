@@ -9,9 +9,9 @@
     <title>UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More</title>
     <meta name="title" content="UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More">
     <meta name="description"
-        content="UltraLog is a free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, and Emerald ECUs. Features include histogram heatmaps, scatter plots, computed channels, and professional analysis tools. Download for Windows, macOS, and Linux.">
+        content="UltraLog is a free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, BlueDriver, and MegaSquirt ECUs. Features include stacked plot areas, histogram heatmaps, scatter plots, computed channels, MCP server for AI integration, and professional analysis tools. Download for Windows, macOS, and Linux.">
     <meta name="keywords"
-        content="ECU log viewer, datalog analyzer, Haltech NSP, ECUMaster EMU Pro, RomRaider, Speeduino MLG, rusEFI, AiM XRK DRK, Link ECU LLG, Emerald K6 M3D, automotive tuning software, engine tuning, AFR analysis, boost log, free tuning software, open source ECU, car data logger, dyno analysis, motorsport data, fuel map analysis, ignition timing, lambda analysis, volumetric efficiency, injector duty cycle, Butterworth filter, scatter plot, histogram heatmap, computed channels, Rust application">
+        content="ECU log viewer, datalog analyzer, Haltech NSP, ECUMaster EMU Pro, RomRaider, Speeduino MLG, rusEFI, AiM XRK DRK, Link ECU LLG, Emerald K6 M3D, automotive tuning software, engine tuning, AFR analysis, boost log, free tuning software, open source ECU, car data logger, dyno analysis, motorsport data, fuel map analysis, ignition timing, lambda analysis, volumetric efficiency, injector duty cycle, Butterworth filter, scatter plot, histogram heatmap, computed channels, Rust application, stacked plots, MCP server, Model Context Protocol, Claude Desktop, BlueDriver OBD-II, AI log analysis">
     <meta name="author" content="Cole Gentry">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
@@ -1427,7 +1427,7 @@
                 <div class="hero-badges">
                     <span class="version-badge">
                         <span class="new-tag">New</span>
-                        v2.5.0
+                        v2.8.0
                     </span>
                     <a href="https://github.com/ClassicMiniDIY/UltraLog" class="opensource-badge" target="_blank" rel="noopener noreferrer">
                         <i class="fa-brands fa-github" aria-hidden="true"></i> Open Source
@@ -1520,62 +1520,56 @@
         <!-- What's New -->
         <section class="whats-new-section">
             <h2>What's New</h2>
-            <p class="section-subtitle">A major release with powerful new analysis capabilities and a redesigned
-                interface</p>
+            <p class="section-subtitle">Stacked plots, AI-powered analysis via MCP, BlueDriver OBD-II support, and more</p>
             <div class="new-features-grid">
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon cyan"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></div>
+                        <h3>Stacked Plot Areas</h3>
+                    </div>
+                    <p>Split your chart into up to 10 independent panels — each with its own Y-axis, channels, and scale. Resize, collapse, and rearrange with a shared synchronized timeline.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon magenta"><i class="fa-solid fa-robot" aria-hidden="true"></i></div>
+                        <h3>MCP Server for AI</h3>
+                    </div>
+                    <p>Built-in Model Context Protocol server lets Claude Desktop control UltraLog — load files, select channels, compute formulas, and analyze data with 23 AI tools.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon green"><i class="fa-solid fa-car" aria-hidden="true"></i></div>
+                        <h3>BlueDriver OBD-II</h3>
+                    </div>
+                    <p>New parser for BlueDriver Bluetooth OBD-II scanner CSV exports — analyze standard OBD-II PIDs from any compliant vehicle.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon orange"><i class="fa-solid fa-gas-pump" aria-hidden="true"></i></div>
+                        <h3>AFR/Lambda Units</h3>
+                    </div>
+                    <p>New unit preference for Air-Fuel Ratio and Lambda display — switch between AFR and Lambda across all mixture channels.</p>
+                </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
                         <div class="feature-icon cyan"><i class="fa-solid fa-microscope" aria-hidden="true"></i></div>
                         <h3>Analysis Framework</h3>
                     </div>
-                    <p>14 professional analysis algorithms including AFR drift detection, Butterworth filters,
-                        volumetric efficiency, and statistical correlation.</p>
+                    <p>14 professional analysis algorithms including AFR drift detection, Butterworth filters, volumetric efficiency, and statistical correlation.</p>
                 </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
-                        <div class="feature-icon magenta"><i class="fa-solid fa-table-cells" aria-hidden="true"></i></div>
-                        <h3>2D Histogram View</h3>
-                    </div>
-                    <p>Visualize channel relationships as interactive heatmaps with configurable grid sizes and
-                        real-time cursor tracking.</p>
-                </div>
-                <div class="new-feature-card">
-                    <div class="feature-header">
-                        <div class="feature-icon green"><i class="fa-solid fa-text-height" aria-hidden="true"></i></div>
-                        <h3>Font Scaling</h3>
-                    </div>
-                    <p>Accessibility-focused font sizing with 4 scale options (S/M/L/XL) for improved readability on any
-                        display.</p>
-                </div>
-                <div class="new-feature-card">
-                    <div class="feature-header">
-                        <div class="feature-icon orange"><i class="fa-solid fa-car" aria-hidden="true"></i></div>
-                        <h3>Emerald ECU Support</h3>
-                    </div>
-                    <p>Full support for Emerald K6/M3D ECU binary log files (.lg1/.lg2) with 40+ channel types.</p>
-                </div>
-                <div class="new-feature-card">
-                    <div class="feature-header">
-                        <div class="feature-icon cyan"><i class="fa-solid fa-palette" aria-hidden="true"></i></div>
-                        <h3>Redesigned UI</h3>
-                    </div>
-                    <p>VS Code-style activity bar navigation with dedicated panels for files, channels, tools, and
-                        settings.</p>
-                </div>
-                <div class="new-feature-card">
-                    <div class="feature-header">
-                        <div class="feature-icon magenta"><i class="fa-solid fa-play-circle" aria-hidden="true"></i></div>
-                        <h3>Run & Chart</h3>
-                    </div>
-                    <p>One-click workflow to run analysis and instantly add results to your chart for immediate
-                        visualization.</p>
-                </div>
-                <div class="new-feature-card">
-                    <div class="feature-header">
-                        <div class="feature-icon green"><i class="fa-solid fa-language" aria-hidden="true"></i></div>
-                        <h3>Multilingual Support</h3>
+                        <div class="feature-icon magenta"><i class="fa-solid fa-language" aria-hidden="true"></i></div>
+                        <h3>15 Languages</h3>
                     </div>
                     <p>Full internationalization with 15 languages including English, Spanish, German, French, Chinese, Japanese, and more.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon green"><i class="fa-solid fa-arrows-up-down" aria-hidden="true"></i></div>
+                        <h3>Upgraded Engine</h3>
+                    </div>
+                    <p>Rust 1.94.1, egui 0.34, rewritten PDF export, and updated dependencies for better performance and stability.</p>
                 </div>
             </div>
         </section>
@@ -1632,6 +1626,12 @@
             <h2>Core Features</h2>
             <p class="section-subtitle">Everything you need for professional log analysis</p>
             <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></div>
+                    <h3>Stacked Plots</h3>
+                    <p>Split your chart into independent panels with separate Y-axes. Compare RPM and Lambda side-by-side without scale conflicts.</p>
+                </div>
+
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-chart-line" aria-hidden="true"></i></div>
                     <h3>Interactive Charts</h3>
@@ -1712,7 +1712,7 @@
         <!-- ECU Support -->
         <section class="ecu-section">
             <h2>Supported ECUs</h2>
-            <p class="section-subtitle">UltraLog supports 9 ECU manufacturers with both CSV and binary formats</p>
+            <p class="section-subtitle">UltraLog supports 10 ECU manufacturers with both CSV and binary formats</p>
             <div class="ecu-grid">
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Haltech</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> ECUMaster EMU Pro</span>
@@ -1722,7 +1722,8 @@
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> AiM (XRK/DRK)</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Link ECU (LLG)</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Emerald K6/M3D</span>
-                <span class="ecu-badge new"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> MegaSquirt</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> MegaSquirt</span>
+                <span class="ecu-badge new"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> BlueDriver OBD-II</span>
             </div>
         </section>
 
