@@ -39,6 +39,8 @@ pub mod app;
 pub mod computed;
 pub mod expression;
 pub mod i18n;
+pub mod ipc;
+pub mod mcp;
 pub mod normalize;
 pub mod parsers;
 pub mod settings;
