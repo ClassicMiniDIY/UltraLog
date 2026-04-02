@@ -12,6 +12,7 @@
 pub mod computed_channels_tests;
 pub mod expression_tests;
 pub mod i18n_tests;
+pub mod mcp_tests;
 pub mod normalize_tests;
 pub mod settings_tests;
 pub mod state_tests;
