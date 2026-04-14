@@ -165,7 +165,11 @@ impl Link {
     /// - 200 bytes past the start of the ID is a UTF-16 LE unit string.
     ///
     /// Returns `None` if no plausible channel header is found.
-    fn parse_ds3_channel(data: &[u8], block_offset: usize, block_size: usize) -> Option<LinkChannel> {
+    fn parse_ds3_channel(
+        data: &[u8],
+        block_offset: usize,
+        block_size: usize,
+    ) -> Option<LinkChannel> {
         let content_start = block_offset + 8;
         let content_end = block_offset + block_size;
         // Scan for: low-id u32 (two high bytes zero, low two nonzero) followed by
@@ -181,9 +185,7 @@ impl Link {
             let b3 = data[p + 3];
             let nb = data[p + 4];
             let nb1 = data[p + 5];
-            if b2 == 0 && b3 == 0 && (b0 | b1) != 0
-                && (0x20..=0x7e).contains(&nb) && nb1 == 0
-            {
+            if b2 == 0 && b3 == 0 && (b0 | b1) != 0 && (0x20..=0x7e).contains(&nb) && nb1 == 0 {
                 let channel_id = Self::read_u32(data, p);
                 // Sanity-check: channel IDs are small positive integers
                 if !(1..10_000).contains(&channel_id) {
@@ -317,7 +319,10 @@ impl Link {
                     0.0
                 } else {
                     match points.binary_search_by(|probe| {
-                        probe.0.partial_cmp(&time).unwrap_or(std::cmp::Ordering::Equal)
+                        probe
+                            .0
+                            .partial_cmp(&time)
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     }) {
                         Ok(idx) => points[idx].1,
                         Err(idx) => {

@@ -27,7 +27,11 @@ fn assert_plausible_link_timing(log: &ultralog::parsers::types::Log) {
     let times = log.get_times_as_f64();
     assert!(!times.is_empty(), "Log should have timestamps");
     let last = *times.last().unwrap();
-    assert!(last.is_finite(), "Last timestamp must be finite, got {}", last);
+    assert!(
+        last.is_finite(),
+        "Last timestamp must be finite, got {}",
+        last
+    );
     assert!(
         last < 3600.0,
         "Last timestamp {}s implausibly large (>1 hour); parser likely misreading bytes as f32",
