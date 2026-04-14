@@ -223,15 +223,18 @@ impl Link {
             return Err("Missing or malformed lf3 header block".into());
         }
 
-        // Metadata. Keys inside ld2 are at known offsets relative to file start
-        // (ld2 starts right after lf3 at offset 215 for all observed files).
+        // Metadata. Fields live inside the ld2 block's content at fixed offsets
+        // relative to the block's content start. Locating ld2 via the blocks
+        // vector instead of hardcoded file offsets keeps this robust against
+        // future changes to lf3 size or the ordering of preceding blocks.
         let mut meta = LinkMeta::default();
-        if data.len() > 0x1A00 {
-            meta.ecu_model = Self::read_utf16_string(data, 0x336, 32);
-            meta.log_date = Self::read_utf16_string(data, 0x1786, 16);
-            meta.log_time = Self::read_utf16_string(data, 0x184e, 16);
-            meta.software_version = Self::read_utf16_string(data, 0x1916, 20);
-            meta.source = Self::read_utf16_string(data, 0x1aa6, 20);
+        if let Some(ld2_block) = blocks.iter().find(|(_, _, marker, _)| marker == b"ld2") {
+            let content_start = ld2_block.0 + 8;
+            meta.ecu_model = Self::read_utf16_string(data, content_start + 0x257, 32);
+            meta.log_date = Self::read_utf16_string(data, content_start + 0x16A7, 16);
+            meta.log_time = Self::read_utf16_string(data, content_start + 0x176F, 16);
+            meta.software_version = Self::read_utf16_string(data, content_start + 0x1837, 20);
+            meta.source = Self::read_utf16_string(data, content_start + 0x19C7, 20);
         }
 
         // Collect ds3 blocks and their data-region boundaries.
@@ -287,7 +290,8 @@ impl Link {
         }
 
         // Build the common timeline: all distinct timestamps, sorted.
-        let mut all_times: Vec<f32> = Vec::new();
+        let total_samples: usize = channel_samples.iter().map(|v| v.len()).sum();
+        let mut all_times: Vec<f32> = Vec::with_capacity(total_samples);
         for points in &channel_samples {
             for &(t, _) in points {
                 all_times.push(t);
@@ -305,9 +309,15 @@ impl Link {
             });
         }
 
-        // Normalize to a f64 seconds axis starting at 0.
+        // Normalize to a f64 seconds axis starting at 0. Cap at the same
+        // 50_001 ceiling the inner loop enforces on data_matrix so we don't
+        // allocate a huge times vector that will be truncated anyway.
         let first_time = *all_times.first().unwrap();
-        let times: Vec<f64> = all_times.iter().map(|t| (*t - first_time) as f64).collect();
+        let times: Vec<f64> = all_times
+            .iter()
+            .take(50_001)
+            .map(|t| (*t - first_time) as f64)
+            .collect();
 
         // Build the data matrix with last-observation-carried-forward semantics.
         let row_cap = channels.len();
@@ -350,11 +360,10 @@ impl Link {
             meta.ecu_model
         );
 
-        let times_out = times[..data_matrix.len()].to_vec();
         Ok(Log {
             meta: Meta::Link(meta),
             channels: channels.into_iter().map(Channel::Link).collect(),
-            times: times_out,
+            times,
             data: data_matrix,
         })
     }
