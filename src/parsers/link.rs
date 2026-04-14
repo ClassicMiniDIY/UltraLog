@@ -99,6 +99,92 @@ impl Link {
         ])
     }
 
+    /// Iterate every well-formed block in the file.
+    ///
+    /// Link files are a sequence of blocks, each framed as:
+    ///     <u32 LE total_size><3-byte ASCII marker><u8 type><content>
+    ///
+    /// `total_size` is the whole block (header + content, NOT including any
+    /// variable-length data region that follows `ds3` blocks). Known markers
+    /// are `lf3` (file header, one), `ld2` (ECU metadata, one), `lm1` (log
+    /// metadata, count varies per file), `ds3` (channel definition, one per
+    /// channel).
+    ///
+    /// Returns `(block_offset, total_size, marker, type_byte)` for each block.
+    /// Stops at EOF or when a block size is implausible.
+    fn iter_blocks(data: &[u8]) -> Vec<(usize, usize, [u8; 3], u8)> {
+        let mut blocks = Vec::new();
+        let mut pos: usize = 0;
+        while pos + 8 <= data.len() {
+            let size = Self::read_u32(data, pos) as usize;
+            // Guard against pathological sizes that would overflow or point past EOF
+            if size < 8 || size > data.len() - pos {
+                break;
+            }
+            let marker = [data[pos + 4], data[pos + 5], data[pos + 6]];
+            let type_byte = data[pos + 7];
+            // Only accept known ASCII-letter markers so we resync on garbage
+            let is_known = matches!(&marker, b"lf3" | b"ld2" | b"lm1" | b"ds3");
+            if !is_known {
+                break;
+            }
+            blocks.push((pos, size, marker, type_byte));
+            pos += size;
+        }
+        blocks
+    }
+
+    /// Locate channel ID + name + unit inside a `ds3` block's content bytes.
+    ///
+    /// Empirical layout observed across .llg, .llg5, and .llgx files:
+    /// - Content is 637 bytes (block total_size 645 minus the 8-byte header).
+    /// - Somewhere inside (typically around offset 0xd3) sits the channel ID
+    ///   as a little-endian u32 whose upper two bytes are zero.
+    /// - Immediately after the u32 is a UTF-16 LE name, null-terminated and
+    ///   padded to 200 bytes total.
+    /// - 200 bytes past the start of the ID is a UTF-16 LE unit string.
+    ///
+    /// Returns `None` if no plausible channel header is found.
+    fn parse_ds3_channel(data: &[u8], block_offset: usize, block_size: usize) -> Option<LinkChannel> {
+        let content_start = block_offset + 8;
+        let content_end = block_offset + block_size;
+        // Scan for: low-id u32 (two high bytes zero, low two nonzero) followed by
+        // a printable UTF-16 LE character (ASCII byte + null).
+        let scan_end = content_end.saturating_sub(8).min(content_start + 400);
+        for p in content_start..scan_end {
+            if p + 6 > data.len() {
+                return None;
+            }
+            let b0 = data[p];
+            let b1 = data[p + 1];
+            let b2 = data[p + 2];
+            let b3 = data[p + 3];
+            let nb = data[p + 4];
+            let nb1 = data[p + 5];
+            if b2 == 0 && b3 == 0 && (b0 | b1) != 0
+                && (0x20..=0x7e).contains(&nb) && nb1 == 0
+            {
+                let channel_id = Self::read_u32(data, p);
+                // Sanity-check: channel IDs are small positive integers
+                if !(1..10_000).contains(&channel_id) {
+                    continue;
+                }
+                let name = Self::read_utf16_string(data, p + 4, 100);
+                if name.len() < 2 {
+                    continue;
+                }
+                // Unit lives 200 bytes past the start of the u32 id.
+                let unit = Self::read_utf16_string(data, p + 204, 100);
+                return Some(LinkChannel {
+                    name,
+                    unit,
+                    channel_id,
+                });
+            }
+        }
+        None
+    }
+
     /// Parse the LLG binary format
     pub fn parse_binary(data: &[u8]) -> Result<Log, Box<dyn Error>> {
         // Validate header
