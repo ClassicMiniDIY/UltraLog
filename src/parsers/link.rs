@@ -104,34 +104,54 @@ impl Link {
     /// Link files are a sequence of blocks, each framed as:
     ///     <u32 LE total_size><3-byte ASCII marker><u8 type><content>
     ///
-    /// `total_size` is the whole block (header + content, NOT including any
-    /// variable-length data region that follows `ds3` blocks). Known markers
-    /// are `lf3` (file header, one), `ld2` (ECU metadata, one), `lm1` (log
-    /// metadata, count varies per file), `ds3` (channel definition, one per
-    /// channel).
+    /// `total_size` is the whole block (header + content). Fixed-size blocks
+    /// (`lf3`, `ld2`, `lm1`) sit contiguously. `ds3` (channel definition)
+    /// blocks are each followed by a variable-length `(time_f32, value_f32)`
+    /// data region that has no framing of its own.
+    ///
+    /// To handle both cases uniformly, we advance to the next block by
+    /// scanning forward from `pos + size` for the next `<u32 size><known
+    /// marker>` prefix (see `find_next_block`). This works whether the
+    /// previous block had a trailing data region or not.
     ///
     /// Returns `(block_offset, total_size, marker, type_byte)` for each block.
-    /// Stops at EOF or when a block size is implausible.
     fn iter_blocks(data: &[u8]) -> Vec<(usize, usize, [u8; 3], u8)> {
         let mut blocks = Vec::new();
         let mut pos: usize = 0;
-        while pos + 8 <= data.len() {
-            let size = Self::read_u32(data, pos) as usize;
-            // Guard against pathological sizes that would overflow or point past EOF
-            if size < 8 || size > data.len() - pos {
-                break;
-            }
-            let marker = [data[pos + 4], data[pos + 5], data[pos + 6]];
-            let type_byte = data[pos + 7];
-            // Only accept known ASCII-letter markers so we resync on garbage
-            let is_known = matches!(&marker, b"lf3" | b"ld2" | b"lm1" | b"ds3");
-            if !is_known {
-                break;
-            }
-            blocks.push((pos, size, marker, type_byte));
-            pos += size;
+        while let Some(block_off) = Self::find_next_block(data, pos) {
+            let size = Self::read_u32(data, block_off) as usize;
+            let marker = [
+                data[block_off + 4],
+                data[block_off + 5],
+                data[block_off + 6],
+            ];
+            let type_byte = data[block_off + 7];
+            blocks.push((block_off, size, marker, type_byte));
+            pos = block_off + size;
         }
         blocks
+    }
+
+    /// Scan forward from `start` for the next position where a well-formed
+    /// block header begins. A position `p` qualifies if:
+    /// - `p + 8 <= data.len()` (room for size prefix + 3-byte marker + type byte)
+    /// - the u32 LE at `p` is between 8 and `data.len() - p` (plausible total size)
+    /// - the 3-byte marker at `p + 4` is one of the four known markers
+    ///
+    /// Returns the first qualifying offset, or `None` if scanning reaches EOF.
+    fn find_next_block(data: &[u8], start: usize) -> Option<usize> {
+        let mut p = start;
+        while p + 8 <= data.len() {
+            let size = Self::read_u32(data, p) as usize;
+            if size >= 8 && size <= data.len() - p {
+                let marker = [data[p + 4], data[p + 5], data[p + 6]];
+                if matches!(&marker, b"lf3" | b"ld2" | b"lm1" | b"ds3") {
+                    return Some(p);
+                }
+            }
+            p += 1;
+        }
+        None
     }
 
     /// Locate channel ID + name + unit inside a `ds3` block's content bytes.
@@ -185,148 +205,96 @@ impl Link {
         None
     }
 
-    /// Parse the LLG binary format
+    /// Parse the LLG/LLG5/LLGX binary format.
+    ///
+    /// See `iter_blocks` for the block framing. This function walks the blocks,
+    /// extracts metadata from the `ld2` block, collects channel definitions from
+    /// each `ds3` block, and reads the `(time_f32_LE, value_f32_LE)` pair stream
+    /// that lives between consecutive `ds3` blocks (or after the last `ds3` to EOF).
     pub fn parse_binary(data: &[u8]) -> Result<Log, Box<dyn Error>> {
-        // Validate header
         if !Self::detect(data) {
             return Err("Invalid LLG file header - expected 'lf3' magic".into());
         }
 
-        // Read header size (first 4 bytes)
-        let header_size = Self::read_u32(data, 0) as usize;
-        if header_size > data.len() {
-            return Err(format!(
-                "Header size {} exceeds file size {}",
-                header_size,
-                data.len()
-            )
-            .into());
+        let blocks = Self::iter_blocks(data);
+        if blocks.is_empty() || &blocks[0].2 != b"lf3" {
+            return Err("Missing or malformed lf3 header block".into());
         }
 
-        // Parse metadata
+        // Metadata. Keys inside ld2 are at known offsets relative to file start
+        // (ld2 starts right after lf3 at offset 215 for all observed files).
         let mut meta = LinkMeta::default();
-
-        // ECU model is around offset 0x336 (fixed location in header)
-        if data.len() > 0x336 + 64 {
-            meta.ecu_model = Self::read_utf16_string(data, 0x336, 32);
-        }
-
-        // Date around 0x1786, time around 0x184e, version around 0x1916
         if data.len() > 0x1A00 {
+            meta.ecu_model = Self::read_utf16_string(data, 0x336, 32);
             meta.log_date = Self::read_utf16_string(data, 0x1786, 16);
             meta.log_time = Self::read_utf16_string(data, 0x184e, 16);
             meta.software_version = Self::read_utf16_string(data, 0x1916, 20);
             meta.source = Self::read_utf16_string(data, 0x1aa6, 20);
         }
 
-        // Find channel blocks
-        // Channel blocks start around offset 0x2400 and have pattern:
-        // 4 zero bytes + 4 byte channel ID + 200 bytes name + 200 bytes unit + data
-        let mut channels: Vec<LinkChannel> = Vec::new();
-        let mut channel_offsets: Vec<(usize, usize)> = Vec::new(); // (start, next_start)
-
-        let mut offset = 0x2000; // Start searching after metadata
-        while offset < data.len().saturating_sub(500) {
-            // Look for channel header pattern: 4 zeros + non-zero ID
-            if data[offset..offset + 4] == [0, 0, 0, 0] {
-                let channel_id = Self::read_u32(data, offset + 4);
-
-                if channel_id > 0 && channel_id < 10000 {
-                    // Read channel name (200 bytes of UTF-16 starting at offset+8)
-                    let name = Self::read_utf16_string(data, offset + 8, 100);
-
-                    if name.len() >= 2 {
-                        // Read unit (200 bytes starting at offset+208)
-                        let unit = Self::read_utf16_string(data, offset + 208, 100);
-
-                        channel_offsets.push((offset, 0));
-                        channels.push(LinkChannel {
-                            name,
-                            unit,
-                            channel_id,
-                        });
-
-                        // Skip past header + name + unit (408 bytes)
-                        offset += 408;
-                        continue;
-                    }
-                }
-            }
-            offset += 1;
-        }
-
-        // Update channel_offsets with next channel starts
-        for i in 0..channel_offsets.len() {
-            if i + 1 < channel_offsets.len() {
-                channel_offsets[i].1 = channel_offsets[i + 1].0;
-            } else {
-                channel_offsets[i].1 = data.len();
+        // Collect ds3 blocks and their data-region boundaries.
+        // Data region for ds3[i] is [blocks[i].0 + blocks[i].1, next_ds3_offset).
+        // "next_ds3_offset" = start of the next ds3 block, or EOF if this is the
+        // last ds3. (Other block markers don't appear between ds3 blocks in any
+        // sample file observed across the three format subtypes.)
+        let mut ds3_indices: Vec<usize> = Vec::new();
+        for (i, &(_, _, marker, _)) in blocks.iter().enumerate() {
+            if &marker == b"ds3" {
+                ds3_indices.push(i);
             }
         }
 
-        // Parse time-series data from channels
-        // Each channel's data section contains f32 (value, time) pairs
-        // We need to merge all channels into a common timeline
+        let mut channels: Vec<LinkChannel> = Vec::with_capacity(ds3_indices.len());
+        let mut channel_samples: Vec<Vec<(f32, f32)>> = Vec::with_capacity(ds3_indices.len());
 
-        // First, collect all unique timestamps and their values per channel
-        let mut all_times: Vec<f32> = Vec::new();
-        let mut channel_data: Vec<Vec<(f32, f32)>> = Vec::new(); // (time, value) per channel
-
-        for (i, &(ch_start, ch_end)) in channel_offsets.iter().enumerate() {
-            let data_start = ch_start + 408; // After header + name + unit
-            let data_end = ch_end;
-
-            if data_start >= data_end || data_end > data.len() {
-                channel_data.push(Vec::new());
+        for (k, &block_idx) in ds3_indices.iter().enumerate() {
+            let (block_off, block_size, _, _) = blocks[block_idx];
+            let Some(channel) = Self::parse_ds3_channel(data, block_off, block_size) else {
                 continue;
-            }
+            };
 
-            // Skip the first 8 bytes of metadata in data section
-            let actual_data_start = data_start + 8;
+            let data_start = block_off + block_size;
+            let data_end = if k + 1 < ds3_indices.len() {
+                let next_block_idx = ds3_indices[k + 1];
+                blocks[next_block_idx].0
+            } else {
+                data.len()
+            };
 
             let mut points: Vec<(f32, f32)> = Vec::new();
-
-            // Read f32 pairs (value, time)
-            let mut pos = actual_data_start;
-            while pos + 8 <= data_end {
-                let value = Self::read_f32(data, pos);
-                let time = Self::read_f32(data, pos + 4);
-
-                // Filter for reasonable values
-                if (0.0..100000.0).contains(&time) && value.is_finite() && value.abs() < 1e10 {
-                    points.push((time, value));
-                    if !all_times.contains(&time) {
-                        all_times.push(time);
+            if data_end > data_start {
+                let pair_count = (data_end - data_start) / 8;
+                points.reserve(pair_count);
+                let mut pos = data_start;
+                for _ in 0..pair_count {
+                    let time = Self::read_f32(data, pos);
+                    let value = Self::read_f32(data, pos + 4);
+                    // Only drop pairs that are non-finite. Negative times are
+                    // legal: Link supports pre-trigger logging where the trigger
+                    // event is t=0 and earlier samples have t<0.
+                    if time.is_finite() && value.is_finite() {
+                        points.push((time, value));
                     }
+                    pos += 8;
                 }
-
-                pos += 8;
+                points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
             }
 
-            // Sort by time
-            points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-
-            if i < 5 {
-                tracing::debug!(
-                    "Channel {}: {} ({}) - {} data points",
-                    i,
-                    channels[i].name,
-                    channels[i].unit,
-                    points.len()
-                );
-            }
-
-            channel_data.push(points);
+            channels.push(channel);
+            channel_samples.push(points);
         }
 
-        // Sort all timestamps
+        // Build the common timeline: all distinct timestamps, sorted.
+        let mut all_times: Vec<f32> = Vec::new();
+        for points in &channel_samples {
+            for &(t, _) in points {
+                all_times.push(t);
+            }
+        }
         all_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         all_times.dedup();
 
-        // If no valid data found, try alternative parsing
         if all_times.is_empty() {
-            tracing::warn!("No valid time-series data found in LLG file");
-            // Return empty log with channel definitions
             return Ok(Log {
                 meta: Meta::Link(meta),
                 channels: channels.into_iter().map(Channel::Link).collect(),
@@ -335,62 +303,53 @@ impl Link {
             });
         }
 
-        // Convert to f64 times (seconds, relative to first timestamp)
-        let first_time = *all_times.first().unwrap_or(&0.0);
+        // Normalize to a f64 seconds axis starting at 0.
+        let first_time = *all_times.first().unwrap();
         let times: Vec<f64> = all_times.iter().map(|t| (*t - first_time) as f64).collect();
 
-        // Build data matrix: for each timestamp, interpolate/hold values for each channel
-        let mut data_matrix: Vec<Vec<Value>> = Vec::with_capacity(times.len());
-
+        // Build the data matrix with last-observation-carried-forward semantics.
+        let row_cap = channels.len();
+        let mut data_matrix: Vec<Vec<Value>> = Vec::with_capacity(all_times.len());
         for (time_idx, &time) in all_times.iter().enumerate() {
-            let mut row: Vec<Value> = Vec::with_capacity(channels.len());
-
-            for ch_data in &channel_data {
-                // Find the value at or before this timestamp
-                let value = if ch_data.is_empty() {
+            let mut row: Vec<Value> = Vec::with_capacity(row_cap);
+            for points in &channel_samples {
+                let value = if points.is_empty() {
                     0.0
                 } else {
-                    // Binary search for the closest time <= current time
-                    match ch_data.binary_search_by(|probe| {
-                        probe
-                            .0
-                            .partial_cmp(&time)
-                            .unwrap_or(std::cmp::Ordering::Equal)
+                    match points.binary_search_by(|probe| {
+                        probe.0.partial_cmp(&time).unwrap_or(std::cmp::Ordering::Equal)
                     }) {
-                        Ok(idx) => ch_data[idx].1,
+                        Ok(idx) => points[idx].1,
                         Err(idx) => {
                             if idx == 0 {
-                                ch_data[0].1
+                                points[0].1
                             } else {
-                                ch_data[idx - 1].1
+                                points[idx - 1].1
                             }
                         }
                     }
                 };
-
                 row.push(Value::Float(value as f64));
             }
-
             data_matrix.push(row);
-
-            // Limit output to reasonable size
-            if time_idx > 50000 {
-                tracing::warn!("Truncating log data at 50000 samples");
+            if time_idx >= 50_000 {
+                tracing::warn!("Truncating Link log timeline at 50000 samples");
                 break;
             }
         }
 
         tracing::info!(
-            "Parsed Link ECU log: {} channels, {} data points, ECU: {}",
+            "Parsed Link log: {} channels, {} timeline samples, ECU: {}",
             channels.len(),
             data_matrix.len(),
             meta.ecu_model
         );
 
+        let times_out = times[..data_matrix.len()].to_vec();
         Ok(Log {
             meta: Meta::Link(meta),
             channels: channels.into_iter().map(Channel::Link).collect(),
-            times: times[..data_matrix.len()].to_vec(),
+            times: times_out,
             data: data_matrix,
         })
     }
