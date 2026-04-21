@@ -22,7 +22,7 @@ use crate::ipc::IpcServer;
 use crate::mcp::{start_mcp_server, McpServerHandle, DEFAULT_MCP_PORT};
 use crate::parsers::{
     Aim, BlueDriver, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive,
-    MegaSquirt, Parseable, RomRaider, Speeduino,
+    MegaSquirt, MotorsportElectronics, Parseable, RomRaider, Speeduino,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -539,6 +539,18 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::BlueDriver)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse BlueDriver file: {}",
+                    e
+                ))),
+            }
+        } else if MotorsportElectronics::detect(contents) {
+            // Motorsport Electronics (ME221/ME442) format detected.
+            // Must run before RomRaider: both share a leading "Time" column
+            // but ME Tuner exports time in seconds while RomRaider uses ms.
+            let parser = MotorsportElectronics;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::MotorsportElectronics)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse Motorsport Electronics file: {}",
                     e
                 ))),
             }

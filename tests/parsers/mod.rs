@@ -12,5 +12,6 @@ pub mod emerald_tests;
 pub mod format_detection_tests;
 pub mod haltech_tests;
 pub mod link_tests;
+pub mod motorsport_electronics_tests;
 pub mod romraider_tests;
 pub mod speeduino_tests;
