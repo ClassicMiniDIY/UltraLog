@@ -209,6 +209,7 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - rusEFI (MLG binary)
 - AiM (XRK/DRK binary)
 - Link ECU (LLG binary)
+- Motorsport Electronics ME221/ME442 (ME Tuner CSV export)
 
 To add a new ECU format:
 
