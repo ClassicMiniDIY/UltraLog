@@ -286,13 +286,12 @@ impl Parseable for MotorsportElectronics {
                 continue;
             }
 
-            let parts: Vec<&str> = line.split(',').collect();
-            if parts.is_empty() {
+            let mut parts = line.split(',');
+            let Some(time_str) = parts.next() else {
                 continue;
-            }
+            };
 
-            let time_str = parts[0].trim();
-            let Ok(time_val) = time_str.parse::<f64>() else {
+            let Ok(time_val) = time_str.trim().parse::<f64>() else {
                 continue;
             };
 
@@ -306,7 +305,7 @@ impl Parseable for MotorsportElectronics {
             times.push(relative_time);
 
             let mut row: Vec<Value> = Vec::with_capacity(channels.len());
-            for part in parts.iter().skip(1).take(effective_count.saturating_sub(1)) {
+            for part in parts.take(effective_count.saturating_sub(1)) {
                 let value = part.trim().parse::<f64>().unwrap_or(0.0);
                 row.push(Value::Float(value));
             }
