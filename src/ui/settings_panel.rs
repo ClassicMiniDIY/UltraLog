@@ -179,6 +179,48 @@ impl UltraLogApp {
                     self.show_toast_error(&t!("toast.failed_to_save", error = e));
                 }
             }
+
+            ui.add_space(8.0);
+
+            // Chart grid
+            let old_show_grid = self.show_grid;
+            ui.checkbox(
+                &mut self.show_grid,
+                egui::RichText::new(t!("settings.show_grid")).size(font_14),
+            );
+            ui.label(
+                egui::RichText::new(t!("settings.show_grid_desc"))
+                    .size(font_12)
+                    .color(egui::Color32::GRAY),
+            );
+            if self.show_grid != old_show_grid {
+                self.user_settings.show_grid = self.show_grid;
+                if let Err(e) = self.user_settings.save() {
+                    self.show_toast_error(&t!("toast.failed_to_save", error = e));
+                }
+            }
+
+            if self.show_grid {
+                ui.add_space(4.0);
+                let mut slider_response = None;
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(t!("settings.grid_opacity")).size(font_12));
+                    slider_response =
+                        Some(ui.add(egui::Slider::new(&mut self.grid_opacity, 0..=255)));
+                });
+                // Persist only when the user releases the slider, otherwise
+                // every drag pixel rewrites settings.json.
+                if let Some(resp) = slider_response {
+                    if resp.drag_stopped() || resp.lost_focus() {
+                        if self.user_settings.grid_opacity != self.grid_opacity {
+                            self.user_settings.grid_opacity = self.grid_opacity;
+                            if let Err(e) = self.user_settings.save() {
+                                self.show_toast_error(&t!("toast.failed_to_save", error = e));
+                            }
+                        }
+                    }
+                }
+            }
         });
     }
 
