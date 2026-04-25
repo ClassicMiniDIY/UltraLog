@@ -11,6 +11,10 @@ use crate::state::{
     MIN_PLOT_HEIGHT, PLOT_RESIZE_HANDLE_HEIGHT,
 };
 
+/// Sensitivity multiplier for scroll-to-zoom (higher = faster zoom per scroll tick).
+/// Shared between the cursor-tracking pre-show helper and the post-show closure.
+const SCROLL_ZOOM_SENSITIVITY: f64 = 0.003;
+
 impl UltraLogApp {
     /// Render the main chart with cached downsampled data
     pub fn render_chart(&mut self, ui: &mut egui::Ui) {
@@ -27,8 +31,37 @@ impl UltraLogApp {
         }
     }
 
+    /// Translate pinch / cmd+wheel (and scroll if `scroll_to_zoom` is on) into
+    /// changes of `view_window_seconds` while in cursor-tracking mode. Without
+    /// this, the cursor-tracking branch in the plot closure forces bounds to a
+    /// fixed-width window every frame and any zoom is immediately overridden.
+    fn apply_zoom_to_view_window_if_tracking(&mut self, ui: &egui::Ui) {
+        if !self.cursor_tracking {
+            return;
+        }
+        let Some((min_t, max_t)) = self.get_time_range() else {
+            return;
+        };
+        let zoom_delta = ui.input(|i| i.zoom_delta()) as f64;
+        let mut new_window = self.view_window_seconds;
+        if zoom_delta != 1.0 {
+            new_window /= zoom_delta;
+        }
+        if self.scroll_to_zoom {
+            let scroll_y = ui.input(|i| i.smooth_scroll_delta.y) as f64;
+            if scroll_y.abs() > 0.1 {
+                let factor = (1.0 - scroll_y * SCROLL_ZOOM_SENSITIVITY).clamp(0.8, 1.25);
+                new_window *= factor;
+            }
+        }
+        let max_window = (max_t - min_t).max(0.1);
+        self.view_window_seconds = new_window.clamp(0.1, max_window);
+    }
+
     /// Render single-plot mode chart (original implementation)
     fn render_chart_single_mode(&mut self, ui: &mut egui::Ui) {
+        self.apply_zoom_to_view_window_if_tracking(ui);
+
         // Get selected channels from active tab
         let selected_channels = self.get_selected_channels().to_vec();
 
@@ -129,8 +162,6 @@ impl UltraLogApp {
         // Fixed Y bounds for normalized data (0-1 with small padding)
         const Y_MIN: f64 = -0.05;
         const Y_MAX: f64 = 1.05;
-        /// Sensitivity multiplier for scroll-to-zoom (higher = faster zoom per scroll tick)
-        const SCROLL_ZOOM_SENSITIVITY: f64 = 0.003;
 
         // Build the plot - X-axis zoom only, Y fixed
         // When scroll_to_zoom is enabled, disable scroll-to-pan so we handle scroll as zoom
@@ -324,6 +355,8 @@ impl UltraLogApp {
 
     /// Render stacked plot areas
     fn render_chart_stacked_mode(&mut self, ui: &mut egui::Ui) {
+        self.apply_zoom_to_view_window_if_tracking(ui);
+
         let Some(tab_idx) = self.active_tab else {
             ui.centered_and_justified(|ui| {
                 ui.label(
