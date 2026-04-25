@@ -32,18 +32,30 @@ impl UltraLogApp {
     }
 
     /// Translate pinch / cmd+wheel (and scroll if `scroll_to_zoom` is on) into
-    /// changes of `view_window_seconds` while in cursor-tracking mode. Without
+    /// changes of `current_view_window` while in cursor-tracking mode. Without
     /// this, the cursor-tracking branch in the plot closure forces bounds to a
     /// fixed-width window every frame and any zoom is immediately overridden.
+    /// The persistent `view_window_seconds` (Settings slider) is intentionally
+    /// not touched here — that's the user-set default; the slider write-path
+    /// resets `current_view_window` back to it on every change.
     fn apply_zoom_to_view_window_if_tracking(&mut self, ui: &egui::Ui) {
         if !self.cursor_tracking {
+            return;
+        }
+        // Don't react to scroll/pinch happening over other UI (e.g. the
+        // Settings panel) — `ui.input` is global, so without this guard a
+        // wheel event over the side panel would still resize the cursor
+        // tracking window. `min_rect()` is empty before any chart content
+        // is drawn, so we use `max_rect()` (the full available area of the
+        // central panel) instead.
+        if !ui.rect_contains_pointer(ui.max_rect()) {
             return;
         }
         let Some((min_t, max_t)) = self.get_time_range() else {
             return;
         };
         let zoom_delta = ui.input(|i| i.zoom_delta()) as f64;
-        let mut new_window = self.view_window_seconds;
+        let mut new_window = self.current_view_window;
         if zoom_delta != 1.0 {
             new_window /= zoom_delta;
         }
@@ -55,7 +67,7 @@ impl UltraLogApp {
             }
         }
         let max_window = (max_t - min_t).max(0.1);
-        self.view_window_seconds = new_window.clamp(0.1, max_window);
+        self.current_view_window = new_window.clamp(0.1, max_window);
     }
 
     /// Render single-plot mode chart (original implementation)
@@ -128,7 +140,7 @@ impl UltraLogApp {
         // selected_channels already defined at top of function from get_selected_channels()
         let cursor_time = self.get_cursor_time();
         let cursor_tracking = self.cursor_tracking;
-        let view_window = self.view_window_seconds;
+        let view_window = self.current_view_window;
         let time_range = self.get_time_range();
         let color_blind_mode = self.color_blind_mode;
         let chart_interacted = self.get_chart_interacted();
@@ -543,7 +555,7 @@ impl UltraLogApp {
         let files = &self.files;
         let cursor_time = self.get_cursor_time();
         let cursor_tracking = self.cursor_tracking;
-        let view_window = self.view_window_seconds;
+        let view_window = self.current_view_window;
         let time_range = self.get_time_range();
         let color_blind_mode = self.color_blind_mode;
         let chart_interacted = self.get_chart_interacted();

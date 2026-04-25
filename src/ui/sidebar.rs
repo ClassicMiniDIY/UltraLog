@@ -255,11 +255,14 @@ impl UltraLogApp {
                         if self.cursor_tracking {
                             ui.add_space(8.0);
                             ui.label(egui::RichText::new("View Window:").size(font_14));
-                            ui.add(
+                            let resp = ui.add(
                                 egui::Slider::new(&mut self.view_window_seconds, 5.0..=120.0)
                                     .suffix("s")
                                     .logarithmic(true),
                             );
+                            if resp.changed() {
+                                self.current_view_window = self.view_window_seconds;
+                            }
                         }
 
                         ui.add_space(8.0);
