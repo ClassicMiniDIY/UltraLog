@@ -4,6 +4,7 @@
 //! the application, including loaded files, selected channels, and color palettes.
 
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use crate::parsers::{Channel, EcuType, Log};
 
@@ -84,6 +85,11 @@ pub struct LoadedFile {
     /// Cached flag for each channel: true if channel has non-zero data
     /// Computed once on load for UI performance
     pub channels_with_data: Vec<bool>,
+    /// Lazy column-major view of `log.data` as `Vec<Vec<f64>>`. Built on first
+    /// access so the chart hot path can borrow `&[f64]` for a channel instead
+    /// of re-collecting an owned `Vec<f64>` from the row-major store on every
+    /// frame.
+    channel_columns: OnceLock<Vec<Vec<f64>>>,
 }
 
 impl LoadedFile {
@@ -103,6 +109,7 @@ impl LoadedFile {
             ecu_type,
             log,
             channels_with_data,
+            channel_columns: OnceLock::new(),
         }
     }
 
@@ -113,6 +120,17 @@ impl LoadedFile {
             .get(channel_index)
             .copied()
             .unwrap_or(false)
+    }
+
+    /// Borrow a regular channel's f64 data without copying. Lazily transposes
+    /// `log.data` into column-major form on first call.
+    pub fn get_channel_column(&self, channel_index: usize) -> Option<&[f64]> {
+        let cols = self.channel_columns.get_or_init(|| {
+            (0..self.log.channels.len())
+                .map(|i| self.log.get_channel_data(i))
+                .collect()
+        });
+        cols.get(channel_index).map(Vec::as_slice)
     }
 }
 

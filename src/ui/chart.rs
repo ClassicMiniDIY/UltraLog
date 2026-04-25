@@ -851,35 +851,75 @@ impl UltraLogApp {
         channel_index: usize,
         viewport: Option<(f64, f64)>,
     ) -> Option<Vec<[f64; 2]>> {
+        // Resolve min/max first so the mutable borrow on the cache ends before
+        // we take immutable borrows on the channel data below.
+        let (min_y, max_y) = self
+            .get_channel_min_max(file_index, channel_index)
+            .unwrap_or((0.0, 1.0));
+
         let file = self.files.get(file_index)?;
         let times = file.log.get_times_as_f64();
-        let data = self.get_channel_data(file_index, channel_index);
+        let data = self.get_channel_data_ref(file_index, channel_index);
         if times.is_empty() || times.len() != data.len() {
             return None;
         }
 
-        let (lo, hi) = match viewport {
+        let full_lttb = || Self::downsample_lttb(times, data, MAX_CHART_POINTS);
+        let downsampled = match viewport {
             Some((vmin, vmax)) if vmax > vmin => {
+                // Anchored min/max-per-bucket downsampling. Bucket
+                // boundaries are at multiples of `bucket_size` from t=0,
+                // so during cursor-tracked playback samples slide through
+                // a fixed grid instead of being re-bucketed every frame.
+                // Without this anchoring, LTTB-by-index re-selects a
+                // different "best peak" per frame and the curve jitters
+                // at far zoom-out.
                 let pad = (vmax - vmin) * 0.1;
-                let lo_t = vmin - pad;
-                let hi_t = vmax + pad;
-                let lo_i = times.partition_point(|&t| t < lo_t).saturating_sub(1);
-                let hi_i = times
-                    .partition_point(|&t| t <= hi_t)
-                    .saturating_add(1)
-                    .min(times.len());
-                (lo_i, hi_i.max(lo_i + 1))
+                let padded_span = (vmax - vmin) + 2.0 * pad;
+                let n_buckets = (MAX_CHART_POINTS / 2).max(1);
+                let bucket_size = padded_span / n_buckets as f64;
+                if bucket_size <= 0.0 {
+                    full_lttb()
+                } else {
+                    let raw_lo = vmin - pad;
+                    let k_lo = (raw_lo / bucket_size).floor() as i64;
+                    let mut points: Vec<[f64; 2]> = Vec::with_capacity(MAX_CHART_POINTS);
+                    let mut idx = times.partition_point(|&t| t < k_lo as f64 * bucket_size);
+                    for k in 0..n_buckets as i64 {
+                        let bucket_end = (k_lo + k + 1) as f64 * bucket_size;
+                        let mut end_idx = idx;
+                        while end_idx < times.len() && times[end_idx] < bucket_end {
+                            end_idx += 1;
+                        }
+                        if end_idx > idx {
+                            let mut min_i = idx;
+                            let mut max_i = idx;
+                            for i in idx..end_idx {
+                                if data[i] < data[min_i] {
+                                    min_i = i;
+                                }
+                                if data[i] > data[max_i] {
+                                    max_i = i;
+                                }
+                            }
+                            if min_i == max_i {
+                                points.push([times[min_i], data[min_i]]);
+                            } else if min_i < max_i {
+                                points.push([times[min_i], data[min_i]]);
+                                points.push([times[max_i], data[max_i]]);
+                            } else {
+                                points.push([times[max_i], data[max_i]]);
+                                points.push([times[min_i], data[min_i]]);
+                            }
+                        }
+                        idx = end_idx;
+                    }
+                    points
+                }
             }
-            _ => (0, times.len()),
+            _ => full_lttb(),
         };
 
-        let times_slice = &times[lo..hi];
-        let data_slice = &data[lo..hi];
-        let downsampled = Self::downsample_lttb(times_slice, data_slice, MAX_CHART_POINTS);
-
-        let (min_y, max_y) = self
-            .get_channel_min_max(file_index, channel_index)
-            .unwrap_or((0.0, 1.0));
         let range = (max_y - min_y).abs();
         // Constant channels (range ≈ 0) get parked at the middle of the
         // overlay strip so they remain visible instead of pinning to the
