@@ -51,8 +51,6 @@ pub struct UltraLogApp {
     load_receiver: Option<Receiver<LoadResult>>,
     /// Current loading state
     pub(crate) loading_state: LoadingState,
-    /// Cache for downsampled chart data
-    pub(crate) downsample_cache: HashMap<CacheKey, Vec<[f64; 2]>>,
     /// Cache for channel min/max values (avoids O(n) scans)
     pub(crate) minmax_cache: HashMap<CacheKey, (f64, f64)>,
     /// Last X-axis bounds shown by each plot area. Used to slice raw data to
@@ -178,7 +176,6 @@ impl Default for UltraLogApp {
             last_drop_time: None,
             load_receiver: None,
             loading_state: LoadingState::Idle,
-            downsample_cache: HashMap::new(),
             minmax_cache: HashMap::new(),
             chart_last_x_bounds: HashMap::new(),
             cursor_time: None,
@@ -812,6 +809,26 @@ impl UltraLogApp {
         }
     }
 
+    /// Borrow channel data without copying. Returns an empty slice for invalid
+    /// indices or computed channels that haven't been evaluated yet. Used in
+    /// per-frame chart paths where cloning the full channel would be wasteful.
+    pub fn get_channel_data_ref(&self, file_index: usize, channel_index: usize) -> &[f64] {
+        let Some(file) = self.files.get(file_index) else {
+            return &[];
+        };
+        let regular_count = file.log.channels.len();
+        if channel_index < regular_count {
+            file.get_channel_column(channel_index).unwrap_or(&[])
+        } else {
+            let computed_idx = channel_index - regular_count;
+            self.file_computed_channels
+                .get(&file_index)
+                .and_then(|c| c.get(computed_idx))
+                .and_then(|c| c.cached_data.as_deref())
+                .unwrap_or(&[])
+        }
+    }
+
     /// Get the display name of a channel by index (handles both regular and computed channels)
     pub fn get_channel_name(&self, file_index: usize, channel_index: usize) -> String {
         if file_index >= self.files.len() {
@@ -853,20 +870,19 @@ impl UltraLogApp {
             return Some(cached);
         }
 
-        // Compute min/max (handles both regular and computed channels)
-        let data = self.get_channel_data(file_index, channel_index);
+        // Compute min/max (handles both regular and computed channels).
+        // Scoped to release the borrow before mutating the cache below.
+        let (min_val, max_val) = {
+            let data = self.get_channel_data_ref(file_index, channel_index);
+            if data.is_empty() {
+                return None;
+            }
+            data.iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), &v| {
+                    (min.min(v), max.max(v))
+                })
+        };
 
-        if data.is_empty() {
-            return None;
-        }
-
-        let (min_val, max_val) = data
-            .iter()
-            .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), &v| {
-                (min.min(v), max.max(v))
-            });
-
-        // Cache the result
         self.minmax_cache.insert(cache_key, (min_val, max_val));
         Some((min_val, max_val))
     }
@@ -882,28 +898,6 @@ impl UltraLogApp {
             if let Some(tab_idx) = self.tabs.iter().position(|t| t.file_index == index) {
                 self.close_tab(tab_idx);
             }
-
-            // Clear downsample cache entries for this file and update indices
-            let mut new_cache = HashMap::new();
-            for (key, value) in self.downsample_cache.drain() {
-                if key.file_index == index {
-                    // Skip entries for removed file
-                    continue;
-                } else if key.file_index > index {
-                    // Update indices for files after the removed one
-                    new_cache.insert(
-                        CacheKey {
-                            file_index: key.file_index - 1,
-                            channel_index: key.channel_index,
-                            plot_area_id: key.plot_area_id,
-                        },
-                        value,
-                    );
-                } else {
-                    new_cache.insert(key, value);
-                }
-            }
-            self.downsample_cache = new_cache;
 
             // Clear minmax cache entries for this file and update indices
             let mut new_minmax_cache = HashMap::new();
