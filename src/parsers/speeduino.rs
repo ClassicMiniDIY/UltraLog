@@ -285,11 +285,16 @@ impl Speeduino {
         let mut times: Vec<f64> = Vec::with_capacity(estimated_records);
         let mut data_records: Vec<Vec<Value>> = Vec::with_capacity(estimated_records);
 
-        // Track timestamp wraparound (u16 wraps at 65535ms = 65.535 seconds)
+        // Track u16 timestamp wraparound. Per the EFI Analytics MLG Binary
+        // Log Format spec, each tick is 10 µs, so the u16 wraps every
+        // 65536 × 10 µs = 0.65536 s of wall-clock time.
+        const MLG_TICK_SECONDS: f64 = 1e-5;
+        const MLG_WRAP_TICKS: f64 = 65_536.0;
         let mut prev_raw_timestamp: u16 = 0;
         let mut wrap_count: u64 = 0;
-        // If timestamp drops by more than 30 seconds, it definitely wrapped
-        // (actual wraparounds show ~58.7s drop when going from ~65s to ~6s)
+        // A drop > 30000 raw ticks (= 0.3 s) is far above the per-record
+        // increment at any realistic ECU sample rate (20–1000 Hz), so it
+        // reliably distinguishes a real u16 wraparound from sample jitter.
         const WRAP_THRESHOLD: u16 = 30000;
 
         while offset + 4 <= data.len() {
@@ -316,7 +321,8 @@ impl Speeduino {
             prev_raw_timestamp = raw_timestamp;
 
             // Calculate actual timestamp with wraparound compensation
-            let timestamp = (raw_timestamp as f64 / 1000.0) + (wrap_count as f64 * 65.536);
+            let timestamp =
+                (raw_timestamp as f64 + wrap_count as f64 * MLG_WRAP_TICKS) * MLG_TICK_SECONDS;
 
             if block_type == 0 {
                 // Data record - calculate required bytes for all channels
@@ -818,5 +824,51 @@ mod tests {
 
         eprintln!("Parsed {} channels from rusEFI log", log.channels.len());
         eprintln!("Parsed {} data records", log.data.len());
+    }
+
+    #[test]
+    fn test_mlg_timestamp_scale() {
+        // Regression guard for the 10 µs/bit timestamp unit. A previous
+        // version of the parser treated the u16 tick as milliseconds, which
+        // multiplied wall-clock time by ~100×. The bounds below are wide
+        // enough to allow any realistic ECU sample rate (1 ms .. 1 s per
+        // record) and tight enough to fail loudly on a ×10 or ×100 drift.
+        for file_path in [
+            "exampleLogs/rusefi/rusefilog.mlg",
+            "exampleLogs/rusefi/Log1.mlg",
+            "exampleLogs/speeduino/speeduino.mlg",
+        ] {
+            let data = match std::fs::read(file_path) {
+                Ok(d) => d,
+                Err(_) => {
+                    eprintln!("Skipping {}: file not found", file_path);
+                    continue;
+                }
+            };
+
+            let log = Speeduino::parse_binary(&data)
+                .unwrap_or_else(|e| panic!("parse {}: {}", file_path, e));
+            assert!(
+                log.times.len() > 1,
+                "{}: expected multiple records",
+                file_path
+            );
+
+            let total = *log.times.last().unwrap() - log.times[0];
+            let avg_dt = total / (log.times.len() - 1) as f64;
+            assert!(
+                (1e-3..=1.0).contains(&avg_dt),
+                "{}: average sample interval {:.6}s outside 1ms..1s — units regression?",
+                file_path,
+                avg_dt
+            );
+            eprintln!(
+                "{}: {} records, total {:.3}s, avg dt {:.4}s",
+                file_path,
+                log.times.len(),
+                total,
+                avg_dt
+            );
+        }
     }
 }

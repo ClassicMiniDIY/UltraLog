@@ -290,6 +290,55 @@ fn test_speeduino_timestamp_monotonicity() {
     assert_monotonic_times(&log);
 }
 
+/// Regression guard for the MLG raw u16 timestamp unit (10 µs/tick per the
+/// EFI Analytics MLG spec). A previous version of the parser used 1 ms/tick,
+/// which compounded with the wraparound logic to inflate wall-clock time
+/// ~100×. We bound the total parsed duration to a value that all bundled
+/// sample logs comfortably satisfy and that any 10× or 100× drift would
+/// blow past.
+fn assert_mlg_total_duration_under(file_path: &str, max_seconds: f64) {
+    if !example_file_exists(file_path) {
+        eprintln!("Skipping {}: file not found", file_path);
+        return;
+    }
+
+    let data = read_example_binary(file_path);
+    let log = Speeduino::parse_binary(&data)
+        .unwrap_or_else(|e| panic!("Failed to parse {}: {}", file_path, e));
+
+    assert!(
+        log.times.len() > 1,
+        "{}: expected multiple records",
+        file_path
+    );
+
+    let total = *log.times.last().unwrap() - log.times[0];
+    assert!(
+        total > 0.0 && total < max_seconds,
+        "{}: total duration {:.3}s outside (0, {})s — timestamp unit regression?",
+        file_path,
+        total,
+        max_seconds
+    );
+}
+
+#[test]
+fn test_speeduino_mlg_duration_bounded() {
+    // ~30 minutes is well above any of the bundled speeduino samples but
+    // far below the ~50 hour figure the old 1ms-tick interpretation produced.
+    assert_mlg_total_duration_under(SPEEDUINO_MLG, 30.0 * 60.0);
+}
+
+#[test]
+fn test_rusefi_mlg_duration_bounded() {
+    assert_mlg_total_duration_under(RUSEFI_MLG, 30.0 * 60.0);
+}
+
+#[test]
+fn test_rusefi_log1_duration_bounded() {
+    assert_mlg_total_duration_under(RUSEFI_LOG1, 30.0 * 60.0);
+}
+
 #[test]
 fn test_speeduino_timestamp_range() {
     if !example_file_exists(SPEEDUINO_MLG) {

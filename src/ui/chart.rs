@@ -7,8 +7,8 @@ use rust_i18n::t;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
 use crate::state::{
-    CacheKey, PlotArea, SelectedChannel, CHART_COLORS, COLORBLIND_COLORS, MAX_CHART_POINTS,
-    MIN_PLOT_HEIGHT, PLOT_RESIZE_HANDLE_HEIGHT,
+    PlotArea, SelectedChannel, CHART_COLORS, COLORBLIND_COLORS, MAX_CHART_POINTS, MIN_PLOT_HEIGHT,
+    PLOT_RESIZE_HANDLE_HEIGHT,
 };
 
 /// Sensitivity multiplier for scroll-to-zoom (higher = faster zoom per scroll tick).
@@ -76,32 +76,16 @@ impl UltraLogApp {
             return;
         }
 
-        // Pre-compute and cache downsampled + normalized data for all selected channels
-        for selected in &selected_channels {
-            if selected.file_index >= self.files.len() {
-                continue;
-            }
-
-            let cache_key = CacheKey {
-                file_index: selected.file_index,
-                channel_index: selected.channel_index,
-                plot_area_id: 0, // Single-plot mode uses plot_area_id 0
-            };
-
-            if !self.downsample_cache.contains_key(&cache_key) {
-                let file = &self.files[selected.file_index];
-                let times = file.log.get_times_as_f64();
-                // Use app method to get channel data (handles both regular and computed channels)
-                let data = self.get_channel_data(selected.file_index, selected.channel_index);
-
-                if times.len() == data.len() && !times.is_empty() {
-                    let downsampled = Self::downsample_lttb(times, &data, MAX_CHART_POINTS);
-                    // Normalize Y values to 0-1 range so all channels overlay
-                    let normalized = Self::normalize_points(&downsampled);
-                    self.downsample_cache.insert(cache_key, normalized);
-                }
-            }
-        }
+        // Compute downsampled + normalized data sliced to the current viewport.
+        // Detail scales with zoom level: a 1% viewport gets MAX_CHART_POINTS
+        // over that 1%, not over the whole log.
+        let viewport = self.chart_last_x_bounds.get(&0).copied();
+        let chart_points: Vec<Option<Vec<[f64; 2]>>> = selected_channels
+            .iter()
+            .map(|selected| {
+                self.compute_viewport_points(selected.file_index, selected.channel_index, viewport)
+            })
+            .collect();
 
         // Pre-compute legend names with current values at cursor position
         let use_normalization = self.field_normalization;
@@ -139,7 +123,7 @@ impl UltraLogApp {
             .collect();
 
         // Prepare data for the plot closure (can't borrow self mutably inside)
-        let cache = &self.downsample_cache;
+        let chart_points = &chart_points;
         let files = &self.files;
         // selected_channels already defined at top of function from get_selected_channels()
         let cursor_time = self.get_cursor_time();
@@ -275,13 +259,7 @@ impl UltraLogApp {
                     continue;
                 }
 
-                let cache_key = CacheKey {
-                    file_index: selected.file_index,
-                    channel_index: selected.channel_index,
-                    plot_area_id: 0, // Single-plot mode uses plot_area_id 0
-                };
-
-                if let Some(points) = cache.get(&cache_key) {
+                if let Some(points) = chart_points.get(i).and_then(|p| p.as_ref()) {
                     let plot_points: PlotPoints = points.iter().copied().collect();
                     let palette = if color_blind_mode {
                         COLORBLIND_COLORS
@@ -313,6 +291,12 @@ impl UltraLogApp {
             // Return pointer position if hovering for click detection
             plot_ui.pointer_coordinate()
         });
+
+        // Remember the X-axis bounds we just rendered so the next frame can
+        // slice raw data to this viewport before LTTB-downsampling.
+        let final_bounds = response.transform.bounds();
+        self.chart_last_x_bounds
+            .insert(0, (final_bounds.min()[0], final_bounds.max()[0]));
 
         // Detect user interaction with chart (drag, zoom, scroll)
         // This marks the chart as "interacted" so we stop using the initial zoomed view
@@ -506,30 +490,14 @@ impl UltraLogApp {
         plot_area_id: usize,
         height: f32,
     ) {
-        // Pre-compute and cache data for these channels
-        for selected in channels {
-            if selected.file_index >= self.files.len() {
-                continue;
-            }
-
-            let cache_key = CacheKey {
-                file_index: selected.file_index,
-                channel_index: selected.channel_index,
-                plot_area_id,
-            };
-
-            if !self.downsample_cache.contains_key(&cache_key) {
-                let file = &self.files[selected.file_index];
-                let times = file.log.get_times_as_f64();
-                let data = self.get_channel_data(selected.file_index, selected.channel_index);
-
-                if times.len() == data.len() && !times.is_empty() {
-                    let downsampled = Self::downsample_lttb(times, &data, MAX_CHART_POINTS);
-                    let normalized = Self::normalize_points(&downsampled);
-                    self.downsample_cache.insert(cache_key, normalized);
-                }
-            }
-        }
+        // Compute viewport-aware downsampled + normalized points for this plot area.
+        let viewport = self.chart_last_x_bounds.get(&plot_area_id).copied();
+        let chart_points: Vec<Option<Vec<[f64; 2]>>> = channels
+            .iter()
+            .map(|selected| {
+                self.compute_viewport_points(selected.file_index, selected.channel_index, viewport)
+            })
+            .collect();
 
         // Build legend names with values
         let use_normalization = self.field_normalization;
@@ -567,7 +535,7 @@ impl UltraLogApp {
             .collect();
 
         // Prepare data for plot
-        let cache = &self.downsample_cache;
+        let chart_points = &chart_points;
         let files = &self.files;
         let cursor_time = self.get_cursor_time();
         let cursor_tracking = self.cursor_tracking;
@@ -652,13 +620,7 @@ impl UltraLogApp {
                     continue;
                 }
 
-                let cache_key = CacheKey {
-                    file_index: selected.file_index,
-                    channel_index: selected.channel_index,
-                    plot_area_id,
-                };
-
-                if let Some(points) = cache.get(&cache_key) {
+                if let Some(points) = chart_points.get(i).and_then(|p| p.as_ref()) {
                     let plot_points: PlotPoints = points.iter().copied().collect();
                     let palette = if color_blind_mode {
                         COLORBLIND_COLORS
@@ -687,6 +649,12 @@ impl UltraLogApp {
 
             plot_ui.pointer_coordinate()
         });
+
+        // Save the bounds we just rendered so the next frame's downsample
+        // matches the visible viewport.
+        let final_bounds = response.transform.bounds();
+        self.chart_last_x_bounds
+            .insert(plot_area_id, (final_bounds.min()[0], final_bounds.max()[0]));
 
         // Detect interaction
         if response.response.dragged()
@@ -870,6 +838,61 @@ impl UltraLogApp {
             // s.xxxs format
             format!("{}{:.3}s", sign, secs)
         }
+    }
+
+    /// Compute the points to plot for one channel, sliced to the currently
+    /// visible viewport before LTTB-downsampling. Y is normalized to [0, 1]
+    /// against the channel's full-range min/max so heights stay stable when
+    /// the user pans or zooms. `viewport` is the previous frame's X bounds;
+    /// when `None` (e.g., first frame after load) the full data range is used.
+    fn compute_viewport_points(
+        &mut self,
+        file_index: usize,
+        channel_index: usize,
+        viewport: Option<(f64, f64)>,
+    ) -> Option<Vec<[f64; 2]>> {
+        let file = self.files.get(file_index)?;
+        let times = file.log.get_times_as_f64();
+        let data = self.get_channel_data(file_index, channel_index);
+        if times.is_empty() || times.len() != data.len() {
+            return None;
+        }
+
+        let (lo, hi) = match viewport {
+            Some((vmin, vmax)) if vmax > vmin => {
+                let pad = (vmax - vmin) * 0.1;
+                let lo_t = vmin - pad;
+                let hi_t = vmax + pad;
+                let lo_i = times.partition_point(|&t| t < lo_t).saturating_sub(1);
+                let hi_i = times
+                    .partition_point(|&t| t <= hi_t)
+                    .saturating_add(1)
+                    .min(times.len());
+                (lo_i, hi_i.max(lo_i + 1))
+            }
+            _ => (0, times.len()),
+        };
+
+        let times_slice = &times[lo..hi];
+        let data_slice = &data[lo..hi];
+        let downsampled = Self::downsample_lttb(times_slice, data_slice, MAX_CHART_POINTS);
+
+        let (min_y, max_y) = self
+            .get_channel_min_max(file_index, channel_index)
+            .unwrap_or((0.0, 1.0));
+        let range = (max_y - min_y).abs();
+        // Constant channels (range ≈ 0) get parked at the middle of the
+        // overlay strip so they remain visible instead of pinning to the
+        // bottom edge — matches the prior `normalize_points` behavior.
+        if range < f64::EPSILON {
+            return Some(downsampled.into_iter().map(|p| [p[0], 0.5]).collect());
+        }
+        Some(
+            downsampled
+                .into_iter()
+                .map(|p| [p[0], (p[1] - min_y) / range])
+                .collect(),
+        )
     }
 
     /// Normalize values to 0-1 range for overlay display
