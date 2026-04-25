@@ -608,6 +608,73 @@ fn test_loaded_file_clone() {
     assert_eq!(cloned.channels_with_data, file.channels_with_data);
 }
 
+#[test]
+fn test_loaded_file_get_channel_column_returns_data() {
+    let log = create_test_log();
+    let file = LoadedFile::new(
+        PathBuf::from("/test/path.csv"),
+        "path.csv".to_string(),
+        EcuType::Haltech,
+        log,
+    );
+
+    // Channel 0: Engine Speed values 5000, 5100, 0
+    let col0 = file.get_channel_column(0).expect("channel 0 column");
+    assert_eq!(col0, &[5000.0, 5100.0, 0.0]);
+
+    // Channel 1: TPS values 50, 0, 0
+    let col1 = file.get_channel_column(1).expect("channel 1 column");
+    assert_eq!(col1, &[50.0, 0.0, 0.0]);
+}
+
+#[test]
+fn test_loaded_file_get_channel_column_out_of_bounds() {
+    let log = create_test_log();
+    let file = LoadedFile::new(
+        PathBuf::from("/test/path.csv"),
+        "path.csv".to_string(),
+        EcuType::Haltech,
+        log,
+    );
+
+    assert!(file.get_channel_column(999).is_none());
+}
+
+#[test]
+fn test_loaded_file_get_channel_column_idempotent() {
+    // Second call should return the same lazily-built columns and produce
+    // identical slices — exercises the OnceLock memoization path.
+    let log = create_test_log();
+    let file = LoadedFile::new(
+        PathBuf::from("/test/path.csv"),
+        "path.csv".to_string(),
+        EcuType::Haltech,
+        log,
+    );
+
+    let first = file.get_channel_column(0).unwrap().to_vec();
+    let second = file.get_channel_column(0).unwrap().to_vec();
+    assert_eq!(first, second);
+}
+
+#[test]
+fn test_loaded_file_get_channel_column_empty_log() {
+    let log = Log {
+        meta: ultralog::parsers::types::Meta::Empty,
+        channels: vec![],
+        times: vec![],
+        data: vec![],
+    };
+    let file = LoadedFile::new(
+        PathBuf::from("/test/path.csv"),
+        "path.csv".to_string(),
+        EcuType::Haltech,
+        log,
+    );
+
+    assert!(file.get_channel_column(0).is_none());
+}
+
 // ============================================
 // HistogramMode Tests
 // ============================================

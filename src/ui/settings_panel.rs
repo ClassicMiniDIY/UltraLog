@@ -216,14 +216,13 @@ impl UltraLogApp {
                 });
                 // Persist only when the user releases the slider, otherwise
                 // every drag pixel rewrites settings.json.
-                if let Some(resp) = slider_response {
-                    if resp.drag_stopped() || resp.lost_focus() {
-                        if self.user_settings.grid_opacity != self.grid_opacity {
-                            self.user_settings.grid_opacity = self.grid_opacity;
-                            if let Err(e) = self.user_settings.save() {
-                                self.show_toast_error(&t!("toast.failed_to_save", error = e));
-                            }
-                        }
+                let committed = slider_response
+                    .map(|r| r.drag_stopped() || r.lost_focus())
+                    .unwrap_or(false);
+                if committed && self.user_settings.grid_opacity != self.grid_opacity {
+                    self.user_settings.grid_opacity = self.grid_opacity;
+                    if let Err(e) = self.user_settings.save() {
+                        self.show_toast_error(&t!("toast.failed_to_save", error = e));
                     }
                 }
             }
