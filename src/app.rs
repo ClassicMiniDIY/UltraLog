@@ -67,8 +67,15 @@ pub struct UltraLogApp {
     // === View Options ===
     /// When true, keep cursor centered and pan graph during scrubbing
     pub(crate) cursor_tracking: bool,
-    /// Visible time window width in seconds (for cursor tracking mode)
+    /// Visible time window width in seconds (for cursor tracking mode).
+    /// This is the user-set value bound to the Window slider in Settings —
+    /// transient zoom interactions don't touch it.
     pub(crate) view_window_seconds: f64,
+    /// Live render width used by the chart in cursor-tracking mode. Starts
+    /// at `view_window_seconds` and is updated by zoom interactions
+    /// (pinch, cmd+wheel, scroll-to-zoom) without persisting back to the
+    /// slider; the slider write-path resets it back to the new setting.
+    pub(crate) current_view_window: f64,
     // === Playback ===
     /// Whether playback is active
     pub(crate) is_playing: bool,
@@ -187,6 +194,7 @@ impl Default for UltraLogApp {
             cursor_record: None,
             cursor_tracking: true,
             view_window_seconds: 30.0, // Default 30 second window
+            current_view_window: 30.0,
             is_playing: false,
             last_frame_time: None,
             playback_speed: 1.0,

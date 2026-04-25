@@ -149,15 +149,21 @@ impl UltraLogApp {
 
             if self.cursor_tracking {
                 ui.add_space(4.0);
+                let mut window_resp = None;
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(t!("settings.window")).size(font_12));
-                    ui.add(
-                        egui::Slider::new(&mut self.view_window_seconds, 5.0..=120.0)
-                            .suffix("s")
-                            .logarithmic(true)
-                            .text(""),
+                    window_resp = Some(
+                        ui.add(
+                            egui::Slider::new(&mut self.view_window_seconds, 5.0..=120.0)
+                                .suffix("s")
+                                .logarithmic(true)
+                                .text(""),
+                        ),
                     );
                 });
+                if window_resp.is_some_and(|r| r.changed()) {
+                    self.current_view_window = self.view_window_seconds;
+                }
             }
 
             ui.add_space(8.0);
