@@ -55,6 +55,11 @@ pub struct UltraLogApp {
     pub(crate) downsample_cache: HashMap<CacheKey, Vec<[f64; 2]>>,
     /// Cache for channel min/max values (avoids O(n) scans)
     pub(crate) minmax_cache: HashMap<CacheKey, (f64, f64)>,
+    /// Last X-axis bounds shown by each plot area. Used to slice raw data to
+    /// the visible viewport before LTTB-downsampling, so chart detail scales
+    /// with zoom level instead of being fixed at MAX_CHART_POINTS over the
+    /// full log range. Keyed by plot_area_id (0 in single-plot mode).
+    pub(crate) chart_last_x_bounds: HashMap<usize, (f64, f64)>,
     /// Current cursor position in seconds (timeline feature)
     pub(crate) cursor_time: Option<f64>,
     /// Total time range across all loaded files (min, max)
@@ -175,6 +180,7 @@ impl Default for UltraLogApp {
             loading_state: LoadingState::Idle,
             downsample_cache: HashMap::new(),
             minmax_cache: HashMap::new(),
+            chart_last_x_bounds: HashMap::new(),
             cursor_time: None,
             time_range: None,
             cursor_record: None,
@@ -918,6 +924,10 @@ impl UltraLogApp {
                 }
             }
             self.minmax_cache = new_minmax_cache;
+
+            // Reset viewport-bounds memory so the next frame after a file is
+            // removed picks fresh bounds from whatever data remains.
+            self.chart_last_x_bounds.clear();
 
             // Clear computed channels for this file and update indices
             self.file_computed_channels.remove(&index);
