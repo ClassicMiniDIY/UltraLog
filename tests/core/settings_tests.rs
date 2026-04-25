@@ -34,6 +34,18 @@ fn test_settings_default_is_consistent() {
     assert_eq!(settings1.language, settings2.language);
 }
 
+#[test]
+fn test_settings_default_show_grid() {
+    let settings = UserSettings::default();
+    assert!(settings.show_grid);
+}
+
+#[test]
+fn test_settings_default_grid_opacity() {
+    let settings = UserSettings::default();
+    assert_eq!(settings.grid_opacity, 255);
+}
+
 // ============================================
 // Serialization Tests
 // ============================================
@@ -106,11 +118,50 @@ fn test_settings_deserialize_empty_object() {
 }
 
 #[test]
+fn test_settings_deserialize_legacy_without_grid_fields() {
+    // Settings persisted before the grid feature must still load and pick up
+    // sensible defaults for show_grid/grid_opacity
+    let json = r#"{"version":1,"language":"English","scroll_to_zoom":false}"#;
+    let settings: UserSettings = serde_json::from_str(json).unwrap();
+
+    assert!(settings.show_grid);
+    assert_eq!(settings.grid_opacity, 255);
+}
+
+#[test]
+fn test_settings_deserialize_grid_disabled() {
+    let json = r#"{"version":1,"show_grid":false,"grid_opacity":128}"#;
+    let settings: UserSettings = serde_json::from_str(json).unwrap();
+
+    assert!(!settings.show_grid);
+    assert_eq!(settings.grid_opacity, 128);
+}
+
+#[test]
+fn test_settings_grid_fields_roundtrip() {
+    let original = UserSettings {
+        version: 1,
+        language: Language::English,
+        scroll_to_zoom: false,
+        show_grid: false,
+        grid_opacity: 64,
+    };
+
+    let json = serde_json::to_string(&original).unwrap();
+    let restored: UserSettings = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(original.show_grid, restored.show_grid);
+    assert_eq!(original.grid_opacity, restored.grid_opacity);
+}
+
+#[test]
 fn test_settings_roundtrip() {
     let original = UserSettings {
         version: 1,
         language: Language::Spanish,
         scroll_to_zoom: false,
+        show_grid: true,
+        grid_opacity: 255,
     };
 
     let json = serde_json::to_string(&original).unwrap();
@@ -127,6 +178,8 @@ fn test_settings_roundtrip_all_languages() {
             version: 1,
             language: *lang,
             scroll_to_zoom: false,
+            show_grid: true,
+            grid_opacity: 255,
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -226,6 +279,8 @@ fn test_settings_clone() {
         version: 1,
         language: Language::Spanish,
         scroll_to_zoom: false,
+        show_grid: true,
+        grid_opacity: 255,
     };
 
     let cloned = original.clone();

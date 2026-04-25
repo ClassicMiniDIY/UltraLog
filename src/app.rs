@@ -86,6 +86,10 @@ pub struct UltraLogApp {
     pub(crate) initial_view_seconds: f64,
     /// When true, scroll wheel zooms chart directly instead of panning
     pub(crate) scroll_to_zoom: bool,
+    /// When true, draw the chart background grid
+    pub(crate) show_grid: bool,
+    /// Grid line opacity (0..=255) used as the alpha of the base grid color
+    pub(crate) grid_opacity: u8,
     // === Unit Preferences ===
     /// User preferences for display units
     pub(crate) unit_preferences: UnitPreferences,
@@ -190,6 +194,8 @@ impl Default for UltraLogApp {
             field_normalization: true, // Enabled by default for better readability
             initial_view_seconds: 60.0, // Start with 60 second view
             scroll_to_zoom: false,
+            show_grid: true,
+            grid_opacity: 255,
             unit_preferences: UnitPreferences::default(),
             font_scale: FontScale::default(),
             custom_normalizations: HashMap::new(),
@@ -271,6 +277,8 @@ impl UltraLogApp {
             user_settings: user_settings.clone(),
             language: user_settings.language,
             scroll_to_zoom: user_settings.scroll_to_zoom,
+            show_grid: user_settings.show_grid,
+            grid_opacity: user_settings.grid_opacity,
             ..Self::default()
         };
 
