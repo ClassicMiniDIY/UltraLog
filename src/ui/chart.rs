@@ -135,6 +135,8 @@ impl UltraLogApp {
         let initial_view_seconds = self.initial_view_seconds;
         let jump_to_time = self.get_jump_to_time();
         let scroll_to_zoom = self.scroll_to_zoom;
+        let show_grid = self.show_grid;
+        let grid_color = grid_color_with_opacity(ui, self.grid_opacity);
 
         // Read scroll input before plot consumes it (for scroll-to-zoom mode)
         let scroll_delta_y = if scroll_to_zoom && !cursor_tracking {
@@ -153,6 +155,8 @@ impl UltraLogApp {
             .legend(egui_plot::Legend::default())
             .y_axis_label("") // Hide Y axis label since values are normalized
             .show_axes([true, false]) // Show X axis (time), hide Y axis (normalized 0-1)
+            .show_grid([show_grid, show_grid])
+            .grid_color(grid_color)
             .allow_zoom([true, false]) // Only allow X-axis zoom
             .allow_drag([!cursor_tracking, false]) // Only allow X-axis drag, never Y
             .allow_scroll([!cursor_tracking && !scroll_to_zoom, false]); // Disable scroll-pan when scroll-to-zoom enabled
@@ -550,12 +554,17 @@ impl UltraLogApp {
         const Y_MIN: f64 = -0.05;
         const Y_MAX: f64 = 1.05;
 
+        let show_grid = self.show_grid;
+        let grid_color = grid_color_with_opacity(ui, self.grid_opacity);
+
         // Build plot with fixed height
         let plot = Plot::new(format!("plot_{}", plot_area_id))
             .height(height)
             .legend(egui_plot::Legend::default())
             .y_axis_label("")
             .show_axes([true, false])
+            .show_grid([show_grid, show_grid])
+            .grid_color(grid_color)
             .allow_zoom([true, false])
             .allow_drag([!cursor_tracking, false])
             .allow_scroll([!cursor_tracking, false]);
@@ -1034,4 +1043,13 @@ impl UltraLogApp {
 
         result
     }
+}
+
+/// Build a grid color matching the active theme but with a user-controlled
+/// alpha override. The base RGB comes from `Visuals::text_color`, which is
+/// what egui_plot uses by default; we just substitute the alpha so the
+/// distance-based fade still applies on top.
+fn grid_color_with_opacity(ui: &egui::Ui, alpha: u8) -> egui::Color32 {
+    let c = ui.visuals().text_color();
+    egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)
 }

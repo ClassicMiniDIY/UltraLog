@@ -117,6 +117,21 @@ impl UltraLogApp {
                     .text_styles
                     .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
+                // Chart grid toggle
+                let old_show_grid = self.show_grid;
+                ui.checkbox(
+                    &mut self.show_grid,
+                    egui::RichText::new(t!("menu.show_grid")).size(font_14),
+                );
+                if self.show_grid != old_show_grid {
+                    self.user_settings.show_grid = self.show_grid;
+                    if let Err(e) = self.user_settings.save() {
+                        self.show_toast_error(&t!("toast.failed_to_save", error = e));
+                    }
+                }
+
+                ui.separator();
+
                 // Tool modes
                 ui.label(
                     egui::RichText::new(t!("menu.tool_mode"))

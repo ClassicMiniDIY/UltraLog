@@ -19,10 +19,25 @@ pub struct UserSettings {
     /// When true, scroll wheel zooms chart directly instead of panning
     #[serde(default)]
     pub scroll_to_zoom: bool,
+    /// When true, draw the chart background grid
+    #[serde(default = "default_show_grid")]
+    pub show_grid: bool,
+    /// Grid line opacity, 0..=255. Modulates the base grid color's alpha
+    /// before egui_plot's distance-based fade
+    #[serde(default = "default_grid_opacity")]
+    pub grid_opacity: u8,
 }
 
 fn default_version() -> u32 {
     1
+}
+
+fn default_show_grid() -> bool {
+    true
+}
+
+fn default_grid_opacity() -> u8 {
+    255
 }
 
 impl Default for UserSettings {
@@ -31,6 +46,8 @@ impl Default for UserSettings {
             version: 1,
             language: Language::default(),
             scroll_to_zoom: false,
+            show_grid: default_show_grid(),
+            grid_opacity: default_grid_opacity(),
         }
     }
 }
