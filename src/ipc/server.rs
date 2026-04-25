@@ -32,11 +32,6 @@ impl IpcServer {
         let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
             .map_err(|e| format!("Failed to bind to port {}: {}", port, e))?;
 
-        // Set non-blocking so we can check for shutdown
-        listener
-            .set_nonblocking(true)
-            .map_err(|e| format!("Failed to set non-blocking: {}", e))?;
-
         let (command_tx, command_rx) = mpsc::channel();
 
         // Spawn the listener thread
@@ -78,10 +73,6 @@ impl IpcServer {
                     thread::spawn(move || {
                         Self::handle_connection(stream, tx);
                     });
-                }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    // No connection available, sleep briefly
-                    thread::sleep(std::time::Duration::from_millis(100));
                 }
                 Err(e) => {
                     tracing::error!("Error accepting connection: {}", e);
