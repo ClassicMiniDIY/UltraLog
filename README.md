@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-2.9.0-green.svg)
+![Version](https://img.shields.io/badge/version-2.10.0-green.svg)
 
 ---
 
@@ -151,6 +151,13 @@ Configurable units for 8 measurement categories:
 - **Features:** Automatic channel and unit detection from BlueDriver live data exports
 - **Supported data:** All OBD-II PIDs logged by BlueDriver including RPM, speed, coolant temp, MAF, fuel trims, O2 sensors, and more
 
+### Woolich Racing Tuned - Full Support
+
+- **File type:** CSV exports from Woolich Racing Tuned (WRT) flash-tuning software
+- **Features:** `HH:MM:SS.mmm` timestamp normalization, boolean channel parsing (`Clutch In` True/False), unit inference, trailing-comma handling
+- **Supported devices:** Yamaha, Kawasaki, Suzuki, Honda, and BMW sportbike ECUs flashed/logged via the WRT datalogger
+- **Supported data:** RPM, TPS, IAP (intake air pressure), AFR, Gear, Clutch In, Coolant Temp, IAT, and all logged channels
+
 ### Coming Soon
 - AEM
 - MaxxECU
@@ -284,6 +291,7 @@ UltraLog automatically detects the ECU format based on file contents:
 - **AiM:** Identified by `<hCNF` tag in XRK/DRK files
 - **Link ECU:** Identified by `lf3` magic bytes in LLG files
 - **Emerald:** Identified by `.lg1` and `.lg2` file pair
+- **Woolich Racing Tuned:** Identified by comma-delimited CSV starting with a `Log Time` column of `HH:MM:SS.mmm` timestamps
 
 **Loading multiple files:**
 - Each file opens in its own tab
@@ -581,7 +589,8 @@ UltraLog/
 │   │   ├── aim.rs         # AiM XRK/DRK parser
 │   │   ├── link.rs        # Link ECU LLG parser
 │   │   ├── emerald.rs     # Emerald ECU parser
-│   │   └── bluedriver.rs  # BlueDriver OBD-II parser
+│   │   ├── bluedriver.rs  # BlueDriver OBD-II parser
+│   │   └── woolich.rs     # Woolich Racing Tuned CSV parser
 │   ├── analysis/          # Analysis tools
 │   │   ├── filters.rs     # Signal processing filters
 │   │   ├── statistics.rs  # Statistical analysis
@@ -666,6 +675,7 @@ The following trademarks are the property of their respective owners:
 - **Subaru** is a trademark of Subaru Corporation
 - **MegaSquirt** is a trademark of Bowling and Grippo
 - **BlueDriver** is a trademark of Lemur Vehicle Monitors
+- **Woolich Racing** and **Woolich Racing Tuned** are trademarks of Woolich Racing
 - **AEM** is a trademark of AEM Performance Electronics
 - **MoTeC** is a trademark of MoTeC Pty Ltd
 - **MaxxECU** is a trademark of MaxxECU

@@ -74,7 +74,8 @@ src/
 │   ├── romraider.rs  # RomRaider CSV parser
 │   ├── speeduino.rs  # Speeduino/rusEFI MLG binary parser
 │   ├── aim.rs        # AiM XRK/DRK binary parser
-│   └── link.rs       # Link ECU LLG binary parser
+│   ├── link.rs       # Link ECU LLG binary parser
+│   └── woolich.rs    # Woolich Racing Tuned CSV parser
 └── ui/
     ├── mod.rs                        # UI module exports
     ├── sidebar.rs                    # File list and view options panel
@@ -199,6 +200,7 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - **`parsers/speeduino.rs`** - Speeduino/rusEFI MLG binary format parser
 - **`parsers/aim.rs`** - AiM XRK/DRK binary format parser for motorsport data loggers
 - **`parsers/link.rs`** - Link ECU LLG binary format parser
+- **`parsers/woolich.rs`** - Woolich Racing Tuned CSV parser (HH:MM:SS.mmm timestamps, boolean channels)
 
 **Supported ECU Systems:**
 
@@ -210,6 +212,7 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - AiM (XRK/DRK binary)
 - Link ECU (LLG binary)
 - Motorsport Electronics ME221/ME442 (ME Tuner CSV export)
+- Woolich Racing Tuned (WRT CSV export — motorcycle ECUs)
 
 To add a new ECU format:
 
@@ -291,4 +294,5 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/haltech/` - Haltech NSP CSV exports
 - `exampleLogs/aim/` - AiM XRK/DRK files
 - `exampleLogs/link/` - Link ECU LLG files
+- `exampleLogs/woolich/` - Woolich Racing Tuned CSV exports
 - Additional formats for parser testing

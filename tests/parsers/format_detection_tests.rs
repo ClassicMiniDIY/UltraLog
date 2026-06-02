@@ -13,6 +13,7 @@ use ultralog::parsers::ecumaster::EcuMaster;
 use ultralog::parsers::link::Link;
 use ultralog::parsers::romraider::RomRaider;
 use ultralog::parsers::speeduino::Speeduino;
+use ultralog::parsers::woolich::Woolich;
 
 // ============================================
 // Format Marker Tests
@@ -66,6 +67,12 @@ fn test_link_detection() {
     llg.extend_from_slice(b"lf3");
     llg.extend_from_slice(&[0; 208]);
     assert!(Link::detect(&llg), "Should detect Link LLG format");
+}
+
+#[test]
+fn test_woolich_detection() {
+    let woolich = "Log Time,RPM,TPS,IAP\n00:00:00.040,0,0.00,100.00\n";
+    assert!(Woolich::detect(woolich), "Should detect Woolich");
 }
 
 // ============================================
@@ -176,6 +183,36 @@ fn test_link_not_detected_as_others() {
     assert!(!Aim::detect(&llg), "Link should not be AiM");
 }
 
+#[test]
+fn test_woolich_not_detected_as_others() {
+    let woolich = "Log Time,RPM,TPS,IAP\n00:00:00.040,0,0.00,100.00\n";
+
+    assert!(
+        !woolich.starts_with("%DataLog%"),
+        "Woolich should not be Haltech"
+    );
+    assert!(
+        !EcuMaster::detect(woolich),
+        "Woolich should not be ECUMaster"
+    );
+    assert!(
+        !RomRaider::detect(woolich),
+        "Woolich should not be RomRaider (leading 'Log Time' != 'Time')"
+    );
+    assert!(
+        !Speeduino::detect(woolich.as_bytes()),
+        "Woolich should not be MLG"
+    );
+    assert!(
+        !Aim::detect(woolich.as_bytes()),
+        "Woolich should not be AiM"
+    );
+    assert!(
+        !Link::detect(woolich.as_bytes()),
+        "Woolich should not be Link"
+    );
+}
+
 // ============================================
 // Real File Detection Tests
 // ============================================
@@ -260,6 +297,30 @@ fn test_detect_link_example_file() {
     assert!(Link::detect(&data), "Should detect as Link");
     assert!(!Speeduino::detect(&data), "Should not detect as Speeduino");
     assert!(!Aim::detect(&data), "Should not detect as AiM");
+}
+
+#[test]
+fn test_detect_woolich_example_file() {
+    if !example_file_exists(WOOLICH_STANDARD) {
+        eprintln!("Skipping: {} not found", WOOLICH_STANDARD);
+        return;
+    }
+
+    let content = read_example_file(WOOLICH_STANDARD);
+
+    assert!(Woolich::detect(&content), "Should detect as Woolich");
+    assert!(
+        !content.starts_with("%DataLog%"),
+        "Should not detect as Haltech"
+    );
+    assert!(
+        !EcuMaster::detect(&content),
+        "Should not detect as ECUMaster"
+    );
+    assert!(
+        !RomRaider::detect(&content),
+        "Should not detect as RomRaider"
+    );
 }
 
 // ============================================

@@ -11,6 +11,7 @@ pub mod motorsport_electronics;
 pub mod romraider;
 pub mod speeduino;
 pub mod types;
+pub mod woolich;
 
 pub use aim::Aim;
 pub use bluedriver::BlueDriver;
@@ -25,3 +26,4 @@ pub use motorsport_electronics::MotorsportElectronics;
 pub use romraider::RomRaider;
 pub use speeduino::Speeduino;
 pub use types::{Channel, EcuType, Log, Parseable, Value};
+pub use woolich::Woolich;

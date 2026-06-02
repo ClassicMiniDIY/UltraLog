@@ -326,7 +326,7 @@ impl UltraLogMcpServer {
     }
 
     #[tool(
-        description = "Load an ECU log file. Supports Haltech CSV, ECUMaster CSV, RomRaider CSV, Speeduino/rusEFI MLG, AiM XRK/DRK, and Link LLG formats."
+        description = "Load an ECU log file. Supports Haltech CSV, ECUMaster CSV, RomRaider CSV, Speeduino/rusEFI MLG, AiM XRK/DRK, Link LLG, and Woolich Racing Tuned CSV formats."
     )]
     async fn load_file(
         &self,
