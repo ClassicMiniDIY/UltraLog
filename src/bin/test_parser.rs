@@ -5,7 +5,7 @@ use std::path::Path;
 // Import from the library
 use ultralog::parsers::{
     BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Parseable,
-    Speeduino,
+    Speeduino, Woolich,
 };
 
 use encoding_rs::{UTF_16BE, UTF_16LE};
@@ -119,6 +119,17 @@ fn main() {
             let parser = Locomotive;
             match parser.parse(&contents) {
                 Ok(log) => (EcuType::Locomotive, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if Woolich::detect(&contents) {
+            println!("\nDetected: Woolich Racing Tuned format");
+            println!("Parsing Woolich log...");
+            let parser = Woolich;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::Woolich, log),
                 Err(e) => {
                     eprintln!("Parse error: {}", e);
                     std::process::exit(1);

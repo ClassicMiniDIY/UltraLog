@@ -15,3 +15,4 @@ pub mod link_tests;
 pub mod motorsport_electronics_tests;
 pub mod romraider_tests;
 pub mod speeduino_tests;
+pub mod woolich_tests;

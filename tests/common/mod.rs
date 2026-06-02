@@ -73,6 +73,9 @@ pub mod example_files {
     pub const EMERALD_SHORT_DRIVE: &str = "exampleLogs/emerald/EM Log MG ZS Turbo short drive.lg1";
     pub const EMERALD_DIFF_CHANNELS: &str =
         "exampleLogs/emerald/EM Log MG ZS Turbo short drive back diff channels.lg1";
+
+    // Woolich Racing Tuned example files
+    pub const WOOLICH_STANDARD: &str = "exampleLogs/woolich/Woolich.csv";
 }
 
 /// Test data generators for synthetic tests

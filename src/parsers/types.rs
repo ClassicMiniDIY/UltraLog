@@ -13,6 +13,7 @@ use super::megasquirt::{MegaSquirtChannel, MegaSquirtMeta};
 use super::motorsport_electronics::{MotorsportElectronicsChannel, MotorsportElectronicsMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
+use super::woolich::{WoolichChannel, WoolichMeta};
 use crate::adapters::{get_channel_metadata, ChannelCategory, ChannelMetadata};
 
 /// Metadata enum supporting different ECU formats
@@ -30,6 +31,7 @@ pub enum Meta {
     MotorsportElectronics(MotorsportElectronicsMeta),
     RomRaider(RomRaiderMeta),
     Speeduino(SpeeduinoMeta),
+    Woolich(WoolichMeta),
     #[default]
     Empty,
 }
@@ -60,6 +62,7 @@ pub enum Channel {
     MotorsportElectronics(MotorsportElectronicsChannel),
     RomRaider(RomRaiderChannel),
     Speeduino(SpeeduinoChannel),
+    Woolich(WoolichChannel),
     /// A computed/virtual channel derived from a formula
     Computed(ComputedChannelInfo),
 }
@@ -82,6 +85,7 @@ impl Serialize for Channel {
             Channel::MotorsportElectronics(m) => m.serialize(serializer),
             Channel::RomRaider(r) => r.serialize(serializer),
             Channel::Speeduino(s) => s.serialize(serializer),
+            Channel::Woolich(w) => w.serialize(serializer),
             Channel::Computed(c) => c.serialize(serializer),
         }
     }
@@ -102,6 +106,7 @@ impl Channel {
             Channel::MotorsportElectronics(m) => m.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
+            Channel::Woolich(w) => w.name.clone(),
             Channel::Computed(c) => c.name.clone(),
         }
     }
@@ -121,6 +126,7 @@ impl Channel {
             Channel::MotorsportElectronics(m) => m.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
+            Channel::Woolich(w) => w.name.clone(),
             Channel::Computed(c) => format!("computed_{}", c.name),
         }
     }
@@ -139,6 +145,7 @@ impl Channel {
             Channel::MotorsportElectronics(_) => "Motorsport Electronics".to_string(),
             Channel::RomRaider(_) => "RomRaider".to_string(),
             Channel::Speeduino(_) => "Speeduino/rusEFI".to_string(),
+            Channel::Woolich(_) => "Woolich".to_string(),
             Channel::Computed(_) => "Computed".to_string(),
         }
     }
@@ -160,6 +167,7 @@ impl Channel {
             Channel::MotorsportElectronics(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
+            Channel::Woolich(_) => None,
             Channel::Computed(_) => None,
         };
 
@@ -184,6 +192,7 @@ impl Channel {
             Channel::MotorsportElectronics(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
+            Channel::Woolich(_) => None,
             Channel::Computed(_) => None,
         };
 
@@ -220,6 +229,7 @@ impl Channel {
             Channel::MotorsportElectronics(m) => m.unit(),
             Channel::RomRaider(r) => r.unit(),
             Channel::Speeduino(s) => s.unit(),
+            Channel::Woolich(w) => w.unit(),
             Channel::Computed(c) => &c.unit,
         }
     }
@@ -317,6 +327,7 @@ pub enum EcuType {
     Locomotive,
     RomRaider,
     Speeduino,
+    Woolich,
     Unknown,
 }
 
@@ -338,6 +349,7 @@ impl EcuType {
             EcuType::Locomotive => "Locomotive",
             EcuType::RomRaider => "RomRaider",
             EcuType::Speeduino => "Speeduino/rusEFI",
+            EcuType::Woolich => "Woolich",
             EcuType::Unknown => "Unknown",
         }
     }
@@ -642,6 +654,7 @@ mod tests {
         assert_eq!(EcuType::Link.name(), "Link");
         assert_eq!(EcuType::RomRaider.name(), "RomRaider");
         assert_eq!(EcuType::Speeduino.name(), "Speeduino/rusEFI");
+        assert_eq!(EcuType::Woolich.name(), "Woolich");
         assert_eq!(EcuType::Unknown.name(), "Unknown");
     }
 

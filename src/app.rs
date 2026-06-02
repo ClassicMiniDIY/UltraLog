@@ -22,7 +22,7 @@ use crate::ipc::IpcServer;
 use crate::mcp::{start_mcp_server, McpServerHandle, DEFAULT_MCP_PORT};
 use crate::parsers::{
     Aim, BlueDriver, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive,
-    MegaSquirt, MotorsportElectronics, Parseable, RomRaider, Speeduino,
+    MegaSquirt, MotorsportElectronics, Parseable, RomRaider, Speeduino, Woolich,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -600,6 +600,16 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::DynamicEfi)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse DynamicEFI file: {}",
+                    e
+                ))),
+            }
+        } else if Woolich::detect(contents) {
+            // Woolich Racing Tuned CSV format detected
+            let parser = Woolich;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::Woolich)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse Woolich file: {}",
                     e
                 ))),
             }
