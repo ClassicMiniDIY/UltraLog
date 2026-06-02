@@ -139,6 +139,8 @@ impl Woolich {
     /// row to begin with an `HH:MM:SS.mmm` timestamp. No other supported
     /// format uses a `Log Time` header, so this is specific enough on its own.
     pub fn detect(contents: &str) -> bool {
+        // Strip UTF-8 BOM if present (common on Windows CSV exports).
+        let contents = contents.trim_start_matches('\u{FEFF}');
         let mut lines = contents.lines();
 
         let Some(header) = lines.next() else {
@@ -169,6 +171,8 @@ impl Woolich {
 
 impl Parseable for Woolich {
     fn parse(&self, file_contents: &str) -> Result<Log, Box<dyn Error>> {
+        // Strip UTF-8 BOM if present (common on Windows CSV exports).
+        let file_contents = file_contents.trim_start_matches('\u{FEFF}');
         let line_count = file_contents.lines().count();
         let estimated_rows = line_count.saturating_sub(1);
 
@@ -203,6 +207,9 @@ impl Parseable for Woolich {
         let mut times: Vec<f64> = Vec::with_capacity(estimated_rows);
         let mut data: Vec<Vec<Value>> = Vec::with_capacity(estimated_rows);
         let mut first_time: Option<f64> = None;
+        // Reuse one buffer for line splitting to avoid a heap allocation per
+        // row (logs routinely run tens of thousands of rows).
+        let mut fields: Vec<&str> = Vec::with_capacity(column_names.len());
 
         for line in lines {
             let line = line.trim();
@@ -210,7 +217,8 @@ impl Parseable for Woolich {
                 continue;
             }
 
-            let fields: Vec<&str> = line.split(',').collect();
+            fields.clear();
+            fields.extend(line.split(','));
             let Some(time_val) = fields.first().and_then(|f| parse_log_time(f)) else {
                 continue;
             };
@@ -329,6 +337,18 @@ mod tests {
         assert_eq!(WoolichChannel::from_header("IAT").unit, "°C");
         assert_eq!(WoolichChannel::from_header("Gear").unit, "");
         assert_eq!(WoolichChannel::from_header("Clutch In").unit, "");
+    }
+
+    #[test]
+    fn handles_utf8_bom() {
+        // Windows CSV exports often prepend a UTF-8 BOM.
+        let with_bom = format!("\u{FEFF}{}", SAMPLE);
+        assert!(Woolich::detect(&with_bom));
+
+        let log = Woolich.parse(&with_bom).expect("should parse with BOM");
+        assert_eq!(log.channels.len(), 8);
+        assert_eq!(log.channels[0].name(), "RPM");
+        assert_eq!(log.data.len(), 3);
     }
 
     #[test]
