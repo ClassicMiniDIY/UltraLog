@@ -173,8 +173,9 @@ impl Parseable for Woolich {
     fn parse(&self, file_contents: &str) -> Result<Log, Box<dyn Error>> {
         // Strip UTF-8 BOM if present (common on Windows CSV exports).
         let file_contents = file_contents.trim_start_matches('\u{FEFF}');
-        let line_count = file_contents.lines().count();
-        let estimated_rows = line_count.saturating_sub(1);
+        // Estimate row count from byte length (rows are ~50 bytes) to size the
+        // output buffers without a second full pass over the file.
+        let estimated_rows = (file_contents.len() / 50).max(16);
 
         let mut lines = file_contents.lines();
         let header = lines.next().ok_or("Empty file: no header found")?;
@@ -207,6 +208,11 @@ impl Parseable for Woolich {
         let mut times: Vec<f64> = Vec::with_capacity(estimated_rows);
         let mut data: Vec<Vec<Value>> = Vec::with_capacity(estimated_rows);
         let mut first_time: Option<f64> = None;
+        // `Log Time` is a wall-clock time-of-day, so a session that crosses
+        // midnight wraps from ~86400 back to 0. Track the previous in-day value
+        // and accumulate a 24h offset each time the clock jumps backwards.
+        let mut prev_raw = f64::NEG_INFINITY;
+        let mut day_offset = 0.0_f64;
         // Reuse one buffer for line splitting to avoid a heap allocation per
         // row (logs routinely run tens of thousands of rows).
         let mut fields: Vec<&str> = Vec::with_capacity(column_names.len());
@@ -219,9 +225,17 @@ impl Parseable for Woolich {
 
             fields.clear();
             fields.extend(line.split(','));
-            let Some(time_val) = fields.first().and_then(|f| parse_log_time(f)) else {
+            let Some(raw) = fields.first().and_then(|f| parse_log_time(f)) else {
                 continue;
             };
+
+            // A backwards jump of more than a second means midnight was crossed
+            // (the 1s guard avoids tripping on duplicate/jittered timestamps).
+            if raw + 1.0 < prev_raw {
+                day_offset += 86_400.0;
+            }
+            prev_raw = raw;
+            let time_val = raw + day_offset;
 
             let relative_time = match first_time {
                 Some(first) => time_val - first,
@@ -337,6 +351,28 @@ mod tests {
         assert_eq!(WoolichChannel::from_header("IAT").unit, "°C");
         assert_eq!(WoolichChannel::from_header("Gear").unit, "");
         assert_eq!(WoolichChannel::from_header("Clutch In").unit, "");
+    }
+
+    #[test]
+    fn handles_midnight_wraparound() {
+        // Session starts just before midnight and crosses into the next day.
+        let log_str = "Log Time,RPM,\n\
+            23:59:59.000,1000,\n\
+            23:59:59.500,1100,\n\
+            00:00:00.500,1200,\n\
+            00:00:01.500,1300,\n";
+
+        let log = Woolich.parse(log_str).expect("should parse");
+        assert_eq!(log.times.len(), 4);
+
+        // Times must stay monotonically increasing across the midnight boundary.
+        assert!((log.times[0] - 0.0).abs() < 1e-9);
+        assert!((log.times[1] - 0.5).abs() < 1e-9);
+        assert!((log.times[2] - 1.5).abs() < 1e-9);
+        assert!((log.times[3] - 2.5).abs() < 1e-9);
+        for w in log.times.windows(2) {
+            assert!(w[1] >= w[0], "times must not jump backwards at midnight");
+        }
     }
 
     #[test]
