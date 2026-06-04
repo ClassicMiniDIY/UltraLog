@@ -5,7 +5,7 @@
    - **Intel Mac**: `ultralog-macos-intel.dmg`
    - **Apple Silicon (M1/M2/M3/M4)**: `ultralog-macos-arm64.dmg`
 2. Open the DMG and drag UltraLog to your Applications folder
-3. On first run, right-click the app and select "Open" to bypass Gatekeeper
+3. Launch UltraLog from Applications. The app is signed and notarized by Apple, so it opens without a Gatekeeper warning.
 
 ### Windows
 1. Download `ultralog-windows.zip`

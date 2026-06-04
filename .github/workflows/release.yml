@@ -156,6 +156,30 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
+      - name: Import code signing certificate
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          echo "$MACOS_CERT_P12" | base64 --decode > "$CERT_PATH"
+
+          # Create a temporary keychain and import the Developer ID cert
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Make the temp keychain searchable so codesign can find the identity
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
+
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+
       - name: Get version
         id: version
         run: echo "VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*\"\(.*\)\".*/\1/')" >> $GITHUB_OUTPUT
@@ -170,6 +194,10 @@ jobs:
           BUNDLE_ID: ${{ needs.check-tag.outputs.bundle_id }}
           DMG_VOLNAME: ${{ needs.check-tag.outputs.dmg_volname }}
           SUFFIX: ${{ needs.check-tag.outputs.suffix }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          AC_API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
+          AC_API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
+          AC_API_KEY_P8: ${{ secrets.AC_API_KEY_P8 }}
         run: |
           ASSET_NAME="ultralog-macos-${{ matrix.arch }}${SUFFIX}"
           mkdir -p output
@@ -253,8 +281,26 @@ jobs:
             ICNS_PATH="$APP_DIR/Contents/Resources/AppIcon.icns"
           fi
 
-          # Ad-hoc sign the app bundle
-          codesign --force --deep --sign - "$APP_DIR"
+          # Decode the App Store Connect API key for notarytool
+          API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          echo "$AC_API_KEY_P8" | base64 --decode > "$API_KEY_PATH"
+
+          # Sign with Developer ID + hardened runtime (inner binary first, then bundle)
+          codesign --force --options runtime --timestamp \
+            --sign "$MACOS_SIGN_IDENTITY" "$APP_DIR/Contents/MacOS/ultralog"
+          codesign --force --options runtime --timestamp \
+            --sign "$MACOS_SIGN_IDENTITY" "$APP_DIR"
+          codesign --verify --strict --verbose=2 "$APP_DIR"
+
+          # Notarize the app, then staple the ticket so it opens offline
+          ditto -c -k --keepParent "$APP_DIR" "$RUNNER_TEMP/app.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/app.zip" \
+            --key "$API_KEY_PATH" \
+            --key-id "$AC_API_KEY_ID" \
+            --issuer "$AC_API_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$APP_DIR"
+          rm -f "$RUNNER_TEMP/app.zip"
 
           # Create DMG with volume icon if available
           if [ -n "$ICNS_PATH" ]; then
@@ -283,6 +329,17 @@ jobs:
               "$APP_DIR" || \
               hdiutil create -volname "${DMG_VOLNAME}" -srcfolder "$APP_DIR" -ov -format UDZO "output/${ASSET_NAME}.dmg"
           fi
+
+          # Sign, notarize, and staple the DMG so the download itself is trusted
+          codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" "output/${ASSET_NAME}.dmg"
+          xcrun notarytool submit "output/${ASSET_NAME}.dmg" \
+            --key "$API_KEY_PATH" \
+            --key-id "$AC_API_KEY_ID" \
+            --issuer "$AC_API_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "output/${ASSET_NAME}.dmg"
+          xcrun stapler validate "output/${ASSET_NAME}.dmg"
+          rm -f "$API_KEY_PATH"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -362,7 +419,7 @@ jobs:
                - **Intel Mac**: `ultralog-macos-intel-beta.dmg`
                - **Apple Silicon (M1/M2/M3/M4)**: `ultralog-macos-arm64-beta.dmg`
             2. Open the DMG and drag UltraLog to your Applications folder
-            3. On first run, right-click the app and select "Open" to bypass Gatekeeper
+            3. Launch UltraLog from Applications. Beta builds are signed and notarized by Apple, so they open without a Gatekeeper warning.
 
             ### Windows
             1. Download `ultralog-windows-beta.zip`
