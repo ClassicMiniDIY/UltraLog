@@ -516,3 +516,77 @@ fn test_haltech_find_channel_index() {
     let not_found = log.find_channel_index("NonExistentChannel12345");
     assert_eq!(not_found, None);
 }
+
+// ============================================
+// Regression Tests
+// ============================================
+
+#[test]
+fn test_haltech_unparseable_value_keeps_column_alignment() {
+    // A non-numeric value in one column must not shift later columns left;
+    // it should be filled with the last known value for that column.
+    let sample = r#"%DataLog%
+DataLogVersion : 1.1
+
+Channel : A
+Type : Raw
+ID : 0
+DisplayMaxMin : 100, 0
+
+Channel : B
+Type : Raw
+ID : 1
+DisplayMaxMin : 100, 0
+
+Channel : C
+Type : Raw
+ID : 2
+DisplayMaxMin : 100, 0
+
+00:00:00.000,1,2,3
+00:00:00.100,4,N/A,6
+00:00:00.200,7,8,9
+"#;
+
+    let parser = Haltech;
+    let log = parser.parse(sample).expect("Should parse");
+
+    assert_eq!(log.data.len(), 3);
+    // Row 1: B is unparseable -> last known (2); C must stay 6, not shift
+    assert_eq!(log.data[1][0].as_f64(), 4.0);
+    assert_eq!(log.data[1][1].as_f64(), 2.0);
+    assert_eq!(log.data[1][2].as_f64(), 6.0);
+    assert_eq!(log.data[2][1].as_f64(), 8.0);
+}
+
+#[test]
+fn test_haltech_midnight_rollover_keeps_times_monotonic() {
+    let sample = r#"%DataLog%
+DataLogVersion : 1.1
+
+Channel : A
+Type : Raw
+ID : 0
+DisplayMaxMin : 100, 0
+
+23:59:59.000,1
+23:59:59.500,2
+00:00:00.500,3
+00:00:01.000,4
+"#;
+
+    let parser = Haltech;
+    let log = parser.parse(sample).expect("Should parse");
+
+    let times: Vec<f64> = log.times.clone();
+    assert_eq!(times.len(), 4);
+    for pair in times.windows(2) {
+        assert!(
+            pair[1] > pair[0],
+            "times must be monotonic across midnight: {:?}",
+            times
+        );
+    }
+    // 23:59:59.000 -> 00:00:00.500 is 1.5s elapsed
+    assert!((times[2] - 1.5).abs() < 1e-9);
+}

@@ -465,3 +465,17 @@ fn test_speeduino_large_file_performance() {
         "Parsing should complete in reasonable time"
     );
 }
+
+#[test]
+fn test_speeduino_truncated_v2_header_errors_not_panics() {
+    // 22 bytes: magic (6) + version=2 (2) + 14 filler bytes. A v2 header
+    // needs 24 bytes; this must return Err instead of panicking.
+    let mut data = Vec::new();
+    data.extend_from_slice(b"MLVLG\0");
+    data.extend_from_slice(&2i16.to_be_bytes());
+    data.extend_from_slice(&[0u8; 14]);
+    assert_eq!(data.len(), 22);
+
+    let result = ultralog::parsers::speeduino::Speeduino::parse_binary(&data);
+    assert!(result.is_err());
+}
