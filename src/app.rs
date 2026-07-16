@@ -27,9 +27,9 @@ use crate::parsers::{
 use crate::settings::UserSettings;
 use crate::state::{
     ActivePanel, ActiveTool, CacheKey, DownsampleCache, FontScale, LoadResult, LoadedFile,
-    LoadingState, PlotArea, ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab, ToastType,
-    CHART_COLORS, COLORBLIND_COLORS, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS,
-    MIN_PLOT_HEIGHT,
+    LoadingState, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
+    SelectedChannel, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS, MAX_CHANNELS,
+    MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS, MIN_PLOT_HEIGHT,
 };
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
@@ -69,6 +69,8 @@ pub struct UltraLogApp {
     /// quantized viewport changes. Must be cleared whenever underlying
     /// channel data changes (file removal, computed-channel edits).
     pub(crate) downsample_cache: DownsampleCache,
+    /// Cached scatter-plot heatmap histograms. Cleared on file removal.
+    pub(crate) scatter_histogram_cache: ScatterHistogramCache,
     /// Current cursor position in seconds (timeline feature)
     pub(crate) cursor_time: Option<f64>,
     /// Total time range across all loaded files (min, max)
@@ -202,6 +204,7 @@ impl Default for UltraLogApp {
             minmax_cache: HashMap::new(),
             chart_last_x_bounds: HashMap::new(),
             downsample_cache: DownsampleCache::new(),
+            scatter_histogram_cache: ScatterHistogramCache::new(),
             cursor_time: None,
             time_range: None,
             cursor_record: None,
@@ -999,8 +1002,10 @@ impl UltraLogApp {
             // removed picks fresh bounds from whatever data remains.
             self.chart_last_x_bounds.clear();
 
-            // File indices shift, so cached downsampled points are stale.
+            // File indices shift, so cached downsampled points and scatter
+            // histograms are stale.
             self.downsample_cache.clear();
+            self.scatter_histogram_cache.clear();
 
             // Clear computed channels for this file and update indices
             self.file_computed_channels.remove(&index);
