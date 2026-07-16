@@ -101,6 +101,20 @@ impl UltraLogApp {
                                 self.export_chart_pdf();
                                 ui.close();
                             }
+
+                            ui.separator();
+
+                            if ui.button(t!("menu.export_csv_full")).clicked() {
+                                self.export_csv(false);
+                                ui.close();
+                            }
+                            let has_viewport = self.visible_time_range().is_some();
+                            ui.add_enabled_ui(has_viewport, |ui| {
+                                if ui.button(t!("menu.export_csv_visible")).clicked() {
+                                    self.export_csv(true);
+                                    ui.close();
+                                }
+                            });
                         }
                     });
                 });
