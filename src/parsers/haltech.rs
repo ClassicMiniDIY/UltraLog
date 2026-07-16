@@ -418,8 +418,20 @@ impl Parseable for Haltech {
             // First timestamp is the base for relative times
             let first_timestamp = parsed_rows[0].0;
             let mut last_values: Vec<Value> = vec![Value::Float(0.0); channels.len()];
+            // Timestamps are wall-clock time-of-day, so a session crossing
+            // midnight wraps from ~86400 back to 0. Accumulate a 24h offset
+            // on each backwards jump (>1s guard skips timestamp jitter) to
+            // keep `times` monotonic — computed-channel time-shift lookups
+            // binary-search this vector and require sorted order.
+            let mut prev_raw = f64::NEG_INFINITY;
+            let mut day_offset = 0.0_f64;
 
             for (timestamp, values) in parsed_rows {
+                if timestamp + 1.0 < prev_raw {
+                    day_offset += 86_400.0;
+                }
+                prev_raw = timestamp;
+                let timestamp = timestamp + day_offset;
                 let row: Vec<Value> = values
                     .into_iter()
                     .enumerate()
