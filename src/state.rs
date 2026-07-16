@@ -204,10 +204,12 @@ pub struct CacheKey {
     pub plot_area_id: usize,
 }
 
-/// Cached downsampled chart points per (file_index, channel_index), tagged
-/// with the viewport key they were computed for.
+/// Cached downsampled chart points per (file_index, channel_index,
+/// plot_area_id), tagged with the viewport key they were computed for.
+/// Keyed per plot area so a channel shown in two stacked plots with
+/// different viewports doesn't evict its own entry every frame.
 pub type DownsampleCache =
-    std::collections::HashMap<(usize, usize), (DownsampleViewKey, Vec<[f64; 2]>)>;
+    std::collections::HashMap<(usize, usize, usize), (DownsampleViewKey, Vec<[f64; 2]>)>;
 
 /// Precomputed 2D histogram for the scatter-plot heatmap. Channel data is
 /// immutable once a file is loaded, so this only needs rebuilding when the

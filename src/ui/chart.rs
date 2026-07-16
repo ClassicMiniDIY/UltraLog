@@ -95,7 +95,12 @@ impl UltraLogApp {
         let chart_points: Vec<Option<Vec<[f64; 2]>>> = selected_channels
             .iter()
             .map(|selected| {
-                self.compute_viewport_points(selected.file_index, selected.channel_index, viewport)
+                self.compute_viewport_points(
+                    selected.file_index,
+                    selected.channel_index,
+                    0,
+                    viewport,
+                )
             })
             .collect();
 
@@ -511,7 +516,12 @@ impl UltraLogApp {
         let chart_points: Vec<Option<Vec<[f64; 2]>>> = channels
             .iter()
             .map(|selected| {
-                self.compute_viewport_points(selected.file_index, selected.channel_index, viewport)
+                self.compute_viewport_points(
+                    selected.file_index,
+                    selected.channel_index,
+                    plot_area_id,
+                    viewport,
+                )
             })
             .collect();
 
@@ -870,6 +880,7 @@ impl UltraLogApp {
         &mut self,
         file_index: usize,
         channel_index: usize,
+        plot_area_id: usize,
         viewport: Option<(f64, f64)>,
     ) -> Option<Vec<[f64; 2]>> {
         // Resolve min/max first so the mutable borrow on the cache ends before
@@ -908,8 +919,8 @@ impl UltraLogApp {
             _ => DownsampleViewKey::Full,
         };
 
-        if let Some((cached_key, points)) = self.downsample_cache.get(&(file_index, channel_index))
-        {
+        let cache_key = (file_index, channel_index, plot_area_id);
+        if let Some((cached_key, points)) = self.downsample_cache.get(&cache_key) {
             if *cached_key == view_key {
                 return Some(points.clone());
             }
@@ -975,7 +986,7 @@ impl UltraLogApp {
         };
 
         self.downsample_cache
-            .insert((file_index, channel_index), (view_key, points.clone()));
+            .insert(cache_key, (view_key, points.clone()));
         Some(points)
     }
 
