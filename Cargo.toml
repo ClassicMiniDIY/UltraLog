@@ -107,6 +107,7 @@ objc2-foundation = "0.3.2"
 opt-level = 3
 lto = true
 strip = true
+codegen-units = 1
 
 # Faster compile times for debug builds
 [profile.dev]
