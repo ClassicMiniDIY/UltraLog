@@ -203,6 +203,26 @@ pub fn load_cached_adapters() -> Option<Vec<AdapterSpec>> {
     }
 }
 
+/// Build a safe cache filename from API-supplied vendor/id fields.
+/// Restricts to a filename-safe slug so a hostile or corrupted API response
+/// can't escape the cache directory (e.g. `../`) via `Path::join`.
+fn spec_cache_filename(vendor: &str, id: &str) -> String {
+    let slug = |s: &str| -> String {
+        s.chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>()
+            .trim_matches('.')
+            .to_string()
+    };
+    format!("{}-{}.json", slug(vendor), slug(id))
+}
+
 /// Save adapters to cache
 pub fn save_adapters_to_cache(adapters: &[AdapterSpec]) -> Result<(), CacheError> {
     let cache_dir = ensure_cache_dirs()?;
@@ -217,7 +237,7 @@ pub fn save_adapters_to_cache(adapters: &[AdapterSpec]) -> Result<(), CacheError
 
     // Save each adapter
     for adapter in adapters {
-        let filename = format!("{}-{}.json", adapter.vendor, adapter.id);
+        let filename = spec_cache_filename(&adapter.vendor, &adapter.id);
         let path = adapters_dir.join(&filename);
 
         let content = serde_json::to_string_pretty(adapter)
@@ -289,7 +309,7 @@ pub fn save_protocols_to_cache(protocols: &[ProtocolSpec]) -> Result<(), CacheEr
 
     // Save each protocol
     for protocol in protocols {
-        let filename = format!("{}-{}.json", protocol.vendor, protocol.id);
+        let filename = spec_cache_filename(&protocol.vendor, &protocol.id);
         let path = protocols_dir.join(&filename);
 
         let content = serde_json::to_string_pretty(protocol)
