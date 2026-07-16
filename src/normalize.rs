@@ -235,7 +235,6 @@ static NORMALIZATION_MAP: LazyLock<HashMap<&'static str, Vec<&'static str>>> =
             vec![
                 "RPM",
                 "rpm",
-                "Speed",
                 "PCS RPM4",
                 "Engine RPM4",
                 "RPM_INC_RPM",
