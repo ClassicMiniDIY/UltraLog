@@ -277,6 +277,9 @@ impl UltraLogApp {
         // Apply fonts
         cc.egui_ctx.set_fonts(fonts);
 
+        // Apply the dark theme once at startup (the app is dark-only)
+        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+
         // Load user settings and set locale
         let user_settings = UserSettings::load();
         rust_i18n::set_locale(user_settings.language.locale_code());
@@ -290,9 +293,13 @@ impl UltraLogApp {
             ..Self::default()
         };
 
-        // Start the IPC server for MCP integration
+        // Start the IPC server for MCP integration. Commands wake the GUI
+        // via request_repaint instead of a fixed polling interval.
         let mut ipc_port = crate::ipc::DEFAULT_IPC_PORT;
-        match IpcServer::start() {
+        let repaint_ctx = cc.egui_ctx.clone();
+        match IpcServer::start_with_repaint(std::sync::Arc::new(move || {
+            repaint_ctx.request_repaint()
+        })) {
             Ok(server) => {
                 ipc_port = server.port();
                 tracing::info!("MCP IPC server started on port {}", ipc_port);
@@ -663,53 +670,61 @@ impl UltraLogApp {
     /// Check for completed background loads
     fn check_loading_complete(&mut self) {
         if let Some(receiver) = &self.load_receiver {
-            if let Ok(result) = receiver.try_recv() {
-                match result {
-                    LoadResult::Success(file) => {
-                        let file_index = self.files.len();
-                        let file_name = file.name.clone();
-
-                        // Track file load for analytics
-                        let ecu_type_str = format!("{:?}", file.ecu_type);
-                        let file_size = std::fs::metadata(&file.path).map(|m| m.len()).unwrap_or(0);
-                        analytics::track_file_loaded(&ecu_type_str, file_size);
-
-                        // Compute time range for this file
-                        let times = file.log.get_times_as_f64();
-                        let file_time_range =
-                            if let (Some(&first), Some(&last)) = (times.first(), times.last()) {
-                                Some((first, last))
-                            } else {
-                                None
-                            };
-
-                        self.files.push(*file);
-                        self.selected_file = Some(file_index);
-                        self.update_time_range();
-
-                        // Create a new tab for this file with its time range
-                        let mut tab = Tab::new(file_index, file_name);
-                        tab.time_range = file_time_range;
-                        // Initialize cursor to start of file
-                        if let Some((min_time, _)) = file_time_range {
-                            tab.cursor_time = Some(min_time);
-                            tab.cursor_record = Some(0);
-                        }
-                        self.tabs.push(tab);
-                        self.active_tab = Some(self.tabs.len() - 1);
-
-                        self.show_toast_success(&t!("toast.file_loaded"));
-
-                        // Switch to Channels panel so user can select channels
-                        self.active_panel = ActivePanel::ToolProperties;
-                    }
-                    LoadResult::Error(e) => {
-                        self.show_toast_error(&format!("Error: {}", e));
-                    }
+            let result = match receiver.try_recv() {
+                Ok(result) => result,
+                Err(std::sync::mpsc::TryRecvError::Empty) => return,
+                // The loader thread died (e.g. a parser panic) without
+                // sending a result — surface an error instead of spinning
+                // in the Loading state forever.
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    LoadResult::Error("File loading failed unexpectedly".to_string())
                 }
-                self.load_receiver = None;
-                self.loading_state = LoadingState::Idle;
+            };
+            match result {
+                LoadResult::Success(file) => {
+                    let file_index = self.files.len();
+                    let file_name = file.name.clone();
+
+                    // Track file load for analytics
+                    let ecu_type_str = format!("{:?}", file.ecu_type);
+                    let file_size = std::fs::metadata(&file.path).map(|m| m.len()).unwrap_or(0);
+                    analytics::track_file_loaded(&ecu_type_str, file_size);
+
+                    // Compute time range for this file
+                    let times = file.log.get_times_as_f64();
+                    let file_time_range =
+                        if let (Some(&first), Some(&last)) = (times.first(), times.last()) {
+                            Some((first, last))
+                        } else {
+                            None
+                        };
+
+                    self.files.push(*file);
+                    self.selected_file = Some(file_index);
+                    self.update_time_range();
+
+                    // Create a new tab for this file with its time range
+                    let mut tab = Tab::new(file_index, file_name);
+                    tab.time_range = file_time_range;
+                    // Initialize cursor to start of file
+                    if let Some((min_time, _)) = file_time_range {
+                        tab.cursor_time = Some(min_time);
+                        tab.cursor_record = Some(0);
+                    }
+                    self.tabs.push(tab);
+                    self.active_tab = Some(self.tabs.len() - 1);
+
+                    self.show_toast_success(&t!("toast.file_loaded"));
+
+                    // Switch to Channels panel so user can select channels
+                    self.active_panel = ActivePanel::ToolProperties;
+                }
+                LoadResult::Error(e) => {
+                    self.show_toast_error(&format!("Error: {}", e));
+                }
             }
+            self.load_receiver = None;
+            self.loading_state = LoadingState::Idle;
         }
     }
 
@@ -1988,7 +2003,7 @@ impl UltraLogApp {
     // ========================================================================
 
     /// Process pending IPC commands from the MCP server
-    fn process_ipc_commands(&mut self) {
+    fn process_ipc_commands(&mut self, ctx: &egui::Context) {
         // Collect commands first to avoid borrowing issues
         let mut pending_commands = Vec::new();
 
@@ -2001,6 +2016,12 @@ impl UltraLogApp {
                     break;
                 }
             }
+        }
+
+        // If we hit the batch cap, more commands may be queued; their arrival
+        // repaints may have coalesced into this frame, so schedule another.
+        if pending_commands.len() == 10 {
+            ctx.request_repaint();
         }
 
         // Now process the collected commands
@@ -2045,10 +2066,7 @@ impl eframe::App for UltraLogApp {
         self.handle_keyboard_shortcuts(ctx);
 
         // Handle IPC commands from MCP server
-        self.process_ipc_commands();
-
-        // Apply dark theme
-        ctx.set_visuals(egui::Visuals::dark());
+        self.process_ipc_commands(ctx);
 
         // Request repaint while loading or updating (for spinner animation)
         if matches!(self.loading_state, LoadingState::Loading(_))
@@ -2058,11 +2076,6 @@ impl eframe::App for UltraLogApp {
             )
         {
             ctx.request_repaint();
-        }
-
-        // When MCP server is active, request repaint at 10Hz to poll for IPC commands
-        if self.ipc_server.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
 
         // Toast notifications
