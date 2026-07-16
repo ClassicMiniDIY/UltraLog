@@ -99,7 +99,6 @@ impl Speeduino {
         }
         // Header requires at least 22 bytes (v1): 6 (magic) + 2 (version) + 4 (timestamp)
         // + 2 (info_data_start) + 4 (data_begin) + 2 (record_length) + 2 (num_fields)
-        // v2 needs 24 bytes (info_data_start is 4 bytes), checked implicitly by field reads
         if data.len() < 22 {
             return Err("MLG file header truncated".into());
         }
@@ -112,9 +111,15 @@ impl Speeduino {
         let is_v2 = format_version == 2;
         let field_length = if is_v2 { 89 } else { 55 };
 
-        eprintln!(
-            "DEBUG: MLG format version: {}, field_length: {}",
-            format_version, field_length
+        // v2 headers are 2 bytes longer (info_data_start is int32, not int16)
+        if is_v2 && data.len() < 24 {
+            return Err("MLG v2 file header truncated".into());
+        }
+
+        tracing::debug!(
+            "MLG format version: {}, field_length: {}",
+            format_version,
+            field_length
         );
 
         // Read timestamp (int32, big-endian)
@@ -149,9 +154,10 @@ impl Speeduino {
         let num_fields = u16::from_be_bytes([data[offset], data[offset + 1]]) as usize;
         offset += 2;
 
-        eprintln!(
+        tracing::debug!(
             "DEBUG: num_fields: {}, data_begin_index: {}",
-            num_fields, data_begin_index
+            num_fields,
+            data_begin_index
         );
 
         // Validate bounds before parsing
@@ -245,11 +251,16 @@ impl Speeduino {
             });
         }
 
-        eprintln!("DEBUG: Parsed {} channels", channels.len());
+        tracing::debug!("DEBUG: Parsed {} channels", channels.len());
         for (idx, ch) in channels.iter().enumerate() {
-            eprintln!(
+            tracing::debug!(
                 "  [{}] {} ({}) type={} scale={} transform={}",
-                idx, ch.name, ch.unit, ch.field_type, ch.scale, ch.transform
+                idx,
+                ch.name,
+                ch.unit,
+                ch.field_type,
+                ch.scale,
+                ch.transform
             );
         }
 
@@ -336,7 +347,7 @@ impl Speeduino {
 
                 // Check if we have enough data for this record BEFORE adding timestamp
                 if offset + required_bytes > data.len() {
-                    eprintln!(
+                    tracing::debug!(
                         "DEBUG: Not enough data for complete record at offset {} (need {}, have {})",
                         offset,
                         required_bytes,
@@ -438,7 +449,7 @@ impl Speeduino {
             } else if block_type == 1 {
                 // Marker record - skip marker message (50 bytes)
                 if offset + 50 > data.len() {
-                    eprintln!(
+                    tracing::debug!(
                         "DEBUG: Not enough data for marker block at offset {} (need 50, have {})",
                         offset,
                         data.len() - offset
@@ -447,7 +458,7 @@ impl Speeduino {
                 }
                 offset += 50;
             } else {
-                eprintln!(
+                tracing::debug!(
                     "DEBUG: Unknown block type {} at offset {}",
                     block_type,
                     offset - 3
@@ -456,19 +467,19 @@ impl Speeduino {
             }
         }
 
-        eprintln!("DEBUG: Parsed {} data records", data_records.len());
-        eprintln!("DEBUG: Times vector length: {}", times.len());
+        tracing::debug!("DEBUG: Parsed {} data records", data_records.len());
+        tracing::debug!("DEBUG: Times vector length: {}", times.len());
 
         // Debug: Check if timestamps are monotonically increasing
         if times.len() > 1 {
-            eprintln!("DEBUG: Timestamp analysis:");
+            tracing::debug!("DEBUG: Timestamp analysis:");
             let mut non_monotonic_count = 0;
             let mut prev_time: f64 = 0.0;
             for (i, &t) in times.iter().enumerate() {
                 if i > 0 && t < prev_time {
                     non_monotonic_count += 1;
                     if non_monotonic_count <= 5 {
-                        eprintln!(
+                        tracing::debug!(
                             "  Non-monotonic at index {}: {} -> {} (delta: {:.3})",
                             i,
                             prev_time,
@@ -480,37 +491,37 @@ impl Speeduino {
                 prev_time = t;
             }
             if non_monotonic_count > 0 {
-                eprintln!("  Total non-monotonic jumps: {}", non_monotonic_count);
+                tracing::debug!("  Total non-monotonic jumps: {}", non_monotonic_count);
             } else {
-                eprintln!("  All timestamps are monotonically increasing");
+                tracing::debug!("  All timestamps are monotonically increasing");
             }
 
             // Print first 10 and last 5 timestamps
-            eprintln!("DEBUG: First 10 timestamps:");
+            tracing::debug!("DEBUG: First 10 timestamps:");
             for (i, t) in times.iter().take(10).enumerate() {
-                eprintln!("  [{}] {}", i, t);
+                tracing::debug!("  [{}] {}", i, t);
             }
             if times.len() > 15 {
-                eprintln!("DEBUG: Last 5 timestamps:");
+                tracing::debug!("DEBUG: Last 5 timestamps:");
                 for (i, t) in times.iter().skip(times.len() - 5).enumerate() {
-                    eprintln!("  [{}] {}", times.len() - 5 + i, t);
+                    tracing::debug!("  [{}] {}", times.len() - 5 + i, t);
                 }
             }
         }
 
         // Debug: Show first few records to verify data structure
         if !data_records.is_empty() {
-            eprintln!("DEBUG: First record (time={}):", times[0]);
+            tracing::debug!("DEBUG: First record (time={}):", times[0]);
             for (idx, val) in data_records[0].iter().enumerate() {
                 if idx < channels.len() {
-                    eprintln!("  [{}] {} = {:.3}", idx, channels[idx].name, val.as_f64());
+                    tracing::debug!("  [{}] {} = {:.3}", idx, channels[idx].name, val.as_f64());
                 }
             }
             if data_records.len() > 1 {
-                eprintln!("DEBUG: Second record (time={}):", times[1]);
+                tracing::debug!("DEBUG: Second record (time={}):", times[1]);
                 for (idx, val) in data_records[1].iter().enumerate() {
                     if idx < channels.len() {
-                        eprintln!("  [{}] {} = {:.3}", idx, channels[idx].name, val.as_f64());
+                        tracing::debug!("  [{}] {} = {:.3}", idx, channels[idx].name, val.as_f64());
                     }
                 }
             }
@@ -724,7 +735,7 @@ mod tests {
             Ok(d) => d,
             Err(_) => {
                 // Skip test if example file is not available
-                eprintln!("Skipping test: {} not found", file_path);
+                tracing::debug!("Skipping test: {} not found", file_path);
                 return;
             }
         };
@@ -768,10 +779,10 @@ mod tests {
         }
 
         // Print some debug info
-        eprintln!("Parsed {} channels", log.channels.len());
-        eprintln!("Parsed {} data records", log.data.len());
+        tracing::debug!("Parsed {} channels", log.channels.len());
+        tracing::debug!("Parsed {} data records", log.data.len());
         if !log.times.is_empty() {
-            eprintln!(
+            tracing::debug!(
                 "Time range: {:.3}s to {:.3}s",
                 log.times[0],
                 log.times[log.times.len() - 1]
@@ -787,7 +798,7 @@ mod tests {
             Ok(d) => d,
             Err(_) => {
                 // Skip test if example file is not available
-                eprintln!("Skipping test: {} not found", file_path);
+                tracing::debug!("Skipping test: {} not found", file_path);
                 return;
             }
         };
@@ -822,8 +833,8 @@ mod tests {
             );
         }
 
-        eprintln!("Parsed {} channels from rusEFI log", log.channels.len());
-        eprintln!("Parsed {} data records", log.data.len());
+        tracing::debug!("Parsed {} channels from rusEFI log", log.channels.len());
+        tracing::debug!("Parsed {} data records", log.data.len());
     }
 
     #[test]
@@ -841,7 +852,7 @@ mod tests {
             let data = match std::fs::read(file_path) {
                 Ok(d) => d,
                 Err(_) => {
-                    eprintln!("Skipping {}: file not found", file_path);
+                    tracing::debug!("Skipping {}: file not found", file_path);
                     continue;
                 }
             };
@@ -862,7 +873,7 @@ mod tests {
                 file_path,
                 avg_dt
             );
-            eprintln!(
+            tracing::debug!(
                 "{}: {} records, total {:.3}s, avg dt {:.4}s",
                 file_path,
                 log.times.len(),
