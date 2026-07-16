@@ -366,8 +366,10 @@ impl Parseable for Haltech {
         }
 
         // Phase 2: Parse data rows in parallel
-        // Each row is parsed independently, returning (timestamp, values)
-        let parsed_rows: Vec<(f64, Vec<Value>)> = data_lines
+        // Each row is parsed independently, returning (timestamp, values).
+        // Unparseable fields (blank, "N/A", text gears) become None so the
+        // row keeps positional alignment with the channel list.
+        let parsed_rows: Vec<(f64, Vec<Option<Value>>)> = data_lines
             .par_iter()
             .filter_map(|line| {
                 let parts: Vec<&str> = line.split(',').collect();
@@ -380,10 +382,10 @@ impl Parseable for Haltech {
                 let timestamp_secs = Self::parse_timestamp(timestamp_str)?;
 
                 // Parse remaining values and apply unit conversions
-                let values: Vec<Value> = parts[1..]
+                let values: Vec<Option<Value>> = parts[1..]
                     .iter()
                     .enumerate()
-                    .filter_map(|(idx, v)| {
+                    .map(|(idx, v)| {
                         let v = v.trim();
                         let raw_value: f64 = v.parse().ok()?;
 
@@ -405,7 +407,9 @@ impl Parseable for Haltech {
             })
             .collect();
 
-        // Phase 3: Post-process results (sequential for ordering)
+        // Phase 3: Post-process results (sequential for ordering).
+        // Fill unparseable fields with the last known value for that column
+        // (0.0 before the first valid sample), matching the ECUMaster parser.
         let data_count = parsed_rows.len();
         let mut times: Vec<f64> = Vec::with_capacity(data_count);
         let mut data: Vec<Vec<Value>> = Vec::with_capacity(data_count);
@@ -413,10 +417,24 @@ impl Parseable for Haltech {
         if !parsed_rows.is_empty() {
             // First timestamp is the base for relative times
             let first_timestamp = parsed_rows[0].0;
+            let mut last_values: Vec<Value> = vec![Value::Float(0.0); channels.len()];
 
             for (timestamp, values) in parsed_rows {
+                let row: Vec<Value> = values
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, value)| match value {
+                        Some(v) => {
+                            if let Some(slot) = last_values.get_mut(idx) {
+                                *slot = v;
+                            }
+                            v
+                        }
+                        None => last_values.get(idx).copied().unwrap_or(Value::Float(0.0)),
+                    })
+                    .collect();
                 times.push(timestamp - first_timestamp);
-                data.push(values);
+                data.push(row);
             }
         }
 
