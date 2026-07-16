@@ -8,11 +8,14 @@
 use std::borrow::Cow;
 use std::io::Write;
 
-/// A single channel column ready for CSV output: header text plus samples
-/// already converted to display units.
-pub struct CsvColumn {
+/// A single channel column ready for CSV output: header text, a borrowed
+/// slice of raw samples, and a conversion applied per cell at write time so
+/// export never duplicates the dataset in memory.
+pub struct CsvColumn<'a> {
     pub header: String,
-    pub data: Vec<f64>,
+    pub data: &'a [f64],
+    /// Converts a raw sample into the display value written to the CSV.
+    pub convert: Box<dyn Fn(f64) -> f64 + 'a>,
 }
 
 /// Build a column header from a channel name and its display unit symbol.
@@ -30,6 +33,17 @@ fn escape_field(field: &str) -> Cow<'_, str> {
         Cow::Owned(format!("\"{}\"", field.replace('"', "\"\"")))
     } else {
         Cow::Borrowed(field)
+    }
+}
+
+/// Neutralize spreadsheet formula injection: headers come from log file
+/// metadata, and Excel interprets cells starting with '=', '+', '-', or '@'
+/// as formulas. Prefix an apostrophe so they are always treated as text.
+fn sanitize_header(header: &str) -> Cow<'_, str> {
+    if header.starts_with(['=', '+', '-', '@']) {
+        Cow::Owned(format!("'{}", header))
+    } else {
+        Cow::Borrowed(header)
     }
 }
 
@@ -68,7 +82,7 @@ pub fn write_csv<W: Write>(
 ) -> std::io::Result<()> {
     write!(out, "Time (s)")?;
     for col in columns {
-        write!(out, ",{}", escape_field(&col.header))?;
+        write!(out, ",{}", escape_field(&sanitize_header(&col.header)))?;
     }
     writeln!(out)?;
 
@@ -81,7 +95,7 @@ pub fn write_csv<W: Write>(
         write!(out, "{}", format_value(time))?;
         for col in columns {
             match col.data.get(i) {
-                Some(&value) => write!(out, ",{}", format_value(value))?,
+                Some(&value) => write!(out, ",{}", format_value((col.convert)(value)))?,
                 None => write!(out, ",")?,
             }
         }
@@ -95,6 +109,14 @@ pub fn write_csv<W: Write>(
 mod tests {
     use super::*;
 
+    fn column<'a>(header: &str, data: &'a [f64]) -> CsvColumn<'a> {
+        CsvColumn {
+            header: header.to_string(),
+            data,
+            convert: Box::new(|v| v),
+        }
+    }
+
     fn csv_string(times: &[f64], columns: &[CsvColumn], range: Option<(f64, f64)>) -> String {
         let mut buf = Vec::new();
         write_csv(&mut buf, times, columns, range).unwrap();
@@ -104,14 +126,8 @@ mod tests {
     #[test]
     fn test_basic_csv_output() {
         let columns = vec![
-            CsvColumn {
-                header: "RPM".to_string(),
-                data: vec![1000.0, 1500.0, 2000.0],
-            },
-            CsvColumn {
-                header: "Boost (psi)".to_string(),
-                data: vec![0.5, 1.25, 2.0],
-            },
+            column("RPM", &[1000.0, 1500.0, 2000.0]),
+            column("Boost (psi)", &[0.5, 1.25, 2.0]),
         ];
         let csv = csv_string(&[0.0, 0.1, 0.2], &columns, None);
         assert_eq!(
@@ -122,10 +138,7 @@ mod tests {
 
     #[test]
     fn test_time_range_filter_is_inclusive() {
-        let columns = vec![CsvColumn {
-            header: "RPM".to_string(),
-            data: vec![1.0, 2.0, 3.0, 4.0, 5.0],
-        }];
+        let columns = vec![column("RPM", &[1.0, 2.0, 3.0, 4.0, 5.0])];
         let csv = csv_string(&[0.0, 1.0, 2.0, 3.0, 4.0], &columns, Some((1.0, 3.0)));
         assert_eq!(csv, "Time (s),RPM\n1,2\n2,3\n3,4\n");
     }
@@ -133,14 +146,8 @@ mod tests {
     #[test]
     fn test_header_escaping() {
         let columns = vec![
-            CsvColumn {
-                header: "Lambda, Bank 1".to_string(),
-                data: vec![1.0],
-            },
-            CsvColumn {
-                header: "Inj \"A\" Duty".to_string(),
-                data: vec![50.0],
-            },
+            column("Lambda, Bank 1", &[1.0]),
+            column("Inj \"A\" Duty", &[50.0]),
         ];
         let csv = csv_string(&[0.0], &columns, None);
         assert_eq!(
@@ -150,37 +157,48 @@ mod tests {
     }
 
     #[test]
-    fn test_short_column_pads_with_empty_cells() {
+    fn test_formula_injection_headers_are_neutralized() {
         let columns = vec![
-            CsvColumn {
-                header: "A".to_string(),
-                data: vec![1.0],
-            },
-            CsvColumn {
-                header: "B".to_string(),
-                data: vec![10.0, 20.0],
-            },
+            column("=SUM(A1:A9)", &[1.0]),
+            column("+Boost", &[2.0]),
+            column("-Trim", &[3.0]),
+            column("@RPM", &[4.0]),
         ];
+        let csv = csv_string(&[0.0], &columns, None);
+        assert_eq!(
+            csv,
+            "Time (s),'=SUM(A1:A9),'+Boost,'-Trim,'@RPM\n0,1,2,3,4\n"
+        );
+    }
+
+    #[test]
+    fn test_convert_closure_is_applied_per_cell() {
+        let columns = vec![CsvColumn {
+            header: "Coolant Temp (°C)".to_string(),
+            data: &[273.15, 293.15],
+            convert: Box::new(|kelvin| kelvin - 273.15),
+        }];
+        let csv = csv_string(&[0.0, 1.0], &columns, None);
+        assert_eq!(csv, "Time (s),Coolant Temp (°C)\n0,0\n1,20\n");
+    }
+
+    #[test]
+    fn test_short_column_pads_with_empty_cells() {
+        let columns = vec![column("A", &[1.0]), column("B", &[10.0, 20.0])];
         let csv = csv_string(&[0.0, 1.0], &columns, None);
         assert_eq!(csv, "Time (s),A,B\n0,1,10\n1,,20\n");
     }
 
     #[test]
     fn test_non_finite_values_become_empty_cells() {
-        let columns = vec![CsvColumn {
-            header: "A".to_string(),
-            data: vec![f64::NAN, f64::INFINITY, 1.5],
-        }];
+        let columns = vec![column("A", &[f64::NAN, f64::INFINITY, 1.5])];
         let csv = csv_string(&[0.0, 1.0, 2.0], &columns, None);
         assert_eq!(csv, "Time (s),A\n0,\n1,\n2,1.5\n");
     }
 
     #[test]
     fn test_empty_times_writes_header_only() {
-        let columns = vec![CsvColumn {
-            header: "RPM".to_string(),
-            data: vec![],
-        }];
+        let columns = vec![column("RPM", &[])];
         let csv = csv_string(&[], &columns, None);
         assert_eq!(csv, "Time (s),RPM\n");
     }

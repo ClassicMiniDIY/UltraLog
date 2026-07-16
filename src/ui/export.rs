@@ -10,7 +10,7 @@ use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::csv_export::{channel_header, write_csv, CsvColumn};
 use crate::normalize::normalize_channel_name_with_custom;
-use crate::state::HistogramMode;
+use crate::state::{ActiveTool, HistogramMode};
 
 /// Helper to push text ops into a Vec<Op>
 fn push_text(ops: &mut Vec<Op>, text: &str, size: f32, x: Mm, y: Mm, font: &PdfFontHandle) {
@@ -150,8 +150,13 @@ impl UltraLogApp {
     }
 
     /// The union of the x-axis bounds last rendered across all plot areas,
-    /// i.e. the currently visible time range of the chart.
+    /// i.e. the currently visible time range of the chart. Only meaningful in
+    /// the Log Viewer: other tools don't refresh `chart_last_x_bounds`, so it
+    /// would hold stale bounds from a previous chart render.
     pub fn visible_time_range(&self) -> Option<(f64, f64)> {
+        if self.active_tool != ActiveTool::LogViewer {
+            return None;
+        }
         self.chart_last_x_bounds
             .values()
             .fold(None, |acc, &(start, end)| match acc {
@@ -210,14 +215,12 @@ impl UltraLogApp {
             let source_unit = sel.channel.unit();
             // The display unit only depends on the source unit, not the value.
             let (_, display_unit) = self.unit_preferences.convert_value(0.0, source_unit);
-            let converted: Vec<f64> = data
-                .iter()
-                .map(|&v| self.unit_preferences.convert_value(v, source_unit).0)
-                .collect();
+            let prefs = &self.unit_preferences;
 
             columns.push(CsvColumn {
                 header: channel_header(&base_name, display_unit),
-                data: converted,
+                data,
+                convert: Box::new(move |v| prefs.convert_value(v, source_unit).0),
             });
         }
 
