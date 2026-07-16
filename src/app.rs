@@ -26,9 +26,10 @@ use crate::parsers::{
 };
 use crate::settings::UserSettings;
 use crate::state::{
-    ActivePanel, ActiveTool, CacheKey, FontScale, LoadResult, LoadedFile, LoadingState, PlotArea,
-    ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab, ToastType, CHART_COLORS,
-    COLORBLIND_COLORS, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS, MIN_PLOT_HEIGHT,
+    ActivePanel, ActiveTool, CacheKey, DownsampleCache, FontScale, LoadResult, LoadedFile,
+    LoadingState, PlotArea, ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab, ToastType,
+    CHART_COLORS, COLORBLIND_COLORS, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS,
+    MIN_PLOT_HEIGHT,
 };
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
@@ -58,6 +59,12 @@ pub struct UltraLogApp {
     /// with zoom level instead of being fixed at MAX_CHART_POINTS over the
     /// full log range. Keyed by plot_area_id (0 in single-plot mode).
     pub(crate) chart_last_x_bounds: HashMap<usize, (f64, f64)>,
+    /// Cached downsampled chart points per (file_index, channel_index),
+    /// tagged with the viewport key they were computed for. Avoids re-running
+    /// the O(samples) downsample every frame; recomputed only when the
+    /// quantized viewport changes. Must be cleared whenever underlying
+    /// channel data changes (file removal, computed-channel edits).
+    pub(crate) downsample_cache: DownsampleCache,
     /// Current cursor position in seconds (timeline feature)
     pub(crate) cursor_time: Option<f64>,
     /// Total time range across all loaded files (min, max)
@@ -189,6 +196,7 @@ impl Default for UltraLogApp {
             loading_state: LoadingState::Idle,
             minmax_cache: HashMap::new(),
             chart_last_x_bounds: HashMap::new(),
+            downsample_cache: DownsampleCache::new(),
             cursor_time: None,
             time_range: None,
             cursor_record: None,
@@ -971,6 +979,9 @@ impl UltraLogApp {
             // removed picks fresh bounds from whatever data remains.
             self.chart_last_x_bounds.clear();
 
+            // File indices shift, so cached downsampled points are stale.
+            self.downsample_cache.clear();
+
             // Clear computed channels for this file and update indices
             self.file_computed_channels.remove(&index);
             let mut new_computed_channels = HashMap::new();
@@ -1647,6 +1658,10 @@ impl UltraLogApp {
             if let Some(channels) = self.file_computed_channels.get_mut(&file_idx) {
                 if index < channels.len() {
                     channels.remove(index);
+                    // Later computed channels shift down one index, so
+                    // cached downsampled points and min/max no longer line up.
+                    self.downsample_cache.clear();
+                    self.minmax_cache.clear();
                 }
             }
         }

@@ -473,6 +473,10 @@ impl UltraLogApp {
                     .position(|c| c.name().eq_ignore_ascii_case(name))
                 {
                     computed.remove(pos);
+                    // Later computed channels shift down one index, so
+                    // cached downsampled points and min/max no longer line up.
+                    self.downsample_cache.clear();
+                    self.minmax_cache.clear();
                 }
             }
         }
