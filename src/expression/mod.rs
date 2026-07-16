@@ -4,8 +4,8 @@
 //! including support for time-shifted values (both index-based and time-based),
 //! and pre-computed channel statistics for anomaly detection.
 //!
-//! Formulas are compiled once by the built-in [`engine`] (which replaced the
-//! unmaintained `meval` crate while preserving its grammar exactly) and then
+//! Formulas are compiled once by the built-in `engine` module (which replaced
+//! the unmaintained `meval` crate while preserving its grammar exactly) and then
 //! evaluated per record against a slice of variable values, so evaluating a
 //! formula across a large log does no per-record parsing or allocation.
 
