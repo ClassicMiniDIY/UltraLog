@@ -872,9 +872,13 @@ fn test_formula_with_negative_numbers() {
 #[test]
 fn test_formula_with_scientific_notation() {
     let channels = vec!["X".to_string()];
-    // meval may not support scientific notation directly, use regular decimals
     let result = validate_formula("X * 0.001 + 250", &channels);
     assert!(result.is_ok());
+
+    // Scientific-notation literals validate too: the channel extractor
+    // recognizes exponent fragments ("e2" in "1e2") as part of the number.
+    assert!(validate_formula("X * 1e2", &channels).is_ok());
+    assert!(validate_formula("X * 1.5E-3 + 2e10", &channels).is_ok());
 }
 
 #[test]

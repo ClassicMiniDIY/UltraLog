@@ -10,7 +10,7 @@ use crate::app::UltraLogApp;
 use crate::computed::{ComputedChannel, ComputedChannelTemplate};
 use crate::expression::{
     build_channel_bindings, compute_all_channel_statistics, evaluate_all_records,
-    evaluate_all_records_with_stats, extract_channel_references,
+    evaluate_all_records_with_stats, extract_channel_references, formula_uses_statistics,
 };
 use crate::parsers::types::ComputedChannelInfo;
 use crate::parsers::Channel;
@@ -567,11 +567,7 @@ impl UltraLogApp {
         };
 
         // Check if formula uses statistical variables (for z-score anomaly detection)
-        let needs_statistics = template.formula.contains("_mean_")
-            || template.formula.contains("_stdev_")
-            || template.formula.contains("_min_")
-            || template.formula.contains("_max_")
-            || template.formula.contains("_range_");
+        let needs_statistics = formula_uses_statistics(&template.formula);
 
         // Evaluate the formula (with or without statistics)
         let cached_data = if needs_statistics {

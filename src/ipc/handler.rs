@@ -425,12 +425,20 @@ impl UltraLogApp {
                     Ok(bindings) => {
                         computed.channel_bindings = bindings.clone();
 
-                        // Evaluate
-                        match expression::evaluate_all_records(
+                        // Evaluate, computing channel statistics first if the
+                        // formula uses statistical variables (z-scores etc.)
+                        let statistics = expression::formula_uses_statistics(&formula).then(|| {
+                            expression::compute_all_channel_statistics(
+                                &available_channels,
+                                &file.log.data,
+                            )
+                        });
+                        match expression::evaluate_all_records_with_stats(
                             &formula,
                             &bindings,
                             &file.log.data,
                             file.log.get_times_as_f64(),
+                            statistics.as_ref(),
                         ) {
                             Ok(values) => {
                                 computed.cached_data = Some(values);
@@ -527,11 +535,17 @@ impl UltraLogApp {
             Err(e) => return IpcResponse::error(e),
         };
 
-        let all_values = match expression::evaluate_all_records(
+        // Compute channel statistics first if the formula uses statistical
+        // variables (z-scores etc.)
+        let statistics = expression::formula_uses_statistics(formula).then(|| {
+            expression::compute_all_channel_statistics(&available_channels, &file.log.data)
+        });
+        let all_values = match expression::evaluate_all_records_with_stats(
             formula,
             &bindings,
             &file.log.data,
             file.log.get_times_as_f64(),
+            statistics.as_ref(),
         ) {
             Ok(v) => v,
             Err(e) => return IpcResponse::error(e),

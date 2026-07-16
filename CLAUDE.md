@@ -58,7 +58,9 @@ src/
 ├── units.rs           # Unit preference types and conversions
 ├── normalize.rs       # Field name normalization system
 ├── computed.rs        # Computed channels data types and library
-├── expression.rs      # Formula parsing and evaluation engine
+├── expression/
+│   ├── mod.rs         # Formula parsing, channel refs, time shifts, evaluation
+│   └── engine.rs      # Built-in expression compiler/evaluator (replaced meval)
 ├── updater.rs          # Auto-update functionality
 ├── analytics.rs        # Privacy-respecting analytics
 ├── i18n.rs             # rust-i18n language/locale selection
@@ -160,11 +162,12 @@ src/
   - `ComputedChannelLibrary` - Global persistent library stored as JSON
   - Support for time-shifting: index offsets (e.g., `RPM[-1]`) and time offsets (e.g., `RPM@-0.1s`)
 
-- **`expression.rs`** - Formula evaluation engine:
-  - Parses mathematical expressions using meval
-  - Extracts channel references with time-shift syntax
+- **`expression/`** - Formula evaluation engine:
+  - `engine.rs` - Self-contained expression compiler/evaluator (zero deps; replaced the unmaintained meval crate while preserving its exact grammar: `+ - * / % ^` with standard precedence, right-assoc `^`, `-2^2 == -4`, variadic `min`/`max`, `pi`/`e`/`tau`/`phi` constants)
+  - Formulas compile once to an RPN instruction list; per-record evaluation fills variable slots from log data with no parsing, hashing, or allocation in the loop
+  - Extracts channel references with time-shift syntax (regex preprocessing, unchanged)
   - Validates formulas against available channels
-  - Evaluates formulas across all log records with proper time-shifting
+  - Statistical variables (`_mean_X`, `_stdev_X`, ...) resolve to constants at compile time — callers must pass statistics via `evaluate_all_records_with_stats` when `formula_uses_statistics()` is true (a formula using them without statistics is now an error instead of silent zeros)
 
 - **`updater.rs`** - Auto-update system:
   - Checks GitHub releases for new versions
@@ -399,7 +402,6 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 - **open** (5) - Cross-platform URL/email opening
 - **strum** (0.28) - Enum string conversion for channel types
 - **regex** (1.12) - Log file parsing
-- **meval** (0.2) - Mathematical expression evaluation for computed channels
 - **ureq** (3.3) - HTTP client for auto-updates and OpenECU Alliance API
 - **semver** (1.0) - Version comparison
 - **serde_yml** (0.0.12) - YAML parsing for adapter/protocol specs (replaces deprecated `serde_yaml`)
@@ -419,6 +421,8 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 - **encoding_rs** (0.8) - Character encoding detection/conversion (e.g., UTF-16 BlueDriver exports)
 - **thiserror** / **anyhow** - Error handling
 - **tracing** / **tracing-subscriber** - Structured logging
+
+Computed-channel formula evaluation is handled by the built-in `src/expression/engine.rs` (no external crate — do not re-add meval or an expression-evaluator dependency; meval was removed because it was unmaintained and its `nom` 1.2.4 transitive dep will be rejected by future Rust).
 
 ## Test Data
 

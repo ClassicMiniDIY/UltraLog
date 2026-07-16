@@ -3,10 +3,17 @@
 //! This module handles parsing mathematical formulas that reference channel data,
 //! including support for time-shifted values (both index-based and time-based),
 //! and pre-computed channel statistics for anomaly detection.
+//!
+//! Formulas are compiled once by the built-in `engine` module (which replaced
+//! the unmaintained `meval` crate while preserving its grammar exactly) and then
+//! evaluated per record against a slice of variable values, so evaluating a
+//! formula across a large log does no per-record parsing or allocation.
+
+mod engine;
 
 use crate::computed::{ChannelReference, TimeShift};
 use crate::parsers::types::Value;
-use meval::{Context, Expr};
+use engine::CompiledExpr;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -89,15 +96,24 @@ static UNQUOTED_CHANNEL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         .expect("Invalid regex pattern")
 });
 
-/// Known meval functions and constants that should not be treated as channel names
+/// Function and constant names reserved by the expression engine; these are
+/// never treated as channel names. (Channels with these exact names can still
+/// be referenced by quoting them.)
 const RESERVED_NAMES: &[&str] = &[
     "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh", "asinh", "acosh",
     "atanh", "sqrt", "abs", "exp", "ln", "log", "log2", "log10", "floor", "ceil", "round", "trunc",
-    "fract", "signum", "max", "min", "pi", "e", "tau", "phi",
+    "fract", "signum", "max", "min", "pow", "pi", "e", "tau", "phi",
 ];
 
 /// Prefixes for statistical variables that should not be treated as channel names
 const STATS_PREFIXES: &[&str] = &["_mean_", "_stdev_", "_min_", "_max_", "_range_"];
+
+/// Whether a formula references statistical variables
+/// (`_mean_*`, `_stdev_*`, `_min_*`, `_max_*`, `_range_*`) and therefore needs
+/// pre-computed channel statistics to evaluate.
+pub fn formula_uses_statistics(formula: &str) -> bool {
+    STATS_PREFIXES.iter().any(|p| formula.contains(p))
+}
 
 /// Extract all channel references from a formula
 pub fn extract_channel_references(formula: &str) -> Vec<ChannelReference> {
@@ -126,7 +142,7 @@ pub fn extract_channel_references(formula: &str) -> Vec<ChannelReference> {
         let time_shift_str = caps.get(3).map(|m| m.as_str());
         let full_match = caps.get(0).unwrap().as_str().to_string();
 
-        // Skip reserved names (meval functions/constants)
+        // Skip reserved names (engine functions/constants)
         if RESERVED_NAMES.contains(&name.to_lowercase().as_str()) {
             continue;
         }
@@ -136,8 +152,25 @@ pub fn extract_channel_references(formula: &str) -> Vec<ChannelReference> {
             continue;
         }
 
-        // Skip if this position is inside a quoted reference
         let start_pos = caps.get(0).unwrap().start();
+
+        // Skip the exponent fragment of a scientific-notation literal (the
+        // "e2" in "1e2"): an identifier of the form e<digits> immediately
+        // preceded by a digit or '.' is part of a number, not a channel.
+        let is_exponent_fragment = {
+            let mut name_chars = name.chars();
+            matches!(name_chars.next(), Some('e' | 'E'))
+                && name_chars.all(|c| c.is_ascii_digit())
+                && formula[..start_pos]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_ascii_digit() || c == '.')
+        };
+        if is_exponent_fragment {
+            continue;
+        }
+
+        // Skip if this position is inside a quoted reference
         let is_inside_quoted = references.iter().any(|r| {
             if let Some(pos) = formula.find(&r.full_match) {
                 start_pos >= pos && start_pos < pos + r.full_match.len()
@@ -208,40 +241,44 @@ pub fn validate_formula(formula: &str, available_channels: &[String]) -> Result<
         return Err(format!("Unknown channels: {}", missing.join(", ")));
     }
 
-    // Try to parse the formula with meval (using dummy variables)
-    let test_formula = prepare_formula_for_meval(formula, &refs);
+    // Compile the formula and check that every variable it uses resolves to
+    // either a channel reference or a statistical variable.
+    let compiled = compile_formula(formula, &refs)?;
 
-    // Create a context with all variables set to 1.0
-    let mut ctx = Context::new();
-    for r in &refs {
-        let var_name = sanitize_var_name(&r.full_match);
-        ctx.var(&var_name, 1.0);
-    }
+    let ref_names: std::collections::HashSet<String> = refs
+        .iter()
+        .map(|r| sanitize_var_name(&r.full_match))
+        .collect();
 
-    // Also set dummy values for statistical variables (for anomaly detection formulas)
+    // Dummy statistics for every available channel (mirrors evaluation-time
+    // injection so stats-based formulas validate).
+    let mut stat_names = std::collections::HashSet::new();
     for channel in available_channels {
         let safe_name = sanitize_var_name(channel);
-        ctx.var(format!("_mean_{}", safe_name), 1.0);
-        ctx.var(format!("_stdev_{}", safe_name), 1.0);
-        ctx.var(format!("_min_{}", safe_name), 0.0);
-        ctx.var(format!("_max_{}", safe_name), 2.0);
-        ctx.var(format!("_range_{}", safe_name), 2.0);
+        for prefix in STATS_PREFIXES {
+            stat_names.insert(format!("{prefix}{safe_name}"));
+        }
     }
 
-    match test_formula.parse::<Expr>() {
-        Ok(expr) => {
-            // Try to evaluate with dummy values
-            match expr.eval_with_context(&ctx) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(format!("Evaluation error: {}", e)),
-            }
+    for var_name in compiled.var_names() {
+        if !ref_names.contains(var_name) && !stat_names.contains(var_name) {
+            return Err(format!("Evaluation error: unknown variable '{var_name}'"));
         }
-        Err(e) => Err(format!("Parse error: {}", e)),
     }
+
+    Ok(())
 }
 
-/// Prepare a formula for meval by replacing channel references with sanitized variable names
-fn prepare_formula_for_meval(formula: &str, refs: &[ChannelReference]) -> String {
+/// Compile a formula: replace channel references with sanitized variable
+/// names, then parse with the expression engine.
+fn compile_formula(formula: &str, refs: &[ChannelReference]) -> Result<CompiledExpr, String> {
+    let prepared = prepare_formula(formula, refs);
+    CompiledExpr::parse(&prepared).map_err(|e| format!("Parse error: {e}"))
+}
+
+/// Prepare a formula for the engine by replacing channel references with
+/// sanitized variable names
+fn prepare_formula(formula: &str, refs: &[ChannelReference]) -> String {
     let mut result = formula.to_string();
 
     // Sort refs by length (longest first) to avoid partial replacements
@@ -256,7 +293,7 @@ fn prepare_formula_for_meval(formula: &str, refs: &[ChannelReference]) -> String
     result
 }
 
-/// Sanitize a channel reference into a valid meval variable name.
+/// Sanitize a channel reference into a valid engine variable name.
 /// Encodes special characters distinctly to avoid collisions
 /// (e.g., `RPM[-1]` vs `RPM[+1]` must produce different names).
 fn sanitize_var_name(full_match: &str) -> String {
@@ -311,10 +348,69 @@ pub fn build_channel_bindings(
     Ok(bindings)
 }
 
+/// Where a compiled variable slot gets its value from during evaluation.
+enum SlotSource<'a> {
+    /// A channel reference: read from the log with an optional time shift.
+    Channel {
+        channel_index: usize,
+        time_shift: &'a TimeShift,
+    },
+    /// A constant for the whole evaluation (statistical variables).
+    Constant(f64),
+}
+
+/// Resolve every variable slot of a compiled formula to its value source.
+fn resolve_slots<'a>(
+    compiled: &CompiledExpr,
+    refs: &'a [ChannelReference],
+    bindings: &HashMap<String, usize>,
+    stat_values: &HashMap<String, f64>,
+) -> Result<Vec<SlotSource<'a>>, String> {
+    let ref_by_var: HashMap<String, &ChannelReference> = refs
+        .iter()
+        .map(|r| (sanitize_var_name(&r.full_match), r))
+        .collect();
+
+    compiled
+        .var_names()
+        .iter()
+        .map(|var_name| {
+            if let Some(r) = ref_by_var.get(var_name) {
+                let channel_index = bindings.get(&r.name).copied().ok_or_else(|| {
+                    format!("Evaluation error: no binding for channel '{}'", r.name)
+                })?;
+                Ok(SlotSource::Channel {
+                    channel_index,
+                    time_shift: &r.time_shift,
+                })
+            } else if let Some(value) = stat_values.get(var_name) {
+                Ok(SlotSource::Constant(*value))
+            } else {
+                Err(format!("Evaluation error: unknown variable '{var_name}'"))
+            }
+        })
+        .collect()
+}
+
+/// Build the map of statistical variable names to their values
+/// (`_mean_ChannelName`, `_stdev_ChannelName`, ...).
+fn build_stat_values(statistics: &HashMap<String, ChannelStatistics>) -> HashMap<String, f64> {
+    let mut values = HashMap::with_capacity(statistics.len() * STATS_PREFIXES.len());
+    for (channel_name, channel_stats) in statistics {
+        let safe_name = sanitize_var_name(channel_name);
+        values.insert(format!("_mean_{safe_name}"), channel_stats.mean);
+        values.insert(format!("_stdev_{safe_name}"), channel_stats.stdev);
+        values.insert(format!("_min_{safe_name}"), channel_stats.min);
+        values.insert(format!("_max_{safe_name}"), channel_stats.max);
+        values.insert(format!("_range_{safe_name}"), channel_stats.range);
+    }
+    values
+}
+
 /// Evaluate a formula for all records in the log
 ///
-/// If `statistics` is provided, injects statistical variables for each channel:
-/// - `_mean_ChannelName`, `_stdev_ChannelName`, `_min_ChannelName`, `_max_ChannelName`, `_range_ChannelName`
+/// If the formula uses statistical variables (`_mean_ChannelName`, ...), use
+/// [`evaluate_all_records_with_stats`] and provide the statistics.
 pub fn evaluate_all_records(
     formula: &str,
     bindings: &HashMap<String, usize>,
@@ -340,51 +436,41 @@ pub fn evaluate_all_records_with_stats(
     }
 
     let refs = extract_channel_references(formula);
-    let prepared_formula = prepare_formula_for_meval(formula, &refs);
 
-    // Parse the formula once
-    let expr: Expr = prepared_formula
-        .parse()
-        .map_err(|e| format!("Parse error: {}", e))?;
+    // Compile once; per-record evaluation only fills the variable slots.
+    let compiled = compile_formula(formula, &refs)?;
+    let stat_values = statistics.map(build_stat_values).unwrap_or_default();
+    let slots = resolve_slots(&compiled, &refs, bindings, &stat_values)?;
+
+    let mut values = vec![0.0_f64; slots.len()];
+    // Statistical variables are constant across records; fill them once.
+    for (slot, value) in slots.iter().zip(values.iter_mut()) {
+        if let SlotSource::Constant(c) = slot {
+            *value = *c;
+        }
+    }
 
     let num_records = log_data.len();
     let mut results = Vec::with_capacity(num_records);
+    let mut stack = Vec::new();
 
     for record_idx in 0..num_records {
-        let mut ctx = Context::new();
-
-        // Set each channel variable to its value at the appropriate record
-        for r in &refs {
-            let channel_idx = bindings.get(&r.name).copied().unwrap_or(0);
-            let value = get_shifted_value(record_idx, &r.time_shift, channel_idx, log_data, times);
-            let var_name = sanitize_var_name(&r.full_match);
-            ctx.var(&var_name, value);
-        }
-
-        // Inject statistics variables if provided
-        if let Some(stats) = statistics {
-            for (channel_name, channel_stats) in stats {
-                let safe_name = sanitize_var_name(channel_name);
-                ctx.var(format!("_mean_{}", safe_name), channel_stats.mean);
-                ctx.var(format!("_stdev_{}", safe_name), channel_stats.stdev);
-                ctx.var(format!("_min_{}", safe_name), channel_stats.min);
-                ctx.var(format!("_max_{}", safe_name), channel_stats.max);
-                ctx.var(format!("_range_{}", safe_name), channel_stats.range);
+        for (slot, value) in slots.iter().zip(values.iter_mut()) {
+            if let SlotSource::Channel {
+                channel_index,
+                time_shift,
+            } = slot
+            {
+                *value = get_shifted_value(record_idx, time_shift, *channel_index, log_data, times);
             }
         }
 
-        match expr.eval_with_context(&ctx) {
-            Ok(value) => {
-                // Handle NaN and infinity
-                if value.is_nan() || value.is_infinite() {
-                    results.push(0.0);
-                } else {
-                    results.push(value);
-                }
-            }
-            Err(_) => {
-                results.push(0.0);
-            }
+        let result = compiled.eval_with_stack(&values, &mut stack);
+        // Handle NaN and infinity
+        if result.is_finite() {
+            results.push(result);
+        } else {
+            results.push(0.0);
         }
     }
 
@@ -543,6 +629,50 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_stats_formula() {
+        let channels = vec!["RPM".to_string()];
+        let result = validate_formula("(RPM - _mean_RPM) / _stdev_RPM", &channels);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_extract_skips_scientific_notation_exponents() {
+        // "e2" in "1e2" is an exponent, not a channel.
+        assert!(extract_channel_references("RPM * 1e2").len() == 1);
+        assert!(extract_channel_references("2E10 + 1.5e3").is_empty());
+        // ...but a genuine channel named like an exponent is still extracted
+        // when it does not directly follow a digit.
+        let refs = extract_channel_references("RPM + e2");
+        assert!(refs.iter().any(|r| r.name == "e2"));
+    }
+
+    #[test]
+    fn test_validate_scientific_notation() {
+        let channels = vec!["RPM".to_string()];
+        assert!(validate_formula("RPM * 1e2", &channels).is_ok());
+        assert!(validate_formula("RPM * 1.5E-3 + 2e10", &channels).is_ok());
+    }
+
+    #[test]
+    fn test_evaluate_missing_binding_errors() {
+        let data = vec![vec![Value::Float(1.0)]];
+        let times = vec![0.0];
+        // Bindings intentionally empty: the referenced channel is unresolved.
+        let bindings = HashMap::new();
+
+        let result = evaluate_all_records("RPM * 2", &bindings, &data, &times);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no binding"));
+    }
+
+    #[test]
+    fn test_validate_variadic_min_max() {
+        let channels = vec!["RPM".to_string(), "Boost".to_string(), "TPS".to_string()];
+        assert!(validate_formula("min(RPM, Boost, TPS)", &channels).is_ok());
+        assert!(validate_formula("max(RPM, Boost, TPS, 100)", &channels).is_ok());
+    }
+
+    #[test]
     fn test_evaluate_simple() {
         let data = vec![
             vec![Value::Float(1000.0), Value::Float(10.0)],
@@ -581,6 +711,48 @@ mod tests {
         assert_eq!(result[1], 1000.0);
         // Third record: 3000 - 2000 = 1000
         assert_eq!(result[2], 1000.0);
+    }
+
+    #[test]
+    fn test_evaluate_with_stats() {
+        let data = vec![
+            vec![Value::Float(1.0)],
+            vec![Value::Float(2.0)],
+            vec![Value::Float(3.0)],
+        ];
+        let times = vec![0.0, 0.1, 0.2];
+        let mut bindings = HashMap::new();
+        bindings.insert("RPM".to_string(), 0);
+
+        let channels = vec!["RPM".to_string()];
+        let statistics = compute_all_channel_statistics(&channels, &data);
+
+        let result = evaluate_all_records_with_stats(
+            "RPM - _mean_RPM",
+            &bindings,
+            &data,
+            &times,
+            Some(&statistics),
+        )
+        .unwrap();
+        assert_eq!(result.len(), 3);
+        assert!((result[0] - (-1.0)).abs() < 1e-12);
+        assert!((result[1] - 0.0).abs() < 1e-12);
+        assert!((result[2] - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_evaluate_stats_formula_without_statistics_errors() {
+        let data = vec![vec![Value::Float(1.0)]];
+        let times = vec![0.0];
+        let mut bindings = HashMap::new();
+        bindings.insert("RPM".to_string(), 0);
+
+        // Statistical variables require statistics to be provided; previously
+        // (with meval) this silently produced all zeros.
+        let result = evaluate_all_records("RPM - _mean_RPM", &bindings, &data, &times);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("_mean_RPM"));
     }
 
     #[test]
