@@ -976,6 +976,18 @@ impl UltraLogApp {
             }
             self.file_computed_channels = new_computed_channels;
 
+            // Clear analysis results for this file and update indices
+            self.analysis_results.remove(&index);
+            let mut new_analysis_results = HashMap::new();
+            for (key, value) in self.analysis_results.drain() {
+                if key > index {
+                    new_analysis_results.insert(key - 1, value);
+                } else {
+                    new_analysis_results.insert(key, value);
+                }
+            }
+            self.analysis_results = new_analysis_results;
+
             // Update file indices for remaining tabs and their channels
             for tab in &mut self.tabs {
                 if tab.file_index > index {
