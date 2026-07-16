@@ -7,8 +7,8 @@ use rust_i18n::t;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
 use crate::state::{
-    PlotArea, SelectedChannel, CHART_COLORS, COLORBLIND_COLORS, MAX_CHART_POINTS, MIN_PLOT_HEIGHT,
-    PLOT_RESIZE_HANDLE_HEIGHT,
+    DownsampleViewKey, PlotArea, SelectedChannel, CHART_COLORS, COLORBLIND_COLORS,
+    MAX_CHART_POINTS, MIN_PLOT_HEIGHT, PLOT_RESIZE_HANDLE_HEIGHT,
 };
 
 /// Sensitivity multiplier for scroll-to-zoom (higher = faster zoom per scroll tick).
@@ -885,9 +885,38 @@ impl UltraLogApp {
             return None;
         }
 
-        let full_lttb = || Self::downsample_lttb(times, data, MAX_CHART_POINTS);
-        let downsampled = match viewport {
+        // Derive the cache key for this viewport. The bucketed downsampler
+        // below is anchored to a fixed grid, so its output only changes when
+        // the first bucket index or the bucket width changes — steady frames
+        // (idle, cursor moves within a bucket) reuse the cached points.
+        let n_buckets = (MAX_CHART_POINTS / 2).max(1);
+        let view_key = match viewport {
             Some((vmin, vmax)) if vmax > vmin => {
+                let pad = (vmax - vmin) * 0.1;
+                let padded_span = (vmax - vmin) + 2.0 * pad;
+                let bucket_size = padded_span / n_buckets as f64;
+                if bucket_size <= 0.0 {
+                    DownsampleViewKey::Full
+                } else {
+                    let raw_lo = vmin - pad;
+                    DownsampleViewKey::Bucketed {
+                        k_lo: (raw_lo / bucket_size).floor() as i64,
+                        bucket_bits: bucket_size.to_bits(),
+                    }
+                }
+            }
+            _ => DownsampleViewKey::Full,
+        };
+
+        if let Some((cached_key, points)) = self.downsample_cache.get(&(file_index, channel_index))
+        {
+            if *cached_key == view_key {
+                return Some(points.clone());
+            }
+        }
+
+        let downsampled = match view_key {
+            DownsampleViewKey::Bucketed { k_lo, bucket_bits } => {
                 // Anchored min/max-per-bucket downsampling. Bucket
                 // boundaries are at multiples of `bucket_size` from t=0,
                 // so during cursor-tracked playback samples slide through
@@ -895,65 +924,59 @@ impl UltraLogApp {
                 // Without this anchoring, LTTB-by-index re-selects a
                 // different "best peak" per frame and the curve jitters
                 // at far zoom-out.
-                let pad = (vmax - vmin) * 0.1;
-                let padded_span = (vmax - vmin) + 2.0 * pad;
-                let n_buckets = (MAX_CHART_POINTS / 2).max(1);
-                let bucket_size = padded_span / n_buckets as f64;
-                if bucket_size <= 0.0 {
-                    full_lttb()
-                } else {
-                    let raw_lo = vmin - pad;
-                    let k_lo = (raw_lo / bucket_size).floor() as i64;
-                    let mut points: Vec<[f64; 2]> = Vec::with_capacity(MAX_CHART_POINTS);
-                    let mut idx = times.partition_point(|&t| t < k_lo as f64 * bucket_size);
-                    for k in 0..n_buckets as i64 {
-                        let bucket_end = (k_lo + k + 1) as f64 * bucket_size;
-                        let mut end_idx = idx;
-                        while end_idx < times.len() && times[end_idx] < bucket_end {
-                            end_idx += 1;
-                        }
-                        if end_idx > idx {
-                            let mut min_i = idx;
-                            let mut max_i = idx;
-                            for i in idx..end_idx {
-                                if data[i] < data[min_i] {
-                                    min_i = i;
-                                }
-                                if data[i] > data[max_i] {
-                                    max_i = i;
-                                }
-                            }
-                            if min_i == max_i {
-                                points.push([times[min_i], data[min_i]]);
-                            } else if min_i < max_i {
-                                points.push([times[min_i], data[min_i]]);
-                                points.push([times[max_i], data[max_i]]);
-                            } else {
-                                points.push([times[max_i], data[max_i]]);
-                                points.push([times[min_i], data[min_i]]);
-                            }
-                        }
-                        idx = end_idx;
+                let bucket_size = f64::from_bits(bucket_bits);
+                let mut points: Vec<[f64; 2]> = Vec::with_capacity(MAX_CHART_POINTS);
+                let mut idx = times.partition_point(|&t| t < k_lo as f64 * bucket_size);
+                for k in 0..n_buckets as i64 {
+                    let bucket_end = (k_lo + k + 1) as f64 * bucket_size;
+                    let mut end_idx = idx;
+                    while end_idx < times.len() && times[end_idx] < bucket_end {
+                        end_idx += 1;
                     }
-                    points
+                    if end_idx > idx {
+                        let mut min_i = idx;
+                        let mut max_i = idx;
+                        for i in idx..end_idx {
+                            if data[i] < data[min_i] {
+                                min_i = i;
+                            }
+                            if data[i] > data[max_i] {
+                                max_i = i;
+                            }
+                        }
+                        if min_i == max_i {
+                            points.push([times[min_i], data[min_i]]);
+                        } else if min_i < max_i {
+                            points.push([times[min_i], data[min_i]]);
+                            points.push([times[max_i], data[max_i]]);
+                        } else {
+                            points.push([times[max_i], data[max_i]]);
+                            points.push([times[min_i], data[min_i]]);
+                        }
+                    }
+                    idx = end_idx;
                 }
+                points
             }
-            _ => full_lttb(),
+            DownsampleViewKey::Full => Self::downsample_lttb(times, data, MAX_CHART_POINTS),
         };
 
         let range = (max_y - min_y).abs();
         // Constant channels (range ≈ 0) get parked at the middle of the
         // overlay strip so they remain visible instead of pinning to the
         // bottom edge — matches the prior `normalize_points` behavior.
-        if range < f64::EPSILON {
-            return Some(downsampled.into_iter().map(|p| [p[0], 0.5]).collect());
-        }
-        Some(
+        let points: Vec<[f64; 2]> = if range < f64::EPSILON {
+            downsampled.into_iter().map(|p| [p[0], 0.5]).collect()
+        } else {
             downsampled
                 .into_iter()
                 .map(|p| [p[0], (p[1] - min_y) / range])
-                .collect(),
-        )
+                .collect()
+        };
+
+        self.downsample_cache
+            .insert((file_index, channel_index), (view_key, points.clone()));
+        Some(points)
     }
 
     /// Normalize values to 0-1 range for overlay display

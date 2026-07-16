@@ -145,6 +145,7 @@ fn test_settings_grid_fields_roundtrip() {
         scroll_to_zoom: false,
         show_grid: false,
         grid_opacity: 64,
+        ..UserSettings::default()
     };
 
     let json = serde_json::to_string(&original).unwrap();
@@ -162,6 +163,7 @@ fn test_settings_roundtrip() {
         scroll_to_zoom: false,
         show_grid: true,
         grid_opacity: 255,
+        ..UserSettings::default()
     };
 
     let json = serde_json::to_string(&original).unwrap();
@@ -180,6 +182,7 @@ fn test_settings_roundtrip_all_languages() {
             scroll_to_zoom: false,
             show_grid: true,
             grid_opacity: 255,
+            ..UserSettings::default()
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -281,6 +284,7 @@ fn test_settings_clone() {
         scroll_to_zoom: false,
         show_grid: true,
         grid_opacity: 255,
+        ..UserSettings::default()
     };
 
     let cloned = original.clone();

@@ -204,6 +204,28 @@ pub struct CacheKey {
     pub plot_area_id: usize,
 }
 
+/// Cached downsampled chart points per (file_index, channel_index), tagged
+/// with the viewport key they were computed for.
+pub type DownsampleCache =
+    std::collections::HashMap<(usize, usize), (DownsampleViewKey, Vec<[f64; 2]>)>;
+
+/// Identifies which viewport a cached set of downsampled chart points was
+/// computed for. The bucketed downsampler anchors bucket boundaries at
+/// multiples of `bucket_size` from t=0, so its output is fully determined
+/// by the first bucket index and the bucket width.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DownsampleViewKey {
+    /// Full-range LTTB downsample (no viewport bounds available)
+    Full,
+    /// Anchored min/max-per-bucket downsample over a padded viewport
+    Bucketed {
+        /// Index of the first bucket (floor of viewport start / bucket size)
+        k_lo: i64,
+        /// Bit pattern of the f64 bucket width (bitwise-comparable)
+        bucket_bits: u64,
+    },
+}
+
 // ============================================================================
 // Tool/View Types
 // ============================================================================
