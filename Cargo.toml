@@ -41,9 +41,6 @@ regex = "1.12"
 strum = { version = "0.28", features = ["derive"] }
 rayon = "1.11"  # Parallel iteration for parsing
 
-# Expression evaluation (for computed channels)
-meval = "0.2"
-
 # Platform-specific directories
 dirs = "6.0"
 
