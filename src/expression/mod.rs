@@ -152,8 +152,25 @@ pub fn extract_channel_references(formula: &str) -> Vec<ChannelReference> {
             continue;
         }
 
-        // Skip if this position is inside a quoted reference
         let start_pos = caps.get(0).unwrap().start();
+
+        // Skip the exponent fragment of a scientific-notation literal (the
+        // "e2" in "1e2"): an identifier of the form e<digits> immediately
+        // preceded by a digit or '.' is part of a number, not a channel.
+        let is_exponent_fragment = {
+            let mut name_chars = name.chars();
+            matches!(name_chars.next(), Some('e' | 'E'))
+                && name_chars.all(|c| c.is_ascii_digit())
+                && formula[..start_pos]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_ascii_digit() || c == '.')
+        };
+        if is_exponent_fragment {
+            continue;
+        }
+
+        // Skip if this position is inside a quoted reference
         let is_inside_quoted = references.iter().any(|r| {
             if let Some(pos) = formula.find(&r.full_match) {
                 start_pos >= pos && start_pos < pos + r.full_match.len()
@@ -359,8 +376,11 @@ fn resolve_slots<'a>(
         .iter()
         .map(|var_name| {
             if let Some(r) = ref_by_var.get(var_name) {
+                let channel_index = bindings.get(&r.name).copied().ok_or_else(|| {
+                    format!("Evaluation error: no binding for channel '{}'", r.name)
+                })?;
                 Ok(SlotSource::Channel {
-                    channel_index: bindings.get(&r.name).copied().unwrap_or(0),
+                    channel_index,
                     time_shift: &r.time_shift,
                 })
             } else if let Some(value) = stat_values.get(var_name) {
@@ -613,6 +633,36 @@ mod tests {
         let channels = vec!["RPM".to_string()];
         let result = validate_formula("(RPM - _mean_RPM) / _stdev_RPM", &channels);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_extract_skips_scientific_notation_exponents() {
+        // "e2" in "1e2" is an exponent, not a channel.
+        assert!(extract_channel_references("RPM * 1e2").len() == 1);
+        assert!(extract_channel_references("2E10 + 1.5e3").is_empty());
+        // ...but a genuine channel named like an exponent is still extracted
+        // when it does not directly follow a digit.
+        let refs = extract_channel_references("RPM + e2");
+        assert!(refs.iter().any(|r| r.name == "e2"));
+    }
+
+    #[test]
+    fn test_validate_scientific_notation() {
+        let channels = vec!["RPM".to_string()];
+        assert!(validate_formula("RPM * 1e2", &channels).is_ok());
+        assert!(validate_formula("RPM * 1.5E-3 + 2e10", &channels).is_ok());
+    }
+
+    #[test]
+    fn test_evaluate_missing_binding_errors() {
+        let data = vec![vec![Value::Float(1.0)]];
+        let times = vec![0.0];
+        // Bindings intentionally empty: the referenced channel is unresolved.
+        let bindings = HashMap::new();
+
+        let result = evaluate_all_records("RPM * 2", &bindings, &data, &times);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no binding"));
     }
 
     #[test]

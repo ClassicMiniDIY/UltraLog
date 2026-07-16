@@ -395,6 +395,8 @@ impl CompiledExpr {
 
         let mut instrs = Vec::with_capacity(rpn.len());
         let mut var_names: Vec<String> = Vec::new();
+        let mut slot_by_name: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
 
         for token in rpn {
             let instr = match token {
@@ -402,14 +404,12 @@ impl CompiledExpr {
                 Token::Var(name) => {
                     if let Some(value) = constant(&name) {
                         Instr::Const(value)
+                    } else if let Some(&slot) = slot_by_name.get(&name) {
+                        Instr::Var(slot)
                     } else {
-                        let slot = var_names
-                            .iter()
-                            .position(|v| *v == name)
-                            .unwrap_or_else(|| {
-                                var_names.push(name);
-                                var_names.len() - 1
-                            });
+                        let slot = var_names.len();
+                        var_names.push(name.clone());
+                        slot_by_name.insert(name, slot);
                         Instr::Var(slot)
                     }
                 }
