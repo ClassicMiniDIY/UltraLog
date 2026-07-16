@@ -1,4 +1,4 @@
-//! Chart export functionality (PNG, PDF).
+//! Chart export functionality (PNG, PDF, CSV).
 
 use printpdf::*;
 use rust_i18n::t;
@@ -8,6 +8,7 @@ use ::image::{Rgba, RgbaImage};
 
 use crate::analytics;
 use crate::app::UltraLogApp;
+use crate::csv_export::{channel_header, write_csv, CsvColumn};
 use crate::normalize::normalize_channel_name_with_custom;
 use crate::state::HistogramMode;
 
@@ -126,6 +127,109 @@ impl UltraLogApp {
             }
             Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
+    }
+
+    /// Export the active tab's selected channels as CSV. When `visible_only`
+    /// is true, rows are limited to the chart's current x-axis viewport.
+    pub fn export_csv(&mut self, visible_only: bool) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("CSV File", &["csv"])
+            .set_file_name("ultralog_data.csv")
+            .save_file()
+        else {
+            return;
+        };
+
+        match self.write_csv_export(&path, visible_only) {
+            Ok(_) => {
+                analytics::track_export("csv");
+                self.show_toast_success(&t!("toast.export_csv_success"));
+            }
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
+        }
+    }
+
+    /// The union of the x-axis bounds last rendered across all plot areas,
+    /// i.e. the currently visible time range of the chart.
+    pub fn visible_time_range(&self) -> Option<(f64, f64)> {
+        self.chart_last_x_bounds
+            .values()
+            .fold(None, |acc, &(start, end)| match acc {
+                None => Some((start, end)),
+                Some((a, b)) => Some((a.min(start), b.max(end))),
+            })
+    }
+
+    /// Write selected channels to a CSV file with normalized names and
+    /// display-unit-converted values.
+    fn write_csv_export(
+        &self,
+        path: &std::path::Path,
+        visible_only: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let selected = self.get_selected_channels();
+        let Some(first) = selected.first() else {
+            return Err("No channels selected".into());
+        };
+
+        // All channels in a tab come from the tab's file; use that file's
+        // time base and skip anything else so rows stay time-aligned.
+        let file_index = first.file_index;
+        let file = self.files.get(file_index).ok_or("Invalid file index")?;
+        let times = file.log.get_times_as_f64();
+
+        let time_range = if visible_only {
+            Some(
+                self.visible_time_range()
+                    .ok_or("No visible time range available")?,
+            )
+        } else {
+            None
+        };
+
+        let mut columns: Vec<CsvColumn> = Vec::new();
+        for sel in selected {
+            if sel.file_index != file_index {
+                continue;
+            }
+            let data = self.get_channel_data_ref(sel.file_index, sel.channel_index);
+            if data.is_empty() {
+                continue;
+            }
+
+            let original_name = sel.channel.name();
+            let base_name = if self.field_normalization {
+                normalize_channel_name_with_custom(
+                    &original_name,
+                    Some(&self.custom_normalizations),
+                )
+            } else {
+                original_name
+            };
+
+            let source_unit = sel.channel.unit();
+            // The display unit only depends on the source unit, not the value.
+            let (_, display_unit) = self.unit_preferences.convert_value(0.0, source_unit);
+            let converted: Vec<f64> = data
+                .iter()
+                .map(|&v| self.unit_preferences.convert_value(v, source_unit).0)
+                .collect();
+
+            columns.push(CsvColumn {
+                header: channel_header(&base_name, display_unit),
+                data: converted,
+            });
+        }
+
+        if columns.is_empty() {
+            return Err("No channel data available".into());
+        }
+
+        let mut writer = std::io::BufWriter::new(std::fs::File::create(path)?);
+        write_csv(&mut writer, times, &columns, time_range)?;
+        std::io::Write::flush(&mut writer)?;
+
+        Ok(())
     }
 
     /// Render chart data to PNG file

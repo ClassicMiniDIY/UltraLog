@@ -58,6 +58,7 @@ src/
 ├── units.rs           # Unit preference types and conversions
 ├── normalize.rs       # Field name normalization system
 ├── computed.rs        # Computed channels data types and library
+├── csv_export.rs      # CSV serialization of time-aligned channel columns
 ├── expression.rs      # Formula parsing and evaluation engine
 ├── updater.rs          # Auto-update functionality
 ├── analytics.rs        # Privacy-respecting analytics
@@ -119,7 +120,7 @@ src/
     ├── tool_switcher.rs              # Switch between Log Viewer, Scatter Plot, and Histogram tools
     ├── scatter_plot.rs               # XY scatter plot visualization
     ├── histogram.rs                  # 2D histogram/heatmap view for channel distributions
-    ├── export.rs                     # PNG and PDF export functionality
+    ├── export.rs                     # PNG, PDF, and CSV export functionality
     ├── normalization_editor.rs       # Custom field mapping editor
     ├── computed_channels_manager.rs  # Computed channels library UI
     ├── formula_editor.rs             # Formula creation and editing
@@ -365,7 +366,7 @@ Several `UltraLogApp` fields cache expensive per-file, per-channel computations 
 - **Field Normalization** - Maps ECU-specific channel names to standardized names for cross-ECU comparison
 - **Scatter Plot Tool** - XY scatter plot for analyzing channel correlations
 - **Histogram Tool** - 2D heatmap view of channel distributions
-- **Export Options** - Export charts as PNG or PDF
+- **Export Options** - Export charts as PNG or PDF; export selected channel data as CSV (full log or visible range, normalized names + display units)
 - **Colorblind Mode** - Wong's optimized color palette for accessibility
 - **Playback** - Play through log data at 0.25x to 8x speed
 - **Cursor Tracking** - Lock view to follow cursor during playback/scrubbing

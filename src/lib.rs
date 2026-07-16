@@ -37,6 +37,7 @@ pub mod analysis;
 pub mod analytics;
 pub mod app;
 pub mod computed;
+pub mod csv_export;
 pub mod expression;
 pub mod i18n;
 pub mod ipc;
