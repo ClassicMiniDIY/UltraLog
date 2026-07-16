@@ -3,8 +3,9 @@
 //! This module provides user-configurable unit preferences for displaying
 //! ECU log data in various measurement systems (metric, imperial, etc.).
 
+use serde::{Deserialize, Serialize};
 /// Temperature unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum TemperatureUnit {
     Kelvin,
     #[default]
@@ -32,7 +33,7 @@ impl TemperatureUnit {
 }
 
 /// Pressure unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum PressureUnit {
     #[default]
     KPa,
@@ -60,7 +61,7 @@ impl PressureUnit {
 }
 
 /// Speed unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum SpeedUnit {
     #[default]
     KmH,
@@ -85,7 +86,7 @@ impl SpeedUnit {
 }
 
 /// Distance unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum DistanceUnit {
     #[default]
     Kilometers,
@@ -110,7 +111,7 @@ impl DistanceUnit {
 }
 
 /// Fuel economy unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum FuelEconomyUnit {
     #[default]
     LPer100Km,
@@ -150,7 +151,7 @@ impl FuelEconomyUnit {
 }
 
 /// Volume unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum VolumeUnit {
     #[default]
     Liters,
@@ -175,7 +176,7 @@ impl VolumeUnit {
 }
 
 /// Flow rate unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum FlowUnit {
     #[default]
     CcPerMin,
@@ -201,7 +202,7 @@ impl FlowUnit {
 }
 
 /// Acceleration unit preference
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum AccelerationUnit {
     #[default]
     MPerS2,
@@ -230,7 +231,7 @@ impl AccelerationUnit {
 /// ECU logs may output mixture data as either AFR (Air Fuel Ratio, e.g. 14.7 for stoich gasoline)
 /// or Lambda (normalized ratio, e.g. 1.0 for stoich). This preference controls which format
 /// is displayed regardless of what the source ECU outputs.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum AfrLambdaUnit {
     #[default]
     AFR,
@@ -266,7 +267,7 @@ impl AfrLambdaUnit {
 }
 
 /// User preferences for display units
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UnitPreferences {
     pub temperature: TemperatureUnit,
     pub pressure: PressureUnit,
