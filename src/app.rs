@@ -50,6 +50,10 @@ pub struct UltraLogApp {
     last_drop_time: Option<std::time::Instant>,
     /// Channel for receiving loaded files from background thread
     load_receiver: Option<Receiver<LoadResult>>,
+    /// Files queued to load once the current background load finishes.
+    /// Starting a second load while one is in flight would drop the first
+    /// receiver and silently lose its result.
+    pending_loads: Vec<PathBuf>,
     /// Current loading state
     pub(crate) loading_state: LoadingState,
     /// Cache for channel min/max values (avoids O(n) scans)
@@ -193,6 +197,7 @@ impl Default for UltraLogApp {
             toast_message: None,
             last_drop_time: None,
             load_receiver: None,
+            pending_loads: Vec::new(),
             loading_state: LoadingState::Idle,
             minmax_cache: HashMap::new(),
             chart_last_x_bounds: HashMap::new(),
@@ -374,6 +379,15 @@ impl UltraLogApp {
         // Check for duplicate
         if self.files.iter().any(|f| f.path == path) {
             self.show_toast_warning(&t!("toast.file_already_loaded"));
+            return;
+        }
+
+        // A load is already in flight — queue this one instead of
+        // overwriting the receiver (which would lose the first result).
+        if self.load_receiver.is_some() {
+            if !self.pending_loads.contains(&path) {
+                self.pending_loads.push(path);
+            }
             return;
         }
 
@@ -740,6 +754,12 @@ impl UltraLogApp {
             }
             self.load_receiver = None;
             self.loading_state = LoadingState::Idle;
+
+            // Start the next queued load, if any
+            if !self.pending_loads.is_empty() {
+                let next = self.pending_loads.remove(0);
+                self.start_loading_file(next);
+            }
         }
     }
 
@@ -1863,8 +1883,8 @@ impl UltraLogApp {
         if !dropped_files.is_empty() {
             self.last_drop_time = Some(std::time::Instant::now());
 
-            // Only load first file for now (could queue multiple)
-            if let Some(path) = dropped_files.into_iter().next() {
+            // First file loads immediately; the rest queue behind it
+            for path in dropped_files {
                 self.start_loading_file(path);
             }
         }
@@ -2009,6 +2029,22 @@ impl UltraLogApp {
                     self.set_cursor_time(Some(max));
                     let record = self.find_record_at_time(max);
                     self.set_cursor_record(record);
+                }
+                return;
+            }
+
+            // Escape - stop playback
+            if i.key_pressed(egui::Key::Escape) {
+                self.stop_playback();
+                return;
+            }
+
+            // ⌘E - export current view as PNG
+            if cmd && i.key_pressed(egui::Key::E) {
+                match self.active_tool {
+                    ActiveTool::LogViewer => self.export_chart_png(),
+                    ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
+                    ActiveTool::Histogram => self.export_histogram_png(),
                 }
                 return;
             }
