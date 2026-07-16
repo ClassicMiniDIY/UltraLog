@@ -270,7 +270,7 @@ impl ActivePanel {
 }
 
 /// Font scale preference for UI elements
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, serde::Serialize, serde::Deserialize)]
 pub enum FontScale {
     /// Smaller fonts (0.85x)
     Small,

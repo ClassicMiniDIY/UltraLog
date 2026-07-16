@@ -3,12 +3,15 @@
 //! This module handles loading and saving user preferences across sessions.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::i18n::Language;
+use crate::state::FontScale;
+use crate::units::UnitPreferences;
 
 /// User settings that persist across sessions
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserSettings {
     /// Settings file version for migration support
     #[serde(default = "default_version")]
@@ -26,6 +29,27 @@ pub struct UserSettings {
     /// before egui_plot's distance-based fade
     #[serde(default = "default_grid_opacity")]
     pub grid_opacity: u8,
+    /// Display unit selections (temperature, pressure, speed, ...)
+    #[serde(default)]
+    pub unit_preferences: UnitPreferences,
+    /// UI font scale
+    #[serde(default)]
+    pub font_scale: FontScale,
+    /// Use the colorblind-friendly chart palette
+    #[serde(default)]
+    pub color_blind_mode: bool,
+    /// Normalize ECU-specific channel names to standardized names
+    #[serde(default = "default_true")]
+    pub field_normalization: bool,
+    /// Keep the chart view locked to the cursor during playback
+    #[serde(default = "default_true")]
+    pub cursor_tracking: bool,
+    /// Check for updates on startup
+    #[serde(default = "default_true")]
+    pub auto_check_updates: bool,
+    /// User-defined channel-name normalization mappings (source -> display)
+    #[serde(default)]
+    pub custom_normalizations: HashMap<String, String>,
 }
 
 fn default_version() -> u32 {
@@ -40,6 +64,10 @@ fn default_grid_opacity() -> u8 {
     255
 }
 
+fn default_true() -> bool {
+    true
+}
+
 impl Default for UserSettings {
     fn default() -> Self {
         Self {
@@ -48,6 +76,13 @@ impl Default for UserSettings {
             scroll_to_zoom: false,
             show_grid: default_show_grid(),
             grid_opacity: default_grid_opacity(),
+            unit_preferences: UnitPreferences::default(),
+            font_scale: FontScale::default(),
+            color_blind_mode: false,
+            field_normalization: default_true(),
+            cursor_tracking: default_true(),
+            auto_check_updates: default_true(),
+            custom_normalizations: HashMap::new(),
         }
     }
 }

@@ -290,6 +290,13 @@ impl UltraLogApp {
             scroll_to_zoom: user_settings.scroll_to_zoom,
             show_grid: user_settings.show_grid,
             grid_opacity: user_settings.grid_opacity,
+            unit_preferences: user_settings.unit_preferences.clone(),
+            font_scale: user_settings.font_scale,
+            color_blind_mode: user_settings.color_blind_mode,
+            field_normalization: user_settings.field_normalization,
+            cursor_tracking: user_settings.cursor_tracking,
+            auto_check_updates: user_settings.auto_check_updates,
+            custom_normalizations: user_settings.custom_normalizations.clone(),
             ..Self::default()
         };
 
@@ -2049,6 +2056,32 @@ impl UltraLogApp {
 // ============================================================================
 
 impl eframe::App for UltraLogApp {
+    /// Called by eframe on the auto-save interval (~30s) and at shutdown.
+    /// Syncs live preference fields into UserSettings and persists on change,
+    /// so toggles made anywhere in the UI survive a restart.
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
+        let settings = UserSettings {
+            version: self.user_settings.version,
+            language: self.language,
+            scroll_to_zoom: self.scroll_to_zoom,
+            show_grid: self.show_grid,
+            grid_opacity: self.grid_opacity,
+            unit_preferences: self.unit_preferences.clone(),
+            font_scale: self.font_scale,
+            color_blind_mode: self.color_blind_mode,
+            field_normalization: self.field_normalization,
+            cursor_tracking: self.cursor_tracking,
+            auto_check_updates: self.auto_check_updates,
+            custom_normalizations: self.custom_normalizations.clone(),
+        };
+        if settings != self.user_settings {
+            self.user_settings = settings;
+            if let Err(e) = self.user_settings.save() {
+                tracing::warn!("Failed to save settings: {}", e);
+            }
+        }
+    }
+
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Exit if update installation requires it (updater script is waiting)
         if self.should_exit_for_update {
