@@ -8,7 +8,7 @@ use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::normalize::{normalize_channel_name_with_custom, sort_channels_by_priority};
-use crate::state::{ScatterPlotConfig, SelectedHeatmapPoint};
+use crate::state::{ScatterHistogram, ScatterPlotConfig, SelectedHeatmapPoint};
 
 /// Heat map color gradient from blue (low) to red (high)
 const HEAT_COLORS: &[[u8; 3]] = &[
@@ -182,19 +182,75 @@ impl UltraLogApp {
             return;
         }
 
-        let file = &self.files[file_idx];
-        let x_data = file.log.get_channel_data(x_idx);
-        let y_data = file.log.get_channel_data(y_idx);
+        // Channel data is immutable once loaded, so the histogram only needs
+        // building when the (file, x, y) selection is first shown — not every
+        // frame. The cache is cleared when files are removed.
+        let cache_key = (file_idx, x_idx, y_idx);
+        if !self.scatter_histogram_cache.contains_key(&cache_key) {
+            let file = &self.files[file_idx];
+            let x_data = file.log.get_channel_data(x_idx);
+            let y_data = file.log.get_channel_data(y_idx);
 
-        if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
-            return;
+            if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
+                return;
+            }
+
+            // Calculate data bounds
+            let x_min = x_data.iter().cloned().fold(f64::MAX, f64::min);
+            let x_max = x_data.iter().cloned().fold(f64::MIN, f64::max);
+            let y_min = y_data.iter().cloned().fold(f64::MAX, f64::min);
+            let y_max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+
+            let x_range = if (x_max - x_min).abs() < f64::EPSILON {
+                1.0
+            } else {
+                x_max - x_min
+            };
+            let y_range = if (y_max - y_min).abs() < f64::EPSILON {
+                1.0
+            } else {
+                y_max - y_min
+            };
+
+            // Build 2D histogram (count hits in each bin)
+            let mut bins = vec![vec![0u32; HEATMAP_BINS]; HEATMAP_BINS];
+            let mut max_hits: u32 = 0;
+
+            for (&x, &y) in x_data.iter().zip(y_data.iter()) {
+                let x_bin = (((x - x_min) / x_range) * (HEATMAP_BINS - 1) as f64).round() as usize;
+                let y_bin = (((y - y_min) / y_range) * (HEATMAP_BINS - 1) as f64).round() as usize;
+
+                let x_bin = x_bin.min(HEATMAP_BINS - 1);
+                let y_bin = y_bin.min(HEATMAP_BINS - 1);
+
+                bins[y_bin][x_bin] += 1;
+                max_hits = max_hits.max(bins[y_bin][x_bin]);
+            }
+
+            self.scatter_histogram_cache.insert(
+                cache_key,
+                ScatterHistogram {
+                    bins,
+                    max_hits,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                },
+            );
         }
 
-        // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::MAX, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::MIN, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::MAX, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::MIN, f64::max);
+        let Some(cached) = self.scatter_histogram_cache.get(&cache_key) else {
+            return;
+        };
+        let (x_min, x_max, y_min, y_max, max_hits) = (
+            cached.x_min,
+            cached.x_max,
+            cached.y_min,
+            cached.y_max,
+            cached.max_hits,
+        );
+        let histogram = &cached.bins;
 
         let x_range = if (x_max - x_min).abs() < f64::EPSILON {
             1.0
@@ -206,21 +262,6 @@ impl UltraLogApp {
         } else {
             y_max - y_min
         };
-
-        // Build 2D histogram (count hits in each bin)
-        let mut histogram = vec![vec![0u32; HEATMAP_BINS]; HEATMAP_BINS];
-        let mut max_hits: u32 = 0;
-
-        for (&x, &y) in x_data.iter().zip(y_data.iter()) {
-            let x_bin = (((x - x_min) / x_range) * (HEATMAP_BINS - 1) as f64).round() as usize;
-            let y_bin = (((y - y_min) / y_range) * (HEATMAP_BINS - 1) as f64).round() as usize;
-
-            let x_bin = x_bin.min(HEATMAP_BINS - 1);
-            let y_bin = y_bin.min(HEATMAP_BINS - 1);
-
-            histogram[y_bin][x_bin] += 1;
-            max_hits = max_hits.max(histogram[y_bin][x_bin]);
-        }
 
         // Allocate space for the heatmap (with click detection), reserving space for legend
         let available = ui.available_size();

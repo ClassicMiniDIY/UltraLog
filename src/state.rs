@@ -209,6 +209,21 @@ pub struct CacheKey {
 pub type DownsampleCache =
     std::collections::HashMap<(usize, usize), (DownsampleViewKey, Vec<[f64; 2]>)>;
 
+/// Precomputed 2D histogram for the scatter-plot heatmap. Channel data is
+/// immutable once a file is loaded, so this only needs rebuilding when the
+/// axis selection changes (cache is cleared on file removal).
+pub struct ScatterHistogram {
+    pub bins: Vec<Vec<u32>>,
+    pub max_hits: u32,
+    pub x_min: f64,
+    pub x_max: f64,
+    pub y_min: f64,
+    pub y_max: f64,
+}
+
+/// Scatter heatmap cache keyed by (file_index, x_channel, y_channel)
+pub type ScatterHistogramCache = std::collections::HashMap<(usize, usize, usize), ScatterHistogram>;
+
 /// Identifies which viewport a cached set of downsampled chart points was
 /// computed for. The bucketed downsampler anchors bucket boundaries at
 /// multiples of `bucket_size` from t=0, so its output is fully determined
