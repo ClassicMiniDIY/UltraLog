@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "Каналы"
   tools_tooltip: "Инструменты"
   settings_tooltip: "Настройки"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "Панель данных"
+  expand: "Показать панель данных"
+  hide: "Скрыть панель данных"
+  no_widgets: "Для этого файла нет виджетов"
+  options: "Настройки панели"
+  add_widget: "Добавить виджет"
+  no_data_suffix: "нет данных"
+  no_widgets_to_add: "Все виджеты уже на панели"
+  section:
+    widgets: "Виджеты"
+    pane: "Панель"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "Карта трека"
+  no_gps: "В файле нет GPS-данных"
+  color_by: "Цвет по"
+  solid: "Сплошной"
+  colormap: "Палитра"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "Круг"
+  lap_all: "Все круги"
+  reset_view: "Сбросить вид"
+  legend.solid_hint: "Выберите канал выше, чтобы раскрасить трек."
+  tiles.show: "Спутниковая подложка"
+  tiles.provider: "Поставщик тайлов"
+  tiles.opacity: "Прозрачность"
+  tiles.grayscale: "Чёрно-белые"
+  tiles.attribution_prefix: "Источник карты: "
+  tooltip.time: "Время"
+  tooltip.position: "Позиция"

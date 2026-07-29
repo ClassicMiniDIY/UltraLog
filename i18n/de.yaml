@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "Kanäle"
   tools_tooltip: "Werkzeuge"
   settings_tooltip: "Einstellungen"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "Datenpanel"
+  expand: "Datenpanel anzeigen"
+  hide: "Datenpanel ausblenden"
+  no_widgets: "Keine Widgets für diese Datei verfügbar"
+  options: "Datenpanel-Einstellungen"
+  add_widget: "Widget hinzufügen"
+  no_data_suffix: "keine Daten"
+  no_widgets_to_add: "Alle Widgets sind sichtbar"
+  section:
+    widgets: "Widgets"
+    pane: "Panel"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "Streckenkarte"
+  no_gps: "Keine GPS-Daten in dieser Datei"
+  color_by: "Farbe nach"
+  solid: "Durchgehend"
+  colormap: "Farbschema"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "Runde"
+  lap_all: "Alle Runden"
+  reset_view: "Ansicht zurücksetzen"
+  legend.solid_hint: "Wählen Sie einen Kanal oben, um die Strecke zu färben."
+  tiles.show: "Satellitenhintergrund"
+  tiles.provider: "Kachelanbieter"
+  tiles.opacity: "Deckkraft"
+  tiles.grayscale: "Graustufen"
+  tiles.attribution_prefix: "Kartendaten: "
+  tooltip.time: "Zeit"
+  tooltip.position: "Position"

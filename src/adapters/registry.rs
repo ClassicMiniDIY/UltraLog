@@ -7,7 +7,7 @@
 //! - Support background refresh of specs from the API
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{LazyLock, RwLock};
 
 use super::api;
@@ -143,6 +143,10 @@ fn load_protocols_with_fallback() -> Vec<ProtocolSpec> {
 
 /// Tracks whether specs have been refreshed from API
 static SPECS_REFRESHED: AtomicBool = AtomicBool::new(false);
+
+/// Monotonic version of the adapter-derived lookup maps. Consumers can use
+/// this to invalidate caches when a background refresh replaces the specs.
+static SPEC_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Dynamically updatable adapter specifications
 /// Initial load uses cache/embedded, background refresh updates from API
@@ -413,6 +417,7 @@ pub fn refresh_specs_from_api() -> RefreshResult {
                     *meta_lock = build_metadata_map(&specs);
                 }
             }
+            SPEC_GENERATION.fetch_add(1, Ordering::SeqCst);
             Some(count)
         }
         Err(e) => {
@@ -479,6 +484,11 @@ pub fn refresh_specs_from_api() -> RefreshResult {
 /// Check if specs have been refreshed from API
 pub fn specs_refreshed() -> bool {
     SPECS_REFRESHED.load(Ordering::SeqCst)
+}
+
+/// Return the version of the adapter-derived lookup maps.
+pub fn spec_generation() -> u64 {
+    SPEC_GENERATION.load(Ordering::SeqCst)
 }
 
 /// Get the current spec source (for display purposes)

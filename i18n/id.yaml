@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "Kanal"
   tools_tooltip: "Alat"
   settings_tooltip: "Pengaturan"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "Panel Data"
+  expand: "Tampilkan panel data"
+  hide: "Sembunyikan panel data"
+  no_widgets: "Tidak ada widget untuk ditampilkan untuk file ini"
+  options: "Opsi panel data"
+  add_widget: "Tambah widget"
+  no_data_suffix: "tidak ada data"
+  no_widgets_to_add: "Semua widget sudah terlihat"
+  section:
+    widgets: "Widget"
+    pane: "Panel"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "Peta Lintasan"
+  no_gps: "Tidak ada data GPS di file ini"
+  color_by: "Warna berdasarkan"
+  solid: "Padat"
+  colormap: "Peta warna"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "Lap"
+  lap_all: "Semua lap"
+  reset_view: "Atur ulang tampilan"
+  legend.solid_hint: "Pilih saluran di atas untuk mewarnai lintasan."
+  tiles.show: "Latar belakang satelit"
+  tiles.provider: "Penyedia ubin"
+  tiles.opacity: "Opasitas"
+  tiles.grayscale: "Skala abu-abu"
+  tiles.attribution_prefix: "Data peta: "
+  tooltip.time: "Waktu"
+  tooltip.position: "Posisi"

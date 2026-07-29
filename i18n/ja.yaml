@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "チャンネル"
   tools_tooltip: "ツール"
   settings_tooltip: "設定"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "データパネル"
+  expand: "データパネルを表示"
+  hide: "データパネルを非表示"
+  no_widgets: "このファイルに表示するウィジェットがありません"
+  options: "データパネルのオプション"
+  add_widget: "ウィジェットを追加"
+  no_data_suffix: "データなし"
+  no_widgets_to_add: "すべてのウィジェットが表示されています"
+  section:
+    widgets: "ウィジェット"
+    pane: "パネル"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "トラックマップ"
+  no_gps: "このファイルにGPSデータがありません"
+  color_by: "色分け方法"
+  solid: "ベタ塗り"
+  colormap: "カラーマップ"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "ラップ"
+  lap_all: "すべてのラップ"
+  reset_view: "表示をリセット"
+  legend.solid_hint: "上のチャンネルを選択してトラックに色を付けます。"
+  tiles.show: "衛星背景"
+  tiles.provider: "タイルプロバイダー"
+  tiles.opacity: "不透明度"
+  tiles.grayscale: "グレースケール"
+  tiles.attribution_prefix: "マップデータ: "
+  tooltip.time: "時間"
+  tooltip.position: "位置"
