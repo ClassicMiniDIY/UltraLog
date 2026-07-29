@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "Canais"
   tools_tooltip: "Ferramentas"
   settings_tooltip: "Definições"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "Painel de dados"
+  expand: "Mostrar painel de dados"
+  hide: "Ocultar painel de dados"
+  no_widgets: "Nenhum widget disponível para este ficheiro"
+  options: "Opções do painel de dados"
+  add_widget: "Adicionar widget"
+  no_data_suffix: "sem dados"
+  no_widgets_to_add: "Todos os widgets estão visíveis"
+  section:
+    widgets: "Widgets"
+    pane: "Painel"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "Mapa de pista"
+  no_gps: "Nenhum dado GPS neste ficheiro"
+  color_by: "Colorir por"
+  solid: "Sólido"
+  colormap: "Mapa de cores"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "Volta"
+  lap_all: "Todas as voltas"
+  reset_view: "Repor visualização"
+  legend.solid_hint: "Seleccione um canal acima para colorir a pista."
+  tiles.show: "Fundo de satélite"
+  tiles.provider: "Fornecedor de blocos"
+  tiles.opacity: "Opacidade"
+  tiles.grayscale: "Escala de cinza"
+  tiles.attribution_prefix: "Dados do mapa: "
+  tooltip.time: "Tempo"
+  tooltip.position: "Posição"

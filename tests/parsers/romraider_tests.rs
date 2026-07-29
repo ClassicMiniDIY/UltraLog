@@ -123,12 +123,9 @@ fn test_romraider_unit_extraction() {
     let parser = RomRaider;
     let log = parser.parse(sample).expect("Should parse");
 
-    // Check that units were extracted
-    for channel in &log.channels {
-        let unit = channel.unit();
-        // Units should be inferred or extracted
-        assert!(!unit.is_empty() || unit == "C" || unit == "V" || true);
-    }
+    assert_eq!(log.channels.len(), 2);
+    assert_eq!(log.channels[0].unit(), "C");
+    assert_eq!(log.channels[1].unit(), "V");
 }
 
 #[test]

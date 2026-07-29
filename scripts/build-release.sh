@@ -354,21 +354,17 @@ install_local() {
     APP_SRC="$BUILD_DIR/$APP_NAME.app"
     APP_DEST="/Applications/$APP_NAME.app"
 
-    # Check if app bundle exists, if not build it
-    if [ ! -d "$APP_SRC" ]; then
-        echo "App bundle not found. Building first..."
+    # Always rebuild so --install cannot reuse a stale app bundle.
+    mkdir -p "$OUTPUT_DIR"
 
-        mkdir -p "$OUTPUT_DIR"
-
-        if [ "$APP_ARCH" = "arm64" ]; then
-            echo "Building aarch64-apple-darwin (Apple Silicon)..."
-            cargo build --release --target aarch64-apple-darwin
-            create_app_bundle "arm64" "$PROJECT_DIR/target/aarch64-apple-darwin/release/ultralog"
-        else
-            echo "Building x86_64-apple-darwin (Intel)..."
-            cargo build --release --target x86_64-apple-darwin
-            create_app_bundle "intel" "$PROJECT_DIR/target/x86_64-apple-darwin/release/ultralog"
-        fi
+    if [ "$APP_ARCH" = "arm64" ]; then
+        echo "Building aarch64-apple-darwin (Apple Silicon)..."
+        cargo build --release --target aarch64-apple-darwin
+        create_app_bundle "arm64" "$PROJECT_DIR/target/aarch64-apple-darwin/release/ultralog"
+    else
+        echo "Building x86_64-apple-darwin (Intel)..."
+        cargo build --release --target x86_64-apple-darwin
+        create_app_bundle "intel" "$PROJECT_DIR/target/x86_64-apple-darwin/release/ultralog"
     fi
 
     # Remove old installation

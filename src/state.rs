@@ -5,7 +5,10 @@
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::colormap::Colormap;
+use crate::laps::LapInfo;
 use crate::parsers::{Channel, EcuType, Log};
 
 // ============================================================================
@@ -625,12 +628,199 @@ impl PlotArea {
 }
 
 // ============================================================================
+// Data Panel + Track Map Types
+// ============================================================================
+
+/// Identifier for a satellite/map tile provider.
+///
+/// New variants slot in here without touching the trait wiring; see
+/// `crate::tiles` for the runtime provider trait.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
+pub enum TileProviderId {
+    #[default]
+    EsriWorldImagery,
+    OpenStreetMap,
+}
+
+/// Pan + zoom state for the track map. Independent of the chosen projection.
+#[derive(Debug, Clone, Copy)]
+pub struct MapView {
+    /// User pan offset (screen pixels) on top of the auto-fit transform.
+    pub pan_px: eframe::egui::Vec2,
+    /// Multiplicative zoom relative to the auto-fit baseline. 1.0 = fit.
+    pub zoom: f32,
+}
+
+impl Default for MapView {
+    fn default() -> Self {
+        Self {
+            pan_px: eframe::egui::Vec2::ZERO,
+            zoom: 1.0,
+        }
+    }
+}
+
+/// Cached projection of a single GPS track. Rebuilt when the source file
+/// changes or the lat/lon channel binding changes; per-segment color cache
+/// is invalidated on `(color_channel, color_min, color_max, colormap)` change.
+#[derive(Debug, Clone)]
+pub struct TrackCache {
+    pub file_index: usize,
+    pub lat_idx: usize,
+    pub lon_idx: usize,
+    /// Local meters projection (equirectangular) used in the no-tiles path.
+    pub points_m: std::sync::Arc<[eframe::egui::Vec2]>,
+    /// Web Mercator offsets at zoom 0 relative to the track bbox center.
+    /// Keeping local offsets avoids precision loss at high tile zoom levels.
+    pub mercator_offsets_z0: std::sync::Arc<[eframe::egui::Vec2]>,
+    /// Record indices used for rendering. Large logs are reduced to a bounded
+    /// number of points.
+    pub render_indices: std::sync::Arc<[usize]>,
+    /// Contiguous valid-track segment for each entry in `render_indices`.
+    /// Different IDs prevent decimation from joining points across GPS gaps.
+    pub render_segments: std::sync::Arc<[Option<u32>]>,
+    pub bbox_min: eframe::egui::Vec2,
+    pub bbox_max: eframe::egui::Vec2,
+    /// (west, east, south, north) in continuous degrees. West/east may fall
+    /// outside the conventional longitude range for antimeridian tracks.
+    pub lonlat_bbox: (f64, f64, f64, f64),
+    /// Per-segment color, lazily populated on first paint after coloring
+    /// inputs change.
+    pub color_cache: Option<std::sync::Arc<[eframe::egui::Color32]>>,
+    /// Snapshot of the color inputs for the cached colors. When this no
+    /// longer matches the active selection, the cache is invalidated.
+    pub color_signature: Option<ColorSignature>,
+    /// Effective min/max values used by `color_cache` and its legend.
+    pub color_range: Option<(f64, f64)>,
+}
+
+/// Identity tuple for a `color_cache` so we can detect staleness without
+/// recomputing the colors themselves.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ColorSignature {
+    pub channel: Option<(usize, usize)>,
+    pub data_address: usize,
+    pub data_length: usize,
+    pub colormap: Colormap,
+    pub requested_min: Option<f64>,
+    pub requested_max: Option<f64>,
+}
+
+/// Per-tab state for the Track Map widget.
+#[derive(Debug, Clone)]
+pub struct TrackMapState {
+    pub enabled: bool,
+    pub height_frac: f32,
+    /// Index into `Tab.selected_channels` used to color the polyline.
+    /// `None` means a single solid color.
+    pub color_channel: Option<usize>,
+    pub colormap: Colormap,
+    pub color_min: Option<f64>,
+    pub color_max: Option<f64>,
+    pub view: MapView,
+    /// Cached GPS channel lookup for this tab. Interior mutability keeps
+    /// availability checks cheap even though the widget registry uses `&self`.
+    pub gps_channels: std::cell::Cell<Option<GpsChannelCache>>,
+    pub cache: Option<TrackCache>,
+    pub laps: Vec<LapInfo>,
+    /// `None` means show all laps.
+    pub selected_lap: Option<usize>,
+    pub tiles_enabled: bool,
+    pub tile_provider: TileProviderId,
+    /// Tile alpha (0.0..=1.0). 1.0 = fully opaque; lower values let the
+    /// background colour bleed through so the coloured polyline pops.
+    pub tile_opacity: f32,
+    /// When true, decoded tiles are converted to greyscale before upload -
+    /// useful when the tile colours fight the data overlay (e.g. green map
+    /// vs viridis polyline).
+    pub tile_grayscale: bool,
+}
+
+impl Default for TrackMapState {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            height_frac: 0.6,
+            color_channel: None,
+            colormap: Colormap::default(),
+            color_min: None,
+            color_max: None,
+            view: MapView::default(),
+            gps_channels: std::cell::Cell::new(None),
+            cache: None,
+            laps: Vec::new(),
+            selected_lap: None,
+            tiles_enabled: false,
+            tile_provider: TileProviderId::default(),
+            tile_opacity: 1.0,
+            tile_grayscale: false,
+        }
+    }
+}
+
+/// Identity of a cached GPS channel lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GpsChannelCache {
+    pub file_index: usize,
+    pub spec_generation: u64,
+    pub channels: Option<(usize, usize)>,
+}
+
+impl TrackMapState {
+    pub(crate) fn remove_color_channel_slot(&mut self, removed_index: usize) {
+        match self.color_channel {
+            Some(index) if index == removed_index => self.clear_color_channel(),
+            Some(index) if index > removed_index => {
+                self.color_channel = Some(index - 1);
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn clear_color_channel(&mut self) {
+        self.color_channel = None;
+        self.color_min = None;
+        self.color_max = None;
+        if let Some(cache) = self.cache.as_mut() {
+            cache.color_cache = None;
+            cache.color_signature = None;
+            cache.color_range = None;
+        }
+    }
+}
+
+/// Per-tab state for the right-side data panel that hosts widgets.
+#[derive(Debug, Clone)]
+pub struct DataPanelState {
+    /// Master visibility toggle for the panel.
+    pub visible: bool,
+    /// Width of the panel as a fraction of the available central area.
+    pub split_fraction: f32,
+    pub track_map: TrackMapState,
+    // future widgets go here: g_sensor, gauges, camera, ...
+}
+
+impl Default for DataPanelState {
+    fn default() -> Self {
+        Self {
+            visible: true,
+            split_fraction: 0.4,
+            track_map: TrackMapState::default(),
+        }
+    }
+}
+
+// ============================================================================
 // Tab Types
 // ============================================================================
 
 /// A tab representing a single log file's view state
 #[derive(Clone)]
 pub struct Tab {
+    /// Stable identity used for persistent UI state.
+    pub id: u64,
     /// Index of the file this tab displays
     pub file_index: usize,
     /// Display name for the tab (usually filename)
@@ -651,6 +841,8 @@ pub struct Tab {
     pub scatter_plot_state: ScatterPlotState,
     /// Histogram state for this tab
     pub histogram_state: HistogramState,
+    /// Right-side data panel (track map + future widgets) state
+    pub data_panel_state: DataPanelState,
     /// Request to jump the view to a specific time (used for min/max jump buttons)
     pub jump_to_time: Option<f64>,
     /// Plot areas for stacked mode (ordered top to bottom)
@@ -673,6 +865,7 @@ impl Tab {
         let default_plot = PlotArea::new(0, "Plot 1".to_string());
 
         Self {
+            id: NEXT_TAB_ID.fetch_add(1, Ordering::Relaxed),
             file_index,
             name,
             selected_channels: Vec::new(),
@@ -683,10 +876,46 @@ impl Tab {
             time_range: None,
             scatter_plot_state,
             histogram_state: HistogramState::default(),
+            data_panel_state: DataPanelState::default(),
             jump_to_time: None,
             plot_areas: vec![default_plot],
             stacked_mode: false,
             next_plot_area_id: 1,
         }
+    }
+}
+
+static NEXT_TAB_ID: AtomicU64 = AtomicU64::new(1);
+
+#[cfg(test)]
+mod tests {
+    use super::{Tab, TrackMapState};
+
+    #[test]
+    fn track_map_color_slot_follows_channel_removals() {
+        let mut state = TrackMapState {
+            color_channel: Some(3),
+            color_min: Some(1.0),
+            color_max: Some(2.0),
+            ..TrackMapState::default()
+        };
+
+        state.remove_color_channel_slot(1);
+        assert_eq!(state.color_channel, Some(2));
+        assert_eq!(state.color_min, Some(1.0));
+        assert_eq!(state.color_max, Some(2.0));
+
+        state.remove_color_channel_slot(2);
+        assert_eq!(state.color_channel, None);
+        assert_eq!(state.color_min, None);
+        assert_eq!(state.color_max, None);
+    }
+
+    #[test]
+    fn tabs_receive_distinct_persistent_ids() {
+        let first = Tab::new(0, "first".to_string());
+        let second = Tab::new(0, "second".to_string());
+
+        assert_ne!(first.id, second.id);
     }
 }

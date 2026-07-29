@@ -414,6 +414,26 @@ fn test_speeduino_find_channel_index() {
     assert_eq!(not_found, None);
 }
 
+#[test]
+fn test_megasquirt_gps_log_supports_hex_bitfield_and_consistent_offsets() {
+    let file_path = "exampleLogs/megasquirt/2026-04-12_12.49.36_gps.mlg";
+    if !example_file_exists(file_path) {
+        eprintln!("Skipping test: {} not found", file_path);
+        return;
+    }
+
+    let data = read_example_binary(file_path);
+    let info_data_start = u32::from_be_bytes([data[12], data[13], data[14], data[15]]) as usize;
+    let field_count = u16::from_be_bytes([data[22], data[23]]) as usize;
+    let fields_end = 24 + field_count * 89;
+    assert!(info_data_start >= fields_end);
+
+    let log = Speeduino::parse_binary(&data).expect("Should parse MegaSquirt GPS MLG");
+    assert!(log.find_channel_index("GPS Latitude").is_some());
+    assert!(log.find_channel_index("GPS Longitude").is_some());
+    assert_eq!(log.times.len(), log.data.len());
+}
+
 // ============================================
 // Value Range Tests
 // ============================================

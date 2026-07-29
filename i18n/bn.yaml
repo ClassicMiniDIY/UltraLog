@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "চ্যানেলসমূহ"
   tools_tooltip: "টুলস"
   settings_tooltip: "সেটিংস"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "ডেটা প্যানেল"
+  expand: "ডেটা প্যানেল দেখান"
+  hide: "ডেটা প্যানেল লুকান"
+  no_widgets: "এই ফাইলের জন্য প্রদর্শনের জন্য কোনো উইজেট নেই"
+  options: "ডেটা প্যানেল বিকল্পগুলি"
+  add_widget: "উইজেট যোগ করুন"
+  no_data_suffix: "কোনো ডেটা নেই"
+  no_widgets_to_add: "সমস্ত উইজেট দৃশ্যমান"
+  section:
+    widgets: "উইজেটগুলি"
+    pane: "প্যানেল"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "ট্র্যাক ম্যাপ"
+  no_gps: "এই ফাইলে কোনো GPS ডেটা নেই"
+  color_by: "রঙিন করুন"
+  solid: "সোলিড"
+  colormap: "রঙ মানচিত্র"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "ল্যাপ"
+  lap_all: "সমস্ত ল্যাপ"
+  reset_view: "দৃশ্য রিসেট করুন"
+  legend.solid_hint: "ট্র্যাককে রঙিন করতে উপরে একটি চ্যানেল নির্বাচন করুন।"
+  tiles.show: "স্যাটেলাইট পটভূমি"
+  tiles.provider: "টাইল প্রদানকারী"
+  tiles.opacity: "অস্বচ্ছতা"
+  tiles.grayscale: "গ্রেস্কেল"
+  tiles.attribution_prefix: "মানচিত্র ডেটা: "
+  tooltip.time: "সময়"
+  tooltip.position: "অবস্থান"

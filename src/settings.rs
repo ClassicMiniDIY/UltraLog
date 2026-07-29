@@ -3,11 +3,11 @@
 //! This module handles loading and saving user preferences across sessions.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::i18n::Language;
-use crate::state::FontScale;
+use crate::state::{FontScale, TileProviderId};
 use crate::units::UnitPreferences;
 
 /// User settings that persist across sessions
@@ -50,6 +50,30 @@ pub struct UserSettings {
     /// User-defined channel-name normalization mappings (source -> display)
     #[serde(default)]
     pub custom_normalizations: HashMap<String, String>,
+    /// Default tile provider for the Track Map widget. Persisted so users
+    /// don't have to re-pick after every restart.
+    #[serde(default)]
+    pub tile_provider: TileProviderId,
+    /// Soft cap for the on-disk tile cache, in MB.
+    #[serde(default = "default_tile_cache_max_mb")]
+    pub tile_cache_max_mb: u32,
+    /// Default for `TrackMapState::tiles_enabled`: remember whether the
+    /// satellite background was last shown so the next session starts the
+    /// same way.
+    #[serde(default)]
+    pub tiles_enabled: bool,
+    /// Default for `TrackMapState::tile_opacity` (0.1..=1.0).
+    #[serde(default = "default_tile_opacity")]
+    pub tile_opacity: f32,
+    /// Default for `TrackMapState::tile_grayscale`.
+    #[serde(default)]
+    pub tile_grayscale: bool,
+    /// Set of widget IDs the user has explicitly hidden from the data
+    /// panel. The user choice wins over `is_available()`: a hidden
+    /// widget stays hidden even after a file with matching data is
+    /// opened. The user re-adds it via the panel header's "+" button.
+    #[serde(default)]
+    pub hidden_widgets: HashSet<String>,
 }
 
 fn default_version() -> u32 {
@@ -68,6 +92,14 @@ fn default_true() -> bool {
     true
 }
 
+fn default_tile_cache_max_mb() -> u32 {
+    256
+}
+
+fn default_tile_opacity() -> f32 {
+    1.0
+}
+
 impl Default for UserSettings {
     fn default() -> Self {
         Self {
@@ -83,6 +115,12 @@ impl Default for UserSettings {
             cursor_tracking: default_true(),
             auto_check_updates: default_true(),
             custom_normalizations: HashMap::new(),
+            tile_provider: TileProviderId::default(),
+            tile_cache_max_mb: default_tile_cache_max_mb(),
+            tiles_enabled: false,
+            tile_opacity: default_tile_opacity(),
+            tile_grayscale: false,
+            hidden_widgets: HashSet::new(),
         }
     }
 }

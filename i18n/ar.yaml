@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "القنوات"
   tools_tooltip: "الأدوات"
   settings_tooltip: "الإعدادات"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "لوحة البيانات"
+  expand: "عرض لوحة البيانات"
+  hide: "إخفاء لوحة البيانات"
+  no_widgets: "لا توجد عناصر واجهة لعرضها لهذا الملف"
+  options: "خيارات لوحة البيانات"
+  add_widget: "إضافة عنصر واجهة"
+  no_data_suffix: "لا توجد بيانات"
+  no_widgets_to_add: "جميع العناصر مرئية"
+  section:
+    widgets: "العناصر"
+    pane: "اللوحة"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "خريطة المسار"
+  no_gps: "لا توجد بيانات GPS في هذا الملف"
+  color_by: "تلوين حسب"
+  solid: "صلب"
+  colormap: "خريطة الألوان"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "دورة"
+  lap_all: "جميع الدورات"
+  reset_view: "إعادة تعيين العرض"
+  legend.solid_hint: "حدد قناة أعلاه لتلوين المسار."
+  tiles.show: "خلفية الأقمار الصناعية"
+  tiles.provider: "مزود البلاط"
+  tiles.opacity: "الشفافية"
+  tiles.grayscale: "رمادي"
+  tiles.attribution_prefix: "بيانات الخريطة: "
+  tooltip.time: "الوقت"
+  tooltip.position: "الموضع"

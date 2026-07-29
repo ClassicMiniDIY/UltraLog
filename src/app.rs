@@ -1286,6 +1286,9 @@ impl UltraLogApp {
 
         for idx in indices_to_remove {
             if idx < tab.selected_channels.len() {
+                tab.data_panel_state
+                    .track_map
+                    .remove_color_channel_slot(idx);
                 tab.selected_channels.remove(idx);
             }
         }
@@ -1430,6 +1433,10 @@ impl UltraLogApp {
                 }
             }
         }
+
+        tab.data_panel_state
+            .track_map
+            .remove_color_channel_slot(channel_idx);
 
         // Remove from selected_channels
         tab.selected_channels.remove(channel_idx);
@@ -2153,6 +2160,7 @@ impl eframe::App for UltraLogApp {
             cursor_tracking: self.cursor_tracking,
             auto_check_updates: self.auto_check_updates,
             custom_normalizations: self.custom_normalizations.clone(),
+            ..self.user_settings.clone()
         };
         if settings != self.user_settings {
             self.user_settings = settings;
@@ -2192,6 +2200,11 @@ impl eframe::App for UltraLogApp {
 
         // Handle IPC commands from MCP server
         self.process_ipc_commands(ctx);
+
+        // Tile workers can finish while the map widget is not being rendered.
+        // Drain their responses here and invalidate obsolete requests whenever
+        // the active view no longer displays the tile layer.
+        crate::ui::widgets::track_map::maintain_tile_source(ctx, self);
 
         // Request repaint while loading or updating (for spinner animation)
         if matches!(self.loading_state, LoadingState::Loading(_))
@@ -2305,6 +2318,43 @@ impl eframe::App for UltraLogApp {
 
                     ui.add_space(10.0);
                     ui.separator();
+
+                    // Right-side data panel (track map + future widgets).
+                    // - When the user has it expanded -> render the full
+                    //   panel carved out before the chart.
+                    // - When collapsed but there's content available ->
+                    //   render a thin rail with an expand affordance so
+                    //   the panel is discoverable. The rail itself is
+                    //   the only entry point; the previous "Show data
+                    //   panel" checkbox was removed.
+                    if self.data_panel_should_show() {
+                        let avail_w = ui.available_width();
+                        let tab_idx = self
+                            .active_tab
+                            .expect("a visible data panel requires an active tab");
+                        let tab_id = self.tabs[tab_idx].id;
+                        let frac = self.tabs[tab_idx]
+                            .data_panel_state
+                            .split_fraction
+                            .clamp(0.2, 0.7);
+                        let max_panel_w = (avail_w * 0.7).max(260.0);
+                        let panel_w = (avail_w * frac).clamp(260.0, max_panel_w);
+                        let panel =
+                            egui::Panel::right(egui::Id::new(("ultralog_data_panel", tab_id)))
+                                .resizable(true)
+                                .default_size(panel_w)
+                                .min_size(260.0)
+                                .max_size(max_panel_w)
+                                .show(ui, |ui| {
+                                    self.render_data_panel(ui);
+                                });
+                        if avail_w > 0.0 {
+                            self.tabs[tab_idx].data_panel_state.split_fraction =
+                                (panel.response.rect.width() / avail_w).clamp(0.2, 0.7);
+                        }
+                    } else if self.data_panel_has_content() {
+                        self.render_data_panel_rail(ui);
+                    }
 
                     // Chart takes remaining space
                     self.render_chart(ui);

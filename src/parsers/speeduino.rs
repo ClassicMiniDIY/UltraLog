@@ -40,9 +40,12 @@ impl FieldType {
             5 => Some(Self::S32),
             6 => Some(Self::S64),
             7 => Some(Self::F32),
-            10 => Some(Self::U08Bitfield),
-            11 => Some(Self::U16Bitfield),
-            12 => Some(Self::U32Bitfield),
+            // The MLG specification writes bitfield type IDs in hexadecimal
+            // (0x10..=0x12). Accept the old decimal interpretation as well so
+            // logs produced by earlier tools remain readable.
+            10 | 0x10 => Some(Self::U08Bitfield),
+            11 | 0x11 => Some(Self::U16Bitfield),
+            12 | 0x12 => Some(Self::U32Bitfield),
             _ => None,
         }
     }
@@ -600,10 +603,23 @@ mod tests {
             FieldType::from_u8(12),
             Some(FieldType::U32Bitfield)
         ));
+        assert!(matches!(
+            FieldType::from_u8(0x10),
+            Some(FieldType::U08Bitfield)
+        ));
+        assert!(matches!(
+            FieldType::from_u8(0x11),
+            Some(FieldType::U16Bitfield)
+        ));
+        assert!(matches!(
+            FieldType::from_u8(0x12),
+            Some(FieldType::U32Bitfield)
+        ));
         // Invalid types
         assert!(FieldType::from_u8(8).is_none());
         assert!(FieldType::from_u8(9).is_none());
         assert!(FieldType::from_u8(13).is_none());
+        assert!(FieldType::from_u8(19).is_none());
         assert!(FieldType::from_u8(255).is_none());
     }
 
