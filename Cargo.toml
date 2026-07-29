@@ -22,6 +22,10 @@ path = "src/main.rs"
 name = "test_parser"
 path = "src/bin/test_parser.rs"
 
+[[bin]]
+name = "inject_fake_gps_mlg"
+path = "src/bin/inject_fake_gps_mlg.rs"
+
 [dependencies]
 # GUI Framework
 eframe = { version = "0.36.1", default-features = false, features = [
@@ -63,8 +67,8 @@ zip = "8.6"     # ZIP extraction for Windows updates
 flate2 = "1.1"  # Gzip decompression for Linux updates
 tar = "0.4"     # Tar archive extraction for Linux updates
 
-# Image loading (for app icon and PNG export)
-image = { version = "0.25", default-features = false, features = ["png"] }
+# Image loading (for app icon, PNG export, and map tiles – Esri serves JPEG)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 # PDF generation for chart export
 printpdf = "0.12"

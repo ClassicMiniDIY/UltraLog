@@ -231,9 +231,9 @@ The MLG format is used by Speeduino, rusEFI, and MegaSquirt ecosystems. It's a c
 | 5 | S32 | 4 |
 | 6 | S64 | 8 |
 | 7 | F32 | 4 |
-| 10 | U08 Bitfield | 1 |
-| 11 | U16 Bitfield | 2 |
-| 12 | U32 Bitfield | 4 |
+| `0x10` | U08 Bitfield | 1 |
+| `0x11` | U16 Bitfield | 2 |
+| `0x12` | U32 Bitfield | 4 |
 
 ### Data Records
 

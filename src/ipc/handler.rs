@@ -380,6 +380,10 @@ impl UltraLogApp {
 
     fn handle_deselect_all_channels(&mut self) -> IpcResponse {
         if let Some(tab_idx) = self.active_tab {
+            self.tabs[tab_idx]
+                .data_panel_state
+                .track_map
+                .clear_color_channel();
             self.tabs[tab_idx].selected_channels.clear();
         }
         IpcResponse::ok()

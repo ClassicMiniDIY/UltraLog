@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "चैनल"
   tools_tooltip: "टूल्स"
   settings_tooltip: "सेटिंग्स"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "डेटा पैनल"
+  expand: "डेटा पैनल दिखाएं"
+  hide: "डेटा पैनल छुपाएं"
+  no_widgets: "इस फ़ाइल के लिए कोई विजेट प्रदर्शित करने के लिए नहीं है"
+  options: "डेटा पैनल विकल्प"
+  add_widget: "विजेट जोड़ें"
+  no_data_suffix: "कोई डेटा नहीं"
+  no_widgets_to_add: "सभी विजेट दिखाई दे रहे हैं"
+  section:
+    widgets: "विजेट"
+    pane: "पैनल"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "ट्रैक मानचित्र"
+  no_gps: "इस फ़ाइल में कोई GPS डेटा नहीं है"
+  color_by: "रंग चुनें"
+  solid: "ठोस"
+  colormap: "रंग मानचित्र"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "लैप"
+  lap_all: "सभी लैप"
+  reset_view: "दृश्य रीसेट करें"
+  legend.solid_hint: "ट्रैक को रंगने के लिए ऊपर एक चैनल चुनें।"
+  tiles.show: "उपग्रह पृष्ठभूमि"
+  tiles.provider: "टाइल प्रदाता"
+  tiles.opacity: "अपारदर्शिता"
+  tiles.grayscale: "ग्रेस्केल"
+  tiles.attribution_prefix: "नक्शा डेटा: "
+  tooltip.time: "समय"
+  tooltip.position: "स्थिति"

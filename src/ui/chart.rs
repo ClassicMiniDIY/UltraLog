@@ -42,13 +42,15 @@ impl UltraLogApp {
         if !self.cursor_tracking {
             return;
         }
-        // Don't react to scroll/pinch happening over other UI (e.g. the
-        // Settings panel) — `ui.input` is global, so without this guard a
-        // wheel event over the side panel would still resize the cursor
-        // tracking window. `min_rect()` is empty before any chart content
-        // is drawn, so we use `max_rect()` (the full available area of the
-        // central panel) instead.
-        if !ui.rect_contains_pointer(ui.max_rect()) {
+        // Don't react to scroll/pinch happening over other UI (Settings
+        // panel, right-side data panel with the Track Map). `ui.input` is
+        // global, so without this guard a wheel event over the data panel
+        // would still resize the cursor-tracking window even though the
+        // pointer is nowhere near the chart. `max_rect()` was used here
+        // historically but it spans the entire central area *including*
+        // any side panels carved out before us; `available_rect_before_wrap`
+        // is exactly the chart's slot at this point in the layout pass.
+        if !ui.rect_contains_pointer(ui.available_rect_before_wrap()) {
             return;
         }
         let Some((min_t, max_t)) = self.get_time_range() else {

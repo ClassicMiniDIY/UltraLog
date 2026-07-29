@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "Channels"
   tools_tooltip: "Tools"
   settings_tooltip: "Settings"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "Data Panel"
+  expand: "Show data panel"
+  hide: "Hide data panel"
+  no_widgets: "No widgets to display for this file"
+  options: "Data panel options"
+  add_widget: "Add widget"
+  no_data_suffix: "no data"
+  no_widgets_to_add: "All widgets are visible"
+  section:
+    widgets: "Widgets"
+    pane: "Pane"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "Track Map"
+  no_gps: "No GPS data in this file"
+  color_by: "Color by"
+  solid: "Solid"
+  colormap: "Colormap"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "Lap"
+  lap_all: "All laps"
+  reset_view: "Reset view"
+  legend.solid_hint: "Pick a channel above to color the track."
+  tiles.show: "Satellite background"
+  tiles.provider: "Tile provider"
+  tiles.opacity: "Opacity"
+  tiles.grayscale: "Grayscale"
+  tiles.attribution_prefix: "Map data: "
+  tooltip.time: "Time"
+  tooltip.position: "Position"

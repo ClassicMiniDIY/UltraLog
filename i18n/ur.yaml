@@ -361,3 +361,38 @@ activity:
   channels_tooltip: "چینلز"
   tools_tooltip: "ٹولز"
   settings_tooltip: "ترتیبات"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "ڈیٹا پینل"
+  expand: "ڈیٹا پینل دکھائیں"
+  hide: "ڈیٹا پینل چھپائیں"
+  no_widgets: "اس فائل کے لیے کوئی ونڈجیٹ نہیں ہے"
+  options: "ڈیٹا پینل کی ترتیبات"
+  add_widget: "ونڈجیٹ شامل کریں"
+  no_data_suffix: "کوئی ڈیٹا نہیں"
+  no_widgets_to_add: "تمام ونڈجیٹ نظر آ رہے ہیں"
+  section:
+    widgets: "ونڈجیٹس"
+    pane: "پینل"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "ٹریک نقشہ"
+  no_gps: "اس فائل میں کوئی GPS ڈیٹا نہیں ہے"
+  color_by: "رنگ کریں"
+  solid: "ٹھوس"
+  colormap: "رنگ نقشہ"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "چکر"
+  lap_all: "تمام چکر"
+  reset_view: "نظارہ ری سیٹ کریں"
+  legend.solid_hint: "ٹریک کو رنگ دینے کے لیے اوپر ایک چینل منتخب کریں۔"
+  tiles.show: "سیٹلائٹ پس منظر"
+  tiles.provider: "ٹائل فراہم کنندہ"
+  tiles.opacity: "شفافیت"
+  tiles.grayscale: "سرمائی"
+  tiles.attribution_prefix: "نقشہ ڈیٹا: "
+  tooltip.time: "وقت"
+  tooltip.position: "مقام"

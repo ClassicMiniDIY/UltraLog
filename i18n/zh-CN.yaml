@@ -360,3 +360,38 @@ activity:
   channels_tooltip: "通道"
   tools_tooltip: "工具"
   settings_tooltip: "设置"
+
+# Data panel (src/ui/data_panel.rs)
+data_panel:
+  title: "数据面板"
+  expand: "显示数据面板"
+  hide: "隐藏数据面板"
+  no_widgets: "此文件没有要显示的小部件"
+  options: "数据面板选项"
+  add_widget: "添加小部件"
+  no_data_suffix: "无数据"
+  no_widgets_to_add: "所有小部件均已显示"
+  section:
+    widgets: "小部件"
+    pane: "面板"
+
+# Track Map widget (src/ui/widgets/track_map.rs)
+track_map:
+  title: "赛道地图"
+  no_gps: "此文件中没有GPS数据"
+  color_by: "按以下方式着色"
+  solid: "实心"
+  colormap: "颜色映射"
+  colormap.viridis: "Viridis"
+  colormap.turbo: "Turbo"
+  lap: "圈"
+  lap_all: "所有圈数"
+  reset_view: "重置视图"
+  legend.solid_hint: "选择上面的通道来给赛道着色。"
+  tiles.show: "卫星背景"
+  tiles.provider: "瓦片提供商"
+  tiles.opacity: "不透明度"
+  tiles.grayscale: "灰度"
+  tiles.attribution_prefix: "地图数据: "
+  tooltip.time: "时间"
+  tooltip.position: "位置"
