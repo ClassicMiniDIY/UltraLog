@@ -194,74 +194,74 @@ impl UltraLogApp {
                 }
 
                 // Preview section with statistics
-                if let Some(preview_values) = &self.formula_editor_state.preview_values {
-                    if !preview_values.is_empty() {
-                        ui.add_space(8.0);
-                        ui.separator();
+                if let Some(preview_values) = &self.formula_editor_state.preview_values
+                    && !preview_values.is_empty()
+                {
+                    ui.add_space(8.0);
+                    ui.separator();
 
-                        // Calculate stats
-                        let valid_values: Vec<f64> = preview_values
+                    // Calculate stats
+                    let valid_values: Vec<f64> = preview_values
+                        .iter()
+                        .copied()
+                        .filter(|v| v.is_finite())
+                        .collect();
+
+                    if !valid_values.is_empty() {
+                        let min = valid_values.iter().copied().fold(f64::INFINITY, f64::min);
+                        let max = valid_values
                             .iter()
                             .copied()
-                            .filter(|v| v.is_finite())
-                            .collect();
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let sum: f64 = valid_values.iter().sum();
+                        let avg = sum / valid_values.len() as f64;
 
-                        if !valid_values.is_empty() {
-                            let min = valid_values.iter().copied().fold(f64::INFINITY, f64::min);
-                            let max = valid_values
-                                .iter()
-                                .copied()
-                                .fold(f64::NEG_INFINITY, f64::max);
-                            let sum: f64 = valid_values.iter().sum();
-                            let avg = sum / valid_values.len() as f64;
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(t!("formula.preview")).strong());
+                            ui.add_space(8.0);
 
-                            ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new(t!("formula.preview")).strong());
-                                ui.add_space(8.0);
+                            // Stats in a compact row
+                            ui.label(egui::RichText::new(t!("formula.min")).small().weak());
+                            ui.label(
+                                egui::RichText::new(format!("{:.2}", min))
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_BLUE),
+                            );
+                            ui.add_space(8.0);
 
-                                // Stats in a compact row
-                                ui.label(egui::RichText::new(t!("formula.min")).small().weak());
-                                ui.label(
-                                    egui::RichText::new(format!("{:.2}", min))
-                                        .monospace()
-                                        .color(egui::Color32::LIGHT_BLUE),
-                                );
-                                ui.add_space(8.0);
+                            ui.label(egui::RichText::new(t!("formula.avg")).small().weak());
+                            ui.label(
+                                egui::RichText::new(format!("{:.2}", avg))
+                                    .monospace()
+                                    .color(egui::Color32::LIGHT_GREEN),
+                            );
+                            ui.add_space(8.0);
 
-                                ui.label(egui::RichText::new(t!("formula.avg")).small().weak());
-                                ui.label(
-                                    egui::RichText::new(format!("{:.2}", avg))
-                                        .monospace()
-                                        .color(egui::Color32::LIGHT_GREEN),
-                                );
-                                ui.add_space(8.0);
+                            ui.label(egui::RichText::new(t!("formula.max")).small().weak());
+                            ui.label(
+                                egui::RichText::new(format!("{:.2}", max))
+                                    .monospace()
+                                    .color(egui::Color32::from_rgb(255, 180, 100)),
+                            );
+                        });
 
-                                ui.label(egui::RichText::new(t!("formula.max")).small().weak());
-                                ui.label(
-                                    egui::RichText::new(format!("{:.2}", max))
-                                        .monospace()
-                                        .color(egui::Color32::from_rgb(255, 180, 100)),
-                                );
-                            });
-
-                            // Sample values
-                            ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new(t!("formula.sample")).small().weak());
-                                for (i, val) in preview_values.iter().take(5).enumerate() {
-                                    if i > 0 {
-                                        ui.label(egui::RichText::new(",").weak());
-                                    }
-                                    ui.label(
-                                        egui::RichText::new(format!("{:.2}", val))
-                                            .monospace()
-                                            .color(egui::Color32::GRAY),
-                                    );
+                        // Sample values
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(t!("formula.sample")).small().weak());
+                            for (i, val) in preview_values.iter().take(5).enumerate() {
+                                if i > 0 {
+                                    ui.label(egui::RichText::new(",").weak());
                                 }
-                                if preview_values.len() > 5 {
-                                    ui.label(egui::RichText::new("...").weak());
-                                }
-                            });
-                        }
+                                ui.label(
+                                    egui::RichText::new(format!("{:.2}", val))
+                                        .monospace()
+                                        .color(egui::Color32::GRAY),
+                                );
+                            }
+                            if preview_values.len() > 5 {
+                                ui.label(egui::RichText::new("...").weak());
+                            }
+                        });
                     }
                 }
 
@@ -356,14 +356,14 @@ impl UltraLogApp {
 
         if state.is_editing() {
             // Update existing template
-            if let Some(id) = &state.editing_template_id {
-                if let Some(template) = self.computed_library.find_template_mut(id) {
-                    template.name = state.name.clone();
-                    template.formula = state.formula.clone();
-                    template.unit = state.unit.clone();
-                    template.description = state.description.clone();
-                    template.touch();
-                }
+            if let Some(id) = &state.editing_template_id
+                && let Some(template) = self.computed_library.find_template_mut(id)
+            {
+                template.name = state.name.clone();
+                template.formula = state.formula.clone();
+                template.unit = state.unit.clone();
+                template.description = state.description.clone();
+                template.touch();
             }
         } else {
             // Create new template

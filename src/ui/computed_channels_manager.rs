@@ -12,9 +12,9 @@ use crate::expression::{
     build_channel_bindings, compute_all_channel_statistics, evaluate_all_records,
     evaluate_all_records_with_stats, extract_channel_references, formula_uses_statistics,
 };
-use crate::parsers::types::ComputedChannelInfo;
 use crate::parsers::Channel;
-use crate::state::{SelectedChannel, CHART_COLORS};
+use crate::parsers::types::ComputedChannelInfo;
+use crate::state::{CHART_COLORS, SelectedChannel};
 
 impl UltraLogApp {
     /// Render the computed channels manager window
@@ -191,10 +191,10 @@ impl UltraLogApp {
                         });
 
                     // Process actions after rendering
-                    if let Some(id) = template_to_edit {
-                        if let Some(template) = self.computed_library.find_template(&id) {
-                            self.formula_editor_state.open_edit(template);
-                        }
+                    if let Some(id) = template_to_edit
+                        && let Some(template) = self.computed_library.find_template(&id)
+                    {
+                        self.formula_editor_state.open_edit(template);
                     }
 
                     if let Some(id) = template_to_delete {

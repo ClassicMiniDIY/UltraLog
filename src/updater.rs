@@ -350,7 +350,7 @@ fn install_windows(archive_path: &std::path::Path) -> InstallResult {
         let mut file = match archive.by_index(i) {
             Ok(f) => f,
             Err(e) => {
-                return InstallResult::Error(format!("Failed to read file from archive: {}", e))
+                return InstallResult::Error(format!("Failed to read file from archive: {}", e));
             }
         };
 
@@ -496,7 +496,7 @@ fn install_linux(archive_path: &std::path::Path) -> InstallResult {
         None => {
             return InstallResult::Error(
                 "Could not find ultralog executable in extracted files".to_string(),
-            )
+            );
         }
     };
 

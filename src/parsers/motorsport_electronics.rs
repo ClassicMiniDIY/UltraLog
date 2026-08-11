@@ -339,8 +339,7 @@ impl Parseable for MotorsportElectronics {
 mod tests {
     use super::*;
 
-    const SAMPLE_HEADER: &str =
-        "Time, Marker, RPM, Sync status, Lost sync count, Injector duty, MAP Raw, MAP, TPS Raw, TPS, Battery Voltage, Coolant temperature, Intake Air Temp.";
+    const SAMPLE_HEADER: &str = "Time, Marker, RPM, Sync status, Lost sync count, Injector duty, MAP Raw, MAP, TPS Raw, TPS, Battery Voltage, Coolant temperature, Intake Air Temp.";
 
     fn sample_log() -> String {
         format!(

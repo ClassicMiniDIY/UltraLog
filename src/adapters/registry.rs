@@ -113,11 +113,11 @@ fn parse_embedded_protocols() -> Vec<ProtocolSpec> {
 /// API fetch is done in background to avoid blocking startup
 fn load_adapters_with_fallback() -> Vec<AdapterSpec> {
     // 1. Try loading from cache first (fast, non-blocking)
-    if !cache::is_cache_stale() {
-        if let Some(cached) = cache::load_cached_adapters() {
-            tracing::info!("Loaded {} adapters from cache", cached.len());
-            return cached;
-        }
+    if !cache::is_cache_stale()
+        && let Some(cached) = cache::load_cached_adapters()
+    {
+        tracing::info!("Loaded {} adapters from cache", cached.len());
+        return cached;
     }
 
     // 2. Fall back to embedded specs (always available)
@@ -129,11 +129,11 @@ fn load_adapters_with_fallback() -> Vec<AdapterSpec> {
 /// API fetch is done in background to avoid blocking startup
 fn load_protocols_with_fallback() -> Vec<ProtocolSpec> {
     // 1. Try loading from cache first (fast, non-blocking)
-    if !cache::is_cache_stale() {
-        if let Some(cached) = cache::load_cached_protocols() {
-            tracing::info!("Loaded {} protocols from cache", cached.len());
-            return cached;
-        }
+    if !cache::is_cache_stale()
+        && let Some(cached) = cache::load_cached_protocols()
+    {
+        tracing::info!("Loaded {} protocols from cache", cached.len());
+        return cached;
     }
 
     // 2. Fall back to embedded specs (always available)

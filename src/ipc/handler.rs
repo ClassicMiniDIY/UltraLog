@@ -475,17 +475,16 @@ impl UltraLogApp {
         // Remove from active file's computed channels
         if let Some(tab_idx) = self.active_tab {
             let file_idx = self.tabs[tab_idx].file_index;
-            if let Some(computed) = self.file_computed_channels.get_mut(&file_idx) {
-                if let Some(pos) = computed
+            if let Some(computed) = self.file_computed_channels.get_mut(&file_idx)
+                && let Some(pos) = computed
                     .iter()
                     .position(|c| c.name().eq_ignore_ascii_case(name))
-                {
-                    computed.remove(pos);
-                    // Later computed channels shift down one index, so
-                    // cached downsampled points and min/max no longer line up.
-                    self.downsample_cache.clear();
-                    self.minmax_cache.clear();
-                }
+            {
+                computed.remove(pos);
+                // Later computed channels shift down one index, so
+                // cached downsampled points and min/max no longer line up.
+                self.downsample_cache.clear();
+                self.minmax_cache.clear();
             }
         }
 
@@ -705,11 +704,11 @@ impl UltraLogApp {
         self.active_tool = ActiveTool::ScatterPlot;
 
         // Configure the scatter plot (now we can get mutable borrow)
-        if let Some(state) = self.get_scatter_plot_state_mut() {
-            if let (Some(x), Some(y)) = (x_idx, y_idx) {
-                state.left.x_channel = Some(x);
-                state.left.y_channel = Some(y);
-            }
+        if let Some(state) = self.get_scatter_plot_state_mut()
+            && let (Some(x), Some(y)) = (x_idx, y_idx)
+        {
+            state.left.x_channel = Some(x);
+            state.left.y_channel = Some(y);
         }
 
         IpcResponse::ok()

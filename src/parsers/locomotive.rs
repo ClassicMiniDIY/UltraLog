@@ -39,12 +39,12 @@ impl Locomotive {
         let mut lines = contents.lines();
 
         // Check first line starts with "TimeStamp: "
-        if let Some(first_line) = lines.next() {
-            if first_line.trim().starts_with("TimeStamp:") {
-                // Check second line has "Customer:"
-                if let Some(second_line) = lines.next() {
-                    return second_line.trim().starts_with("Customer:");
-                }
+        if let Some(first_line) = lines.next()
+            && first_line.trim().starts_with("TimeStamp:")
+        {
+            // Check second line has "Customer:"
+            if let Some(second_line) = lines.next() {
+                return second_line.trim().starts_with("Customer:");
             }
         }
         false

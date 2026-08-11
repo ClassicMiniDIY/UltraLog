@@ -84,10 +84,10 @@ impl Analyzer for MovingAverageAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(ws) = config.parameters.get("window_size") {
-            if let Ok(size) = ws.parse() {
-                self.window_size = size;
-            }
+        if let Some(ws) = config.parameters.get("window_size")
+            && let Ok(size) = ws.parse()
+        {
+            self.window_size = size;
         }
     }
 
@@ -182,10 +182,10 @@ impl Analyzer for ExponentialMovingAverageAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(a) = config.parameters.get("alpha") {
-            if let Ok(alpha) = a.parse() {
-                self.alpha = alpha;
-            }
+        if let Some(a) = config.parameters.get("alpha")
+            && let Ok(alpha) = a.parse()
+        {
+            self.alpha = alpha;
         }
     }
 
@@ -289,10 +289,10 @@ impl Analyzer for MedianFilterAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(ws) = config.parameters.get("window_size") {
-            if let Ok(size) = ws.parse() {
-                self.window_size = size;
-            }
+        if let Some(ws) = config.parameters.get("window_size")
+            && let Ok(size) = ws.parse()
+        {
+            self.window_size = size;
         }
     }
 
@@ -507,15 +507,15 @@ impl Analyzer for ButterworthLowpassAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(c) = config.parameters.get("cutoff_normalized") {
-            if let Ok(cutoff) = c.parse() {
-                self.cutoff_normalized = cutoff;
-            }
+        if let Some(c) = config.parameters.get("cutoff_normalized")
+            && let Ok(cutoff) = c.parse()
+        {
+            self.cutoff_normalized = cutoff;
         }
-        if let Some(o) = config.parameters.get("order") {
-            if let Ok(order) = o.parse() {
-                self.order = order;
-            }
+        if let Some(o) = config.parameters.get("order")
+            && let Ok(order) = o.parse()
+        {
+            self.order = order;
         }
     }
 
@@ -627,15 +627,15 @@ impl Analyzer for ButterworthHighpassAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(c) = config.parameters.get("cutoff_normalized") {
-            if let Ok(cutoff) = c.parse() {
-                self.cutoff_normalized = cutoff;
-            }
+        if let Some(c) = config.parameters.get("cutoff_normalized")
+            && let Ok(cutoff) = c.parse()
+        {
+            self.cutoff_normalized = cutoff;
         }
-        if let Some(o) = config.parameters.get("order") {
-            if let Ok(order) = o.parse() {
-                self.order = order;
-            }
+        if let Some(o) = config.parameters.get("order")
+            && let Ok(order) = o.parse()
+        {
+            self.order = order;
         }
     }
 

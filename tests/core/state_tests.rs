@@ -8,14 +8,14 @@
 //! - ActiveTool enum
 
 use std::path::PathBuf;
+use ultralog::parsers::Channel;
 use ultralog::parsers::haltech::{ChannelType, HaltechChannel};
 use ultralog::parsers::types::{EcuType, Log, Value};
-use ultralog::parsers::Channel;
 use ultralog::state::{
-    ActiveTool, CacheKey, HistogramConfig, HistogramGridSize, HistogramMode, HistogramState,
-    LoadResult, LoadedFile, LoadingState, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
-    SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS,
-    MAX_CHANNELS, MAX_CHART_POINTS, SUPPORTED_EXTENSIONS,
+    ActiveTool, CHART_COLORS, COLORBLIND_COLORS, CacheKey, HistogramConfig, HistogramGridSize,
+    HistogramMode, HistogramState, LoadResult, LoadedFile, LoadingState, MAX_CHANNELS,
+    MAX_CHART_POINTS, SUPPORTED_EXTENSIONS, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
+    SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType,
 };
 
 // ============================================

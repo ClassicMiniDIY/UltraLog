@@ -195,8 +195,7 @@ fn test_romraider_detection() {
 #[test]
 fn test_romraider_parsing() {
     // Test with synthetic RomRaider data since no example file exists
-    let sample_data =
-        "Time (msec),Engine Speed (rpm),Engine Load (%),Coolant Temp (C),Battery Voltage (V)\n\
+    let sample_data = "Time (msec),Engine Speed (rpm),Engine Load (%),Coolant Temp (C),Battery Voltage (V)\n\
                        0,850,15.5,85.0,14.2\n\
                        20,900,18.0,85.5,14.1\n\
                        40,950,20.5,86.0,14.3\n\

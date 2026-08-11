@@ -5,12 +5,12 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use super::commands::{IpcCommand, IpcResponse};
 use super::DEFAULT_IPC_PORT;
+use super::commands::{IpcCommand, IpcResponse};
 
 /// Callback invoked when a command arrives, so the GUI can wake up
 /// (request a repaint) instead of polling on a timer.

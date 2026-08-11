@@ -15,7 +15,7 @@ use super::motorsport_electronics::{MotorsportElectronicsChannel, MotorsportElec
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
 use super::woolich::{WoolichChannel, WoolichMeta};
-use crate::adapters::{get_channel_metadata, ChannelCategory, ChannelMetadata};
+use crate::adapters::{ChannelCategory, ChannelMetadata, get_channel_metadata};
 
 /// Metadata enum supporting different ECU formats
 #[derive(Clone, Debug, Serialize, Default)]

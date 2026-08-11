@@ -106,13 +106,11 @@ impl UltraLogApp {
                         .response
                         .interact(egui::Sense::click())
                         .clicked()
-                    {
-                        if let Some(path) = rfd::FileDialog::new()
+                        && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Log Files", crate::state::SUPPORTED_EXTENSIONS)
                             .pick_file()
-                        {
-                            self.start_loading_file(path);
-                        }
+                    {
+                        self.start_loading_file(path);
                     }
 
                     if button_response.response.hovered() {
@@ -171,13 +169,11 @@ impl UltraLogApp {
                         .response
                         .interact(egui::Sense::click())
                         .clicked()
-                    {
-                        if let Some(path) = rfd::FileDialog::new()
+                        && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Log Files", crate::state::SUPPORTED_EXTENSIONS)
                             .pick_file()
-                        {
-                            self.start_loading_file(path);
-                        }
+                    {
+                        self.start_loading_file(path);
                     }
 
                     if button_response.response.hovered() {

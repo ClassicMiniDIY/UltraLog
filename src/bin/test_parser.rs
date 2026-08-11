@@ -4,8 +4,8 @@ use std::path::Path;
 
 // Import from the library
 use ultralog::parsers::{
-    strip_leading_comment_lines, BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link,
-    Locomotive, MegaSquirt, Mhd, Parseable, Speeduino, Woolich,
+    BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Mhd, Parseable,
+    Speeduino, Woolich, strip_leading_comment_lines,
 };
 
 use encoding_rs::{UTF_16BE, UTF_16LE};
@@ -242,7 +242,7 @@ fn main() {
         for (i, channel) in log.channels.iter().enumerate() {
             let name = channel.name().to_lowercase();
             // Show specific interesting channels
-            if name.contains("rpm")
+            if (name.contains("rpm")
                 || name.contains("tps")
                 || name.contains("throttle")
                 || name.contains("map")
@@ -256,12 +256,11 @@ fn main() {
                 || name.contains("ignition")
                 || name.contains("angle")
                 || name.contains("speed")
-                || name.contains("temp")
+                || name.contains("temp"))
+                && let Some(value) = first_row.get(i)
             {
-                if let Some(value) = first_row.get(i) {
-                    let unit = channel.unit();
-                    println!("  {}: {:.2} {}", channel.name(), value.as_f64(), unit);
-                }
+                let unit = channel.unit();
+                println!("  {}: {:.2} {}", channel.name(), value.as_f64(), unit);
             }
         }
     }

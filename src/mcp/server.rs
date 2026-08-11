@@ -13,17 +13,17 @@ use rmcp::model::{
     ProtocolVersion, ServerCapabilities, ServerInfo,
 };
 use rmcp::schemars::JsonSchema;
-use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
-use rmcp::{tool, tool_handler, tool_router, ServerHandler};
+use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+use rmcp::{ServerHandler, tool, tool_handler, tool_router};
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
 use super::client::GuiClient;
-use crate::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 use crate::ipc::DEFAULT_IPC_PORT;
+use crate::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 
 /// Default port for the MCP HTTP server
 /// Port 52453 = 5-2-4-5-3, a nod to the 1-2-4-5-3 firing order of legendary inline-5 engines

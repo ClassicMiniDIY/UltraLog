@@ -223,8 +223,7 @@ fn test_emerald_path_detection_negative() {
 
 #[test]
 fn test_emerald_lg2_detection_valid() {
-    let lg2_content =
-        "[chan1]\n19\n[chan2]\n46\n[chan3]\n2\n[chan4]\n20\n[chan5]\n1\n[chan6]\n31\n[chan7]\n32\n[chan8]\n17\n";
+    let lg2_content = "[chan1]\n19\n[chan2]\n46\n[chan3]\n2\n[chan4]\n20\n[chan5]\n1\n[chan6]\n31\n[chan7]\n32\n[chan8]\n17\n";
 
     assert!(
         Emerald::detect_lg2(lg2_content.as_bytes()),

@@ -12,8 +12,8 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 
-use ultralog::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 use ultralog::ipc::IpcServer;
+use ultralog::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 use ultralog::mcp::UltraLogMcpServer;
 
 use rmcp::ServerHandler;

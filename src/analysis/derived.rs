@@ -151,10 +151,10 @@ impl Analyzer for VolumetricEfficiencyAnalyzer {
         if let Some(ch) = config.parameters.get("iat_channel") {
             self.iat_channel = ch.clone();
         }
-        if let Some(v) = config.parameters.get("displacement_l") {
-            if let Ok(val) = v.parse() {
-                self.displacement_l = val;
-            }
+        if let Some(v) = config.parameters.get("displacement_l")
+            && let Ok(val) = v.parse()
+        {
+            self.displacement_l = val;
         }
         if let Some(v) = config.parameters.get("is_iat_kelvin") {
             self.is_iat_kelvin = v.parse().unwrap_or(false);
@@ -414,10 +414,10 @@ impl Analyzer for LambdaCalculator {
         if let Some(ch) = config.parameters.get("afr_channel") {
             self.afr_channel = ch.clone();
         }
-        if let Some(v) = config.parameters.get("stoich_afr") {
-            if let Ok(val) = v.parse() {
-                self.stoich_afr = val;
-            }
+        if let Some(v) = config.parameters.get("stoich_afr")
+            && let Ok(val) = v.parse()
+        {
+            self.stoich_afr = val;
         }
     }
 

@@ -535,11 +535,7 @@ fn find_record_at_time(times: &[f64], target_time: f64) -> usize {
                 // Check which neighbor is closer
                 let prev_diff = (times[idx - 1] - clamped_time).abs();
                 let next_diff = (times[idx] - clamped_time).abs();
-                if prev_diff <= next_diff {
-                    idx - 1
-                } else {
-                    idx
-                }
+                if prev_diff <= next_diff { idx - 1 } else { idx }
             }
         }
     }
