@@ -2,6 +2,16 @@
 //!
 //! These types mirror the OpenECU Alliance adapter schema for parsing
 //! adapter YAML files that define ECU log format specifications.
+//!
+//! **Load-bearing:** the same structs deserialize two different casings. The
+//! embedded YAML from `ClassicMiniDIY/OECUASpecs` uses snake_case field names,
+//! while the `openecualliance.org` JSON API serves the same data camelCased
+//! (`data_type` vs `dataType`, `start_bit` vs `startBit`). Every multi-word
+//! field therefore carries a camelCase `#[serde(alias = ...)]`. Drop one and
+//! the API tier of the fallback chain in `registry.rs` silently stops
+//! resolving, because it only logs a warning and filters the failure away.
+//! Enum *values* are snake_case in both sources and need no aliases.
+//! snake_case stays the primary name, so the on-disk cache stays snake_case.
 
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +38,7 @@ pub struct AdapterSpec {
     #[serde(default)]
     pub branding: Option<BrandingSpec>,
     /// File format specification
+    #[serde(alias = "fileFormat")]
     pub file_format: FileFormatSpec,
     /// Channel definitions
     pub channels: Vec<ChannelSpec>,
@@ -49,10 +60,10 @@ pub struct BrandingSpec {
     #[serde(default)]
     pub banner: Option<String>,
     /// Primary brand color (hex)
-    #[serde(default)]
+    #[serde(default, alias = "colorPrimary")]
     pub color_primary: Option<String>,
     /// Secondary brand color (hex)
-    #[serde(default)]
+    #[serde(default, alias = "colorSecondary")]
     pub color_secondary: Option<String>,
 }
 
@@ -71,31 +82,31 @@ pub struct FileFormatSpec {
     #[serde(default)]
     pub delimiter: Option<String>,
     /// Header row index (CSV only)
-    #[serde(default)]
+    #[serde(default, alias = "headerRow")]
     pub header_row: Option<i32>,
     /// Data start row index (CSV only)
-    #[serde(default)]
+    #[serde(default, alias = "dataStartRow")]
     pub data_start_row: Option<i32>,
     /// Timestamp column name (CSV only)
-    #[serde(default)]
+    #[serde(default, alias = "timestampColumn")]
     pub timestamp_column: Option<String>,
     /// Timestamp unit (CSV only)
-    #[serde(default)]
+    #[serde(default, alias = "timestampUnit")]
     pub timestamp_unit: Option<String>,
     /// Byte order: "little" or "big" (binary only)
     #[serde(default)]
     pub endianness: Option<String>,
     /// File signature bytes (binary only)
-    #[serde(default)]
+    #[serde(default, alias = "magicBytes")]
     pub magic_bytes: Option<Vec<u8>>,
     /// Header size in bytes (binary only)
-    #[serde(default)]
+    #[serde(default, alias = "headerSize")]
     pub header_size: Option<i32>,
     /// Record size type: "fixed" or "variable" (binary only)
-    #[serde(default)]
+    #[serde(default, alias = "recordSize")]
     pub record_size: Option<String>,
     /// Link to format documentation
-    #[serde(default)]
+    #[serde(default, alias = "specificationUrl")]
     pub specification_url: Option<String>,
 }
 
@@ -112,6 +123,7 @@ pub struct ChannelSpec {
     /// Channel category
     pub category: ChannelCategory,
     /// Data type of values
+    #[serde(alias = "dataType")]
     pub data_type: DataType,
     /// Canonical unit
     pub unit: String,
@@ -125,9 +137,10 @@ pub struct ChannelSpec {
     #[serde(default)]
     pub precision: Option<u32>,
     /// Vendor-specific names in log files (for normalization)
+    #[serde(alias = "sourceNames")]
     pub source_names: Vec<String>,
     /// Unit of source data if different from canonical
-    #[serde(default)]
+    #[serde(default, alias = "sourceUnit")]
     pub source_unit: Option<String>,
     /// Formula to convert from source to canonical unit
     #[serde(default)]
@@ -195,6 +208,10 @@ impl ChannelCategory {
 pub enum DataType {
     Float,
     Int,
+    // Upstream specs are overwhelmingly `bool`, but
+    // megasquirt-tunerstudio.adapter.yaml spells one channel `boolean`. Accept
+    // both so a single typo cannot drop a whole adapter.
+    #[serde(alias = "boolean")]
     Bool,
     String,
     Enum,
@@ -213,10 +230,10 @@ pub struct MetadataSpec {
     #[serde(default)]
     pub repository: Option<String>,
     /// ECU models tested with this adapter
-    #[serde(default)]
+    #[serde(default, alias = "testedWith")]
     pub tested_with: Option<Vec<String>>,
     /// Known issues or limitations
-    #[serde(default)]
+    #[serde(default, alias = "knownIssues")]
     pub known_issues: Option<Vec<String>>,
     /// Changelog entries
     #[serde(default)]
@@ -284,19 +301,19 @@ pub struct ProtocolInfo {
     /// Communication speed in bits per second
     pub baudrate: u32,
     /// Whether to use 29-bit extended IDs (true) or 11-bit standard IDs (false)
-    #[serde(default)]
+    #[serde(default, alias = "extendedId")]
     pub extended_id: bool,
     /// Data phase baudrate for CAN FD (bits per second)
-    #[serde(default)]
+    #[serde(default, alias = "dataBaudrate")]
     pub data_baudrate: Option<u32>,
     /// Whether CAN FD is enabled
-    #[serde(default)]
+    #[serde(default, alias = "fdEnabled")]
     pub fd_enabled: bool,
     /// Base message ID (if configurable)
-    #[serde(default)]
+    #[serde(default, alias = "baseId")]
     pub base_id: Option<u32>,
     /// Whether base ID can be changed in ECU settings
-    #[serde(default)]
+    #[serde(default, alias = "baseIdConfigurable")]
     pub base_id_configurable: bool,
 }
 
@@ -325,7 +342,7 @@ pub struct MessageSpec {
     /// Message length in bytes (0-8 for CAN, 0-64 for CAN FD)
     pub length: u8,
     /// Broadcast interval in milliseconds
-    #[serde(default)]
+    #[serde(default, alias = "intervalMs")]
     pub interval_ms: Option<f64>,
     /// Node that transmits this message
     #[serde(default)]
@@ -343,12 +360,15 @@ pub struct SignalSpec {
     #[serde(default)]
     pub description: Option<String>,
     /// Starting bit position (0-indexed)
+    #[serde(alias = "startBit")]
     pub start_bit: u16,
     /// Signal length in bits
     pub length: u8,
     /// Byte order (Intel = little_endian, Motorola = big_endian)
+    #[serde(alias = "byteOrder")]
     pub byte_order: ByteOrder,
     /// Data type interpretation
+    #[serde(alias = "dataType")]
     pub data_type: SignalDataType,
     /// Scale factor: physical_value = (raw_value * scale) + offset
     #[serde(default = "default_scale")]
@@ -366,7 +386,7 @@ pub struct SignalSpec {
     #[serde(default)]
     pub max: Option<f64>,
     /// Reference to an enum definition for discrete values
-    #[serde(default)]
+    #[serde(default, alias = "enumRef")]
     pub enum_ref: Option<String>,
     /// Additional notes
     #[serde(default)]
