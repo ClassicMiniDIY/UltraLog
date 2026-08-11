@@ -10,6 +10,7 @@ use super::haltech::{HaltechChannel, HaltechMeta};
 use super::link::{LinkChannel, LinkMeta};
 use super::locomotive::{LocomotiveChannel, LocomotiveMeta};
 use super::megasquirt::{MegaSquirtChannel, MegaSquirtMeta};
+use super::mhd::{MhdChannel, MhdMeta};
 use super::motorsport_electronics::{MotorsportElectronicsChannel, MotorsportElectronicsMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
@@ -28,6 +29,7 @@ pub enum Meta {
     Link(LinkMeta),
     Locomotive(LocomotiveMeta),
     MegaSquirt(MegaSquirtMeta),
+    Mhd(MhdMeta),
     MotorsportElectronics(MotorsportElectronicsMeta),
     RomRaider(RomRaiderMeta),
     Speeduino(SpeeduinoMeta),
@@ -59,6 +61,7 @@ pub enum Channel {
     Link(LinkChannel),
     Locomotive(LocomotiveChannel),
     MegaSquirt(MegaSquirtChannel),
+    Mhd(MhdChannel),
     MotorsportElectronics(MotorsportElectronicsChannel),
     RomRaider(RomRaiderChannel),
     Speeduino(SpeeduinoChannel),
@@ -82,6 +85,7 @@ impl Serialize for Channel {
             Channel::Link(l) => l.serialize(serializer),
             Channel::Locomotive(l) => l.serialize(serializer),
             Channel::MegaSquirt(m) => m.serialize(serializer),
+            Channel::Mhd(m) => m.serialize(serializer),
             Channel::MotorsportElectronics(m) => m.serialize(serializer),
             Channel::RomRaider(r) => r.serialize(serializer),
             Channel::Speeduino(s) => s.serialize(serializer),
@@ -103,6 +107,7 @@ impl Channel {
             Channel::Link(l) => l.name.clone(),
             Channel::Locomotive(l) => l.name.clone(),
             Channel::MegaSquirt(m) => m.name.clone(),
+            Channel::Mhd(m) => m.name.clone(),
             Channel::MotorsportElectronics(m) => m.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
@@ -123,6 +128,7 @@ impl Channel {
             Channel::Link(l) => l.channel_id.to_string(),
             Channel::Locomotive(l) => l.name.clone(),
             Channel::MegaSquirt(m) => m.name.clone(),
+            Channel::Mhd(m) => m.name.clone(),
             Channel::MotorsportElectronics(m) => m.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
@@ -142,6 +148,7 @@ impl Channel {
             Channel::Link(_) => "Link".to_string(),
             Channel::Locomotive(_) => "Locomotive".to_string(),
             Channel::MegaSquirt(_) => "MegaSquirt".to_string(),
+            Channel::Mhd(_) => "MHD".to_string(),
             Channel::MotorsportElectronics(_) => "Motorsport Electronics".to_string(),
             Channel::RomRaider(_) => "RomRaider".to_string(),
             Channel::Speeduino(_) => "Speeduino/rusEFI".to_string(),
@@ -164,6 +171,7 @@ impl Channel {
             Channel::Link(_) => None,
             Channel::Locomotive(_) => None,
             Channel::MegaSquirt(_) => None,
+            Channel::Mhd(_) => None,
             Channel::MotorsportElectronics(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
@@ -189,6 +197,7 @@ impl Channel {
             Channel::Link(_) => None,
             Channel::Locomotive(_) => None,
             Channel::MegaSquirt(_) => None,
+            Channel::Mhd(_) => None,
             Channel::MotorsportElectronics(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
@@ -226,6 +235,7 @@ impl Channel {
             Channel::Link(l) => l.unit(),
             Channel::Locomotive(l) => l.unit(),
             Channel::MegaSquirt(m) => m.unit(),
+            Channel::Mhd(m) => &m.unit,
             Channel::MotorsportElectronics(m) => m.unit(),
             Channel::RomRaider(r) => r.unit(),
             Channel::Speeduino(s) => s.unit(),
@@ -319,6 +329,7 @@ pub enum EcuType {
     Emerald,
     EcuMaster,
     MegaSquirt,
+    Mhd,
     MotorsportElectronics,
     Aem,
     MaxxEcu,
@@ -341,6 +352,7 @@ impl EcuType {
             EcuType::Emerald => "Emerald",
             EcuType::EcuMaster => "ECUMaster",
             EcuType::MegaSquirt => "MegaSquirt",
+            EcuType::Mhd => "MHD",
             EcuType::MotorsportElectronics => "Motorsport Electronics",
             EcuType::Aem => "AEM",
             EcuType::MaxxEcu => "MaxxECU",

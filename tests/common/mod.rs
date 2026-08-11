@@ -74,6 +74,9 @@ pub mod example_files {
     pub const EMERALD_DIFF_CHANNELS: &str =
         "exampleLogs/emerald/EM Log MG ZS Turbo short drive back diff channels.lg1";
 
+    // MHD Tuning example files
+    pub const MHD_N55_PULL: &str = "exampleLogs/mhd/mhd-n55-pull.csv";
+
     // Woolich Racing Tuned example files
     pub const WOOLICH_STANDARD: &str = "exampleLogs/woolich/Woolich.csv";
 }

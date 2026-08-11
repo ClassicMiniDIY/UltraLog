@@ -4,8 +4,8 @@ use std::path::Path;
 
 // Import from the library
 use ultralog::parsers::{
-    BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Parseable,
-    Speeduino, Woolich,
+    strip_leading_comment_lines, BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link,
+    Locomotive, MegaSquirt, Mhd, Parseable, Speeduino, Woolich,
 };
 
 use encoding_rs::{UTF_16BE, UTF_16LE};
@@ -80,7 +80,30 @@ fn main() {
             }
         };
 
-        if MegaSquirt::detect(&contents) {
+        // Mirror the normalization the app does before format detection:
+        // strip a UTF-8 BOM, then drop any leading '#' comment block. MHD is
+        // the exception — its fingerprint lives in that comment block, so it
+        // keeps the raw text.
+        let contents = contents.trim_start_matches('\u{FEFF}').to_string();
+        let is_mhd = Mhd::detect(&contents);
+        let contents = if is_mhd {
+            contents
+        } else {
+            strip_leading_comment_lines(&contents).to_string()
+        };
+
+        if is_mhd {
+            println!("\nDetected: MHD Tuning format");
+            println!("Parsing MHD Tuning log...");
+            let parser = Mhd;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::Mhd, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if MegaSquirt::detect(&contents) {
             println!("\nDetected: MegaSquirt format");
             println!("Parsing MegaSquirt log...");
             let parser = MegaSquirt;
