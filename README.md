@@ -158,6 +158,13 @@ Configurable units for 8 measurement categories:
 - **Supported devices:** Yamaha, Kawasaki, Suzuki, Honda, and BMW sportbike ECUs flashed/logged via the WRT datalogger
 - **Supported data:** RPM, TPS, IAP (intake air pressure), AFR, Gear, Clutch In, Coolant Temp, IAT, and all logged channels
 
+### MHD Tuning - Full Support
+
+- **File type:** CSV datalogs exported from the MHD Tuning flashing/logging app
+- **Features:** Skips the leading `#` metadata block (`#Ecu CALID`, `#Ecu PRGID`, `#VIN`), UTF-8 BOM handling, unit extraction from column headers, MHD degree notation normalized (`(*C)` -> °C, `(*CRK)` -> °CRK)
+- **Supported devices:** BMW N54, N55, S55, B58 and other platforms flashed with MHD
+- **Supported data:** Boost and boost target, wastegate duty, RPM, coolant and intake temps, per-cylinder timing correction, lambda/AFR per bank, fuel rail pressure, load, gear, torque, and all logged channels
+
 ### Coming Soon
 - AEM
 - MaxxECU
@@ -590,6 +597,7 @@ UltraLog/
 │   │   ├── link.rs        # Link ECU LLG parser
 │   │   ├── emerald.rs     # Emerald ECU parser
 │   │   ├── bluedriver.rs  # BlueDriver OBD-II parser
+│   │   ├── mhd.rs        # MHD Tuning parser
 │   │   └── woolich.rs     # Woolich Racing Tuned CSV parser
 │   ├── analysis/          # Analysis tools
 │   │   ├── filters.rs     # Signal processing filters
@@ -675,6 +683,7 @@ The following trademarks are the property of their respective owners:
 - **Subaru** is a trademark of Subaru Corporation
 - **MegaSquirt** is a trademark of Bowling and Grippo
 - **BlueDriver** is a trademark of Lemur Vehicle Monitors
+- **MHD** is a trademark of MHD Tuning LLC
 - **Woolich Racing** and **Woolich Racing Tuned** are trademarks of Woolich Racing
 - **AEM** is a trademark of AEM Performance Electronics
 - **MoTeC** is a trademark of MoTeC Pty Ltd

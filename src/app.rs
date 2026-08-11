@@ -22,7 +22,7 @@ use crate::ipc::IpcServer;
 use crate::mcp::{start_mcp_server, McpServerHandle, DEFAULT_MCP_PORT};
 use crate::parsers::{
     Aim, BlueDriver, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive,
-    MegaSquirt, MotorsportElectronics, Parseable, RomRaider, Speeduino, Woolich,
+    MegaSquirt, Mhd, MotorsportElectronics, Parseable, RomRaider, Speeduino, Woolich,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -568,8 +568,36 @@ impl UltraLogApp {
         }
     }
 
-    /// Parse text content after UTF-8 validation
+    /// Parse text content after UTF-8 validation.
+    ///
+    /// Normalizes two things every text parser would otherwise have to handle
+    /// itself before handing off to format detection:
+    /// - a leading UTF-8 BOM, which Windows and mobile exporters prepend
+    /// - a leading block of `#`-prefixed comment lines, which tools such as
+    ///   MHD Tuning and OBDLink write ahead of the real CSV header row
+    ///
+    /// MHD detection runs against the raw text because its fingerprint lives
+    /// in that comment block.
     fn parse_text_content(contents: &str) -> Result<(crate::parsers::Log, EcuType), LoadResult> {
+        let contents = contents.trim_start_matches('\u{FEFF}');
+
+        if Mhd::detect(contents) {
+            // MHD Tuning CSV export detected
+            let parser = Mhd;
+            return match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::Mhd)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse MHD Tuning file: {}",
+                    e
+                ))),
+            };
+        }
+
+        Self::dispatch_text_content(crate::parsers::strip_leading_comment_lines(contents))
+    }
+
+    /// Run the text format detection chain against normalized content.
+    fn dispatch_text_content(contents: &str) -> Result<(crate::parsers::Log, EcuType), LoadResult> {
         if MegaSquirt::detect(contents) {
             // MegaSquirt TunerStudio datalog detected
             let parser = MegaSquirt;

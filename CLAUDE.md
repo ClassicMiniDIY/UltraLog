@@ -98,6 +98,7 @@ src/
 │   ├── emerald.rs                 # Emerald K6/M3D ECU (.lg1/.lg2) binary parser
 │   ├── locomotive.rs               # Locomotive datalogger CSV parser (TimeStamp/Customer/UnitNumber header)
 │   ├── megasquirt.rs               # MegaSquirt (MS1/MS2/MS3) TunerStudio CSV parser
+│   ├── mhd.rs                      # MHD Tuning CSV parser (BMW N54/N55/S55/B58)
 │   ├── motorsport_electronics.rs   # Motorsport Electronics ME221/ME442 (ME Tuner) CSV parser
 │   ├── bluedriver.rs               # BlueDriver OBD-II scan tool CSV parser
 │   └── dynamicefi.rs               # DynamicEFI EBL WhatsUp (GM TBI) CSV parser
@@ -273,6 +274,7 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - **`parsers/emerald.rs`** - Emerald K6/M3D ECU binary parser (`.lg2` channel definitions + `.lg1` 24-byte timestamped records)
 - **`parsers/locomotive.rs`** - Locomotive datalogger CSV parser (detected via `TimeStamp:` / `Customer:` header lines, day-of-week-prefixed data rows)
 - **`parsers/megasquirt.rs`** - MegaSquirt (MS1/MS2/MS3/MS3Pro) TunerStudio CSV parser
+- **`parsers/mhd.rs`** - MHD Tuning CSV parser (BMW N54/N55/S55/B58 flashed with MHD)
 - **`parsers/motorsport_electronics.rs`** - Motorsport Electronics ME221/ME442 (ME Tuner) CSV parser
 - **`parsers/bluedriver.rs`** - BlueDriver OBD-II scan tool CSV parser (UTF-16 with BOM)
 - **`parsers/dynamicefi.rs`** - DynamicEFI EBL WhatsUp CSV parser (modified GM TBI systems)
@@ -290,6 +292,7 @@ Note: `EcuType` also reserves `Aem`, `MaxxEcu`, and `MotEc` variants for formats
 - Link ECU (LLG binary)
 - Emerald K6/M3D (.lg1/.lg2 binary)
 - MegaSquirt MS1/MS2/MS3 (TunerStudio CSV export)
+- MHD Tuning (CSV export — BMW N54/N55/S55/B58)
 - Motorsport Electronics ME221/ME442 (ME Tuner CSV export)
 - Woolich Racing Tuned (WRT CSV export — motorcycle ECUs)
 - BlueDriver (OBD-II scan tool CSV export)
@@ -303,6 +306,15 @@ To add a new ECU format:
 3. Implement the `Parseable` trait
 4. Add enum variants to `Channel`, `Meta`, `EcuType`, and wire up in `mod.rs`
 5. Update detection logic in `app.rs` file loading
+
+**Text dispatch preprocessing contract** (`UltraLogApp::parse_text_content` in `src/app.rs`):
+
+Before the text detection chain runs, the content is normalized twice, so individual parsers do not each have to handle it:
+
+1. A leading **UTF-8 BOM** is stripped (`trim_start_matches('\u{FEFF}')`). Windows and mobile exporters commonly prepend one.
+2. A leading block of **`#`-prefixed comment lines** is dropped via `parsers::strip_leading_comment_lines`, so the real CSV header row is the first line detection sees. MHD Tuning and OBD-II apps such as OBDLink write a metadata preamble there; without this the header is never found and the log loads with zero channels (issue #78). Only the *leading* contiguous block is removed — a `#` after the header row is data.
+
+**Load-bearing invariant:** a parser whose own fingerprint lives inside that comment preamble must run its `detect()` against the **raw** text, before the strip. `Mhd::detect` is the current case, which is why it is dispatched ahead of `dispatch_text_content` rather than inside the chain. Anything added to the chain itself sees comment-stripped content.
 
 **Haltech parser load-bearing behaviors** (`src/parsers/haltech.rs`, added for wall-clock-timestamped exports):
 
@@ -360,7 +372,7 @@ Several `UltraLogApp` fields cache expensive per-file, per-channel computations 
 
 ## Key Features
 
-- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, Motorsport Electronics, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
+- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, MHD Tuning, Motorsport Electronics, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
@@ -434,6 +446,7 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/woolich/` - Woolich Racing Tuned CSV exports
 - `exampleLogs/emerald/` - Emerald K6/M3D `.lg1`/`.lg2` files
 - `exampleLogs/megasquirt/` - MegaSquirt TunerStudio CSV exports
+- `exampleLogs/mhd/` - MHD Tuning CSV exports (VIN redacted)
 - `exampleLogs/motorsportElectronics/` - Motorsport Electronics ME Tuner CSV exports
 - `exampleLogs/bluedriver/` - BlueDriver OBD-II CSV exports
 - `exampleLogs/dynamicEFI/` - DynamicEFI EBL WhatsUp CSV exports
