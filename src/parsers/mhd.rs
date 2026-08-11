@@ -74,11 +74,12 @@ impl MhdChannel {
         };
 
         // A header of just "(unit)" would leave an empty name — keep the raw
-        // column text in that case so the channel is still addressable.
+        // column text as the name so the channel is still addressable, but
+        // hold on to the unit we parsed.
         if name.is_empty() {
             return Self {
                 name: header.to_string(),
-                unit: String::new(),
+                unit,
             };
         }
 
@@ -215,9 +216,17 @@ impl Parseable for Mhd {
             meta.tune = tune.to_string();
         }
 
-        let channels: Vec<Channel> = header_fields[1..]
+        // Column positions in each data row that become channels. The tune
+        // column is skipped: its header is a file name, which makes a poor
+        // channel name, and its data column is a constant map marker rather
+        // than a logged signal. The file name is kept in `meta.tune` above.
+        let value_columns: Vec<usize> = (1..header_fields.len())
+            .filter(|&idx| !Self::is_tune_column(header_fields[idx].trim()))
+            .collect();
+
+        let channels: Vec<Channel> = value_columns
             .iter()
-            .map(|h| Channel::Mhd(MhdChannel::from_header(h)))
+            .map(|&idx| Channel::Mhd(MhdChannel::from_header(header_fields[idx])))
             .collect();
 
         let channel_count = channels.len();
@@ -242,7 +251,7 @@ impl Parseable for Mhd {
             }
 
             let parts: Vec<&str> = line.split(',').collect();
-            if parts.len() <= channel_count {
+            if parts.len() < header_fields.len() {
                 // Short row - not enough columns to fill every channel.
                 continue;
             }
@@ -262,10 +271,10 @@ impl Parseable for Mhd {
                 continue;
             }
 
-            let row: Vec<Value> = parts[1..=channel_count]
+            let row: Vec<Value> = value_columns
                 .iter()
                 .enumerate()
-                .map(|(idx, raw)| match raw.trim().parse::<f64>() {
+                .map(|(idx, &column)| match parts[column].trim().parse::<f64>() {
                     Ok(v) => {
                         let value = Value::Float(v);
                         last_values[idx] = value;
@@ -384,10 +393,17 @@ mod tests {
     fn parses_sample_log() {
         let log = Mhd.parse(SAMPLE).expect("parse failed");
 
-        assert_eq!(log.channels.len(), 6);
+        // 6 header columns after Time, minus the excluded tune column
+        assert_eq!(log.channels.len(), 5);
         assert_eq!(log.channels[0].name(), "Boost");
         assert_eq!(log.channels[0].unit(), "Bar");
         assert_eq!(log.channels[4].name(), "RPM");
+        assert!(
+            !log.channels
+                .iter()
+                .any(|c| c.name().to_lowercase().ends_with(".bin")),
+            "the tune file column must not become a channel"
+        );
         assert_eq!(log.times.len(), 3);
         assert_eq!(log.data.len(), 3);
 
@@ -406,7 +422,7 @@ mod tests {
                 assert_eq!(meta.ecu_prgid, "7616431");
                 assert_eq!(meta.vin, "TESTVIN0000000000");
                 assert_eq!(meta.tune, "MHD 5.26 IJE0S ST2V7.bin");
-                assert_eq!(meta.channel_count, 6);
+                assert_eq!(meta.channel_count, 5);
                 assert_eq!(meta.data_points, 3);
             }
             other => panic!("expected MHD metadata, got {:?}", other),
@@ -443,6 +459,31 @@ mod tests {
         assert_eq!(log.times.len(), 3);
         assert!(log.times.windows(2).all(|w| w[0] <= w[1]));
         assert_eq!(log.data[2][0].as_f64(), 1400.0);
+    }
+
+    #[test]
+    fn excludes_tune_column_but_keeps_it_in_metadata() {
+        let log = Mhd.parse(SAMPLE).expect("parse failed");
+
+        // The tune column sits between MAF Req and RPM in neither position -
+        // it is the last column, and its data must not shift the others.
+        assert_eq!(log.channels.len(), 5);
+        assert_eq!(log.data[0].len(), 5);
+        assert_eq!(log.data[0][4].as_f64(), 1346.0, "RPM must stay aligned");
+
+        match log.meta {
+            Meta::Mhd(meta) => assert_eq!(meta.tune, "MHD 5.26 IJE0S ST2V7.bin"),
+            other => panic!("expected MHD metadata, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn keeps_unit_when_header_is_only_a_unit() {
+        // Degenerate header - the raw text stays addressable as the name and
+        // the parsed unit is preserved.
+        let channel = MhdChannel::from_header("(Bar)");
+        assert_eq!(channel.name, "(Bar)");
+        assert_eq!(channel.unit, "Bar");
     }
 
     #[test]

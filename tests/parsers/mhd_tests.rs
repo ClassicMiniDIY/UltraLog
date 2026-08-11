@@ -25,8 +25,15 @@ fn test_parse_mhd_example_file() {
     let contents = read_example_file(MHD_N55_PULL);
     let log = Mhd.parse(&contents).expect("Failed to parse MHD example");
 
-    // Header row is Time plus 31 channel columns
-    assert_eq!(log.channels.len(), 31, "Expected 31 channels");
+    // Header row is Time plus 31 columns; the trailing tune-file column is
+    // captured as metadata rather than exposed as a channel
+    assert_eq!(log.channels.len(), 30, "Expected 30 channels");
+    assert!(
+        !log.channels
+            .iter()
+            .any(|c| c.name().to_lowercase().ends_with(".bin")),
+        "the tune file column must not become a channel"
+    );
     assert_eq!(log.data.len(), 228, "Expected 228 data rows");
     assert_eq!(log.times.len(), log.data.len());
 
