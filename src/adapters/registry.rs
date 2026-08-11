@@ -85,7 +85,7 @@ static EMBEDDED_PROTOCOLS: &[&str] = &[
 fn parse_embedded_adapters() -> Vec<AdapterSpec> {
     EMBEDDED_ADAPTERS
         .iter()
-        .filter_map(|yaml| match serde_yml::from_str(yaml) {
+        .filter_map(|yaml| match serde_norway::from_str(yaml) {
             Ok(spec) => Some(spec),
             Err(e) => {
                 tracing::warn!("Failed to parse embedded adapter YAML: {}", e);
@@ -99,7 +99,7 @@ fn parse_embedded_adapters() -> Vec<AdapterSpec> {
 fn parse_embedded_protocols() -> Vec<ProtocolSpec> {
     EMBEDDED_PROTOCOLS
         .iter()
-        .filter_map(|yaml| match serde_yml::from_str(yaml) {
+        .filter_map(|yaml| match serde_norway::from_str(yaml) {
             Ok(spec) => Some(spec),
             Err(e) => {
                 tracing::warn!("Failed to parse embedded protocol YAML: {}", e);

@@ -1909,7 +1909,7 @@ impl UltraLogApp {
             i.raw
                 .dropped_files
                 .iter()
-                .filter_map(|f| f.path.clone())
+                .map(|f| f.path().to_path_buf())
                 .collect()
         });
 
@@ -2229,7 +2229,7 @@ impl eframe::App for UltraLogApp {
 
         egui::Panel::top("menu_bar")
             .frame(menu_frame)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 self.render_menu_bar(ui);
             });
 
@@ -2245,7 +2245,7 @@ impl eframe::App for UltraLogApp {
 
         egui::Panel::top("tool_switcher")
             .frame(tool_switcher_frame)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 self.render_tool_switcher(ui);
             });
 
@@ -2265,7 +2265,7 @@ impl eframe::App for UltraLogApp {
             .exact_size(crate::ui::activity_bar::ACTIVITY_BAR_WIDTH)
             .resizable(false)
             .frame(activity_bar_frame)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 self.render_activity_bar(ui);
             });
 
@@ -2275,7 +2275,7 @@ impl eframe::App for UltraLogApp {
             .min_size(crate::ui::side_panel::SIDE_PANEL_MIN_WIDTH)
             .resizable(true)
             .frame(panel_frame)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 self.render_side_panel(ui);
             });
 
@@ -2287,7 +2287,7 @@ impl eframe::App for UltraLogApp {
             egui::Panel::bottom("timeline_panel")
                 .resizable(false)
                 .min_size(60.0)
-                .show_inside(ui, |ui| {
+                .show(ui, |ui| {
                     ui.add_space(5.0);
                     self.render_record_indicator(ui);
                     ui.separator();
@@ -2297,7 +2297,7 @@ impl eframe::App for UltraLogApp {
         }
 
         // Main content area - render based on active tool
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             match self.active_tool {
                 ActiveTool::LogViewer => {
                     // Tab bar at top (Chrome-style tabs for log files)
