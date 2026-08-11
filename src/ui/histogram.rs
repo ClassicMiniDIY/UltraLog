@@ -170,7 +170,7 @@ impl UltraLogApp {
                 // Add with is_priority=false (computed channels listed after prioritized channels)
                 sorted_channels.push((
                     channel_idx,
-                    format!("📊 {}", &computed.template.name),
+                    format!("📊 {}", computed.template.name),
                     false,
                 ));
             }

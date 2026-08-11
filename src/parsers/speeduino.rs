@@ -288,11 +288,10 @@ impl Speeduino {
         // Each record is roughly: 1 (block type) + 2 (timestamp) + num_fields * ~4 bytes + 1 (CRC)
         let remaining_data = data.len().saturating_sub(data_begin_index);
         let estimated_record_size = 4 + channels.len() * 4;
-        let estimated_records = if estimated_record_size > 0 {
-            remaining_data / estimated_record_size
-        } else {
-            1000 // Fallback estimate
-        };
+        // `estimated_record_size` is always >= 4, but guard the division anyway.
+        let estimated_records = remaining_data
+            .checked_div(estimated_record_size)
+            .unwrap_or(1000); // Fallback estimate
         let mut times: Vec<f64> = Vec::with_capacity(estimated_records);
         let mut data_records: Vec<Vec<Value>> = Vec::with_capacity(estimated_records);
 

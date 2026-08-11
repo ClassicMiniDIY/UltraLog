@@ -181,7 +181,7 @@ impl Parseable for Locomotive {
         if channel_count > 0 {
             let mut filtered_times = Vec::with_capacity(times.len());
             let mut filtered_data = Vec::with_capacity(data.len());
-            for (time, row) in times.into_iter().zip(data.into_iter()) {
+            for (time, row) in times.into_iter().zip(data) {
                 if row.len() >= channel_count {
                     filtered_times.push(time);
                     filtered_data.push(row);

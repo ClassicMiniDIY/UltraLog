@@ -793,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_afr_deviation() {
-        let afr_data = vec![14.7, 15.435, 13.965]; // 0%, +5%, -5%
+        let afr_data = [14.7, 15.435, 13.965]; // 0%, +5%, -5%
         let target = 14.7;
 
         let deviations: Vec<f64> = afr_data
@@ -808,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_lambda_deviation() {
-        let lambda_data = vec![1.0, 1.05, 0.95]; // 0%, +5%, -5%
+        let lambda_data = [1.0, 1.05, 0.95]; // 0%, +5%, -5%
         let target = 1.0;
 
         let deviations: Vec<f64> = lambda_data

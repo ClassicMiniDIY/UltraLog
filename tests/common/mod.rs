@@ -3,6 +3,11 @@
 //! This module provides helper functions for reading example files,
 //! creating test fixtures, and other common testing operations.
 
+// This module is compiled into each integration test binary separately, and
+// every binary uses only a subset of these helpers. Without this, each binary
+// reports the helpers it happens not to use as dead code.
+#![allow(dead_code)]
+
 use std::path::Path;
 
 /// Helper function to read a text file, panicking with a clear message if not found.

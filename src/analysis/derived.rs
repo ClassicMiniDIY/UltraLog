@@ -548,9 +548,17 @@ mod tests {
 
     #[test]
     fn test_lambda_calculation() {
-        // Lambda = AFR / 14.7
-        assert!((14.7_f64 / 14.7 - 1.0).abs() < 0.001); // Stoich = lambda 1.0
-        assert!((13.0_f64 / 14.7) < 1.0); // Rich (lambda < 1)
-        assert!((16.0_f64 / 14.7) > 1.0); // Lean (lambda > 1)
+        // Lambda = AFR / stoich, using the same stoich the analyzer defaults to
+        // so this test tracks the real default rather than a hard-coded literal.
+        let stoich = LambdaCalculator::default().stoich_afr;
+        assert!(
+            (stoich - 14.7).abs() < f64::EPSILON,
+            "gasoline stoich changed"
+        );
+
+        let lambda = |afr: f64| afr / stoich;
+        assert!((lambda(stoich) - 1.0).abs() < 0.001); // Stoich = lambda 1.0
+        assert!(lambda(13.0) < 1.0); // Rich (lambda < 1)
+        assert!(lambda(16.0) > 1.0); // Lean (lambda > 1)
     }
 }
