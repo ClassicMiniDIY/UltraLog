@@ -408,26 +408,32 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 
 ## Key Dependencies
 
-- **eframe/egui** (0.34) - Native GUI framework
-- **egui_plot** (0.35) - Charting/plotting
+- **eframe/egui** (0.36) - Native GUI framework
+- **egui_plot** (0.37) - Charting/plotting
 - **rfd** (0.17) - Native file dialogs
 - **open** (5) - Cross-platform URL/email opening
 - **strum** (0.28) - Enum string conversion for channel types
-- **regex** (1.12) - Log file parsing
-- **ureq** (3.3) - HTTP client for auto-updates and OpenECU Alliance API
+- **regex** (1.13) - Log file parsing
+- **ureq** (3.4) - HTTP client for auto-updates and OpenECU Alliance API
 - **semver** (1.0) - Version comparison
-- **serde_yml** (0.0.12) - YAML parsing for adapter/protocol specs (replaces deprecated `serde_yaml`)
-- **printpdf** (0.9) - PDF generation
+- **serde_norway** (0.9) - YAML parsing for adapter/protocol specs. Replaced `serde_yml`, which was
+  flagged unsound (RUSTSEC-2025-0068) and then deprecated; `serde_norway` is the maintained
+  `serde_yaml` fork, and unlike `serde_yaml_ng` its libyaml backend is maintained too.
+  Do not go back to `serde_yml` or `serde_yaml`.
+- **printpdf** (0.12) - PDF generation
 - **image** (0.25) - PNG export
 - **memmap2** (0.9) - Memory-mapped file loading for large files
-- **rayon** (1.11) - Parallel iteration for parsing
+- **rayon** (1.12) - Parallel iteration for parsing
 - **dirs** (6.0) - Cross-platform app data directory detection for cache and settings
-- **rmcp** (0.12) - MCP server implementation (`src/mcp/`), used with `axum` as the HTTP transport
+- **rmcp** (3.1) - MCP server implementation (`src/mcp/`), used with `axum` as the HTTP transport.
+  3.x fixes a DNS-rebinding hole in the streamable-HTTP transport; its `StreamableHttpService`
+  config defaults `allowed_hosts` to localhost/127.0.0.1/::1, so keep passing `Default::default()`
+  rather than clearing it.
 - **tokio** (1) - Async runtime backing the MCP server
 - **axum** (0.8) - HTTP server framework for the embedded MCP endpoint
 - **schemars** (1.0) - JSON schema generation for MCP tool definitions
 - **arboard** (3.6) - Clipboard support (histogram copy/paste)
-- **rust-i18n** (3.1) - Internationalization / locale strings
+- **rust-i18n** (4.2) - Internationalization / locale strings
 - **uuid** (1.0) - Anonymous user ID generation for analytics
 - **chrono** (0.4) - Date/time parsing (Locomotive, Woolich timestamps)
 - **encoding_rs** (0.8) - Character encoding detection/conversion (e.g., UTF-16 BlueDriver exports)

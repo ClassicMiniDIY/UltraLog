@@ -543,11 +543,11 @@ Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
 | Component        | Technology                                                                                                     |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
 | Language         | Rust (Edition 2021)                                                                                            |
-| GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.34 |
-| Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.35                                   |
+| GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.36 |
+| Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.37                                   |
 | File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.17                                                                  |
 | Image Processing | [image](https://github.com/image-rs/image) 0.25                                                                |
-| PDF Generation   | [printpdf](https://github.com/fschutt/printpdf) 0.9                                                            |
+| PDF Generation   | [printpdf](https://github.com/fschutt/printpdf) 0.12                                                            |
 | Serialization    | serde / serde_json 1.0                                                                                         |
 | Error Handling   | thiserror 2.0 / anyhow 1.0                                                                                     |
 | Logging          | tracing / tracing-subscriber 0.3                                                                               |
