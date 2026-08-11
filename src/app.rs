@@ -10,7 +10,7 @@ use rust_i18n::t;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
 use crate::adapters;
@@ -19,17 +19,17 @@ use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
 use crate::i18n::Language;
 use crate::ipc::IpcServer;
-use crate::mcp::{start_mcp_server, McpServerHandle, DEFAULT_MCP_PORT};
+use crate::mcp::{DEFAULT_MCP_PORT, McpServerHandle, start_mcp_server};
 use crate::parsers::{
     Aim, BlueDriver, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive,
     MegaSquirt, Mhd, MotorsportElectronics, Parseable, RomRaider, Speeduino, Woolich,
 };
 use crate::settings::UserSettings;
 use crate::state::{
-    ActivePanel, ActiveTool, CacheKey, DownsampleCache, FontScale, LoadResult, LoadedFile,
-    LoadingState, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
-    SelectedChannel, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS, MAX_CHANNELS,
-    MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS, MIN_PLOT_HEIGHT,
+    ActivePanel, ActiveTool, CHART_COLORS, COLORBLIND_COLORS, CacheKey, DownsampleCache, FontScale,
+    LoadResult, LoadedFile, LoadingState, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS,
+    MIN_PLOT_HEIGHT, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
+    SelectedChannel, Tab, ToastType,
 };
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
@@ -464,7 +464,7 @@ impl UltraLogApp {
                 return Err(LoadResult::Error(format!(
                     "Failed to memory-map file: {}",
                     e
-                )))
+                )));
             }
         };
 
@@ -518,7 +518,7 @@ impl UltraLogApp {
                     return Err(LoadResult::Error(format!(
                         "Failed to parse AIM XRK file: {}",
                         e
-                    )))
+                    )));
                 }
             }
         }
@@ -877,14 +877,12 @@ impl UltraLogApp {
         } else {
             // Computed channel
             let computed_idx = channel_index - regular_count;
-            if let Some(computed_channels) = self.file_computed_channels.get(&file_index) {
-                if let Some(computed) = computed_channels.get(computed_idx) {
-                    if let Some(cached_data) = &computed.cached_data {
-                        if record < cached_data.len() {
-                            return Some(cached_data[record]);
-                        }
-                    }
-                }
+            if let Some(computed_channels) = self.file_computed_channels.get(&file_index)
+                && let Some(computed) = computed_channels.get(computed_idx)
+                && let Some(cached_data) = &computed.cached_data
+                && record < cached_data.len()
+            {
+                return Some(cached_data[record]);
             }
         }
         None
@@ -905,12 +903,11 @@ impl UltraLogApp {
         } else {
             // Computed channel
             let computed_idx = channel_index - regular_count;
-            if let Some(computed_channels) = self.file_computed_channels.get(&file_index) {
-                if let Some(computed) = computed_channels.get(computed_idx) {
-                    if let Some(cached_data) = &computed.cached_data {
-                        return cached_data.clone();
-                    }
-                }
+            if let Some(computed_channels) = self.file_computed_channels.get(&file_index)
+                && let Some(computed) = computed_channels.get(computed_idx)
+                && let Some(cached_data) = &computed.cached_data
+            {
+                return cached_data.clone();
             }
             Vec::new()
         }
@@ -1708,14 +1705,14 @@ impl UltraLogApp {
     pub fn remove_computed_channel(&mut self, index: usize) {
         if let Some(tab_idx) = self.active_tab {
             let file_idx = self.tabs[tab_idx].file_index;
-            if let Some(channels) = self.file_computed_channels.get_mut(&file_idx) {
-                if index < channels.len() {
-                    channels.remove(index);
-                    // Later computed channels shift down one index, so
-                    // cached downsampled points and min/max no longer line up.
-                    self.downsample_cache.clear();
-                    self.minmax_cache.clear();
-                }
+            if let Some(channels) = self.file_computed_channels.get_mut(&file_idx)
+                && index < channels.len()
+            {
+                channels.remove(index);
+                // Later computed channels shift down one index, so
+                // cached downsampled points and min/max no longer line up.
+                self.downsample_cache.clear();
+                self.minmax_cache.clear();
             }
         }
     }
@@ -1770,50 +1767,50 @@ impl UltraLogApp {
     /// Check for completed update operations
     fn check_update_complete(&mut self) {
         // Check for update check completion
-        if let Some(receiver) = &self.update_check_receiver {
-            if let Ok(result) = receiver.try_recv() {
-                match result {
-                    UpdateCheckResult::UpdateAvailable(info) => {
-                        self.update_state = UpdateState::UpdateAvailable(info);
-                        self.show_update_dialog = true;
-                        analytics::track_update_checked(true);
-                    }
-                    UpdateCheckResult::UpToDate => {
-                        self.update_state = UpdateState::Idle;
-                        analytics::track_update_checked(false);
-                        // Only show toast for manual checks (not startup)
-                        if self.startup_check_done {
-                            self.show_toast_success(&t!("toast.up_to_date"));
-                        }
-                    }
-                    UpdateCheckResult::Error(e) => {
-                        self.update_state = UpdateState::Error(e.clone());
-                        // Only show error toast for manual checks
-                        if self.startup_check_done {
-                            self.show_toast_error(&t!("toast.update_check_failed", error = &e));
-                        }
+        if let Some(receiver) = &self.update_check_receiver
+            && let Ok(result) = receiver.try_recv()
+        {
+            match result {
+                UpdateCheckResult::UpdateAvailable(info) => {
+                    self.update_state = UpdateState::UpdateAvailable(info);
+                    self.show_update_dialog = true;
+                    analytics::track_update_checked(true);
+                }
+                UpdateCheckResult::UpToDate => {
+                    self.update_state = UpdateState::Idle;
+                    analytics::track_update_checked(false);
+                    // Only show toast for manual checks (not startup)
+                    if self.startup_check_done {
+                        self.show_toast_success(&t!("toast.up_to_date"));
                     }
                 }
-                self.update_check_receiver = None;
-                self.startup_check_done = true;
+                UpdateCheckResult::Error(e) => {
+                    self.update_state = UpdateState::Error(e.clone());
+                    // Only show error toast for manual checks
+                    if self.startup_check_done {
+                        self.show_toast_error(&t!("toast.update_check_failed", error = &e));
+                    }
+                }
             }
+            self.update_check_receiver = None;
+            self.startup_check_done = true;
         }
 
         // Check for download completion
-        if let Some(receiver) = &self.update_download_receiver {
-            if let Ok(result) = receiver.try_recv() {
-                match result {
-                    DownloadResult::Success(path) => {
-                        self.update_state = UpdateState::ReadyToInstall(path);
-                        self.show_toast_success(&t!("toast.update_downloaded"));
-                    }
-                    DownloadResult::Error(e) => {
-                        self.update_state = UpdateState::Error(e.clone());
-                        self.show_toast_error(&t!("toast.download_failed", error = &e));
-                    }
+        if let Some(receiver) = &self.update_download_receiver
+            && let Ok(result) = receiver.try_recv()
+        {
+            match result {
+                DownloadResult::Success(path) => {
+                    self.update_state = UpdateState::ReadyToInstall(path);
+                    self.show_toast_success(&t!("toast.update_downloaded"));
                 }
-                self.update_download_receiver = None;
+                DownloadResult::Error(e) => {
+                    self.update_state = UpdateState::Error(e.clone());
+                    self.show_toast_error(&t!("toast.download_failed", error = &e));
+                }
             }
+            self.update_download_receiver = None;
         }
     }
 
@@ -1899,10 +1896,10 @@ impl UltraLogApp {
         }
 
         // Debounce file drops (5 second window)
-        if let Some(last_drop) = self.last_drop_time {
-            if last_drop.elapsed().as_secs() < 5 {
-                return;
-            }
+        if let Some(last_drop) = self.last_drop_time
+            && last_drop.elapsed().as_secs() < 5
+        {
+            return;
         }
 
         let dropped_files: Vec<PathBuf> = ctx.input(|i| {
@@ -2089,12 +2086,12 @@ impl UltraLogApp {
                     // Reset frame time when starting playback
                     self.last_frame_time = Some(std::time::Instant::now());
                     // Initialize cursor if not set
-                    if self.get_cursor_time().is_none() {
-                        if let Some((min, _)) = self.get_time_range() {
-                            self.set_cursor_time(Some(min));
-                            let record = self.find_record_at_time(min);
-                            self.set_cursor_record(record);
-                        }
+                    if self.get_cursor_time().is_none()
+                        && let Some((min, _)) = self.get_time_range()
+                    {
+                        self.set_cursor_time(Some(min));
+                        let record = self.find_record_at_time(min);
+                        self.set_cursor_record(record);
                     }
                 }
             }
@@ -2113,11 +2110,10 @@ impl UltraLogApp {
         if let Some(server) = &self.ipc_server {
             // Collect up to 10 commands per frame to avoid blocking the UI
             for _ in 0..10 {
-                if let Some(cmd) = server.poll_command() {
-                    pending_commands.push(cmd);
-                } else {
+                let Some(cmd) = server.poll_command() else {
                     break;
-                }
+                };
+                pending_commands.push(cmd);
             }
         }
 

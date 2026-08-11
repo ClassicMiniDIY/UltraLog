@@ -21,6 +21,12 @@ UltraLog is a high-performance ECU (Engine Control Unit) log viewer written in p
 
 ## Build Commands
 
+The crate is on **edition 2024** with `rust-version = "1.95"`. The MSRV is set by
+egui/eframe 0.36, not by the edition (2024 itself only needs 1.85) — so bumping
+egui is what moves it. Edition 2024 means let-chains (`if a && let Some(b) = ..`)
+are available and clippy's `collapsible_if` will ask for them, and that rustfmt
+sorts imports with the 2024 style ordering.
+
 ```bash
 # Development build
 cargo build

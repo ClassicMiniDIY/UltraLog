@@ -542,7 +542,7 @@ Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
 
 | Component        | Technology                                                                                                     |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| Language         | Rust (Edition 2021)                                                                                            |
+| Language         | Rust (Edition 2024, MSRV 1.95)                                                                                            |
 | GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.36 |
 | Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.37                                   |
 | File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.17                                                                  |
