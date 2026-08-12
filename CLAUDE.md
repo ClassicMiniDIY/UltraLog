@@ -272,7 +272,9 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - **`parsers/types.rs`** - Core types: `Log`, `Channel`, `Value`, `Meta`, `EcuType`, `ComputedChannelInfo`, and the `Parseable` trait
 - **`parsers/haltech.rs`** - Haltech CSV parser (NSP exports)
 - **`parsers/ecumaster.rs`** - ECUMaster EMU Pro CSV parser (semicolon/tab delimited)
-- **`parsers/romraider.rs`** - RomRaider CSV parser with unit extraction from headers
+- **`parsers/romraider.rs`** - RomRaider CSV parser with unit extraction from headers. Also the
+  catch-all for generic `Time,...` CSVs that no earlier parser claims — see the time-unit
+  contract below.
 - **`parsers/speeduino.rs`** - Speeduino/rusEFI MLG binary format parser
 - **`parsers/aim.rs`** - AiM XRK/DRK binary format parser for motorsport data loggers
 - **`parsers/link.rs`** - Link ECU LLG binary format parser
@@ -319,6 +321,21 @@ Before the text detection chain runs, the content is normalized twice, so indivi
 
 1. A leading **UTF-8 BOM** is stripped (`trim_start_matches('\u{FEFF}')`). Windows and mobile exporters commonly prepend one.
 2. A leading block of **`#`-prefixed comment lines** is dropped via `parsers::strip_leading_comment_lines`, so the real CSV header row is the first line detection sees. MHD Tuning and OBD-II apps such as OBDLink write a metadata preamble there; without this the header is never found and the log loads with zero channels (issue #78). Only the *leading* contiguous block is removed — a `#` after the header row is data.
+
+**RomRaider time-column unit contract** (`src/parsers/romraider.rs`):
+
+`RomRaider::detect` accepts any CSV whose first column starts with `time`, which makes it the
+effective catch-all for generic OBD-II exports, not just Subaru logs. The unit is therefore not
+implied by the format — it must be read from the header:
+
+- `Time (msec)` / `Time(ms)` / `Time (milliseconds)` -> milliseconds
+- `Time (sec)` / `Time (s)` / `Time (seconds)` -> seconds
+- a bare `Time` with no parenthesised unit -> **milliseconds**, RomRaider's own convention
+
+Milliseconds must be tested before seconds, since `sec` is a substring of `msec`. Hardcoding the
+`/1000.0` is what made a 2049-second OBDLink log render as 2.05 seconds (issue #80). Note this
+interacts with the dispatch order above: `MotorsportElectronics::detect` runs first precisely
+because it also leads with a `Time` column, and only matches a first column of exactly `Time`.
 
 **Load-bearing invariant:** a parser whose own fingerprint lives inside that comment preamble must run its `detect()` against the **raw** text, before the strip. `Mhd::detect` is the current case, which is why it is dispatched ahead of `dispatch_text_content` rather than inside the chain. Anything added to the chain itself sees comment-stripped content.
 
@@ -461,6 +478,7 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/mhd/` - MHD Tuning CSV exports (VIN redacted)
 - `exampleLogs/motorsportElectronics/` - Motorsport Electronics ME Tuner CSV exports
 - `exampleLogs/bluedriver/` - BlueDriver OBD-II CSV exports
+- `exampleLogs/obdlink/` - OBDLink (iOS) OBD-II CSV exports (parsed by the RomRaider chain)
 - `exampleLogs/dynamicEFI/` - DynamicEFI EBL WhatsUp CSV exports
 - `exampleLogs/locomotive/` - Locomotive datalogger CSV exports
 - `exampleLogs/rusefi/`, `exampleLogs/speeduino/` - MLG binary logs

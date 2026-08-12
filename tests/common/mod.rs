@@ -73,6 +73,11 @@ pub mod example_files {
     // RomRaider example files
     pub const ROMRAIDER_EUROPEAN: &str = "exampleLogs/romraider/romraiderlog_20251031_170713.csv";
 
+    /// OBDLink (iOS) export from issue #80. Declares `Time (sec)`, unlike
+    /// RomRaider's own `Time (msec)`, and carries a UTF-8 BOM plus a leading
+    /// `# StartTime = ...` comment line.
+    pub const OBDLINK_SECONDS: &str = "exampleLogs/obdlink/CSVLog_20260811_131143.csv";
+
     // Emerald ECU example files
     pub const EMERALD_IDLE_REV: &str = "exampleLogs/emerald/EM Log MG ZS Turbo idle and rev.lg1";
     pub const EMERALD_SHORT_DRIVE: &str = "exampleLogs/emerald/EM Log MG ZS Turbo short drive.lg1";

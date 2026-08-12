@@ -227,10 +227,46 @@ impl RomRaider {
         normalized.parse::<f64>().ok()
     }
 
-    /// Parse time value from milliseconds string to seconds
-    fn parse_time_ms(time_str: &str, delimiter: Delimiter) -> Option<f64> {
-        Self::parse_european_number(time_str, delimiter).map(|ms| ms / 1000.0)
+    /// Unit of the leading time column, as declared by the header.
+    ///
+    /// RomRaider's own exports say `Time (msec)`, but this parser is also the
+    /// fallback for other generic `Time,...` CSVs — notably OBDLink (iOS)
+    /// exports, which write `Time (sec)`. Assuming milliseconds made a
+    /// 2049-second OBDLink log render as a 2.05-second one (issue #80).
+    fn detect_time_unit(first_col: &str) -> TimeUnit {
+        let lower = first_col.to_lowercase();
+        let unit = lower
+            .split_once('(')
+            .and_then(|(_, rest)| rest.split_once(')'))
+            .map(|(unit, _)| unit.trim().to_string());
+
+        match unit.as_deref() {
+            // "sec" is a substring of "msec", so milliseconds must be tested first.
+            Some(u) if u.contains("msec") || u.contains("millis") || u == "ms" => {
+                TimeUnit::Milliseconds
+            }
+            Some(u) if u.contains("sec") || u == "s" => TimeUnit::Seconds,
+            // A bare `Time` column carries no unit. RomRaider itself logs
+            // milliseconds, so keep that as the default rather than guessing
+            // from the data.
+            _ => TimeUnit::Milliseconds,
+        }
     }
+
+    /// Parse a time value into seconds, honouring the header's declared unit.
+    fn parse_time(time_str: &str, delimiter: Delimiter, unit: TimeUnit) -> Option<f64> {
+        Self::parse_european_number(time_str, delimiter).map(|v| match unit {
+            TimeUnit::Seconds => v,
+            TimeUnit::Milliseconds => v / 1000.0,
+        })
+    }
+}
+
+/// Unit of the leading time column in a RomRaider-style CSV.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TimeUnit {
+    Seconds,
+    Milliseconds,
 }
 
 impl Parseable for RomRaider {
@@ -267,6 +303,9 @@ impl Parseable for RomRaider {
             return Err("Invalid RomRaider log: first column must be Time".into());
         }
 
+        // The header declares whether time is in seconds or milliseconds.
+        let time_unit = Self::detect_time_unit(column_names[0]);
+
         // Create channels from header (skip Time column)
         for name in column_names.iter().skip(1) {
             let channel = RomRaiderChannel::from_header(name);
@@ -288,9 +327,9 @@ impl Parseable for RomRaider {
                 continue;
             }
 
-            // First column is time (in milliseconds)
+            // First column is time, in the unit the header declared
             let time_str = parts[0].trim();
-            if let Some(time_secs) = Self::parse_time_ms(time_str, delimiter) {
+            if let Some(time_secs) = Self::parse_time(time_str, delimiter, time_unit) {
                 // Calculate relative time from first record
                 let relative_time = if let Some(first) = first_time {
                     time_secs - first
@@ -511,21 +550,30 @@ mod tests {
     #[test]
     fn test_parse_time_ms() {
         // US locale
-        assert_eq!(RomRaider::parse_time_ms("0", Delimiter::Comma), Some(0.0));
         assert_eq!(
-            RomRaider::parse_time_ms("1000", Delimiter::Comma),
-            Some(1.0)
-        );
-        assert_eq!(RomRaider::parse_time_ms("500", Delimiter::Comma), Some(0.5));
-        assert_eq!(RomRaider::parse_time_ms("invalid", Delimiter::Comma), None);
-
-        // European locale
-        assert_eq!(
-            RomRaider::parse_time_ms("0", Delimiter::Semicolon),
+            RomRaider::parse_time("0", Delimiter::Comma, TimeUnit::Milliseconds),
             Some(0.0)
         );
         assert_eq!(
-            RomRaider::parse_time_ms("1000", Delimiter::Semicolon),
+            RomRaider::parse_time("1000", Delimiter::Comma, TimeUnit::Milliseconds),
+            Some(1.0)
+        );
+        assert_eq!(
+            RomRaider::parse_time("500", Delimiter::Comma, TimeUnit::Milliseconds),
+            Some(0.5)
+        );
+        assert_eq!(
+            RomRaider::parse_time("invalid", Delimiter::Comma, TimeUnit::Milliseconds),
+            None
+        );
+
+        // European locale
+        assert_eq!(
+            RomRaider::parse_time("0", Delimiter::Semicolon, TimeUnit::Milliseconds),
+            Some(0.0)
+        );
+        assert_eq!(
+            RomRaider::parse_time("1000", Delimiter::Semicolon, TimeUnit::Milliseconds),
             Some(1.0)
         );
     }
@@ -545,5 +593,84 @@ mod tests {
         // Empty values should be 0
         assert_eq!(log.data[1][1].as_f64(), 0.0); // Missing Load
         assert_eq!(log.data[2][0].as_f64(), 0.0); // Missing RPM
+    }
+
+    // ── Time-column unit handling (issue #80) ──────────────────────────────
+
+    #[test]
+    fn detects_time_unit_from_header() {
+        // RomRaider's own exports
+        assert_eq!(
+            RomRaider::detect_time_unit("Time (msec)"),
+            TimeUnit::Milliseconds
+        );
+        assert_eq!(
+            RomRaider::detect_time_unit("Time(ms)"),
+            TimeUnit::Milliseconds
+        );
+        assert_eq!(
+            RomRaider::detect_time_unit("Time (milliseconds)"),
+            TimeUnit::Milliseconds
+        );
+
+        // OBDLink (iOS) exports
+        assert_eq!(RomRaider::detect_time_unit("Time (sec)"), TimeUnit::Seconds);
+        assert_eq!(RomRaider::detect_time_unit("Time (s)"), TimeUnit::Seconds);
+        assert_eq!(
+            RomRaider::detect_time_unit("Time (seconds)"),
+            TimeUnit::Seconds
+        );
+
+        // A bare Time column keeps the historical milliseconds default
+        assert_eq!(RomRaider::detect_time_unit("Time"), TimeUnit::Milliseconds);
+        assert_eq!(
+            RomRaider::detect_time_unit("Time ()"),
+            TimeUnit::Milliseconds
+        );
+    }
+
+    /// An OBDLink log declaring `Time (sec)` must not be divided by 1000.
+    ///
+    /// Regression for issue #80: a 2049-second log rendered as 2.05 seconds
+    /// because the parser assumed milliseconds regardless of the header.
+    #[test]
+    fn parses_obdlink_seconds_without_millisecond_scaling() {
+        // Shape taken from the CSV attached to issue #80, with the BOM and the
+        // leading `# StartTime = ...` comment already stripped by the dispatch
+        // preprocessing in app.rs.
+        let sample = "Time (sec), Engine RPM (RPM), Absolute load value (%)\n                      0.000,0,0\n                      0.913,795,18.82353\n                      1024.500,802.25,18.43\n                      2049.573,706.5,14.117647\n";
+
+        let log = RomRaider.parse(sample).unwrap();
+
+        assert_eq!(log.times.len(), 4);
+        assert!((log.times[0] - 0.0).abs() < 0.001);
+        assert!((log.times[1] - 0.913).abs() < 0.001);
+        assert!((log.times[2] - 1024.5).abs() < 0.001);
+        assert!(
+            (log.times[3] - 2049.573).abs() < 0.001,
+            "expected the log to end near 2049.573s, got {}",
+            log.times[3]
+        );
+    }
+
+    /// The millisecond path must keep working unchanged.
+    #[test]
+    fn still_scales_millisecond_headers() {
+        let sample =
+            "Time (msec),RPM\n                      0,1000\n                      2049573,1100\n";
+
+        let log = RomRaider.parse(sample).unwrap();
+        assert!((log.times[1] - 2049.573).abs() < 0.001);
+    }
+
+    /// Seconds handling must also work in the European semicolon/decimal-comma
+    /// locale, where the time field itself uses a comma.
+    #[test]
+    fn parses_seconds_in_european_locale() {
+        let sample =
+            "Time (sec);RPM\n                      0,000;860\n                      120,500;900\n";
+
+        let log = RomRaider.parse(sample).unwrap();
+        assert!((log.times[1] - 120.5).abs() < 0.001);
     }
 }
