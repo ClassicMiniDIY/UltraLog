@@ -193,7 +193,7 @@ pub fn extract_channel_references(formula: &str) -> Vec<ChannelReference> {
     }
 
     // Deduplicate by full_match
-    references.sort_by(|a, b| b.full_match.len().cmp(&a.full_match.len())); // Sort by length descending
+    references.sort_by_key(|r| std::cmp::Reverse(r.full_match.len())); // Sort by length descending
     let mut seen = std::collections::HashSet::new();
     references.retain(|r| seen.insert(r.full_match.clone()));
 
@@ -283,7 +283,7 @@ fn prepare_formula(formula: &str, refs: &[ChannelReference]) -> String {
 
     // Sort refs by length (longest first) to avoid partial replacements
     let mut sorted_refs: Vec<_> = refs.iter().collect();
-    sorted_refs.sort_by(|a, b| b.full_match.len().cmp(&a.full_match.len()));
+    sorted_refs.sort_by_key(|r| std::cmp::Reverse(r.full_match.len()));
 
     for r in sorted_refs {
         let var_name = sanitize_var_name(&r.full_match);
@@ -535,11 +535,7 @@ fn find_record_at_time(times: &[f64], target_time: f64) -> usize {
                 // Check which neighbor is closer
                 let prev_diff = (times[idx - 1] - clamped_time).abs();
                 let next_diff = (times[idx] - clamped_time).abs();
-                if prev_diff <= next_diff {
-                    idx - 1
-                } else {
-                    idx
-                }
+                if prev_diff <= next_diff { idx - 1 } else { idx }
             }
         }
     }

@@ -10,4 +10,4 @@
 pub mod client;
 pub mod server;
 
-pub use server::{start_mcp_server, McpServerHandle, UltraLogMcpServer, DEFAULT_MCP_PORT};
+pub use server::{DEFAULT_MCP_PORT, McpServerHandle, UltraLogMcpServer, start_mcp_server};

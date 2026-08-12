@@ -11,9 +11,9 @@ use crate::analysis::{AnalysisResult, Analyzer, AnalyzerConfig, LogDataAccess};
 use crate::app::UltraLogApp;
 use crate::computed::{ComputedChannel, ComputedChannelTemplate};
 use crate::normalize::sort_channels_by_priority;
-use crate::parsers::types::ComputedChannelInfo;
 use crate::parsers::Channel;
-use crate::state::{SelectedChannel, CHART_COLORS};
+use crate::parsers::types::ComputedChannelInfo;
+use crate::state::{CHART_COLORS, SelectedChannel};
 
 /// Info about an analyzer for display (avoids borrow issues)
 struct AnalyzerInfo {
@@ -212,54 +212,50 @@ impl UltraLogApp {
             .id_salt("analysis_panel_scroll")
             .show(ui, |ui| {
                 // Results section - always visible at top if there are results
-                if let Some(file_idx) = self.selected_file {
-                    if let Some(results) = self.analysis_results.get(&file_idx) {
-                        if !results.is_empty() {
-                            // Results header with count
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new(t!(
-                                        "analysis.results_count",
-                                        count = results.len()
-                                    ))
-                                    .strong()
-                                    .size(15.0),
-                                );
+                if let Some(file_idx) = self.selected_file
+                    && let Some(results) = self.analysis_results.get(&file_idx)
+                    && !results.is_empty()
+                {
+                    // Results header with count
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(t!(
+                                "analysis.results_count",
+                                count = results.len()
+                            ))
+                            .strong()
+                            .size(15.0),
+                        );
 
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if ui
-                                            .small_button(t!("analysis.clear_all"))
-                                            .on_hover_text(t!("analysis.remove_all_tooltip"))
-                                            .clicked()
-                                        {
-                                            // Mark for clearing
-                                            result_to_remove = Some(usize::MAX);
-                                        }
-                                    },
-                                );
-                            });
-
-                            ui.add_space(4.0);
-
-                            // Result cards
-                            for (i, result) in results.iter().enumerate() {
-                                if let Some(action) =
-                                    Self::render_analysis_result_with_actions(ui, result, i)
-                                {
-                                    match action {
-                                        ResultAction::AddToChart => result_to_add = Some(i),
-                                        ResultAction::Remove => result_to_remove = Some(i),
-                                    }
-                                }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .small_button(t!("analysis.clear_all"))
+                                .on_hover_text(t!("analysis.remove_all_tooltip"))
+                                .clicked()
+                            {
+                                // Mark for clearing
+                                result_to_remove = Some(usize::MAX);
                             }
+                        });
+                    });
 
-                            ui.add_space(8.0);
-                            ui.separator();
-                            ui.add_space(8.0);
+                    ui.add_space(4.0);
+
+                    // Result cards
+                    for (i, result) in results.iter().enumerate() {
+                        if let Some(action) =
+                            Self::render_analysis_result_with_actions(ui, result, i)
+                        {
+                            match action {
+                                ResultAction::AddToChart => result_to_add = Some(i),
+                                ResultAction::Remove => result_to_remove = Some(i),
+                            }
                         }
                     }
+
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(8.0);
                 }
 
                 // Analyzers section header
@@ -345,16 +341,15 @@ impl UltraLogApp {
         }
 
         // Remove result(s)
-        if let Some(idx) = result_to_remove {
-            if let Some(file_idx) = self.selected_file {
-                if let Some(results) = self.analysis_results.get_mut(&file_idx) {
-                    if idx == usize::MAX {
-                        // Clear all
-                        results.clear();
-                    } else if idx < results.len() {
-                        results.remove(idx);
-                    }
-                }
+        if let Some(idx) = result_to_remove
+            && let Some(file_idx) = self.selected_file
+            && let Some(results) = self.analysis_results.get_mut(&file_idx)
+        {
+            if idx == usize::MAX {
+                // Clear all
+                results.clear();
+            } else if idx < results.len() {
+                results.remove(idx);
             }
         }
     }
@@ -1143,21 +1138,20 @@ fn check_channels_available(
     channel_display_names: &[String],
 ) -> bool {
     for param in param_defs {
-        if matches!(param.param_type, ParamType::Channel) {
-            if let Some(ch) = config.parameters.get(&param.key) {
-                if !ch.is_empty() {
-                    // Check if configured channel matches raw name OR display name
-                    let found_in_raw = channel_names
-                        .iter()
-                        .any(|name| name.eq_ignore_ascii_case(ch));
-                    let found_in_display = channel_display_names
-                        .iter()
-                        .any(|name| name.eq_ignore_ascii_case(ch));
+        if matches!(param.param_type, ParamType::Channel)
+            && let Some(ch) = config.parameters.get(&param.key)
+            && !ch.is_empty()
+        {
+            // Check if configured channel matches raw name OR display name
+            let found_in_raw = channel_names
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(ch));
+            let found_in_display = channel_display_names
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(ch));
 
-                    if !found_in_raw && !found_in_display {
-                        return false;
-                    }
-                }
+            if !found_in_raw && !found_in_display {
+                return false;
             }
         }
     }

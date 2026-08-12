@@ -217,20 +217,20 @@ impl Analyzer for FuelTrimDriftAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(v) = config.parameters.get("k") {
-            if let Ok(val) = v.parse() {
-                self.k = val;
-            }
+        if let Some(v) = config.parameters.get("k")
+            && let Ok(val) = v.parse()
+        {
+            self.k = val;
         }
-        if let Some(v) = config.parameters.get("h") {
-            if let Ok(val) = v.parse() {
-                self.h = val;
-            }
+        if let Some(v) = config.parameters.get("h")
+            && let Ok(val) = v.parse()
+        {
+            self.h = val;
         }
-        if let Some(v) = config.parameters.get("baseline_pct") {
-            if let Ok(val) = v.parse() {
-                self.baseline_pct = val;
-            }
+        if let Some(v) = config.parameters.get("baseline_pct")
+            && let Ok(val) = v.parse()
+        {
+            self.baseline_pct = val;
         }
     }
 
@@ -415,26 +415,26 @@ impl Analyzer for RichLeanZoneAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(v) = config.parameters.get("target") {
-            if let Ok(val) = v.parse() {
-                self.target = val;
-            }
+        if let Some(v) = config.parameters.get("target")
+            && let Ok(val) = v.parse()
+        {
+            self.target = val;
         }
         // Support legacy "target_afr" parameter name
-        if let Some(v) = config.parameters.get("target_afr") {
-            if let Ok(val) = v.parse() {
-                self.target = val;
-            }
+        if let Some(v) = config.parameters.get("target_afr")
+            && let Ok(val) = v.parse()
+        {
+            self.target = val;
         }
-        if let Some(v) = config.parameters.get("rich_threshold") {
-            if let Ok(val) = v.parse() {
-                self.rich_threshold = val;
-            }
+        if let Some(v) = config.parameters.get("rich_threshold")
+            && let Ok(val) = v.parse()
+        {
+            self.rich_threshold = val;
         }
-        if let Some(v) = config.parameters.get("lean_threshold") {
-            if let Ok(val) = v.parse() {
-                self.lean_threshold = val;
-            }
+        if let Some(v) = config.parameters.get("lean_threshold")
+            && let Ok(val) = v.parse()
+        {
+            self.lean_threshold = val;
         }
     }
 
@@ -581,16 +581,16 @@ impl Analyzer for AfrDeviationAnalyzer {
         if let Some(ch) = config.parameters.get("channel") {
             self.channel = ch.clone();
         }
-        if let Some(v) = config.parameters.get("target") {
-            if let Ok(val) = v.parse() {
-                self.target = val;
-            }
+        if let Some(v) = config.parameters.get("target")
+            && let Ok(val) = v.parse()
+        {
+            self.target = val;
         }
         // Support legacy "target_afr" parameter name
-        if let Some(v) = config.parameters.get("target_afr") {
-            if let Ok(val) = v.parse() {
-                self.target = val;
-            }
+        if let Some(v) = config.parameters.get("target_afr")
+            && let Ok(val) = v.parse()
+        {
+            self.target = val;
         }
     }
 
@@ -793,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_afr_deviation() {
-        let afr_data = vec![14.7, 15.435, 13.965]; // 0%, +5%, -5%
+        let afr_data = [14.7, 15.435, 13.965]; // 0%, +5%, -5%
         let target = 14.7;
 
         let deviations: Vec<f64> = afr_data
@@ -808,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_lambda_deviation() {
-        let lambda_data = vec![1.0, 1.05, 0.95]; // 0%, +5%, -5%
+        let lambda_data = [1.0, 1.05, 0.95]; // 0%, +5%, -5%
         let target = 1.0;
 
         let deviations: Vec<f64> = lambda_data

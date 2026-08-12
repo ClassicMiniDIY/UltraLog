@@ -338,22 +338,22 @@ impl Aim {
         // Look for <CMP> (Campaign/Championship) tag
         if let Some(pos) = Self::find_pattern(data, b"<CMP\x00", data.len().saturating_sub(1000)) {
             let start = pos + 5;
-            if start + 100 < data.len() {
-                if let Some(end) = Self::find_pattern(&data[start..], b"<", 0) {
-                    meta.championship =
-                        Self::read_null_terminated_string(&data[start + 4..], end.min(100));
-                }
+            if start + 100 < data.len()
+                && let Some(end) = Self::find_pattern(&data[start..], b"<", 0)
+            {
+                meta.championship =
+                    Self::read_null_terminated_string(&data[start + 4..], end.min(100));
             }
         }
 
         // Look for <VTY> (Venue Type) tag
         if let Some(pos) = Self::find_pattern(data, b"<VTY\x00", data.len().saturating_sub(500)) {
             let start = pos + 5;
-            if start + 50 < data.len() {
-                if let Some(end) = Self::find_pattern(&data[start..], b"<", 0) {
-                    meta.venue_type =
-                        Self::read_null_terminated_string(&data[start + 4..], end.min(50));
-                }
+            if start + 50 < data.len()
+                && let Some(end) = Self::find_pattern(&data[start..], b"<", 0)
+            {
+                meta.venue_type =
+                    Self::read_null_terminated_string(&data[start + 4..], end.min(50));
             }
         }
 

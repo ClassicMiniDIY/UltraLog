@@ -1355,18 +1355,18 @@ impl UltraLogApp {
         );
 
         // Subtitle with file info
-        if let Some(file_idx) = self.selected_file {
-            if file_idx < self.files.len() {
-                let file = &self.files[file_idx];
-                push_text(
-                    &mut ops,
-                    &file.name,
-                    10.0,
-                    Mm(20.0),
-                    Mm(192.0),
-                    &font_regular,
-                );
-            }
+        if let Some(file_idx) = self.selected_file
+            && file_idx < self.files.len()
+        {
+            let file = &self.files[file_idx];
+            push_text(
+                &mut ops,
+                &file.name,
+                10.0,
+                Mm(20.0),
+                Mm(192.0),
+                &font_regular,
+            );
         }
 
         // Layout: two plots side by side

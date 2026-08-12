@@ -273,8 +273,7 @@ fn test_romraider_minimal_log() {
 
 #[test]
 fn test_romraider_multiple_channels() {
-    let sample =
-        "Time (msec),Engine Speed (rpm),Engine Load (%),Coolant Temp (C),Battery Voltage (V)\n\
+    let sample = "Time (msec),Engine Speed (rpm),Engine Load (%),Coolant Temp (C),Battery Voltage (V)\n\
                   0,850,15.5,85.0,14.2\n\
                   20,900,18.0,85.5,14.1\n\
                   40,950,20.5,86.0,14.3\n\
@@ -461,9 +460,11 @@ fn test_romraider_subaru_channels() {
     // Verify channel names
     let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
     assert!(names.iter().any(|n| n.contains("Engine Speed")));
-    assert!(names
-        .iter()
-        .any(|n| n.contains("Mass Airflow") || n.contains("MAF")));
+    assert!(
+        names
+            .iter()
+            .any(|n| n.contains("Mass Airflow") || n.contains("MAF"))
+    );
 }
 
 #[test]
@@ -568,5 +569,53 @@ fn test_romraider_european_example_file() {
         "RomRaider European log: {} channels, {} records",
         log.channels.len(),
         log.data.len()
+    );
+}
+
+/// End-to-end regression for issue #80.
+///
+/// An OBDLink (iOS) export carries a UTF-8 BOM and a leading `# StartTime`
+/// comment, both of which `UltraLogApp::parse_text_content` strips before the
+/// detection chain runs. This test replicates that preprocessing so it covers
+/// the same content the app actually parses, then asserts the log spans its
+/// real ~2049 seconds rather than the 2.05 it collapsed to when the parser
+/// assumed the `Time` column was milliseconds.
+#[test]
+fn test_obdlink_seconds_example_file() {
+    use common::example_files::OBDLINK_SECONDS;
+    use common::{example_file_exists, read_example_file};
+    use ultralog::parsers::strip_leading_comment_lines;
+
+    if !example_file_exists(OBDLINK_SECONDS) {
+        eprintln!("Skipping test: {} not found", OBDLINK_SECONDS);
+        return;
+    }
+
+    let raw = read_example_file(OBDLINK_SECONDS);
+    let content = strip_leading_comment_lines(raw.trim_start_matches('\u{FEFF}'));
+
+    assert!(
+        content.starts_with("Time (sec)"),
+        "preprocessing should expose the real header, got: {:?}",
+        content.lines().next()
+    );
+    assert!(
+        RomRaider::detect(content),
+        "OBDLink CSV should be claimed by the RomRaider chain"
+    );
+
+    let log = RomRaider.parse(content).expect("Should parse OBDLink log");
+
+    assert_valid_log_structure(&log);
+    assert_finite_values(&log);
+    assert_monotonic_times(&log);
+    assert_minimum_channels(&log, 5);
+    assert_minimum_records(&log, 1000);
+
+    let last = *log.times.last().unwrap();
+    assert!(
+        (last - 2049.573).abs() < 0.01,
+        "log should end near 2049.573s (issue #80 reported 2.05), got {}",
+        last
     );
 }

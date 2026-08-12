@@ -9,7 +9,7 @@ mod common;
 use common::example_files::*;
 use common::read_example_file;
 use ultralog::parsers::mhd::Mhd;
-use ultralog::parsers::{strip_leading_comment_lines, Parseable};
+use ultralog::parsers::{Parseable, strip_leading_comment_lines};
 
 #[test]
 fn test_detect_mhd_example_file() {

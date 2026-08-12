@@ -270,15 +270,15 @@ impl Speeduino {
             let info_bytes = &data[info_data_start..data_begin_index];
             let info_str = String::from_utf8_lossy(info_bytes);
 
-            if let Some(version_start) = info_str.find("speeduino") {
-                if let Some(version_end) = info_str[version_start..].find('"') {
-                    meta.version = info_str[version_start..version_start + version_end].to_string();
-                }
+            if let Some(version_start) = info_str.find("speeduino")
+                && let Some(version_end) = info_str[version_start..].find('"')
+            {
+                meta.version = info_str[version_start..version_start + version_end].to_string();
             }
-            if let Some(date_start) = info_str.find("Capture Date:") {
-                if let Some(date_end) = info_str[date_start..].find('"') {
-                    meta.capture_date = info_str[date_start..date_start + date_end].to_string();
-                }
+            if let Some(date_start) = info_str.find("Capture Date:")
+                && let Some(date_end) = info_str[date_start..].find('"')
+            {
+                meta.capture_date = info_str[date_start..date_start + date_end].to_string();
             }
         }
 
@@ -288,11 +288,10 @@ impl Speeduino {
         // Each record is roughly: 1 (block type) + 2 (timestamp) + num_fields * ~4 bytes + 1 (CRC)
         let remaining_data = data.len().saturating_sub(data_begin_index);
         let estimated_record_size = 4 + channels.len() * 4;
-        let estimated_records = if estimated_record_size > 0 {
-            remaining_data / estimated_record_size
-        } else {
-            1000 // Fallback estimate
-        };
+        // `estimated_record_size` is always >= 4, but guard the division anyway.
+        let estimated_records = remaining_data
+            .checked_div(estimated_record_size)
+            .unwrap_or(1000); // Fallback estimate
         let mut times: Vec<f64> = Vec::with_capacity(estimated_records);
         let mut data_records: Vec<Vec<Value>> = Vec::with_capacity(estimated_records);
 
@@ -677,10 +676,12 @@ mod tests {
         let invalid_data = b"NOT_MLG_FORMAT";
         let result = Speeduino::parse_binary(invalid_data);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid MLG file header"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid MLG file header")
+        );
     }
 
     #[test]
@@ -705,10 +706,12 @@ mod tests {
 
         let result = Speeduino::parse_binary(&data);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Unreasonable field count"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Unreasonable field count")
+        );
     }
 
     // ============================================

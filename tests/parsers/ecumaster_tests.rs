@@ -101,8 +101,7 @@ fn test_parse_ecumaster_minimal() {
 
 #[test]
 fn test_parse_ecumaster_multiple_channels() {
-    let sample =
-        "TIME;engine/rpm;sensors/tps1;ignition/angle\n0.0;1000;50;10\n0.1;1100;55;12\n0.2;1200;60;14\n";
+    let sample = "TIME;engine/rpm;sensors/tps1;ignition/angle\n0.0;1000;50;10\n0.1;1100;55;12\n0.2;1200;60;14\n";
 
     let parser = EcuMaster;
     let log = parser.parse(sample).expect("Should parse multi-channel");

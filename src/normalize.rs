@@ -394,10 +394,10 @@ pub fn normalize_channel_name_with_custom(
     }
 
     // Try path-stripped version with spec normalization
-    if let Some(last_segment) = name.rsplit('/').next() {
-        if let Some(normalized) = adapters::normalize_from_spec(last_segment) {
-            return normalized;
-        }
+    if let Some(last_segment) = name.rsplit('/').next()
+        && let Some(normalized) = adapters::normalize_from_spec(last_segment)
+    {
+        return normalized;
     }
 
     // No mapping found, return original
@@ -467,10 +467,10 @@ pub fn has_normalization(name: &str, custom_mappings: Option<&HashMap<String, St
     }
 
     // Check path-stripped version with spec normalization
-    if let Some(last_segment) = name.rsplit('/').next() {
-        if adapters::has_spec_normalization(last_segment) {
-            return true;
-        }
+    if let Some(last_segment) = name.rsplit('/').next()
+        && adapters::has_spec_normalization(last_segment)
+    {
+        return true;
     }
 
     false

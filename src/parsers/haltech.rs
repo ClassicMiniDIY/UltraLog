@@ -322,45 +322,45 @@ impl Parseable for Haltech {
             }
 
             // Not in data section yet - parse metadata and channel definitions
-            if data_lines.is_empty() {
-                if let Some(captures) = kv_regex.captures(line) {
-                    let name = captures["name"].trim();
-                    let value = captures["value"].trim().to_string();
+            if data_lines.is_empty()
+                && let Some(captures) = kv_regex.captures(line)
+            {
+                let name = captures["name"].trim();
+                let value = captures["value"].trim().to_string();
 
-                    match name {
-                        "DataLogVersion" => meta.data_log_version = value,
-                        "Software" => meta.software = value,
-                        "SoftwareVersion" => meta.software_version = value,
-                        "DownloadDateTime" | "DownloadDate/Time" => meta.download_date_time = value,
-                        "Log Source" => meta.log_source = value,
-                        "Log Number" => meta.log_number = value,
-                        "Log" => meta.log_date_time = value,
-                        // "Channel" key indicates start of a new channel definition
-                        "Channel" => {
-                            if !current_channel.name.is_empty() {
-                                channels.push(Channel::Haltech(current_channel));
-                            }
-                            current_channel = HaltechChannel::default();
-                            current_channel.name = value;
+                match name {
+                    "DataLogVersion" => meta.data_log_version = value,
+                    "Software" => meta.software = value,
+                    "SoftwareVersion" => meta.software_version = value,
+                    "DownloadDateTime" | "DownloadDate/Time" => meta.download_date_time = value,
+                    "Log Source" => meta.log_source = value,
+                    "Log Number" => meta.log_number = value,
+                    "Log" => meta.log_date_time = value,
+                    // "Channel" key indicates start of a new channel definition
+                    "Channel" => {
+                        if !current_channel.name.is_empty() {
+                            channels.push(Channel::Haltech(current_channel));
                         }
-                        "ID" => current_channel.id = value,
-                        "Type" => {
-                            if let Ok(channel_type) = ChannelType::from_str(&value) {
-                                current_channel.r#type = channel_type;
-                            } else {
-                                tracing::warn!("Unknown channel type: {}", value);
-                                current_channel.r#type = ChannelType::Raw;
-                            }
-                        }
-                        "DisplayMaxMin" => {
-                            let values: Vec<&str> = value.split(',').collect();
-                            if values.len() >= 2 {
-                                current_channel.display_max = values[0].trim().parse().ok();
-                                current_channel.display_min = values[1].trim().parse().ok();
-                            }
-                        }
-                        _ => {}
+                        current_channel = HaltechChannel::default();
+                        current_channel.name = value;
                     }
+                    "ID" => current_channel.id = value,
+                    "Type" => {
+                        if let Ok(channel_type) = ChannelType::from_str(&value) {
+                            current_channel.r#type = channel_type;
+                        } else {
+                            tracing::warn!("Unknown channel type: {}", value);
+                            current_channel.r#type = ChannelType::Raw;
+                        }
+                    }
+                    "DisplayMaxMin" => {
+                        let values: Vec<&str> = value.split(',').collect();
+                        if values.len() >= 2 {
+                            current_channel.display_max = values[0].trim().parse().ok();
+                            current_channel.display_min = values[1].trim().parse().ok();
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -456,7 +456,7 @@ impl Parseable for Haltech {
             // Filter out data rows that don't match channel count
             let mut filtered_times = Vec::with_capacity(times.len());
             let mut filtered_data = Vec::with_capacity(data.len());
-            for (time, row) in times.into_iter().zip(data.into_iter()) {
+            for (time, row) in times.into_iter().zip(data) {
                 if row.len() >= channel_count {
                     filtered_times.push(time);
                     filtered_data.push(row);

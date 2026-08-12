@@ -4,8 +4,8 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 
-use crate::ipc::commands::{IpcCommand, IpcResponse};
 use crate::ipc::DEFAULT_IPC_PORT;
+use crate::ipc::commands::{IpcCommand, IpcResponse};
 
 /// Client for communicating with the UltraLog GUI
 ///

@@ -170,7 +170,7 @@ impl UltraLogApp {
                 // Add with is_priority=false (computed channels listed after prioritized channels)
                 sorted_channels.push((
                     channel_idx,
-                    format!("📊 {}", &computed.template.name),
+                    format!("📊 {}", computed.template.name),
                     false,
                 ));
             }
@@ -1047,15 +1047,15 @@ impl UltraLogApp {
                     continue 'sample_loop;
                 }
                 let val = data[i];
-                if let Some(min) = filter.min_value {
-                    if val < min {
-                        continue 'sample_loop;
-                    }
+                if let Some(min) = filter.min_value
+                    && val < min
+                {
+                    continue 'sample_loop;
                 }
-                if let Some(max) = filter.max_value {
-                    if val > max {
-                        continue 'sample_loop;
-                    }
+                if let Some(max) = filter.max_value
+                    && val > max
+                {
+                    continue 'sample_loop;
                 }
             }
 
@@ -1108,149 +1108,147 @@ impl UltraLogApp {
         };
 
         // Comparison view: show Histogram, Pasted Table, and Result side-by-side
-        if show_comparison {
-            if let Some(ref pasted) = pasted_table {
-                // Resample pasted table to match grid size
-                let resampled = Self::resample_table(pasted, grid_cols, grid_rows);
-                let pasted_values: Vec<Vec<Option<f64>>> = resampled
-                    .iter()
-                    .map(|row| row.iter().map(|&v| Some(v)).collect())
-                    .collect();
+        if show_comparison && let Some(ref pasted) = pasted_table {
+            // Resample pasted table to match grid size
+            let resampled = Self::resample_table(pasted, grid_cols, grid_rows);
+            let pasted_values: Vec<Vec<Option<f64>>> = resampled
+                .iter()
+                .map(|row| row.iter().map(|&v| Some(v)).collect())
+                .collect();
 
-                // Calculate result by applying operation
-                let result_values =
-                    Self::apply_table_operation(&cell_values, &resampled, table_operation);
+            // Calculate result by applying operation
+            let result_values =
+                Self::apply_table_operation(&cell_values, &resampled, table_operation);
 
-                // Find min/max for pasted and result
-                let mut pasted_min = f64::INFINITY;
-                let mut pasted_max = f64::NEG_INFINITY;
-                for row in &resampled {
-                    for &v in row {
-                        pasted_min = pasted_min.min(v);
-                        pasted_max = pasted_max.max(v);
-                    }
+            // Find min/max for pasted and result
+            let mut pasted_min = f64::INFINITY;
+            let mut pasted_max = f64::NEG_INFINITY;
+            for row in &resampled {
+                for &v in row {
+                    pasted_min = pasted_min.min(v);
+                    pasted_max = pasted_max.max(v);
                 }
-
-                let mut result_min = f64::INFINITY;
-                let mut result_max = f64::NEG_INFINITY;
-                for row in &result_values {
-                    for val in row.iter().flatten() {
-                        result_min = result_min.min(*val);
-                        result_max = result_max.max(*val);
-                    }
-                }
-
-                // Allocate space for comparison view
-                let available = ui.available_size();
-                let chart_height = (available.y - LEGEND_HEIGHT - 40.0).max(200.0);
-                let panel_width = (available.x - 20.0) / 3.0;
-
-                let (full_rect, _response) = ui.allocate_exact_size(
-                    egui::vec2(available.x, chart_height + 30.0),
-                    egui::Sense::hover(),
-                );
-
-                let painter = ui.painter_at(full_rect);
-
-                // Draw three panels
-                let panel1_rect = egui::Rect::from_min_size(
-                    full_rect.min,
-                    egui::vec2(panel_width, chart_height + 30.0),
-                );
-                let panel2_rect = egui::Rect::from_min_size(
-                    egui::pos2(full_rect.left() + panel_width + 10.0, full_rect.top()),
-                    egui::vec2(panel_width, chart_height + 30.0),
-                );
-                let panel3_rect = egui::Rect::from_min_size(
-                    egui::pos2(
-                        full_rect.left() + 2.0 * (panel_width + 10.0),
-                        full_rect.top(),
-                    ),
-                    egui::vec2(panel_width, chart_height + 30.0),
-                );
-
-                // Render the three panels
-                Self::render_mini_heat_map(
-                    &painter,
-                    panel1_rect,
-                    &cell_values,
-                    min_value,
-                    max_value,
-                    &t!("histogram.comparison_histogram"),
-                    font_13,
-                    Some(&hit_counts),
-                    min_hits_filter,
-                );
-
-                Self::render_mini_heat_map(
-                    &painter,
-                    panel2_rect,
-                    &pasted_values,
-                    pasted_min,
-                    pasted_max,
-                    &t!("histogram.comparison_pasted"),
-                    font_13,
-                    None,
-                    0,
-                );
-
-                let op_symbol = match table_operation {
-                    TableOperation::Add => "+",
-                    TableOperation::Subtract => "−",
-                    TableOperation::Multiply => "×",
-                    TableOperation::Divide => "÷",
-                };
-                Self::render_mini_heat_map(
-                    &painter,
-                    panel3_rect,
-                    &result_values,
-                    result_min,
-                    result_max,
-                    &format!("{} ({})", t!("histogram.comparison_result"), op_symbol),
-                    font_13,
-                    None,
-                    0,
-                );
-
-                // Render legend with comparison info
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{}: {:.1} to {:.1}",
-                            t!("histogram.comparison_histogram"),
-                            min_value,
-                            max_value
-                        ))
-                        .size(font_12)
-                        .color(egui::Color32::WHITE),
-                    );
-                    ui.add_space(16.0);
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{}: {:.1} to {:.1}",
-                            t!("histogram.comparison_pasted"),
-                            pasted_min,
-                            pasted_max
-                        ))
-                        .size(font_12)
-                        .color(egui::Color32::WHITE),
-                    );
-                    ui.add_space(16.0);
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{}: {:.1} to {:.1}",
-                            t!("histogram.comparison_result"),
-                            result_min,
-                            result_max
-                        ))
-                        .size(font_12)
-                        .color(egui::Color32::WHITE),
-                    );
-                });
-
-                return;
             }
+
+            let mut result_min = f64::INFINITY;
+            let mut result_max = f64::NEG_INFINITY;
+            for row in &result_values {
+                for val in row.iter().flatten() {
+                    result_min = result_min.min(*val);
+                    result_max = result_max.max(*val);
+                }
+            }
+
+            // Allocate space for comparison view
+            let available = ui.available_size();
+            let chart_height = (available.y - LEGEND_HEIGHT - 40.0).max(200.0);
+            let panel_width = (available.x - 20.0) / 3.0;
+
+            let (full_rect, _response) = ui.allocate_exact_size(
+                egui::vec2(available.x, chart_height + 30.0),
+                egui::Sense::hover(),
+            );
+
+            let painter = ui.painter_at(full_rect);
+
+            // Draw three panels
+            let panel1_rect = egui::Rect::from_min_size(
+                full_rect.min,
+                egui::vec2(panel_width, chart_height + 30.0),
+            );
+            let panel2_rect = egui::Rect::from_min_size(
+                egui::pos2(full_rect.left() + panel_width + 10.0, full_rect.top()),
+                egui::vec2(panel_width, chart_height + 30.0),
+            );
+            let panel3_rect = egui::Rect::from_min_size(
+                egui::pos2(
+                    full_rect.left() + 2.0 * (panel_width + 10.0),
+                    full_rect.top(),
+                ),
+                egui::vec2(panel_width, chart_height + 30.0),
+            );
+
+            // Render the three panels
+            Self::render_mini_heat_map(
+                &painter,
+                panel1_rect,
+                &cell_values,
+                min_value,
+                max_value,
+                &t!("histogram.comparison_histogram"),
+                font_13,
+                Some(&hit_counts),
+                min_hits_filter,
+            );
+
+            Self::render_mini_heat_map(
+                &painter,
+                panel2_rect,
+                &pasted_values,
+                pasted_min,
+                pasted_max,
+                &t!("histogram.comparison_pasted"),
+                font_13,
+                None,
+                0,
+            );
+
+            let op_symbol = match table_operation {
+                TableOperation::Add => "+",
+                TableOperation::Subtract => "−",
+                TableOperation::Multiply => "×",
+                TableOperation::Divide => "÷",
+            };
+            Self::render_mini_heat_map(
+                &painter,
+                panel3_rect,
+                &result_values,
+                result_min,
+                result_max,
+                &format!("{} ({})", t!("histogram.comparison_result"), op_symbol),
+                font_13,
+                None,
+                0,
+            );
+
+            // Render legend with comparison info
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{}: {:.1} to {:.1}",
+                        t!("histogram.comparison_histogram"),
+                        min_value,
+                        max_value
+                    ))
+                    .size(font_12)
+                    .color(egui::Color32::WHITE),
+                );
+                ui.add_space(16.0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{}: {:.1} to {:.1}",
+                        t!("histogram.comparison_pasted"),
+                        pasted_min,
+                        pasted_max
+                    ))
+                    .size(font_12)
+                    .color(egui::Color32::WHITE),
+                );
+                ui.add_space(16.0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{}: {:.1} to {:.1}",
+                        t!("histogram.comparison_result"),
+                        result_min,
+                        result_max
+                    ))
+                    .size(font_12)
+                    .color(egui::Color32::WHITE),
+                );
+            });
+
+            return;
         }
 
         // Allocate space for the grid
@@ -1448,12 +1446,12 @@ impl UltraLogApp {
         }
 
         // Show full name as tooltip if wrapped or truncated
-        if y_title_display != y_channel_name || y_title_display.contains('\n') {
-            if let Some(rect) = combined_rect {
-                let y_title_response =
-                    ui.interact(rect, ui.id().with("y_title_tooltip"), egui::Sense::hover());
-                y_title_response.on_hover_text(&y_channel_name);
-            }
+        if (y_title_display != y_channel_name || y_title_display.contains('\n'))
+            && let Some(rect) = combined_rect
+        {
+            let y_title_response =
+                ui.interact(rect, ui.id().with("y_title_tooltip"), egui::Sense::hover());
+            y_title_response.on_hover_text(&y_channel_name);
         }
 
         // X axis value labels
@@ -1492,228 +1490,227 @@ impl UltraLogApp {
         }
 
         // Draw selected cell highlight
-        if let Some(ref sel) = selected_cell {
-            if sel.x_bin < grid_cols && sel.y_bin < grid_rows {
-                let sel_x = plot_rect.left() + sel.x_bin as f32 * cell_width;
-                let sel_y = plot_rect.bottom() - (sel.y_bin + 1) as f32 * cell_height;
-                let sel_rect = egui::Rect::from_min_size(
-                    egui::pos2(sel_x, sel_y),
-                    egui::vec2(cell_width, cell_height),
-                );
-                let stroke = egui::Stroke::new(3.0, SELECTED_CELL_COLOR);
-                painter.line_segment([sel_rect.left_top(), sel_rect.right_top()], stroke);
-                painter.line_segment([sel_rect.left_bottom(), sel_rect.right_bottom()], stroke);
-                painter.line_segment([sel_rect.left_top(), sel_rect.left_bottom()], stroke);
-                painter.line_segment([sel_rect.right_top(), sel_rect.right_bottom()], stroke);
-            }
+        if let Some(ref sel) = selected_cell
+            && sel.x_bin < grid_cols
+            && sel.y_bin < grid_rows
+        {
+            let sel_x = plot_rect.left() + sel.x_bin as f32 * cell_width;
+            let sel_y = plot_rect.bottom() - (sel.y_bin + 1) as f32 * cell_height;
+            let sel_rect = egui::Rect::from_min_size(
+                egui::pos2(sel_x, sel_y),
+                egui::vec2(cell_width, cell_height),
+            );
+            let stroke = egui::Stroke::new(3.0, SELECTED_CELL_COLOR);
+            painter.line_segment([sel_rect.left_top(), sel_rect.right_top()], stroke);
+            painter.line_segment([sel_rect.left_bottom(), sel_rect.right_bottom()], stroke);
+            painter.line_segment([sel_rect.left_top(), sel_rect.left_bottom()], stroke);
+            painter.line_segment([sel_rect.right_top(), sel_rect.right_bottom()], stroke);
         }
 
         // Draw current position indicator (cursor time)
-        if let Some(cursor_record) = self.get_cursor_record() {
-            if cursor_record < x_data.len() {
-                let cursor_x = x_data[cursor_record];
-                let cursor_y = y_data[cursor_record];
+        if let Some(cursor_record) = self.get_cursor_record()
+            && cursor_record < x_data.len()
+        {
+            let cursor_x = x_data[cursor_record];
+            let cursor_y = y_data[cursor_record];
 
-                let rel_x = ((cursor_x - x_min) / x_range) as f32;
-                let rel_y = ((cursor_y - y_min) / y_range) as f32;
+            let rel_x = ((cursor_x - x_min) / x_range) as f32;
+            let rel_y = ((cursor_y - y_min) / y_range) as f32;
 
-                if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
-                    let pos_x = plot_rect.left() + rel_x * plot_rect.width();
-                    let pos_y = plot_rect.bottom() - rel_y * plot_rect.height();
+            if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
+                let pos_x = plot_rect.left() + rel_x * plot_rect.width();
+                let pos_y = plot_rect.bottom() - rel_y * plot_rect.height();
 
-                    // Draw grey crosshairs tracking the cursor position
-                    painter.line_segment(
-                        [
-                            egui::pos2(pos_x, plot_rect.top()),
-                            egui::pos2(pos_x, plot_rect.bottom()),
-                        ],
-                        egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
-                    );
-                    painter.line_segment(
-                        [
-                            egui::pos2(plot_rect.left(), pos_y),
-                            egui::pos2(plot_rect.right(), pos_y),
-                        ],
-                        egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
-                    );
+                // Draw grey crosshairs tracking the cursor position
+                painter.line_segment(
+                    [
+                        egui::pos2(pos_x, plot_rect.top()),
+                        egui::pos2(pos_x, plot_rect.bottom()),
+                    ],
+                    egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
+                );
+                painter.line_segment(
+                    [
+                        egui::pos2(plot_rect.left(), pos_y),
+                        egui::pos2(plot_rect.right(), pos_y),
+                    ],
+                    egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
+                );
 
-                    // Highlight the cell containing the cursor
-                    let cell_x_bin = calculate_bin(rel_x, grid_cols);
-                    let cell_y_bin = calculate_bin(rel_y, grid_rows);
+                // Highlight the cell containing the cursor
+                let cell_x_bin = calculate_bin(rel_x, grid_cols);
+                let cell_y_bin = calculate_bin(rel_y, grid_rows);
 
-                    let highlight_x = plot_rect.left() + cell_x_bin as f32 * cell_width;
-                    let highlight_y = plot_rect.bottom() - (cell_y_bin + 1) as f32 * cell_height;
+                let highlight_x = plot_rect.left() + cell_x_bin as f32 * cell_width;
+                let highlight_y = plot_rect.bottom() - (cell_y_bin + 1) as f32 * cell_height;
 
-                    let highlight_rect = egui::Rect::from_min_size(
-                        egui::pos2(highlight_x, highlight_y),
-                        egui::vec2(cell_width, cell_height),
-                    );
-                    let stroke = egui::Stroke::new(2.0, CELL_HIGHLIGHT_COLOR);
-                    painter.line_segment(
-                        [highlight_rect.left_top(), highlight_rect.right_top()],
-                        stroke,
-                    );
-                    painter.line_segment(
-                        [highlight_rect.left_bottom(), highlight_rect.right_bottom()],
-                        stroke,
-                    );
-                    painter.line_segment(
-                        [highlight_rect.left_top(), highlight_rect.left_bottom()],
-                        stroke,
-                    );
-                    painter.line_segment(
-                        [highlight_rect.right_top(), highlight_rect.right_bottom()],
-                        stroke,
-                    );
+                let highlight_rect = egui::Rect::from_min_size(
+                    egui::pos2(highlight_x, highlight_y),
+                    egui::vec2(cell_width, cell_height),
+                );
+                let stroke = egui::Stroke::new(2.0, CELL_HIGHLIGHT_COLOR);
+                painter.line_segment(
+                    [highlight_rect.left_top(), highlight_rect.right_top()],
+                    stroke,
+                );
+                painter.line_segment(
+                    [highlight_rect.left_bottom(), highlight_rect.right_bottom()],
+                    stroke,
+                );
+                painter.line_segment(
+                    [highlight_rect.left_top(), highlight_rect.left_bottom()],
+                    stroke,
+                );
+                painter.line_segment(
+                    [highlight_rect.right_top(), highlight_rect.right_bottom()],
+                    stroke,
+                );
 
-                    // Draw circle at exact position
-                    painter.circle_filled(egui::pos2(pos_x, pos_y), 6.0, CURSOR_COLOR);
-                    painter.circle_stroke(
-                        egui::pos2(pos_x, pos_y),
-                        6.0,
-                        egui::Stroke::new(2.0, egui::Color32::WHITE),
-                    );
-                }
+                // Draw circle at exact position
+                painter.circle_filled(egui::pos2(pos_x, pos_y), 6.0, CURSOR_COLOR);
+                painter.circle_stroke(
+                    egui::pos2(pos_x, pos_y),
+                    6.0,
+                    egui::Stroke::new(2.0, egui::Color32::WHITE),
+                );
             }
         }
 
         // Handle hover tooltip
-        if let Some(pos) = response.hover_pos() {
-            if plot_rect.contains(pos) {
-                let rel_x = (pos.x - plot_rect.left()) / plot_rect.width();
-                let rel_y = 1.0 - (pos.y - plot_rect.top()) / plot_rect.height();
+        if let Some(pos) = response.hover_pos()
+            && plot_rect.contains(pos)
+        {
+            let rel_x = (pos.x - plot_rect.left()) / plot_rect.width();
+            let rel_y = 1.0 - (pos.y - plot_rect.top()) / plot_rect.height();
 
-                if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
-                    let x_val = x_min + rel_x as f64 * x_range;
-                    let y_val = y_min + rel_y as f64 * y_range;
+            if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
+                let x_val = x_min + rel_x as f64 * x_range;
+                let y_val = y_min + rel_y as f64 * y_range;
 
-                    let x_bin = calculate_bin(rel_x, grid_cols);
-                    let y_bin = calculate_bin(rel_y, grid_rows);
+                let x_bin = calculate_bin(rel_x, grid_cols);
+                let y_bin = calculate_bin(rel_y, grid_rows);
 
-                    let hits = hit_counts[y_bin][x_bin];
-                    let cell_value = cell_values[y_bin][x_bin];
+                let hits = hit_counts[y_bin][x_bin];
+                let cell_value = cell_values[y_bin][x_bin];
 
-                    // Truncate channel names for tooltip display
-                    let x_label = truncate_label(&x_channel_name, 10);
-                    let y_label = truncate_label(&y_channel_name, 10);
+                // Truncate channel names for tooltip display
+                let x_label = truncate_label(&x_channel_name, 10);
+                let y_label = truncate_label(&y_channel_name, 10);
 
-                    let tooltip_text = match mode {
-                        HistogramMode::HitCount => {
-                            format!(
-                                "{}: {:.1}\n{}: {:.1}\nHits: {}",
-                                x_label, x_val, y_label, y_val, hits
-                            )
-                        }
-                        HistogramMode::AverageZ => {
-                            let avg = cell_value
-                                .map(|v| format!("{:.2}", v))
-                                .unwrap_or("-".to_string());
-                            format!(
-                                "{}: {:.1}\n{}: {:.1}\nAvg: {}\nHits: {}",
-                                x_label, x_val, y_label, y_val, avg, hits
-                            )
-                        }
-                    };
+                let tooltip_text = match mode {
+                    HistogramMode::HitCount => {
+                        format!(
+                            "{}: {:.1}\n{}: {:.1}\nHits: {}",
+                            x_label, x_val, y_label, y_val, hits
+                        )
+                    }
+                    HistogramMode::AverageZ => {
+                        let avg = cell_value
+                            .map(|v| format!("{:.2}", v))
+                            .unwrap_or("-".to_string());
+                        format!(
+                            "{}: {:.1}\n{}: {:.1}\nAvg: {}\nHits: {}",
+                            x_label, x_val, y_label, y_val, avg, hits
+                        )
+                    }
+                };
 
-                    // Draw hover crosshairs
-                    let hover_x = plot_rect.left() + rel_x * plot_rect.width();
-                    let hover_y = plot_rect.top() + (1.0 - rel_y) * plot_rect.height();
-                    let crosshair_color = egui::Color32::from_rgb(255, 255, 0);
+                // Draw hover crosshairs
+                let hover_x = plot_rect.left() + rel_x * plot_rect.width();
+                let hover_y = plot_rect.top() + (1.0 - rel_y) * plot_rect.height();
+                let crosshair_color = egui::Color32::from_rgb(255, 255, 0);
 
-                    painter.line_segment(
-                        [
-                            egui::pos2(hover_x, plot_rect.top()),
-                            egui::pos2(hover_x, plot_rect.bottom()),
-                        ],
-                        egui::Stroke::new(1.0, crosshair_color),
-                    );
-                    painter.line_segment(
-                        [
-                            egui::pos2(plot_rect.left(), hover_y),
-                            egui::pos2(plot_rect.right(), hover_y),
-                        ],
-                        egui::Stroke::new(1.0, crosshair_color),
-                    );
+                painter.line_segment(
+                    [
+                        egui::pos2(hover_x, plot_rect.top()),
+                        egui::pos2(hover_x, plot_rect.bottom()),
+                    ],
+                    egui::Stroke::new(1.0, crosshair_color),
+                );
+                painter.line_segment(
+                    [
+                        egui::pos2(plot_rect.left(), hover_y),
+                        egui::pos2(plot_rect.right(), hover_y),
+                    ],
+                    egui::Stroke::new(1.0, crosshair_color),
+                );
 
-                    painter.text(
-                        egui::pos2(plot_rect.right() - 10.0, plot_rect.top() + 15.0),
-                        egui::Align2::RIGHT_TOP,
-                        tooltip_text,
-                        egui::FontId::proportional(font_12),
-                        egui::Color32::WHITE,
-                    );
-                }
+                painter.text(
+                    egui::pos2(plot_rect.right() - 10.0, plot_rect.top() + 15.0),
+                    egui::Align2::RIGHT_TOP,
+                    tooltip_text,
+                    egui::FontId::proportional(font_12),
+                    egui::Color32::WHITE,
+                );
             }
         }
 
         // Handle click to select cell
-        if response.clicked() {
-            if let Some(pos) = response.interact_pointer_pos() {
-                if plot_rect.contains(pos) {
-                    let rel_x = (pos.x - plot_rect.left()) / plot_rect.width();
-                    let rel_y = 1.0 - (pos.y - plot_rect.top()) / plot_rect.height();
+        if response.clicked()
+            && let Some(pos) = response.interact_pointer_pos()
+            && plot_rect.contains(pos)
+        {
+            let rel_x = (pos.x - plot_rect.left()) / plot_rect.width();
+            let rel_y = 1.0 - (pos.y - plot_rect.top()) / plot_rect.height();
 
-                    if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
-                        let x_bin = calculate_bin(rel_x, grid_cols);
-                        let y_bin = calculate_bin(rel_y, grid_rows);
+            if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
+                let x_bin = calculate_bin(rel_x, grid_cols);
+                let y_bin = calculate_bin(rel_y, grid_rows);
 
-                        let hits = hit_counts[y_bin][x_bin];
+                let hits = hit_counts[y_bin][x_bin];
 
-                        // Calculate cell value ranges
-                        let bin_width_x = x_range / grid_cols as f64;
-                        let bin_width_y = y_range / grid_rows as f64;
-                        let cell_x_min = x_min + x_bin as f64 * bin_width_x;
-                        let cell_x_max = cell_x_min + bin_width_x;
-                        let cell_y_min = y_min + y_bin as f64 * bin_width_y;
-                        let cell_y_max = cell_y_min + bin_width_y;
+                // Calculate cell value ranges
+                let bin_width_x = x_range / grid_cols as f64;
+                let bin_width_y = y_range / grid_rows as f64;
+                let cell_x_min = x_min + x_bin as f64 * bin_width_x;
+                let cell_x_max = cell_x_min + bin_width_x;
+                let cell_y_min = y_min + y_bin as f64 * bin_width_y;
+                let cell_y_max = cell_y_min + bin_width_y;
 
-                        // Calculate statistics
-                        let mean = if hits > 0 {
-                            z_sums[y_bin][x_bin] / hits as f64
-                        } else {
-                            0.0
-                        };
+                // Calculate statistics
+                let mean = if hits > 0 {
+                    z_sums[y_bin][x_bin] / hits as f64
+                } else {
+                    0.0
+                };
 
-                        let variance = if hits > 1 {
-                            let n = hits as f64;
-                            (z_sum_sq[y_bin][x_bin] - (z_sums[y_bin][x_bin].powi(2) / n))
-                                / (n - 1.0)
-                        } else {
-                            0.0
-                        };
+                let variance = if hits > 1 {
+                    let n = hits as f64;
+                    (z_sum_sq[y_bin][x_bin] - (z_sums[y_bin][x_bin].powi(2) / n)) / (n - 1.0)
+                } else {
+                    0.0
+                };
 
-                        let std_dev = variance.sqrt();
-                        let cell_weight = z_sums[y_bin][x_bin];
+                let std_dev = variance.sqrt();
+                let cell_weight = z_sums[y_bin][x_bin];
 
-                        let minimum = if hits > 0 && z_mins[y_bin][x_bin] != f64::INFINITY {
-                            z_mins[y_bin][x_bin]
-                        } else {
-                            0.0
-                        };
+                let minimum = if hits > 0 && z_mins[y_bin][x_bin] != f64::INFINITY {
+                    z_mins[y_bin][x_bin]
+                } else {
+                    0.0
+                };
 
-                        let maximum = if hits > 0 && z_maxs[y_bin][x_bin] != f64::NEG_INFINITY {
-                            z_maxs[y_bin][x_bin]
-                        } else {
-                            0.0
-                        };
+                let maximum = if hits > 0 && z_maxs[y_bin][x_bin] != f64::NEG_INFINITY {
+                    z_maxs[y_bin][x_bin]
+                } else {
+                    0.0
+                };
 
-                        let selected = SelectedHistogramCell {
-                            x_bin,
-                            y_bin,
-                            x_range: (cell_x_min, cell_x_max),
-                            y_range: (cell_y_min, cell_y_max),
-                            hit_count: hits,
-                            cell_weight,
-                            variance,
-                            std_dev,
-                            minimum,
-                            mean,
-                            maximum,
-                        };
+                let selected = SelectedHistogramCell {
+                    x_bin,
+                    y_bin,
+                    x_range: (cell_x_min, cell_x_max),
+                    y_range: (cell_y_min, cell_y_max),
+                    hit_count: hits,
+                    cell_weight,
+                    variance,
+                    std_dev,
+                    minimum,
+                    mean,
+                    maximum,
+                };
 
-                        self.tabs[tab_idx].histogram_state.config.selected_cell = Some(selected);
-                    }
-                }
+                self.tabs[tab_idx].histogram_state.config.selected_cell = Some(selected);
             }
         }
 
@@ -2204,21 +2201,17 @@ impl UltraLogApp {
                 );
 
                 // Check min hits filter if hit_counts provided
-                if let Some(hits) = hit_counts {
-                    if min_hits_filter > 0 {
-                        let cell_hits = hits
-                            .get(y_bin)
-                            .and_then(|r| r.get(x_bin))
-                            .copied()
-                            .unwrap_or(0);
-                        if cell_hits < min_hits_filter {
-                            painter.rect_filled(
-                                cell_rect,
-                                0.0,
-                                egui::Color32::from_rgb(30, 30, 30),
-                            );
-                            continue;
-                        }
+                if let Some(hits) = hit_counts
+                    && min_hits_filter > 0
+                {
+                    let cell_hits = hits
+                        .get(y_bin)
+                        .and_then(|r| r.get(x_bin))
+                        .copied()
+                        .unwrap_or(0);
+                    if cell_hits < min_hits_filter {
+                        painter.rect_filled(cell_rect, 0.0, egui::Color32::from_rgb(30, 30, 30));
+                        continue;
                     }
                 }
 

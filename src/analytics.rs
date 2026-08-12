@@ -5,7 +5,7 @@
 
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::{mpsc, OnceLock};
+use std::sync::{OnceLock, mpsc};
 use uuid::Uuid;
 
 /// PostHog API key for UltraLog analytics

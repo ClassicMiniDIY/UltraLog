@@ -185,13 +185,13 @@ pub fn load_cached_adapters() -> Option<Vec<AdapterSpec>> {
     let entries = fs::read_dir(&adapters_dir).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().is_some_and(|ext| ext == "json") {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(adapter) = serde_json::from_str::<AdapterSpec>(&content) {
-                    adapters.push(adapter);
-                } else {
-                    tracing::warn!("Failed to parse cached adapter: {:?}", path);
-                }
+        if path.extension().is_some_and(|ext| ext == "json")
+            && let Ok(content) = fs::read_to_string(&path)
+        {
+            if let Ok(adapter) = serde_json::from_str::<AdapterSpec>(&content) {
+                adapters.push(adapter);
+            } else {
+                tracing::warn!("Failed to parse cached adapter: {:?}", path);
             }
         }
     }
@@ -277,13 +277,13 @@ pub fn load_cached_protocols() -> Option<Vec<ProtocolSpec>> {
     let entries = fs::read_dir(&protocols_dir).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().is_some_and(|ext| ext == "json") {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(protocol) = serde_json::from_str::<ProtocolSpec>(&content) {
-                    protocols.push(protocol);
-                } else {
-                    tracing::warn!("Failed to parse cached protocol: {:?}", path);
-                }
+        if path.extension().is_some_and(|ext| ext == "json")
+            && let Ok(content) = fs::read_to_string(&path)
+        {
+            if let Ok(protocol) = serde_json::from_str::<ProtocolSpec>(&content) {
+                protocols.push(protocol);
+            } else {
+                tracing::warn!("Failed to parse cached protocol: {:?}", path);
             }
         }
     }

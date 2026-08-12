@@ -3,6 +3,11 @@
 //! This module provides helper functions for reading example files,
 //! creating test fixtures, and other common testing operations.
 
+// This module is compiled into each integration test binary separately, and
+// every binary uses only a subset of these helpers. Without this, each binary
+// reports the helpers it happens not to use as dead code.
+#![allow(dead_code)]
+
 use std::path::Path;
 
 /// Helper function to read a text file, panicking with a clear message if not found.
@@ -67,6 +72,11 @@ pub mod example_files {
 
     // RomRaider example files
     pub const ROMRAIDER_EUROPEAN: &str = "exampleLogs/romraider/romraiderlog_20251031_170713.csv";
+
+    /// OBDLink (iOS) export from issue #80. Declares `Time (sec)`, unlike
+    /// RomRaider's own `Time (msec)`, and carries a UTF-8 BOM plus a leading
+    /// `# StartTime = ...` comment line.
+    pub const OBDLINK_SECONDS: &str = "exampleLogs/obdlink/CSVLog_20260811_131143.csv";
 
     // Emerald ECU example files
     pub const EMERALD_IDLE_REV: &str = "exampleLogs/emerald/EM Log MG ZS Turbo idle and rev.lg1";

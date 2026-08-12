@@ -102,12 +102,12 @@ impl UltraLogApp {
                     // Reset frame time when starting playback
                     self.last_frame_time = Some(std::time::Instant::now());
                     // Initialize cursor if not set
-                    if self.get_cursor_time().is_none() {
-                        if let Some((min, _)) = self.get_time_range() {
-                            self.set_cursor_time(Some(min));
-                            let record = self.find_record_at_time(min);
-                            self.set_cursor_record(record);
-                        }
+                    if self.get_cursor_time().is_none()
+                        && let Some((min, _)) = self.get_time_range()
+                    {
+                        self.set_cursor_time(Some(min));
+                        let record = self.find_record_at_time(min);
+                        self.set_cursor_record(record);
                     }
                 }
             }
@@ -165,21 +165,21 @@ impl UltraLogApp {
             ui.separator();
 
             // Record indicator - use active tab's file for record count
-            if let Some(record) = self.get_cursor_record() {
-                if let Some(tab_idx) = self.active_tab {
-                    let file_index = self.tabs[tab_idx].file_index;
-                    if file_index < self.files.len() {
-                        let total_records = self.files[file_index].log.data.len();
-                        ui.label(
-                            egui::RichText::new(t!(
-                                "timeline.record",
-                                current = record + 1,
-                                total = total_records
-                            ))
-                            .color(egui::Color32::LIGHT_GRAY)
-                            .size(font_14),
-                        );
-                    }
+            if let Some(record) = self.get_cursor_record()
+                && let Some(tab_idx) = self.active_tab
+            {
+                let file_index = self.tabs[tab_idx].file_index;
+                if file_index < self.files.len() {
+                    let total_records = self.files[file_index].log.data.len();
+                    ui.label(
+                        egui::RichText::new(t!(
+                            "timeline.record",
+                            current = record + 1,
+                            total = total_records
+                        ))
+                        .color(egui::Color32::LIGHT_GRAY)
+                        .size(font_14),
+                    );
                 }
             }
         });

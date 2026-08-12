@@ -27,11 +27,11 @@ pub mod types;
 
 // Re-export commonly used types and functions
 pub use registry::{
-    find_adapters_by_extension, find_protocols_by_vendor, get_adapter_by_id, get_adapters,
-    get_adapters_by_vendor, get_all_categories, get_channel_metadata, get_channels_by_category,
-    get_protocol_by_id, get_protocols, get_spec_normalizations, get_spec_source,
-    has_spec_normalization, normalize_from_spec, refresh_specs_from_api, specs_refreshed,
-    ChannelMetadata, RefreshResult,
+    ChannelMetadata, RefreshResult, find_adapters_by_extension, find_protocols_by_vendor,
+    get_adapter_by_id, get_adapters, get_adapters_by_vendor, get_all_categories,
+    get_channel_metadata, get_channels_by_category, get_protocol_by_id, get_protocols,
+    get_spec_normalizations, get_spec_source, has_spec_normalization, normalize_from_spec,
+    refresh_specs_from_api, specs_refreshed,
 };
 pub use types::{
     AdapterSpec, ByteOrder, ChannelCategory, ChannelSpec, DataType, EnumSpec, FileFormatSpec,

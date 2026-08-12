@@ -7,8 +7,8 @@ use rust_i18n::t;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
 use crate::state::{
-    DownsampleViewKey, PlotArea, SelectedChannel, CHART_COLORS, COLORBLIND_COLORS,
-    MAX_CHART_POINTS, MIN_PLOT_HEIGHT, PLOT_RESIZE_HANDLE_HEIGHT,
+    CHART_COLORS, COLORBLIND_COLORS, DownsampleViewKey, MAX_CHART_POINTS, MIN_PLOT_HEIGHT,
+    PLOT_RESIZE_HANDLE_HEIGHT, PlotArea, SelectedChannel,
 };
 
 /// Sensitivity multiplier for scroll-to-zoom (higher = faster zoom per scroll tick).
@@ -237,36 +237,37 @@ impl UltraLogApp {
             }
 
             // Apply scroll-to-zoom: use scroll delta to zoom centered on pointer
-            if scroll_to_zoom && scroll_delta_y.abs() > 0.1 {
-                if let Some((min_t, max_t)) = time_range {
-                    let zoom_factor =
-                        (1.0 - scroll_delta_y as f64 * SCROLL_ZOOM_SENSITIVITY).clamp(0.8, 1.25);
-                    let width = x_max - x_min;
-                    let new_width = (width * zoom_factor).clamp(0.01, max_t - min_t);
+            if scroll_to_zoom
+                && scroll_delta_y.abs() > 0.1
+                && let Some((min_t, max_t)) = time_range
+            {
+                let zoom_factor =
+                    (1.0 - scroll_delta_y as f64 * SCROLL_ZOOM_SENSITIVITY).clamp(0.8, 1.25);
+                let width = x_max - x_min;
+                let new_width = (width * zoom_factor).clamp(0.01, max_t - min_t);
 
-                    // Zoom around pointer position if hovering, otherwise center
-                    let center = plot_ui
-                        .pointer_coordinate()
-                        .map(|p| p.x.clamp(x_min, x_max))
-                        .unwrap_or((x_min + x_max) / 2.0);
-                    let ratio = if width > 0.0 {
-                        (center - x_min) / width
-                    } else {
-                        0.5
-                    };
+                // Zoom around pointer position if hovering, otherwise center
+                let center = plot_ui
+                    .pointer_coordinate()
+                    .map(|p| p.x.clamp(x_min, x_max))
+                    .unwrap_or((x_min + x_max) / 2.0);
+                let ratio = if width > 0.0 {
+                    (center - x_min) / width
+                } else {
+                    0.5
+                };
 
-                    x_min = center - new_width * ratio;
-                    x_max = center + new_width * (1.0 - ratio);
+                x_min = center - new_width * ratio;
+                x_max = center + new_width * (1.0 - ratio);
 
-                    // Clamp to data range
-                    if x_min < min_t {
-                        x_min = min_t;
-                        x_max = (min_t + new_width).min(max_t);
-                    }
-                    if x_max > max_t {
-                        x_max = max_t;
-                        x_min = (max_t - new_width).max(min_t);
-                    }
+                // Clamp to data range
+                if x_min < min_t {
+                    x_min = min_t;
+                    x_max = (min_t + new_width).min(max_t);
+                }
+                if x_max > max_t {
+                    x_max = max_t;
+                    x_min = (max_t - new_width).max(min_t);
                 }
             }
 
@@ -338,22 +339,22 @@ impl UltraLogApp {
         }
 
         // Handle click on chart to set cursor position
-        if response.response.clicked() {
-            if let Some(pos) = response.inner {
-                let clicked_time = pos.x;
-                // Clamp to time range
-                if let Some((min, max)) = self.get_time_range() {
-                    // Stop playback when user clicks on chart
-                    self.is_playing = false;
-                    self.last_frame_time = None;
+        if response.response.clicked()
+            && let Some(pos) = response.inner
+        {
+            let clicked_time = pos.x;
+            // Clamp to time range
+            if let Some((min, max)) = self.get_time_range() {
+                // Stop playback when user clicks on chart
+                self.is_playing = false;
+                self.last_frame_time = None;
 
-                    let clamped_time = clicked_time.clamp(min, max);
-                    self.set_cursor_time(Some(clamped_time));
-                    let record = self.find_record_at_time(clamped_time);
-                    self.set_cursor_record(record);
-                    // Force repaint to update legend values immediately
-                    ui.ctx().request_repaint();
-                }
+                let clamped_time = clicked_time.clamp(min, max);
+                self.set_cursor_time(Some(clamped_time));
+                let record = self.find_record_at_time(clamped_time);
+                self.set_cursor_record(record);
+                // Force repaint to update legend values immediately
+                ui.ctx().request_repaint();
             }
         }
     }
@@ -434,15 +435,15 @@ impl UltraLogApp {
                         );
 
                         // Check for dropped channel
-                        if let Some(payload) = response.dnd_release_payload::<(usize, usize)>() {
-                            if plot_area.has_capacity() {
-                                let (dropped_file_idx, dropped_channel_idx) = *payload;
-                                self.add_channel_to_plot(
-                                    dropped_file_idx,
-                                    dropped_channel_idx,
-                                    plot_area.id,
-                                );
-                            }
+                        if let Some(payload) = response.dnd_release_payload::<(usize, usize)>()
+                            && plot_area.has_capacity()
+                        {
+                            let (dropped_file_idx, dropped_channel_idx) = *payload;
+                            self.add_channel_to_plot(
+                                dropped_file_idx,
+                                dropped_channel_idx,
+                                plot_area.id,
+                            );
                         }
 
                         // Highlight if hovering with drag payload
@@ -703,18 +704,18 @@ impl UltraLogApp {
         }
 
         // Handle click
-        if response.response.clicked() {
-            if let Some(pos) = response.inner {
-                let clicked_time = pos.x;
-                if let Some((min, max)) = self.get_time_range() {
-                    self.is_playing = false;
-                    self.last_frame_time = None;
-                    let clamped_time = clicked_time.clamp(min, max);
-                    self.set_cursor_time(Some(clamped_time));
-                    let record = self.find_record_at_time(clamped_time);
-                    self.set_cursor_record(record);
-                    ui.ctx().request_repaint();
-                }
+        if response.response.clicked()
+            && let Some(pos) = response.inner
+        {
+            let clicked_time = pos.x;
+            if let Some((min, max)) = self.get_time_range() {
+                self.is_playing = false;
+                self.last_frame_time = None;
+                let clamped_time = clicked_time.clamp(min, max);
+                self.set_cursor_time(Some(clamped_time));
+                let record = self.find_record_at_time(clamped_time);
+                self.set_cursor_record(record);
+                ui.ctx().request_repaint();
             }
         }
 
@@ -763,10 +764,10 @@ impl UltraLogApp {
             crate::ui::icons::draw_triangle_down(ui, center, 12.0, color);
         }
 
-        if response.clicked() {
-            if let Some(tab_idx) = self.active_tab {
-                self.tabs[tab_idx].plot_areas[plot_idx].collapsed = !plot_area.collapsed;
-            }
+        if response.clicked()
+            && let Some(tab_idx) = self.active_tab
+        {
+            self.tabs[tab_idx].plot_areas[plot_idx].collapsed = !plot_area.collapsed;
         }
         if response.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -814,10 +815,10 @@ impl UltraLogApp {
 
             crate::ui::icons::draw_triangle_right(ui, center, 12.0, color);
 
-            if response.clicked() {
-                if let Some(tab_idx) = self.active_tab {
-                    self.tabs[tab_idx].plot_areas[plot_idx].collapsed = false;
-                }
+            if response.clicked()
+                && let Some(tab_idx) = self.active_tab
+            {
+                self.tabs[tab_idx].plot_areas[plot_idx].collapsed = false;
             }
             if response.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -920,10 +921,10 @@ impl UltraLogApp {
         };
 
         let cache_key = (file_index, channel_index, plot_area_id);
-        if let Some((cached_key, points)) = self.downsample_cache.get(&cache_key) {
-            if *cached_key == view_key {
-                return Some(points.clone());
-            }
+        if let Some((cached_key, points)) = self.downsample_cache.get(&cache_key)
+            && *cached_key == view_key
+        {
+            return Some(points.clone());
         }
 
         let downsampled = match view_key {

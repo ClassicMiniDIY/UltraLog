@@ -86,14 +86,13 @@ impl UltraLogApp {
 
                     if ui.button(t!("common.add")).clicked()
                         && !self.norm_editor_extend_source.is_empty()
+                        && let Some(target) = &self.norm_editor_selected_target
                     {
-                        if let Some(target) = &self.norm_editor_selected_target {
-                            self.custom_normalizations.insert(
-                                self.norm_editor_extend_source.to_lowercase(),
-                                target.clone(),
-                            );
-                            self.norm_editor_extend_source.clear();
-                        }
+                        self.custom_normalizations.insert(
+                            self.norm_editor_extend_source.to_lowercase(),
+                            target.clone(),
+                        );
+                        self.norm_editor_extend_source.clear();
                     }
                 });
 

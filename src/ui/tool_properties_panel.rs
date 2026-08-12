@@ -570,12 +570,11 @@ impl UltraLogApp {
                                 // Check for dropped channel
                                 if let Some(payload) =
                                     response.dnd_release_payload::<(usize, usize)>()
+                                    && has_capacity
                                 {
-                                    if has_capacity {
-                                        let (dropped_file_idx, dropped_channel_idx) = *payload;
-                                        channel_to_add =
-                                            Some((dropped_file_idx, dropped_channel_idx, plot_id));
-                                    }
+                                    let (dropped_file_idx, dropped_channel_idx) = *payload;
+                                    channel_to_add =
+                                        Some((dropped_file_idx, dropped_channel_idx, plot_id));
                                 }
 
                                 // Highlight as drop zone when hovering with drag payload

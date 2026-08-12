@@ -21,6 +21,12 @@ UltraLog is a high-performance ECU (Engine Control Unit) log viewer written in p
 
 ## Build Commands
 
+The crate is on **edition 2024** with `rust-version = "1.95"`. The MSRV is set by
+egui/eframe 0.36, not by the edition (2024 itself only needs 1.85) — so bumping
+egui is what moves it. Edition 2024 means let-chains (`if a && let Some(b) = ..`)
+are available and clippy's `collapsible_if` will ask for them, and that rustfmt
+sorts imports with the 2024 style ordering.
+
 ```bash
 # Development build
 cargo build
@@ -266,7 +272,9 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - **`parsers/types.rs`** - Core types: `Log`, `Channel`, `Value`, `Meta`, `EcuType`, `ComputedChannelInfo`, and the `Parseable` trait
 - **`parsers/haltech.rs`** - Haltech CSV parser (NSP exports)
 - **`parsers/ecumaster.rs`** - ECUMaster EMU Pro CSV parser (semicolon/tab delimited)
-- **`parsers/romraider.rs`** - RomRaider CSV parser with unit extraction from headers
+- **`parsers/romraider.rs`** - RomRaider CSV parser with unit extraction from headers. Also the
+  catch-all for generic `Time,...` CSVs that no earlier parser claims — see the time-unit
+  contract below.
 - **`parsers/speeduino.rs`** - Speeduino/rusEFI MLG binary format parser
 - **`parsers/aim.rs`** - AiM XRK/DRK binary format parser for motorsport data loggers
 - **`parsers/link.rs`** - Link ECU LLG binary format parser
@@ -313,6 +321,21 @@ Before the text detection chain runs, the content is normalized twice, so indivi
 
 1. A leading **UTF-8 BOM** is stripped (`trim_start_matches('\u{FEFF}')`). Windows and mobile exporters commonly prepend one.
 2. A leading block of **`#`-prefixed comment lines** is dropped via `parsers::strip_leading_comment_lines`, so the real CSV header row is the first line detection sees. MHD Tuning and OBD-II apps such as OBDLink write a metadata preamble there; without this the header is never found and the log loads with zero channels (issue #78). Only the *leading* contiguous block is removed — a `#` after the header row is data.
+
+**RomRaider time-column unit contract** (`src/parsers/romraider.rs`):
+
+`RomRaider::detect` accepts any CSV whose first column starts with `time`, which makes it the
+effective catch-all for generic OBD-II exports, not just Subaru logs. The unit is therefore not
+implied by the format — it must be read from the header:
+
+- `Time (msec)` / `Time(ms)` / `Time (milliseconds)` -> milliseconds
+- `Time (sec)` / `Time (s)` / `Time (seconds)` -> seconds
+- a bare `Time` with no parenthesised unit -> **milliseconds**, RomRaider's own convention
+
+Milliseconds must be tested before seconds, since `sec` is a substring of `msec`. Hardcoding the
+`/1000.0` is what made a 2049-second OBDLink log render as 2.05 seconds (issue #80). Note this
+interacts with the dispatch order above: `MotorsportElectronics::detect` runs first precisely
+because it also leads with a `Time` column, and only matches a first column of exactly `Time`.
 
 **Load-bearing invariant:** a parser whose own fingerprint lives inside that comment preamble must run its `detect()` against the **raw** text, before the strip. `Mhd::detect` is the current case, which is why it is dispatched ahead of `dispatch_text_content` rather than inside the chain. Anything added to the chain itself sees comment-stripped content.
 
@@ -408,26 +431,32 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 
 ## Key Dependencies
 
-- **eframe/egui** (0.34) - Native GUI framework
-- **egui_plot** (0.35) - Charting/plotting
+- **eframe/egui** (0.36) - Native GUI framework
+- **egui_plot** (0.37) - Charting/plotting
 - **rfd** (0.17) - Native file dialogs
 - **open** (5) - Cross-platform URL/email opening
 - **strum** (0.28) - Enum string conversion for channel types
-- **regex** (1.12) - Log file parsing
-- **ureq** (3.3) - HTTP client for auto-updates and OpenECU Alliance API
+- **regex** (1.13) - Log file parsing
+- **ureq** (3.4) - HTTP client for auto-updates and OpenECU Alliance API
 - **semver** (1.0) - Version comparison
-- **serde_yml** (0.0.12) - YAML parsing for adapter/protocol specs (replaces deprecated `serde_yaml`)
-- **printpdf** (0.9) - PDF generation
+- **serde_norway** (0.9) - YAML parsing for adapter/protocol specs. Replaced `serde_yml`, which was
+  flagged unsound (RUSTSEC-2025-0068) and then deprecated; `serde_norway` is the maintained
+  `serde_yaml` fork, and unlike `serde_yaml_ng` its libyaml backend is maintained too.
+  Do not go back to `serde_yml` or `serde_yaml`.
+- **printpdf** (0.12) - PDF generation
 - **image** (0.25) - PNG export
 - **memmap2** (0.9) - Memory-mapped file loading for large files
-- **rayon** (1.11) - Parallel iteration for parsing
+- **rayon** (1.12) - Parallel iteration for parsing
 - **dirs** (6.0) - Cross-platform app data directory detection for cache and settings
-- **rmcp** (0.12) - MCP server implementation (`src/mcp/`), used with `axum` as the HTTP transport
+- **rmcp** (3.1) - MCP server implementation (`src/mcp/`), used with `axum` as the HTTP transport.
+  3.x fixes a DNS-rebinding hole in the streamable-HTTP transport; its `StreamableHttpService`
+  config defaults `allowed_hosts` to localhost/127.0.0.1/::1, so keep passing `Default::default()`
+  rather than clearing it.
 - **tokio** (1) - Async runtime backing the MCP server
 - **axum** (0.8) - HTTP server framework for the embedded MCP endpoint
 - **schemars** (1.0) - JSON schema generation for MCP tool definitions
 - **arboard** (3.6) - Clipboard support (histogram copy/paste)
-- **rust-i18n** (3.1) - Internationalization / locale strings
+- **rust-i18n** (4.2) - Internationalization / locale strings
 - **uuid** (1.0) - Anonymous user ID generation for analytics
 - **chrono** (0.4) - Date/time parsing (Locomotive, Woolich timestamps)
 - **encoding_rs** (0.8) - Character encoding detection/conversion (e.g., UTF-16 BlueDriver exports)
@@ -449,6 +478,7 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/mhd/` - MHD Tuning CSV exports (VIN redacted)
 - `exampleLogs/motorsportElectronics/` - Motorsport Electronics ME Tuner CSV exports
 - `exampleLogs/bluedriver/` - BlueDriver OBD-II CSV exports
+- `exampleLogs/obdlink/` - OBDLink (iOS) OBD-II CSV exports (parsed by the RomRaider chain)
 - `exampleLogs/dynamicEFI/` - DynamicEFI EBL WhatsUp CSV exports
 - `exampleLogs/locomotive/` - Locomotive datalogger CSV exports
 - `exampleLogs/rusefi/`, `exampleLogs/speeduino/` - MLG binary logs

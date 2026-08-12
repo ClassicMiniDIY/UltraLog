@@ -12,8 +12,8 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 
-use ultralog::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 use ultralog::ipc::IpcServer;
+use ultralog::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 use ultralog::mcp::UltraLogMcpServer;
 
 use rmcp::ServerHandler;
@@ -318,19 +318,20 @@ fn test_gui_client_send_command() {
     // Spawn responder thread
     let handle = std::thread::spawn(move || {
         for _ in 0..200 {
-            if let Some((cmd, tx)) = server.poll_command() {
-                if let IpcCommand::GetChannelStats {
+            if let Some((
+                IpcCommand::GetChannelStats {
                     file_id,
                     channel_name,
                     time_range,
-                } = cmd
-                {
-                    assert_eq!(file_id, "0");
-                    assert_eq!(channel_name, "RPM");
-                    assert_eq!(time_range, Some((0.0, 10.0)));
-                    tx.send(IpcResponse::ok()).unwrap();
-                    return true;
-                }
+                },
+                tx,
+            )) = server.poll_command()
+            {
+                assert_eq!(file_id, "0");
+                assert_eq!(channel_name, "RPM");
+                assert_eq!(time_range, Some((0.0, 10.0)));
+                tx.send(IpcResponse::ok()).unwrap();
+                return true;
             }
             std::thread::sleep(Duration::from_millis(20));
         }

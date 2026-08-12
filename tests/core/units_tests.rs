@@ -316,8 +316,10 @@ fn test_unit_preferences_default() {
 
 #[test]
 fn test_unit_preferences_convert_kelvin() {
-    let mut prefs = UnitPreferences::default();
-    prefs.temperature = TemperatureUnit::Fahrenheit;
+    let prefs = UnitPreferences {
+        temperature: TemperatureUnit::Fahrenheit,
+        ..Default::default()
+    };
 
     // Convert 300K to display unit
     let (value, symbol) = prefs.convert_value(300.0, "K");
@@ -329,8 +331,10 @@ fn test_unit_preferences_convert_kelvin() {
 
 #[test]
 fn test_unit_preferences_convert_kpa() {
-    let mut prefs = UnitPreferences::default();
-    prefs.pressure = PressureUnit::PSI;
+    let prefs = UnitPreferences {
+        pressure: PressureUnit::PSI,
+        ..Default::default()
+    };
 
     let (value, symbol) = prefs.convert_value(101.325, "kPa");
 

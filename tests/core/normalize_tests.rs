@@ -367,7 +367,7 @@ fn test_get_builtin_mappings_structure() {
 
 #[test]
 fn test_sort_channels_normalized_first() {
-    let channel_names = vec![
+    let channel_names = [
         "CustomChannel".to_string(),
         "RPM".to_string(),
         "UnknownSensor".to_string(),
@@ -389,7 +389,7 @@ fn test_sort_channels_normalized_first() {
 
 #[test]
 fn test_sort_channels_alphabetical_within_groups() {
-    let channel_names = vec![
+    let channel_names = [
         "Zebra".to_string(),
         "Apple".to_string(),
         "Mango".to_string(),
@@ -422,7 +422,7 @@ fn test_sort_channels_single_item() {
 
 #[test]
 fn test_sort_channels_with_normalization_disabled() {
-    let channel_names = vec!["Act_AFR".to_string(), "rpm".to_string()];
+    let channel_names = ["Act_AFR".to_string(), "rpm".to_string()];
 
     let get_name = |idx: usize| channel_names[idx].clone();
     let sorted = sort_channels_by_priority(2, get_name, false, None);
@@ -435,7 +435,7 @@ fn test_sort_channels_with_normalization_disabled() {
 
 #[test]
 fn test_sort_channels_preserves_indices() {
-    let channel_names = vec!["C".to_string(), "A".to_string(), "B".to_string()];
+    let channel_names = ["C".to_string(), "A".to_string(), "B".to_string()];
 
     let get_name = |idx: usize| channel_names[idx].clone();
     let sorted = sort_channels_by_priority(3, get_name, true, None);

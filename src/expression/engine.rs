@@ -596,7 +596,7 @@ mod tests {
             ("2 ^ A ^ C", 5.892527391914566),
             ("min(A, B, C, 2)", -2.25),
             ("max(A, min(B, C), abs(B))", 3.5),
-            ("atan2(A, B) + atan2(B, A)", 1.5707963267948966),
+            ("atan2(A, B) + atan2(B, A)", std::f64::consts::FRAC_PI_2),
             ("sin(A)^2 + cos(A)^2", 1.0),
             ("sqrt(abs(B)) * exp(C) - ln(A)", 1.9227370564236441),
             ("tanh(C) + asinh(A) - atan(B)", 3.7534414212526066),

@@ -7,24 +7,23 @@
 //! and Claude Desktop can connect to it at `http://localhost:52385/mcp`
 
 use axum::Router;
-use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
-    CallToolResult, Content, ErrorCode, ErrorData as McpError, Implementation, ProtocolVersion,
-    ServerCapabilities, ServerInfo,
+    CallToolResult, ContentBlock, ErrorCode, ErrorData as McpError, Implementation,
+    ProtocolVersion, ServerCapabilities, ServerInfo,
 };
 use rmcp::schemars::JsonSchema;
-use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
-use rmcp::{tool, tool_handler, tool_router, ServerHandler};
+use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+use rmcp::{ServerHandler, tool, tool_handler, tool_router};
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
 use super::client::GuiClient;
-use crate::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 use crate::ipc::DEFAULT_IPC_PORT;
+use crate::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
 
 /// Default port for the MCP HTTP server
 /// Port 52453 = 5-2-4-5-3, a nod to the 1-2-4-5-3 firing order of legendary inline-5 engines
@@ -128,7 +127,6 @@ async fn run_mcp_http_server(
 #[derive(Clone)]
 pub struct UltraLogMcpServer {
     client: Arc<GuiClient>,
-    tool_router: ToolRouter<UltraLogMcpServer>,
 }
 
 impl UltraLogMcpServer {
@@ -141,11 +139,15 @@ impl UltraLogMcpServer {
             "Creating new UltraLogMcpServer instance for IPC port {}",
             ipc_port
         );
-        let router = Self::tool_router();
-        tracing::info!("Tool router created with {} tools", router.list_all().len());
+        // rmcp 3.x resolves the router statically via `Self::tool_router()` inside
+        // `#[tool_handler]`, so the instance no longer needs to hold one. Build it
+        // once here purely to log the registered tool count.
+        tracing::info!(
+            "Tool router created with {} tools",
+            Self::tool_router().list_all().len()
+        );
         Self {
             client: Arc::new(GuiClient::with_port(ipc_port)),
-            tool_router: router,
         }
     }
 
@@ -316,7 +318,7 @@ impl UltraLogMcpServer {
     ) -> Result<CallToolResult, McpError> {
         match self.send_command_async(IpcCommand::GetState).await? {
             IpcResponse::Ok(Some(ResponseData::State(state))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&state).unwrap_or_default(),
                 )]))
             }
@@ -337,12 +339,12 @@ impl UltraLogMcpServer {
             .await?
         {
             IpcResponse::Ok(Some(ResponseData::FileLoaded(info))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&info).unwrap_or_default(),
                 )]))
             }
             IpcResponse::Ok(Some(ResponseData::Ack)) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     "File is being loaded. Use get_state to check when ready.",
                 )]))
             }
@@ -362,7 +364,9 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text("File closed")])),
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                "File closed",
+            )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
         }
     }
@@ -381,7 +385,7 @@ impl UltraLogMcpServer {
             .await?
         {
             IpcResponse::Ok(Some(ResponseData::Channels(channels))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&channels).unwrap_or_default(),
                 )]))
             }
@@ -416,7 +420,7 @@ impl UltraLogMcpServer {
                     "times": times,
                     "values": values
                 });
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&result).unwrap_or_default(),
                 )]))
             }
@@ -444,7 +448,7 @@ impl UltraLogMcpServer {
             .await?
         {
             IpcResponse::Ok(Some(ResponseData::Stats(stats))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&stats).unwrap_or_default(),
                 )]))
             }
@@ -467,7 +471,7 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Channel selected",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -486,7 +490,7 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Channel deselected",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -502,7 +506,7 @@ impl UltraLogMcpServer {
             .send_command_async(IpcCommand::DeselectAllChannels)
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "All channels deselected",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -526,7 +530,7 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(format!(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                 "Computed channel '{}' created",
                 name
             ))])),
@@ -543,7 +547,7 @@ impl UltraLogMcpServer {
             .send_command_async(IpcCommand::DeleteComputedChannel { name: req.name })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Computed channel deleted",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -560,7 +564,7 @@ impl UltraLogMcpServer {
             .await?
         {
             IpcResponse::Ok(Some(ResponseData::ComputedChannels(channels))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&channels).unwrap_or_default(),
                 )]))
             }
@@ -600,7 +604,7 @@ impl UltraLogMcpServer {
                     "times": times,
                     "values": values
                 });
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&result).unwrap_or_default(),
                 )]))
             }
@@ -623,7 +627,7 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Time range set",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -641,7 +645,9 @@ impl UltraLogMcpServer {
             .send_command_async(IpcCommand::SetCursor { time: req.time })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text("Cursor set")])),
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                "Cursor set",
+            )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
         }
     }
@@ -655,7 +661,7 @@ impl UltraLogMcpServer {
             .send_command_async(IpcCommand::Play { speed: req.speed })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Playback started",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -668,7 +674,7 @@ impl UltraLogMcpServer {
         Parameters(_): Parameters<EmptyRequest>,
     ) -> Result<CallToolResult, McpError> {
         match self.send_command_async(IpcCommand::Pause).await? {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Playback paused",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -681,7 +687,7 @@ impl UltraLogMcpServer {
         Parameters(_): Parameters<EmptyRequest>,
     ) -> Result<CallToolResult, McpError> {
         match self.send_command_async(IpcCommand::Stop).await? {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Playback stopped",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -700,7 +706,7 @@ impl UltraLogMcpServer {
             .await?
         {
             IpcResponse::Ok(Some(ResponseData::CursorValues(values))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&values).unwrap_or_default(),
                 )]))
             }
@@ -725,7 +731,7 @@ impl UltraLogMcpServer {
             .await?
         {
             IpcResponse::Ok(Some(ResponseData::Peaks(peaks))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&peaks).unwrap_or_default(),
                 )]))
             }
@@ -757,7 +763,7 @@ impl UltraLogMcpServer {
                     "coefficient": coefficient,
                     "interpretation": interpretation
                 });
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::to_string_pretty(&result).unwrap_or_default(),
                 )]))
             }
@@ -781,7 +787,7 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Scatter plot displayed",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -794,7 +800,7 @@ impl UltraLogMcpServer {
         Parameters(_): Parameters<EmptyRequest>,
     ) -> Result<CallToolResult, McpError> {
         match self.send_command_async(IpcCommand::ShowChart).await? {
-            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+            IpcResponse::Ok(_) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Chart view displayed",
             )])),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
@@ -806,23 +812,19 @@ impl UltraLogMcpServer {
 impl ServerHandler for UltraLogMcpServer {
     fn get_info(&self) -> ServerInfo {
         tracing::info!("get_info called - returning server capabilities");
-        ServerInfo {
-            protocol_version: ProtocolVersion::V_2024_11_05,
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation {
-                name: "ultralog".into(),
-                version: env!("CARGO_PKG_VERSION").into(),
-                title: None,
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(
-                "UltraLog MCP Server - Control the UltraLog ECU log viewer application. \
+        // `ServerInfo` and `Implementation` are `#[non_exhaustive]` in rmcp 3.x,
+        // so they must be built through their constructors rather than a struct
+        // literal.
+        let mut info = ServerInfo::new(ServerCapabilities::builder().enable_tools().build());
+        info.protocol_version = ProtocolVersion::V_2024_11_05;
+        info.server_info = Implementation::new("ultralog", env!("CARGO_PKG_VERSION"));
+        info.instructions = Some(
+            "UltraLog MCP Server - Control the UltraLog ECU log viewer application. \
                 Use get_state to see loaded files and current view. \
                 Load files, select channels to display, create computed channels, \
                 and analyze ECU telemetry data."
-                    .to_string(),
-            ),
-        }
+                .to_string(),
+        );
+        info
     }
 }

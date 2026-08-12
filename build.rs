@@ -167,14 +167,14 @@ fn download_specs(spec_dir: &Path, specs: &[(&str, &str)]) {
             .args(["-sSL", "-o", full_path.to_str().unwrap(), url])
             .status();
 
-        if let Ok(status) = result {
-            if status.success() {
-                println!(
-                    "cargo:warning=Downloaded {}",
-                    full_path.file_name().unwrap().to_str().unwrap()
-                );
-                continue;
-            }
+        if let Ok(status) = result
+            && status.success()
+        {
+            println!(
+                "cargo:warning=Downloaded {}",
+                full_path.file_name().unwrap().to_str().unwrap()
+            );
+            continue;
         }
 
         // Try wget as fallback
@@ -182,14 +182,14 @@ fn download_specs(spec_dir: &Path, specs: &[(&str, &str)]) {
             .args(["-q", "-O", full_path.to_str().unwrap(), url])
             .status();
 
-        if let Ok(status) = result {
-            if status.success() {
-                println!(
-                    "cargo:warning=Downloaded {}",
-                    full_path.file_name().unwrap().to_str().unwrap()
-                );
-                continue;
-            }
+        if let Ok(status) = result
+            && status.success()
+        {
+            println!(
+                "cargo:warning=Downloaded {}",
+                full_path.file_name().unwrap().to_str().unwrap()
+            );
+            continue;
         }
 
         // Try PowerShell on Windows

@@ -1,7 +1,10 @@
 [package]
 name = "ultralog"
-version = "2.12.0"
-edition = "2021"
+version = "2.12.1"
+edition = "2024"
+# egui/eframe 0.36 is the binding constraint on the minimum supported Rust
+# version; edition 2024 itself only needs 1.85.
+rust-version = "1.95"
 description = "A high-performance ECU log viewer written in Rust"
 authors = ["Cole Gentry"]
 license = "AGPL-3.0"
@@ -21,25 +24,28 @@ path = "src/bin/test_parser.rs"
 
 [dependencies]
 # GUI Framework
-eframe = { version = "0.34.1", default-features = false, features = [
+eframe = { version = "0.36.1", default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",
     "x11",
     "wayland",
 ] }
-egui_plot = "0.35.0"
-egui_extras = { version = "0.34.1", features = ["image"] }
+egui_plot = "0.37.0"
+egui_extras = { version = "0.36.1", features = ["image"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yml = "0.0.12"  # For OpenECU Alliance adapter specs (replaces deprecated serde_yaml)
+# For OpenECU Alliance adapter specs. serde_yml 0.0.12 was flagged unsound
+# (RUSTSEC-2025-0068) and is now deprecated; serde_norway is the maintained
+# serde_yaml fork whose libyaml backend is also actively maintained.
+serde_norway = "0.9.42"
 
 # Parsing
-regex = "1.12"
+regex = "1.13"
 strum = { version = "0.28", features = ["derive"] }
-rayon = "1.11"  # Parallel iteration for parsing
+rayon = "1.12"  # Parallel iteration for parsing
 
 # Platform-specific directories
 dirs = "6.0"
@@ -51,9 +57,9 @@ memmap2 = "0.9"  # Memory-mapped file loading for large files
 encoding_rs = "0.8"  # Character encoding detection and conversion (UTF-16, etc.)
 
 # Auto-update
-ureq = { version = "3.3", features = ["json"] }  # Minimal HTTP client
+ureq = { version = "3.4", features = ["json"] }  # Minimal HTTP client
 semver = "1.0"  # Version comparison
-zip = "8.5"     # ZIP extraction for Windows updates
+zip = "8.6"     # ZIP extraction for Windows updates
 flate2 = "1.1"  # Gzip decompression for Linux updates
 tar = "0.4"     # Tar archive extraction for Linux updates
 
@@ -61,14 +67,14 @@ tar = "0.4"     # Tar archive extraction for Linux updates
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 # PDF generation for chart export
-printpdf = "0.9"
+printpdf = "0.12"
 
 # Error handling
-thiserror = "2.0.17"
+thiserror = "2.0.20"
 anyhow = "1.0"
 
 # Internationalization
-rust-i18n = "3.1"
+rust-i18n = "4.2"
 
 # Logging
 tracing = "0.1"
@@ -76,13 +82,13 @@ tracing-subscriber = "0.3"
 
 # UUID generation for anonymous user IDs
 uuid = { version = "1.0", features = ["v4"] }
-chrono = { version = "0.4.44", features = ["serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
 
 # Clipboard support for histogram copy/paste
 arboard = "3.6"
 
 # MCP (Model Context Protocol) server for Claude Desktop integration
-rmcp = { version = "0.12", features = ["server", "transport-streamable-http-server", "macros"] }
+rmcp = { version = "3.1", features = ["server", "transport-streamable-http-server", "macros"] }
 tokio = { version = "1", features = ["full"] }
 axum = "0.8"
 schemars = "1.0"

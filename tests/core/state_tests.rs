@@ -8,20 +8,23 @@
 //! - ActiveTool enum
 
 use std::path::PathBuf;
+use ultralog::parsers::Channel;
 use ultralog::parsers::haltech::{ChannelType, HaltechChannel};
 use ultralog::parsers::types::{EcuType, Log, Value};
-use ultralog::parsers::Channel;
 use ultralog::state::{
-    ActiveTool, CacheKey, HistogramConfig, HistogramGridSize, HistogramMode, HistogramState,
-    LoadResult, LoadedFile, LoadingState, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
-    SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType, CHART_COLORS, COLORBLIND_COLORS,
-    MAX_CHANNELS, MAX_CHART_POINTS, SUPPORTED_EXTENSIONS,
+    ActiveTool, CHART_COLORS, COLORBLIND_COLORS, CacheKey, HistogramConfig, HistogramGridSize,
+    HistogramMode, HistogramState, LoadResult, LoadedFile, LoadingState, MAX_CHANNELS,
+    MAX_CHART_POINTS, SUPPORTED_EXTENSIONS, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
+    SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType,
 };
 
 // ============================================
 // Constant Tests
 // ============================================
 
+// These assert intentional bounds on compile-time constants; clippy flags them
+// as constant-valued, but they are guardrails against future edits to state.rs.
+#[allow(clippy::assertions_on_constants)]
 #[test]
 fn test_max_channels_reasonable() {
     assert!(MAX_CHANNELS >= 1, "Should allow at least 1 channel");
@@ -29,6 +32,7 @@ fn test_max_channels_reasonable() {
     assert_eq!(MAX_CHANNELS, 10, "Expected 10 max channels");
 }
 
+#[allow(clippy::assertions_on_constants)]
 #[test]
 fn test_max_chart_points_reasonable() {
     assert!(
@@ -316,11 +320,13 @@ fn test_scatter_plot_config_default() {
 
 #[test]
 fn test_scatter_plot_config_with_values() {
-    let mut config = ScatterPlotConfig::default();
-    config.file_index = Some(0);
-    config.x_channel = Some(1);
-    config.y_channel = Some(2);
-    config.z_channel = Some(3);
+    let config = ScatterPlotConfig {
+        file_index: Some(0),
+        x_channel: Some(1),
+        y_channel: Some(2),
+        z_channel: Some(3),
+        ..Default::default()
+    };
 
     assert_eq!(config.file_index, Some(0));
     assert_eq!(config.x_channel, Some(1));
@@ -848,13 +854,15 @@ fn test_histogram_config_default() {
 
 #[test]
 fn test_histogram_config_with_values() {
-    let mut config = HistogramConfig::default();
-    config.x_channel = Some(0);
-    config.y_channel = Some(1);
-    config.z_channel = Some(2);
-    config.mode = HistogramMode::HitCount;
-    config.grid_size = HistogramGridSize::Size64;
-    config.selected_cell = Some(SelectedHistogramCell::default());
+    let config = HistogramConfig {
+        x_channel: Some(0),
+        y_channel: Some(1),
+        z_channel: Some(2),
+        mode: HistogramMode::HitCount,
+        grid_size: HistogramGridSize::Size64,
+        selected_cell: Some(SelectedHistogramCell::default()),
+        ..Default::default()
+    };
 
     assert_eq!(config.x_channel, Some(0));
     assert_eq!(config.y_channel, Some(1));
@@ -866,10 +874,12 @@ fn test_histogram_config_with_values() {
 
 #[test]
 fn test_histogram_config_clone() {
-    let mut config = HistogramConfig::default();
-    config.x_channel = Some(5);
-    config.y_channel = Some(10);
-    config.mode = HistogramMode::HitCount;
+    let config = HistogramConfig {
+        x_channel: Some(5),
+        y_channel: Some(10),
+        mode: HistogramMode::HitCount,
+        ..Default::default()
+    };
 
     let cloned = config.clone();
 

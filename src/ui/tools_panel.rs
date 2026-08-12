@@ -85,20 +85,19 @@ impl UltraLogApp {
                 }
 
                 // Show results count if any
-                if let Some(file_idx) = self.selected_file {
-                    if let Some(results) = self.analysis_results.get(&file_idx) {
-                        if !results.is_empty() {
-                            ui.add_space(8.0);
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "✓ {} analysis results for current file",
-                                    results.len()
-                                ))
-                                .size(font_12)
-                                .color(egui::Color32::from_rgb(150, 200, 150)),
-                            );
-                        }
-                    }
+                if let Some(file_idx) = self.selected_file
+                    && let Some(results) = self.analysis_results.get(&file_idx)
+                    && !results.is_empty()
+                {
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "✓ {} analysis results for current file",
+                            results.len()
+                        ))
+                        .size(font_12)
+                        .color(egui::Color32::from_rgb(150, 200, 150)),
+                    );
                 }
             } else {
                 ui.label(
@@ -186,20 +185,19 @@ impl UltraLogApp {
             });
 
             // Show applied channels for current file
-            if let Some(file_idx) = self.selected_file {
-                if let Some(channels) = self.file_computed_channels.get(&file_idx) {
-                    if !channels.is_empty() {
-                        ui.add_space(8.0);
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "✓ {} computed channels on current file",
-                                channels.len()
-                            ))
-                            .size(font_12)
-                            .color(egui::Color32::from_rgb(150, 200, 150)),
-                        );
-                    }
-                }
+            if let Some(file_idx) = self.selected_file
+                && let Some(channels) = self.file_computed_channels.get(&file_idx)
+                && !channels.is_empty()
+            {
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "✓ {} computed channels on current file",
+                        channels.len()
+                    ))
+                    .size(font_12)
+                    .color(egui::Color32::from_rgb(150, 200, 150)),
+                );
             }
 
             // Quick apply section

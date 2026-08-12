@@ -85,7 +85,7 @@ static EMBEDDED_PROTOCOLS: &[&str] = &[
 fn parse_embedded_adapters() -> Vec<AdapterSpec> {
     EMBEDDED_ADAPTERS
         .iter()
-        .filter_map(|yaml| match serde_yml::from_str(yaml) {
+        .filter_map(|yaml| match serde_norway::from_str(yaml) {
             Ok(spec) => Some(spec),
             Err(e) => {
                 tracing::warn!("Failed to parse embedded adapter YAML: {}", e);
@@ -99,7 +99,7 @@ fn parse_embedded_adapters() -> Vec<AdapterSpec> {
 fn parse_embedded_protocols() -> Vec<ProtocolSpec> {
     EMBEDDED_PROTOCOLS
         .iter()
-        .filter_map(|yaml| match serde_yml::from_str(yaml) {
+        .filter_map(|yaml| match serde_norway::from_str(yaml) {
             Ok(spec) => Some(spec),
             Err(e) => {
                 tracing::warn!("Failed to parse embedded protocol YAML: {}", e);
@@ -113,11 +113,11 @@ fn parse_embedded_protocols() -> Vec<ProtocolSpec> {
 /// API fetch is done in background to avoid blocking startup
 fn load_adapters_with_fallback() -> Vec<AdapterSpec> {
     // 1. Try loading from cache first (fast, non-blocking)
-    if !cache::is_cache_stale() {
-        if let Some(cached) = cache::load_cached_adapters() {
-            tracing::info!("Loaded {} adapters from cache", cached.len());
-            return cached;
-        }
+    if !cache::is_cache_stale()
+        && let Some(cached) = cache::load_cached_adapters()
+    {
+        tracing::info!("Loaded {} adapters from cache", cached.len());
+        return cached;
     }
 
     // 2. Fall back to embedded specs (always available)
@@ -129,11 +129,11 @@ fn load_adapters_with_fallback() -> Vec<AdapterSpec> {
 /// API fetch is done in background to avoid blocking startup
 fn load_protocols_with_fallback() -> Vec<ProtocolSpec> {
     // 1. Try loading from cache first (fast, non-blocking)
-    if !cache::is_cache_stale() {
-        if let Some(cached) = cache::load_cached_protocols() {
-            tracing::info!("Loaded {} protocols from cache", cached.len());
-            return cached;
-        }
+    if !cache::is_cache_stale()
+        && let Some(cached) = cache::load_cached_protocols()
+    {
+        tracing::info!("Loaded {} protocols from cache", cached.len());
+        return cached;
     }
 
     // 2. Fall back to embedded specs (always available)
@@ -591,5 +591,177 @@ mod tests {
             source == "Embedded" || source == "Cache" || source == "API (refreshed)",
             "Spec source should be valid"
         );
+    }
+
+    /// Every embedded adapter spec must deserialize.
+    ///
+    /// `parse_embedded_adapters` deliberately stays lenient at runtime — it
+    /// warns and skips a bad spec so one upstream typo cannot break startup.
+    /// That means a broken spec is otherwise invisible, so it is caught here
+    /// instead. This is what let `data_type: boolean` sit unnoticed in
+    /// megasquirt-tunerstudio.adapter.yaml.
+    #[test]
+    fn all_embedded_adapters_parse() {
+        let failures: Vec<String> = EMBEDDED_ADAPTERS
+            .iter()
+            .enumerate()
+            .filter_map(|(i, yaml)| {
+                serde_norway::from_str::<AdapterSpec>(yaml)
+                    .err()
+                    .map(|e| format!("adapter[{}] ({}): {}", i, spec_label(yaml), e))
+            })
+            .collect();
+        assert!(
+            failures.is_empty(),
+            "{} of {} embedded adapter specs failed to parse:\n  {}",
+            failures.len(),
+            EMBEDDED_ADAPTERS.len(),
+            failures.join("\n  ")
+        );
+    }
+
+    /// Every embedded protocol spec must deserialize. See above.
+    #[test]
+    fn all_embedded_protocols_parse() {
+        let failures: Vec<String> = EMBEDDED_PROTOCOLS
+            .iter()
+            .enumerate()
+            .filter_map(|(i, yaml)| {
+                serde_norway::from_str::<ProtocolSpec>(yaml)
+                    .err()
+                    .map(|e| format!("protocol[{}] ({}): {}", i, spec_label(yaml), e))
+            })
+            .collect();
+        assert!(
+            failures.is_empty(),
+            "{} of {} embedded protocol specs failed to parse:\n  {}",
+            failures.len(),
+            EMBEDDED_PROTOCOLS.len(),
+            failures.join("\n  ")
+        );
+    }
+
+    /// Pull the `id:` line out of a spec so failures name the offending file.
+    fn spec_label(yaml: &str) -> &str {
+        yaml.lines()
+            .find_map(|l| l.strip_prefix("id:"))
+            .map(str::trim)
+            .unwrap_or("unknown")
+    }
+
+    /// The API serves camelCase where the YAML is snake_case. Both must
+    /// deserialize into the same structs, or the API tier of the fallback
+    /// chain silently resolves nothing.
+    #[test]
+    fn adapter_spec_accepts_camel_case_from_api() {
+        // Trimmed from GET /api/adapters/haltech/haltech-nsp.
+        let json = r##"{
+            "openecualliance": "1.0",
+            "id": "haltech-nsp",
+            "name": "Haltech NSP CSV Export",
+            "version": "1.0.0",
+            "vendor": "haltech",
+            "branding": { "colorPrimary": "#FFBE1A", "colorSecondary": "#1A1A1A" },
+            "fileFormat": {
+                "type": "csv",
+                "extensions": [".csv"],
+                "delimiter": ",",
+                "headerRow": -1,
+                "dataStartRow": -1
+            },
+            "channels": [{
+                "id": "rpm",
+                "name": "Engine RPM",
+                "category": "engine",
+                "dataType": "float",
+                "unit": "rpm",
+                "sourceNames": ["Engine Speed", "RPM"]
+            }]
+        }"##;
+
+        let spec: AdapterSpec = serde_json::from_str(json).expect("camelCase adapter JSON");
+        assert_eq!(spec.file_format.format_type, "csv");
+        assert_eq!(spec.file_format.header_row, Some(-1));
+        assert_eq!(spec.file_format.data_start_row, Some(-1));
+        assert_eq!(spec.channels[0].data_type, crate::adapters::DataType::Float);
+        assert_eq!(spec.channels[0].source_names, vec!["Engine Speed", "RPM"]);
+        assert_eq!(
+            spec.branding.as_ref().unwrap().color_primary.as_deref(),
+            Some("#FFBE1A")
+        );
+    }
+
+    /// Same contract on the protocol side (`startBit`, `byteOrder`, `dataType`).
+    #[test]
+    fn protocol_spec_accepts_camel_case_from_api() {
+        // Trimmed from GET /api/protocols/haltech/haltech-elite-broadcast.
+        let json = r##"{
+            "openecualliance": "1.0",
+            "type": "protocol",
+            "id": "haltech-elite-broadcast",
+            "name": "Haltech Elite Broadcast",
+            "version": "1.0.0",
+            "vendor": "haltech",
+            "protocol": { "type": "can", "baudrate": 1000000, "extendedId": false },
+            "messages": [{
+                "id": "0x360",
+                "name": "RPM / MAP",
+                "length": 8,
+                "intervalMs": 20,
+                "signals": [{
+                    "name": "RPM",
+                    "startBit": 0,
+                    "length": 16,
+                    "byteOrder": "big_endian",
+                    "dataType": "unsigned",
+                    "scale": 1,
+                    "offset": 0,
+                    "unit": "rpm"
+                }]
+            }]
+        }"##;
+
+        let spec: ProtocolSpec = serde_json::from_str(json).expect("camelCase protocol JSON");
+        assert!(!spec.protocol.extended_id);
+        assert_eq!(spec.messages[0].id, 0x360);
+        assert_eq!(spec.messages[0].interval_ms, Some(20.0));
+        let sig = &spec.messages[0].signals[0];
+        assert_eq!(sig.start_bit, 0);
+        assert_eq!(sig.byte_order, crate::adapters::ByteOrder::BigEndian);
+        assert_eq!(sig.data_type, crate::adapters::SignalDataType::Unsigned);
+    }
+
+    /// snake_case (the embedded YAML casing) must keep working unchanged.
+    #[test]
+    fn adapter_spec_still_accepts_snake_case_from_yaml() {
+        let yaml = r##"
+openecualliance: "1.0"
+id: test-adapter
+name: Test
+version: 1.0.0
+vendor: test
+file_format:
+  type: csv
+  extensions: [".csv"]
+  header_row: 0
+channels:
+  - id: rpm
+    name: Engine RPM
+    category: engine
+    data_type: float
+    unit: rpm
+    source_names: ["RPM"]
+  - id: flag
+    name: Some Flag
+    category: system
+    data_type: boolean
+    unit: ""
+    source_names: ["Flag"]
+"##;
+        let spec: AdapterSpec = serde_norway::from_str(yaml).expect("snake_case adapter YAML");
+        assert_eq!(spec.file_format.header_row, Some(0));
+        assert_eq!(spec.channels[0].data_type, crate::adapters::DataType::Float);
+        // `boolean` is an upstream typo for `bool`; both must land on Bool.
+        assert_eq!(spec.channels[1].data_type, crate::adapters::DataType::Bool);
     }
 }
