@@ -1,3 +1,13 @@
+# Configuration for GitHub's auto-generated release notes.
+#
+# GitHub categorises entries by the PULL REQUEST'S LABELS only — it does not
+# read commit messages or PR titles. An unlabelled PR falls through to the "*"
+# catch-all at the bottom, which is how the v2.12.1 security and dependency
+# work ended up filed under "Other Changes". Label PRs before merging, or the
+# categories below do nothing.
+#
+# Every label named here exists in the repo; keep it that way when adding more.
+
 changelog:
   categories:
     - title: 🚀 New Features
@@ -32,6 +42,11 @@ changelog:
         - maintenance
         - refactor
         - chore
+    - title: 🏗️ Build & Tooling
+      labels:
+        - build
+        - ci
+        - tooling
     - title: 🔒 Security
       labels:
         - security
