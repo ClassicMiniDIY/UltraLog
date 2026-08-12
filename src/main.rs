@@ -17,18 +17,26 @@ fn setup_linux_scaling() {
     // If no X11 scale factor is set, try to detect from common environment variables
     // This helps on systems where the scale factor isn't properly detected
     if std::env::var("WINIT_X11_SCALE_FACTOR").is_err() {
-        // Check if GDK_SCALE is set (common on GTK-based systems)
-        if let Ok(gdk_scale) = std::env::var("GDK_SCALE") {
-            std::env::set_var("WINIT_X11_SCALE_FACTOR", &gdk_scale);
-        }
-        // Check QT_SCALE_FACTOR (common on KDE/Qt systems like Kubuntu)
-        else if let Ok(qt_scale) = std::env::var("QT_SCALE_FACTOR") {
-            std::env::set_var("WINIT_X11_SCALE_FACTOR", &qt_scale);
-        }
-        // Check QT_AUTO_SCREEN_SCALE_FACTOR
-        else if std::env::var("QT_AUTO_SCREEN_SCALE_FACTOR").is_ok() {
-            // Let winit auto-detect, but ensure it uses randr for X11
-            std::env::set_var("WINIT_X11_SCALE_FACTOR", "randr");
+        // SAFETY: `set_var` is unsafe as of edition 2024 because mutating the
+        // environment races with any other thread reading it. This function is
+        // the first thing `main` calls — before tracing_subscriber::fmt::init,
+        // before analytics, and before eframe or the IPC/MCP servers start any
+        // threads — so the process is still single-threaded here. Keep this
+        // call site first in `main` for that reason.
+        unsafe {
+            // Check if GDK_SCALE is set (common on GTK-based systems)
+            if let Ok(gdk_scale) = std::env::var("GDK_SCALE") {
+                std::env::set_var("WINIT_X11_SCALE_FACTOR", &gdk_scale);
+            }
+            // Check QT_SCALE_FACTOR (common on KDE/Qt systems like Kubuntu)
+            else if let Ok(qt_scale) = std::env::var("QT_SCALE_FACTOR") {
+                std::env::set_var("WINIT_X11_SCALE_FACTOR", &qt_scale);
+            }
+            // Check QT_AUTO_SCREEN_SCALE_FACTOR
+            else if std::env::var("QT_AUTO_SCREEN_SCALE_FACTOR").is_ok() {
+                // Let winit auto-detect, but ensure it uses randr for X11
+                std::env::set_var("WINIT_X11_SCALE_FACTOR", "randr");
+            }
         }
     }
 }
