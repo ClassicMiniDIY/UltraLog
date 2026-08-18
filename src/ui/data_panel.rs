@@ -76,11 +76,12 @@ impl UltraLogApp {
             .show(ui, |ui| {
                 ui.add_space(4.0);
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    let resp = icon_button(ui, ICON_BTN, draw_panel_show_icon);
+                    let label = rust_i18n::t!("data_panel.expand");
+                    let resp = icon_button(ui, ICON_BTN, &label, draw_panel_show_icon);
                     if resp.clicked() {
                         self.tabs[ti].data_panel_state.visible = true;
                     }
-                    let _ = resp.on_hover_text(rust_i18n::t!("data_panel.expand"));
+                    let _ = resp.on_hover_text(label);
                 });
             });
     }
@@ -97,7 +98,7 @@ impl UltraLogApp {
             .map(|w| {
                 let title = w.title(self);
                 let available = w.is_available(self);
-                let hidden = self.user_settings.hidden_widgets.contains(w.id());
+                let hidden = self.hidden_widgets.contains(w.id());
                 (*w, title, available, hidden)
             })
             .collect();
@@ -112,24 +113,20 @@ impl UltraLogApp {
                 widget.cancel_background_work();
             }
         }
-        let mut settings_dirty = false;
+        // `hidden_widgets` is a live preference; eframe::App::save syncs it
+        // into UserSettings on the auto-save/shutdown cycle.
         for id in header_actions.toggle_hidden {
-            if self.user_settings.hidden_widgets.contains(id.as_str()) {
-                self.user_settings.hidden_widgets.remove(id.as_str());
+            if self.hidden_widgets.contains(id.as_str()) {
+                self.hidden_widgets.remove(id.as_str());
             } else {
-                self.user_settings.hidden_widgets.insert(id.clone());
+                self.hidden_widgets.insert(id.clone());
                 if let Some(widget) = registered().iter().find(|widget| widget.id() == id) {
                     widget.cancel_background_work();
                 }
             }
-            settings_dirty = true;
         }
         for id in header_actions.add {
-            self.user_settings.hidden_widgets.remove(id.as_str());
-            settings_dirty = true;
-        }
-        if settings_dirty {
-            let _ = self.user_settings.save();
+            self.hidden_widgets.remove(id.as_str());
         }
         if panel_collapsed {
             return;
@@ -141,7 +138,7 @@ impl UltraLogApp {
         let visible_widgets: Vec<&'static dyn DataWidget> = widget_meta
             .iter()
             .filter(|(widget, _, available, _)| {
-                *available && !self.user_settings.hidden_widgets.contains(widget.id())
+                *available && !self.hidden_widgets.contains(widget.id())
             })
             .map(|(w, _, _, _)| *w)
             .collect();
@@ -188,14 +185,20 @@ impl UltraLogApp {
                     ui.add_space(4.0);
 
                     // Collapse panel.
-                    let collapse = icon_button(ui, ICON_BTN, draw_panel_hide_icon);
+                    let hide_label = rust_i18n::t!("data_panel.hide");
+                    let collapse = icon_button(ui, ICON_BTN, &hide_label, draw_panel_hide_icon);
                     if collapse.clicked() {
                         actions.collapse_panel = true;
                     }
-                    let _ = collapse.on_hover_text(rust_i18n::t!("data_panel.hide"));
+                    let _ = collapse.on_hover_text(hide_label);
 
                     // Cog (settings) - always visible.
-                    let cog = icon_button(ui, ICON_BTN, draw_cog_icon);
+                    let cog = icon_button(
+                        ui,
+                        ICON_BTN,
+                        &rust_i18n::t!("data_panel.options"),
+                        draw_cog_icon,
+                    );
                     let cog_id = ui.make_persistent_id("data_panel_cog_popup");
                     let _ = cog
                         .clone()
@@ -240,7 +243,12 @@ impl UltraLogApp {
                     // Plus (add widget) - only when there's something
                     // to add, matching the design's hybrid mode.
                     if has_addable {
-                        let plus = icon_button(ui, ICON_BTN, draw_plus_icon);
+                        let plus = icon_button(
+                            ui,
+                            ICON_BTN,
+                            &rust_i18n::t!("data_panel.add_widget"),
+                            draw_plus_icon,
+                        );
                         let plus_id = ui.make_persistent_id("data_panel_plus_popup");
                         let _ = plus
                             .clone()
@@ -286,12 +294,20 @@ struct HeaderActions {
 /// Allocate a square click target, paint a hover background (no frame
 /// at rest, so toggling never shifts siblings), and invoke `draw_icon`
 /// to paint a 14x14 icon centered inside.
+///
+/// `label` is registered as the button's accessible name (AccessKit /
+/// screen readers). `Sense::click()` makes the target keyboard-focusable,
+/// so Enter/Space activate it like a regular button.
 fn icon_button(
     ui: &mut egui::Ui,
     size: f32,
+    label: &str,
     draw_icon: fn(&egui::Painter, egui::Rect, egui::Color32),
 ) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::click());
+    resp.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
+    });
     let visuals = ui.visuals();
     let painter = ui.painter();
     if resp.hovered() {
@@ -465,9 +481,7 @@ mod tests {
     #[test]
     fn hidden_available_widget_does_not_block_panel_expansion() {
         let mut app = app_with_gps_data();
-        app.user_settings
-            .hidden_widgets
-            .insert("track_map".to_string());
+        app.hidden_widgets.insert("track_map".to_string());
 
         assert!(app.data_panel_has_content());
         assert!(app.data_panel_should_show());

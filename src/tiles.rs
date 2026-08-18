@@ -52,6 +52,11 @@ pub trait TileProvider: Send + Sync {
     fn attribution(&self) -> &'static str;
     fn max_zoom(&self) -> u8;
     fn cache_subdir(&self) -> &'static str;
+    /// Maximum simultaneous network fetches allowed against this provider.
+    /// Disk-cache reads are not counted. Defaults to the full worker pool.
+    fn max_concurrent_fetches(&self) -> usize {
+        WORKER_COUNT
+    }
 }
 
 pub struct EsriWorldImagery;
@@ -92,6 +97,12 @@ impl TileProvider for OpenStreetMap {
     fn cache_subdir(&self) -> &'static str {
         "openstreetmap"
     }
+    /// The OSM tile usage policy caps applications at 2 simultaneous
+    /// download connections (<https://operations.osmfoundation.org/policies/tiles/>).
+    /// Exceeding it risks a per-IP block that would hit every UltraLog user.
+    fn max_concurrent_fetches(&self) -> usize {
+        2
+    }
 }
 
 /// Resolve a [`TileProviderId`] to the corresponding static provider.
@@ -129,8 +140,43 @@ enum WorkerMsg {
 
 /// Number of parallel HTTP workers. Tile servers have per-IP concurrency
 /// limits; 4 is a polite default that still hides per-tile latency on
-/// high-zoom panning.
+/// high-zoom panning. Providers with stricter published limits are gated
+/// further by [`TileProvider::max_concurrent_fetches`] via [`FetchPermits`].
 const WORKER_COUNT: usize = 4;
+
+/// How long a worker sleeps between attempts to acquire a per-provider
+/// network permit. Visibility and shutdown are re-checked on every attempt.
+const TILE_PERMIT_POLL_INTERVAL: Duration = Duration::from_millis(25);
+
+/// Counts in-flight network fetches per provider so the worker pool can
+/// honor per-provider connection limits (OSM allows at most 2).
+#[derive(Debug, Default)]
+struct FetchPermits {
+    in_flight: Mutex<HashMap<TileProviderId, usize>>,
+}
+
+impl FetchPermits {
+    /// Try to reserve a fetch slot for `provider`. Returns `true` on
+    /// success; the caller must balance it with [`Self::release`].
+    fn try_acquire(&self, provider: TileProviderId) -> bool {
+        let limit = provider_for(provider).max_concurrent_fetches().max(1);
+        let mut in_flight = self.in_flight.lock().expect("fetch permits poisoned");
+        let count = in_flight.entry(provider).or_insert(0);
+        if *count < limit {
+            *count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn release(&self, provider: TileProviderId) {
+        let mut in_flight = self.in_flight.lock().expect("fetch permits poisoned");
+        if let Some(count) = in_flight.get_mut(&provider) {
+            *count = count.saturating_sub(1);
+        }
+    }
+}
 
 /// Lazy singleton tile source. Owns the worker thread pool, the in-flight
 /// set, the raw-bytes cache, and the on-GPU texture cache. UI thread uses
@@ -378,6 +424,7 @@ impl TileSource {
         // share it (mpsc::Receiver is !Sync; Mutex makes it act like an MPMC
         // for our coarse Fetch granularity).
         let req_rx = Arc::new(Mutex::new(req_rx));
+        let fetch_permits = Arc::new(FetchPermits::default());
         for i in 0..WORKER_COUNT {
             let rx_clone = Arc::clone(&req_rx);
             let tx_clone = resp_tx.clone();
@@ -386,6 +433,7 @@ impl TileSource {
             let ctx_clone = repaint_ctx.clone();
             let visible_clone = Arc::clone(&visible_tiles);
             let shutdown_clone = Arc::clone(&shutdown);
+            let permits_clone = Arc::clone(&fetch_permits);
             thread::Builder::new()
                 .name(format!("ultralog-tile-worker-{i}"))
                 .spawn(move || {
@@ -397,6 +445,7 @@ impl TileSource {
                         ctx_clone,
                         visible_clone,
                         shutdown_clone,
+                        permits_clone,
                     )
                 })
                 .ok();
@@ -575,6 +624,7 @@ impl Default for TileSource {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn worker_loop(
     rx: Arc<Mutex<Receiver<WorkerMsg>>>,
     resp_tx: Sender<FetchedTile>,
@@ -583,6 +633,7 @@ fn worker_loop(
     repaint_ctx: egui::Context,
     visible_tiles: Arc<RwLock<HashSet<TileKey>>>,
     shutdown: Arc<AtomicBool>,
+    fetch_permits: Arc<FetchPermits>,
 ) {
     loop {
         if shutdown.load(Ordering::Acquire) {
@@ -615,18 +666,36 @@ fn worker_loop(
                     repaint_ctx.request_repaint();
                     continue;
                 }
-                let bytes = load_or_fetch(key, &disk_cache, &http_agent);
+                let outcome = load_or_fetch(
+                    key,
+                    &disk_cache,
+                    &http_agent,
+                    &fetch_permits,
+                    &visible_tiles,
+                    &shutdown,
+                );
                 // Always send back a FetchedTile (Some/None) so the UI can
                 // clear in_flight even on failure - otherwise a dropped tile
                 // would never be retried until restart.
-                if resp_tx
-                    .send(FetchedTile {
+                let tile = match outcome {
+                    FetchOutcome::Shutdown => break,
+                    FetchOutcome::Bytes(bytes) => FetchedTile {
                         key,
-                        bytes,
+                        bytes: Some(bytes),
                         cancelled: false,
-                    })
-                    .is_err()
-                {
+                    },
+                    FetchOutcome::Failed => FetchedTile {
+                        key,
+                        bytes: None,
+                        cancelled: false,
+                    },
+                    FetchOutcome::Cancelled => FetchedTile {
+                        key,
+                        bytes: None,
+                        cancelled: true,
+                    },
+                };
+                if resp_tx.send(tile).is_err() {
                     break;
                 }
                 repaint_ctx.request_repaint();
@@ -642,25 +711,56 @@ fn tile_is_visible(visible_tiles: &RwLock<HashSet<TileKey>>, key: TileKey) -> bo
         .contains(&key)
 }
 
+/// Result of one tile load attempt, distinguishing polite bail-outs from
+/// real failures so only the latter enter the retry backoff.
+enum FetchOutcome {
+    Bytes(Vec<u8>),
+    Failed,
+    Cancelled,
+    Shutdown,
+}
+
 fn load_or_fetch(
     key: TileKey,
     disk_cache: &DiskTileCache,
     http_agent: &ureq::Agent,
-) -> Option<Vec<u8>> {
+    fetch_permits: &FetchPermits,
+    visible_tiles: &RwLock<HashSet<TileKey>>,
+    shutdown: &AtomicBool,
+) -> FetchOutcome {
     if let Some(bytes) = disk_cache.read(key) {
         if valid_tile_bytes(&bytes) {
-            return Some(bytes);
+            return FetchOutcome::Bytes(bytes);
         }
         disk_cache.remove(key);
     }
+
+    // Wait for a per-provider network permit. Visibility and shutdown are
+    // re-checked while waiting so a queued tile that scrolled out of view
+    // never consumes a connection slot.
+    while !fetch_permits.try_acquire(key.provider) {
+        if shutdown.load(Ordering::Acquire) {
+            return FetchOutcome::Shutdown;
+        }
+        if !tile_is_visible(visible_tiles, key) {
+            return FetchOutcome::Cancelled;
+        }
+        thread::sleep(TILE_PERMIT_POLL_INTERVAL);
+    }
+
     let provider = provider_for(key.provider);
     let url = provider.url(key.z, key.x, key.y);
-    let bytes = http_get(http_agent, &url)?;
+    let bytes = http_get(http_agent, &url);
+    fetch_permits.release(key.provider);
+
+    let Some(bytes) = bytes else {
+        return FetchOutcome::Failed;
+    };
     if !valid_tile_bytes(&bytes) {
-        return None;
+        return FetchOutcome::Failed;
     }
     disk_cache.write(key, &bytes);
-    Some(bytes)
+    FetchOutcome::Bytes(bytes)
 }
 
 fn build_http_agent() -> ureq::Agent {
@@ -869,6 +969,24 @@ mod tests {
     }
 
     #[test]
+    fn fetch_permits_enforce_the_osm_connection_limit() {
+        let permits = FetchPermits::default();
+
+        assert!(permits.try_acquire(TileProviderId::OpenStreetMap));
+        assert!(permits.try_acquire(TileProviderId::OpenStreetMap));
+        assert!(
+            !permits.try_acquire(TileProviderId::OpenStreetMap),
+            "OSM allows at most 2 simultaneous fetches"
+        );
+
+        // A saturated OSM pool must not block other providers.
+        assert!(permits.try_acquire(TileProviderId::EsriWorldImagery));
+
+        permits.release(TileProviderId::OpenStreetMap);
+        assert!(permits.try_acquire(TileProviderId::OpenStreetMap));
+    }
+
+    #[test]
     fn worker_discards_tile_that_left_the_visible_view() {
         let (req_tx, req_rx) = mpsc::sync_channel(1);
         let (resp_tx, resp_rx) = mpsc::channel();
@@ -893,6 +1011,7 @@ mod tests {
                 egui::Context::default(),
                 worker_visible,
                 worker_shutdown,
+                Arc::new(FetchPermits::default()),
             );
         });
 

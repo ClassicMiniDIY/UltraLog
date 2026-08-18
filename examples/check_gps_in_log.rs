@@ -9,7 +9,7 @@ use ultralog::parsers::Speeduino;
 fn main() {
     let path = env::args()
         .nth(1)
-        .unwrap_or_else(|| "exampleLogs/rusefi/Log1_gps.mlg".to_string());
+        .unwrap_or_else(|| "exampleLogs/megasquirt/2026-04-12_12.49.36_gps.mlg".to_string());
     let data = fs::read(&path).expect("read file");
     let log = Speeduino::parse_binary(&data).expect("parse");
     println!("path: {}", path);

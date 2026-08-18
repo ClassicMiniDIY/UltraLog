@@ -4,7 +4,8 @@
 //! - GPS channel detection (lat/lon resolution via OECUA canonical IDs)
 //! - Track polyline rendering (no tiles in v1; tile rendering slots in
 //!   later via the `tiles` module)
-//! - Cursor sync, click-to-seek, hover tooltip
+//! - Cursor sync: hovering the track scrubs the chart cursor/timeline
+//!   while playback is stopped; clicking seeks (and stops playback)
 //! - Lap dropdown wired to [`crate::laps`]
 
 use std::f64::consts::PI;
@@ -40,11 +41,9 @@ impl DataWidget for TrackMapWidget {
     }
 
     fn is_available(&self, app: &UltraLogApp) -> bool {
-        let available = detect_gps_channels(app).is_some();
-        if !available {
-            cancel_tile_requests();
-        }
-        available
+        // Pure query - background-work cancellation for unavailable states
+        // is handled centrally by `maintain_tile_source` each frame.
+        detect_gps_channels(app).is_some()
     }
 
     fn is_enabled(&self, app: &UltraLogApp) -> bool {
@@ -124,10 +123,13 @@ fn find_gps_channels(channels: &[crate::parsers::Channel]) -> Option<(usize, usi
         let name = ch.name();
         let canonical =
             crate::adapters::registry::get_channel_metadata(&name).map(|m| m.canonical_id);
-        let is_lat = canonical.as_deref() == Some("gps_latitude")
-            || (canonical.is_none() && matches_gps_name(&name, GpsAxis::Lat));
-        let is_lon = canonical.as_deref() == Some("gps_longitude")
-            || (canonical.is_none() && matches_gps_name(&name, GpsAxis::Lon));
+        // Exact alias matching stays an independent fallback: a refreshed
+        // adapter spec that maps a known alias like "Latitude" to some
+        // other (or renamed) canonical ID must not break GPS detection.
+        let is_lat =
+            canonical.as_deref() == Some("gps_latitude") || matches_gps_name(&name, GpsAxis::Lat);
+        let is_lon =
+            canonical.as_deref() == Some("gps_longitude") || matches_gps_name(&name, GpsAxis::Lon);
         if is_lat && lat_idx.is_none() {
             lat_idx = Some(i);
         }
@@ -299,11 +301,11 @@ fn ensure_cache(
     let laps = detect_laps(&lat_data, &lon_data, times, GateParams::default());
 
     // Map look settings persist globally - seed the per-tab state from the
-    // user's last-saved choices so re-opening a log behaves consistently.
-    let default_provider = app.user_settings.tile_provider;
-    let default_tiles_enabled = app.user_settings.tiles_enabled;
-    let default_tile_opacity = app.user_settings.tile_opacity;
-    let default_tile_grayscale = app.user_settings.tile_grayscale;
+    // live app preferences so re-opening a log behaves consistently.
+    let default_provider = app.tile_provider;
+    let default_tiles_enabled = app.tiles_enabled;
+    let default_tile_opacity = app.tile_opacity;
+    let default_tile_grayscale = app.tile_grayscale;
     let st = &mut app.tabs[tab_idx].data_panel_state.track_map;
     st.cache = Some(cache);
     st.laps = laps;
@@ -414,6 +416,41 @@ fn render_toolbar(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize) {
                 );
             });
 
+        // Color range: editable min/max with a return-to-automatic reset.
+        // `None` means automatic; a committed drag pins the value. Edits
+        // are ordered (min <= max) so the color cache never sees an
+        // inverted range.
+        if st.color_channel.is_some() {
+            ui.separator();
+            ui.label(t!("track_map.range"));
+            let (auto_min, auto_max) = st
+                .cache
+                .as_ref()
+                .and_then(|cache| cache.color_range)
+                .unwrap_or((0.0, 1.0));
+            let speed = ((auto_max - auto_min).abs() / 200.0).max(0.01);
+            let mut min_value = st.color_min.unwrap_or(auto_min);
+            let mut max_value = st.color_max.unwrap_or(auto_max);
+            if ui
+                .add(egui::DragValue::new(&mut min_value).speed(speed))
+                .changed()
+            {
+                st.color_min = Some(min_value.min(max_value));
+            }
+            if ui
+                .add(egui::DragValue::new(&mut max_value).speed(speed))
+                .changed()
+            {
+                st.color_max = Some(max_value.max(min_value));
+            }
+            if (st.color_min.is_some() || st.color_max.is_some())
+                && ui.button(t!("track_map.range_auto")).clicked()
+            {
+                st.color_min = None;
+                st.color_max = None;
+            }
+        }
+
         ui.separator();
         let lap_count = st.laps.len();
         if lap_count > 0 {
@@ -452,14 +489,10 @@ fn render_toolbar(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize) {
         }
 
         ui.separator();
-        // Snapshot pre-edit values; mirror to UserSettings + save when they
-        // change so the next session and any new tab pick them up.
+        // Snapshot the pre-edit toggle so the first-ever enable can show
+        // the one-time privacy notice below.
         let prev_tiles_enabled = st.tiles_enabled;
-        let prev_tile_provider = st.tile_provider;
-        let prev_tile_grayscale = st.tile_grayscale;
-        let prev_tile_opacity = st.tile_opacity;
         ui.checkbox(&mut st.tiles_enabled, t!("track_map.tiles.show"));
-        let mut opacity_committed = false;
         if st.tiles_enabled {
             let provider_label = match st.tile_provider {
                 crate::state::TileProviderId::EsriWorldImagery => "Esri World Imagery",
@@ -482,18 +515,11 @@ fn render_toolbar(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize) {
 
             ui.separator();
             ui.label(t!("track_map.tiles.opacity"));
-            let slider_resp = ui.add(
+            ui.add(
                 egui::Slider::new(&mut st.tile_opacity, 0.1..=1.0)
                     .show_value(false)
                     .clamping(egui::SliderClamping::Always),
             );
-            // `drag_stopped`/`lost_focus` are unreliable on float Sliders
-            // (they only fire when keyboard-focused or when egui detects a
-            // drag start, neither of which happens for a single-click +
-            // hold-and-drag). `changed()` fires reliably on every value
-            // change. The settings file is ~300 bytes - even a 60 fps drag
-            // costs <1 ms/save on modern SSDs.
-            opacity_committed = slider_resp.changed();
             ui.checkbox(&mut st.tile_grayscale, t!("track_map.tiles.grayscale"));
         }
 
@@ -502,25 +528,24 @@ fn render_toolbar(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize) {
         let new_tile_grayscale = st.tile_grayscale;
         let new_tile_opacity = st.tile_opacity;
 
-        let mut dirty = false;
-        if new_tiles_enabled != prev_tiles_enabled {
-            app.user_settings.tiles_enabled = new_tiles_enabled;
-            dirty = true;
-        }
-        if new_tile_provider != prev_tile_provider {
-            app.user_settings.tile_provider = new_tile_provider;
-            dirty = true;
-        }
-        if new_tile_grayscale != prev_tile_grayscale {
-            app.user_settings.tile_grayscale = new_tile_grayscale;
-            dirty = true;
-        }
-        if opacity_committed && (new_tile_opacity - prev_tile_opacity).abs() > f32::EPSILON {
-            app.user_settings.tile_opacity = new_tile_opacity;
-            dirty = true;
-        }
-        if dirty && let Err(e) = app.user_settings.save() {
-            tracing::warn!(error = %e, "failed to persist track map settings");
+        // Mirror the per-tab look settings into the live app preferences.
+        // Persistence happens on eframe's auto-save/shutdown cycle
+        // (eframe::App::save), same as every other setting - never a disk
+        // write on the UI thread here.
+        app.tiles_enabled = new_tiles_enabled;
+        app.tile_provider = new_tile_provider;
+        app.tile_grayscale = new_tile_grayscale;
+        app.tile_opacity = new_tile_opacity;
+
+        if new_tiles_enabled && !prev_tiles_enabled && !app.tile_privacy_notice_seen {
+            app.tile_privacy_notice_seen = true;
+            let provider_label = match new_tile_provider {
+                crate::state::TileProviderId::EsriWorldImagery => "Esri World Imagery",
+                crate::state::TileProviderId::OpenStreetMap => "OpenStreetMap",
+            };
+            let notice =
+                t!("track_map.tiles.privacy_notice", provider = provider_label).to_string();
+            app.show_toast(&notice);
         }
         if !new_tiles_enabled {
             cancel_tile_requests();
@@ -679,7 +704,7 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
             pan,
             tile_opacity,
             tile_grayscale,
-            app.user_settings.tile_cache_max_mb,
+            app.tile_cache_max_mb,
         );
 
         TrackProjection::Mercator {
@@ -771,6 +796,14 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
     {
         let times = app.files[file_idx].log.get_times_as_f64();
         if let Some(time) = times.get(record).copied() {
+            // Hover scrubs the chart cursor/timeline while playback is
+            // stopped; during playback hover only shows the tooltip so it
+            // cannot fight the advancing cursor. Click-to-seek (above)
+            // remains the way to jump while playing.
+            if !app.is_playing {
+                app.tabs[tab_idx].cursor_time = Some(time);
+                app.tabs[tab_idx].cursor_record = Some(record);
+            }
             let latitude = app
                 .get_value_at_record(file_idx, cache.lat_idx, record)
                 .unwrap_or(f64::NAN);
@@ -1087,7 +1120,7 @@ fn tile_rendering_is_active(app: &UltraLogApp) -> bool {
         && tab.data_panel_state.track_map.enabled
         && tab.data_panel_state.track_map.tiles_enabled
         && tab.data_panel_state.track_map.cache.is_some()
-        && !app.user_settings.hidden_widgets.contains("track_map")
+        && !app.hidden_widgets.contains("track_map")
         && detect_gps_channels(app).is_some()
 }
 
@@ -1260,11 +1293,9 @@ mod tests {
         assert!(!tile_rendering_is_active(&app));
         app.tabs[0].data_panel_state.track_map.enabled = true;
 
-        app.user_settings
-            .hidden_widgets
-            .insert("track_map".to_string());
+        app.hidden_widgets.insert("track_map".to_string());
         assert!(!tile_rendering_is_active(&app));
-        app.user_settings.hidden_widgets.remove("track_map");
+        app.hidden_widgets.remove("track_map");
 
         app.tabs[0].data_panel_state.track_map.cache = None;
         assert!(!tile_rendering_is_active(&app));
