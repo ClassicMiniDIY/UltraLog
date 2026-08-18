@@ -112,7 +112,7 @@
         "applicationCategory": "UtilitiesApplication",
         "applicationSubCategory": "Automotive Software",
         "operatingSystem": ["Windows 10", "Windows 11", "macOS", "Linux"],
-        "softwareVersion": "2.10.1",
+        "softwareVersion": "2.13.0",
         "releaseNotes": "https://github.com/ClassicMiniDIY/UltraLog/releases/tag/v2.10.1",
         "downloadUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
         "installUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
@@ -1427,7 +1427,7 @@
                 <div class="hero-badges">
                     <span class="version-badge">
                         <span class="new-tag">New</span>
-                        v2.10.1
+                        v2.13.0
                     </span>
                     <a href="https://github.com/ClassicMiniDIY/UltraLog" class="opensource-badge" target="_blank" rel="noopener noreferrer">
                         <i class="fa-brands fa-github" aria-hidden="true"></i> Open Source
@@ -1441,6 +1441,15 @@
                 <div class="carousel-live-region" aria-live="polite" aria-atomic="true" id="carousel-status"></div>
                 <div class="carousel-container">
                     <div class="carousel-track">
+                        <div class="carousel-slide">
+                            <img src="https://raw.githubusercontent.com/ClassicMiniDIY/UltraLog/main/assets/pagesImages/GpsTrackMap.png"
+                                alt="UltraLog GPS track map with satellite imagery and channel-colored racing line">
+                            <div class="slide-caption">
+                                <h3>GPS Track Map</h3>
+                                <p>See your log on the track — automatic lap detection, any channel painted onto the
+                                    racing line, and optional satellite imagery</p>
+                            </div>
+                        </div>
                         <div class="carousel-slide">
                             <img src="https://raw.githubusercontent.com/ClassicMiniDIY/UltraLog/main/assets/pagesImages/LogPlayback.png"
                                 alt="UltraLog log viewer with playback">
@@ -1497,11 +1506,12 @@
                         <span id="pause-text">Pause</span>
                     </button>
                     <div class="carousel-dots" role="tablist" aria-label="Slide navigation">
-                        <button class="carousel-dot active" role="tab" aria-selected="true" aria-label="Slide 1 of 5: Interactive Log Playback" tabindex="0"></button>
-                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 2 of 5: Professional Analysis Tools" tabindex="-1"></button>
-                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 3 of 5: 2D Histogram Heatmaps" tabindex="-1"></button>
-                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 4 of 5: Scatter Plot Correlation" tabindex="-1"></button>
-                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 5 of 5: Computed Math Channels" tabindex="-1"></button>
+                        <button class="carousel-dot active" role="tab" aria-selected="true" aria-label="Slide 1 of 6: GPS Track Map" tabindex="0"></button>
+                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 2 of 6: Interactive Log Playback" tabindex="-1"></button>
+                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 3 of 6: Professional Analysis Tools" tabindex="-1"></button>
+                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 4 of 6: 2D Histogram Heatmaps" tabindex="-1"></button>
+                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 5 of 6: Scatter Plot Correlation" tabindex="-1"></button>
+                        <button class="carousel-dot" role="tab" aria-selected="false" aria-label="Slide 6 of 6: Computed Math Channels" tabindex="-1"></button>
                     </div>
                 </div>
             </div>
@@ -1520,8 +1530,15 @@
         <!-- What's New -->
         <section class="whats-new-section">
             <h2>What's New</h2>
-            <p class="section-subtitle">Stacked plots, AI-powered analysis via MCP, BlueDriver OBD-II support, and more</p>
+            <p class="section-subtitle">GPS track maps with satellite imagery, stacked plots, AI-powered analysis via MCP, and more</p>
             <div class="new-features-grid">
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon green"><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i></div>
+                        <h3>GPS Track Map</h3>
+                    </div>
+                    <p>Logs with GPS channels now draw the track beside your chart — automatic lap detection, any channel painted onto the racing line in Viridis or Turbo, hover to scrub the timeline, and opt-in Esri or OpenStreetMap satellite backgrounds. Works with every supported log format, and coordinate encodings (NMEA, scaled integers) are normalized automatically.</p>
+                </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
                         <div class="feature-icon cyan"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></div>
@@ -1767,6 +1784,7 @@
             const liveRegion = document.getElementById('carousel-status');
 
             const slideNames = [
+                'GPS Track Map',
                 'Interactive Log Playback',
                 'Professional Analysis Tools',
                 '2D Histogram Heatmaps',
