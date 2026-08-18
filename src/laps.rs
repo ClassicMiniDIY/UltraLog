@@ -9,6 +9,13 @@
 //! This isn't a full Motec-style start/finish line algorithm - it's the
 //! pragmatic v1 that works without any user-placed reference. Sectors and
 //! crossing-line detection are explicit non-goals here.
+//!
+//! This module also owns the shared GPS track helpers: coordinate-format
+//! detection/normalization ([`GpsCoordSpec`]) and fix sanitization
+//! ([`sanitize_gps_track`]). Everything downstream of GPS channel data
+//! (projection, lap detection, tooltips) works in decimal degrees;
+//! `GpsCoordSpec` is the single place that knows how to get there from a
+//! parser's raw channel values.
 
 use std::f64::consts::PI;
 
@@ -217,6 +224,178 @@ pub fn longitude_delta_degrees(from: f64, to: f64) -> f64 {
     if delta > 180.0 { delta - 360.0 } else { delta }
 }
 
+/// How a log's GPS channels encode coordinate values.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GpsCoordFormat {
+    /// Plain decimal degrees - the no-op default.
+    DecimalDegrees,
+    /// NMEA-style degrees-decimal-minutes packed as `DDMM.mmmm`
+    /// (e.g. `4807.038` = 48° 07.038' = 48.1173°). Sign carries the
+    /// hemisphere, matching loggers that fold N/S/E/W into the value.
+    DegreesDecimalMinutes,
+    /// Degrees premultiplied into a fixed-point integer; multiply by the
+    /// carried factor to recover degrees (1e-3 = millidegrees, 1e-6 =
+    /// microdegrees, 1e-7 = the common GPS int32 encoding).
+    ScaledDegrees(f64),
+}
+
+/// Detected coordinate encoding for one file's lat/lon channel pair.
+///
+/// Detection is deliberately conservative: anything already inside the
+/// valid decimal-degree range is left untouched, so a wrong guess can
+/// never corrupt a log that was correct to begin with. Radians are
+/// intentionally NOT detected - a radian track is numerically
+/// indistinguishable from a genuine near-equator degree track, and
+/// converting would corrupt real logs recorded near (0°, 0°).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GpsCoordSpec {
+    pub format: GpsCoordFormat,
+    /// Longitude uses the 0..360 convention; values > 180 wrap negative.
+    pub lon_0_360: bool,
+}
+
+impl Default for GpsCoordSpec {
+    fn default() -> Self {
+        Self {
+            format: GpsCoordFormat::DecimalDegrees,
+            lon_0_360: false,
+        }
+    }
+}
+
+/// Upper bounds of the NMEA `DDMM.mmmm` packing (90° / 180° with a
+/// minutes field that is always < 60).
+const DDM_MAX_LAT: f64 = 9060.0;
+const DDM_MAX_LON: f64 = 18060.0;
+/// Fixed-point factors to try, largest first, so e.g. a microdegree log
+/// is never mistaken for a 1e-7 log (which would shrink it 10x).
+const SCALED_DEGREE_FACTORS: [f64; 3] = [1e-3, 1e-6, 1e-7];
+
+impl GpsCoordSpec {
+    /// Inspect a lat/lon channel pair and infer how it encodes degrees.
+    ///
+    /// Tiers, first match wins:
+    /// 1. Values inside ±90 / ±180 -> decimal degrees, untouched. (A DDM
+    ///    track that never leaves 0°..1° is ambiguous with this and stays
+    ///    untransformed - the safe default.)
+    /// 2. Latitude valid but longitude in 180..=360 -> 0..360 longitude.
+    /// 3. Both axes inside the `DDMM.mmmm` envelope with a valid minutes
+    ///    field (< 60) on ≥95% of finite samples -> NMEA DDM.
+    /// 4. A fixed-point factor (1e-3, 1e-6, 1e-7) that brings both axes
+    ///    into range -> scaled degrees.
+    /// 5. Nothing fits (e.g. Garmin semicircles, garbage) -> identity;
+    ///    `sanitize_gps_track` will then drop the out-of-range fixes
+    ///    exactly as it does today.
+    pub fn detect(lats: &[f64], lons: &[f64]) -> Self {
+        let max_abs = |values: &[f64]| {
+            values
+                .iter()
+                .copied()
+                .filter(|value| value.is_finite())
+                .fold(0.0_f64, |acc, value| acc.max(value.abs()))
+        };
+        let max_lat = max_abs(lats);
+        let max_lon = max_abs(lons);
+
+        if max_lat <= 90.0 && max_lon <= 180.0 {
+            return Self::default();
+        }
+        if max_lat <= 90.0 && max_lon <= 360.0 {
+            return Self {
+                format: GpsCoordFormat::DecimalDegrees,
+                lon_0_360: true,
+            };
+        }
+        if max_lat < DDM_MAX_LAT
+            && max_lon < DDM_MAX_LON
+            && minutes_field_is_valid(lats)
+            && minutes_field_is_valid(lons)
+        {
+            return Self {
+                format: GpsCoordFormat::DegreesDecimalMinutes,
+                lon_0_360: false,
+            };
+        }
+        for factor in SCALED_DEGREE_FACTORS {
+            if max_lat * factor <= 90.0 && max_lon * factor <= 180.0 {
+                return Self {
+                    format: GpsCoordFormat::ScaledDegrees(factor),
+                    lon_0_360: false,
+                };
+            }
+        }
+        Self::default()
+    }
+
+    /// True when normalization would be a no-op.
+    pub fn is_identity(&self) -> bool {
+        self.format == GpsCoordFormat::DecimalDegrees && !self.lon_0_360
+    }
+
+    /// Convert one raw latitude sample to decimal degrees.
+    pub fn lat_to_degrees(&self, value: f64) -> f64 {
+        match self.format {
+            GpsCoordFormat::DecimalDegrees => value,
+            GpsCoordFormat::DegreesDecimalMinutes => ddm_to_degrees(value),
+            GpsCoordFormat::ScaledDegrees(factor) => value * factor,
+        }
+    }
+
+    /// Convert one raw longitude sample to decimal degrees.
+    pub fn lon_to_degrees(&self, value: f64) -> f64 {
+        let degrees = self.lat_to_degrees(value);
+        if self.lon_0_360 && degrees > 180.0 {
+            degrees - 360.0
+        } else {
+            degrees
+        }
+    }
+
+    /// Normalize both channels to decimal degrees in place. Non-finite
+    /// samples pass through unchanged.
+    pub fn normalize_in_place(&self, lats: &mut [f64], lons: &mut [f64]) {
+        if self.is_identity() {
+            return;
+        }
+        for value in lats.iter_mut() {
+            if value.is_finite() {
+                *value = self.lat_to_degrees(*value);
+            }
+        }
+        for value in lons.iter_mut() {
+            if value.is_finite() {
+                *value = self.lon_to_degrees(*value);
+            }
+        }
+    }
+}
+
+/// `DDMM.mmmm` -> decimal degrees, preserving sign.
+fn ddm_to_degrees(value: f64) -> f64 {
+    if !value.is_finite() {
+        return value;
+    }
+    let sign = if value < 0.0 { -1.0 } else { 1.0 };
+    let packed = value.abs();
+    let degrees = (packed / 100.0).trunc();
+    let minutes = packed - degrees * 100.0;
+    sign * (degrees + minutes / 60.0)
+}
+
+/// True when ≥95% of finite samples have a valid DDM minutes field
+/// (the two digits left of the decimal point read as minutes < 60).
+fn minutes_field_is_valid(values: &[f64]) -> bool {
+    let mut finite = 0_usize;
+    let mut valid = 0_usize;
+    for value in values.iter().copied().filter(|value| value.is_finite()) {
+        finite += 1;
+        if value.abs() % 100.0 < 60.0 {
+            valid += 1;
+        }
+    }
+    finite > 0 && (valid as f64) / (finite as f64) >= 0.95
+}
+
 fn plausible_gps_step(previous: (usize, f64, f64, f64), current: (usize, f64, f64, f64)) -> bool {
     let delta_seconds = if previous.3.is_finite() && current.3.is_finite() {
         (current.3 - previous.3).clamp(0.0, MAX_SPEED_CHECK_SECONDS)
@@ -410,5 +589,92 @@ mod tests {
         let laps = detect_laps(&lats, &lons, &times, GateParams::default());
 
         assert!(laps.is_empty());
+    }
+
+    #[test]
+    fn coord_detection_leaves_decimal_degrees_untouched() {
+        let spec = GpsCoordSpec::detect(&[45.0, 45.001], &[9.0, 9.001]);
+        assert!(spec.is_identity());
+
+        let spec = GpsCoordSpec::detect(&[-89.9], &[-179.9]);
+        assert!(spec.is_identity());
+
+        // All-NaN or empty input defaults to identity.
+        assert!(GpsCoordSpec::detect(&[f64::NAN], &[f64::NAN]).is_identity());
+        assert!(GpsCoordSpec::detect(&[], &[]).is_identity());
+    }
+
+    #[test]
+    fn coord_detection_wraps_0_360_longitude() {
+        let spec = GpsCoordSpec::detect(&[34.05, 34.06], &[241.75, 241.76]);
+        assert_eq!(spec.format, GpsCoordFormat::DecimalDegrees);
+        assert!(spec.lon_0_360);
+        // 241.75°E in 0..360 is 118.25°W.
+        assert!((spec.lon_to_degrees(241.75) - (-118.25)).abs() < 1e-9);
+        // Values already <= 180 pass through.
+        assert!((spec.lon_to_degrees(120.0) - 120.0).abs() < 1e-9);
+        assert!((spec.lat_to_degrees(34.05) - 34.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn coord_detection_handles_nmea_degrees_decimal_minutes() {
+        // 48° 07.038' N, 11° 31.324' E (the canonical NMEA GGA example).
+        let lats = vec![4807.038, 4807.040, 4807.035];
+        let lons = vec![1131.324, 1131.326, 1131.320];
+        let spec = GpsCoordSpec::detect(&lats, &lons);
+        assert_eq!(spec.format, GpsCoordFormat::DegreesDecimalMinutes);
+        assert!((spec.lat_to_degrees(4807.038) - 48.1173).abs() < 1e-4);
+        assert!((spec.lon_to_degrees(1131.324) - 11.522_066).abs() < 1e-4);
+        // Southern/western hemispheres carry the sign through.
+        assert!((spec.lat_to_degrees(-4807.038) - (-48.1173)).abs() < 1e-4);
+    }
+
+    #[test]
+    fn coord_detection_rejects_ddm_with_invalid_minutes_field() {
+        // Values in the DDM envelope but with "minutes" >= 60 - not DDM.
+        // They fit millidegrees instead (8.999°, 17.998°).
+        let spec = GpsCoordSpec::detect(&[8999.0, 8998.0], &[17998.0, 17997.0]);
+        assert_eq!(spec.format, GpsCoordFormat::ScaledDegrees(1e-3));
+    }
+
+    #[test]
+    fn coord_detection_handles_scaled_integer_degrees() {
+        // Millidegrees.
+        let spec = GpsCoordSpec::detect(&[45_679.0], &[123_456.0]);
+        assert_eq!(spec.format, GpsCoordFormat::ScaledDegrees(1e-3));
+        assert!((spec.lat_to_degrees(45_679.0) - 45.679).abs() < 1e-9);
+
+        // Microdegrees.
+        let spec = GpsCoordSpec::detect(&[45_679_123.0], &[123_456_789.0]);
+        assert_eq!(spec.format, GpsCoordFormat::ScaledDegrees(1e-6));
+        assert!((spec.lat_to_degrees(45_679_123.0) - 45.679_123).abs() < 1e-9);
+
+        // 1e-7 int32 encoding (what inject_fake_gps_mlg writes pre-scale).
+        let spec = GpsCoordSpec::detect(&[456_791_230.0], &[1_234_567_890.0]);
+        assert_eq!(spec.format, GpsCoordFormat::ScaledDegrees(1e-7));
+        assert!((spec.lon_to_degrees(1_234_567_890.0) - 123.456_789).abs() < 1e-9);
+    }
+
+    #[test]
+    fn coord_detection_gives_up_on_unrecognized_encodings() {
+        // Beyond every known envelope (e.g. Garmin semicircles at the
+        // longitude extreme) - identity, so sanitize drops the fixes.
+        let spec = GpsCoordSpec::detect(&[1.0e12], &[2.1e12]);
+        assert!(spec.is_identity());
+    }
+
+    #[test]
+    fn coord_normalization_converts_in_place_and_skips_non_finite() {
+        let spec = GpsCoordSpec {
+            format: GpsCoordFormat::ScaledDegrees(1e-6),
+            lon_0_360: false,
+        };
+        let mut lats = vec![45_000_000.0, f64::NAN];
+        let mut lons = vec![9_000_000.0, f64::INFINITY];
+        spec.normalize_in_place(&mut lats, &mut lons);
+        assert!((lats[0] - 45.0).abs() < 1e-9);
+        assert!((lons[0] - 9.0).abs() < 1e-9);
+        assert!(lats[1].is_nan());
+        assert!(lons[1].is_infinite());
     }
 }
