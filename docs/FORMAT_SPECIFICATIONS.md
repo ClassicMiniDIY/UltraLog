@@ -231,9 +231,13 @@ The MLG format is used by Speeduino, rusEFI, and MegaSquirt ecosystems. It's a c
 | 5 | S32 | 4 |
 | 6 | S64 | 8 |
 | 7 | F32 | 4 |
-| `0x10` | U08 Bitfield | 1 |
-| `0x11` | U16 Bitfield | 2 |
-| `0x12` | U32 Bitfield | 4 |
+| `0x10` (or legacy `10`) | U08 Bitfield | 1 |
+| `0x11` (or legacy `11`) | U16 Bitfield | 2 |
+| `0x12` (or legacy `12`) | U32 Bitfield | 4 |
+
+The MLG specification writes the bitfield type IDs in hexadecimal (`0x10`..`0x12` = 16..18),
+but some earlier tooling emitted the decimal interpretation (10..12). UltraLog's parser
+accepts both, so logs from either generation of tools remain readable.
 
 ### Data Records
 

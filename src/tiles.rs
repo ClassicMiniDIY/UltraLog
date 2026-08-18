@@ -642,6 +642,16 @@ fn worker_loop(
         let msg = {
             // Brief lock to pop the next message; release before doing the
             // network/disk work so siblings can pull in parallel.
+            //
+            // Holding the mutex across `recv_timeout` does serialize the
+            // *waiting* (one worker blocks in recv, siblings block on the
+            // mutex), but not anything that matters: the producer side
+            // (`SyncSender::try_send` on the UI thread) never touches this
+            // mutex, the waiter wakes immediately when a message arrives,
+            // and the lock is released before the fetch begins - so the
+            // per-dequeue handoff is microseconds against the hundreds of
+            // milliseconds each fetch takes. A true MPMC channel would buy
+            // nothing here at the cost of a new dependency.
             let guard = rx.lock().expect("rx poisoned");
             guard.recv_timeout(TILE_WORKER_POLL_INTERVAL)
         };

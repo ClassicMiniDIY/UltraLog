@@ -423,10 +423,38 @@ fn test_megasquirt_gps_log_supports_hex_bitfield_and_consistent_offsets() {
     }
 
     let data = read_example_binary(file_path);
+    // Validate the header before indexing so a truncated or v1 fixture
+    // fails with a clear assertion instead of an out-of-bounds panic.
+    // The v2 offsets used below: magic (6) + version (2) + timestamp (4)
+    // + info_data_start (4) + data_begin (4) + record_len (2) + field
+    // count (2) = 24-byte header, 89-byte field descriptors.
+    assert!(
+        data.len() >= 24,
+        "MLG header truncated: {} bytes",
+        data.len()
+    );
+    assert_eq!(&data[0..5], b"MLVLG", "not an MLVLG file");
+    let format_version = i16::from_be_bytes([data[6], data[7]]);
+    assert_eq!(format_version, 2, "fixture must be MLG format v2");
+
     let info_data_start = u32::from_be_bytes([data[12], data[13], data[14], data[15]]) as usize;
     let field_count = u16::from_be_bytes([data[22], data[23]]) as usize;
     let fields_end = 24 + field_count * 89;
+    assert!(data.len() >= fields_end, "field table truncated");
     assert!(info_data_start >= fields_end);
+
+    // The fixture must actually contain a hex bitfield type ID, otherwise
+    // this test would pass without exercising the 0x10..=0x12 acceptance
+    // its name claims to cover.
+    let field_types: Vec<u8> = (0..field_count)
+        .map(|index| data[24 + index * 89])
+        .collect();
+    assert!(
+        field_types
+            .iter()
+            .any(|field_type| (0x10..=0x12).contains(field_type)),
+        "fixture contains no hex bitfield field types; present: {field_types:?}"
+    );
 
     let log = Speeduino::parse_binary(&data).expect("Should parse MegaSquirt GPS MLG");
     assert!(log.find_channel_index("GPS Latitude").is_some());
