@@ -8,10 +8,6 @@
 //! widget detects them via the global canonical-id lookup without any
 //! parser-side change.
 //!
-//! Field data layout in the synthesized record mirrors what the canlogger
-//! firmware emits in demo mode (see `firmware/Lib/demo_gen.c` and
-//! `firmware/test/demo_config.ini` in the canlogger repo).
-//!
 //! Usage:
 //!     cargo run --example inject_fake_gps_mlg -- <input.mlg> [output.mlg]
 
@@ -251,7 +247,7 @@ fn main() -> ExitCode {
 
                 // Rewrite block: same 4-byte block header, original field
                 // data, then 8 bytes of GPS, then a CRC over the field data
-                // (matches canlogger's `sum of data bytes` algorithm).
+                // (the MLG record CRC is a wrapping sum of the data bytes).
                 out.push(block_type);
                 out.push(counter);
                 out.extend_from_slice(&raw_ts.to_be_bytes());

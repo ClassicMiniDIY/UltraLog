@@ -7,7 +7,7 @@ use eframe::egui;
 use encoding_rs::{UTF_16BE, UTF_16LE};
 use memmap2::Mmap;
 use rust_i18n::t;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -29,7 +29,7 @@ use crate::state::{
     ActivePanel, ActiveTool, CHART_COLORS, COLORBLIND_COLORS, CacheKey, DownsampleCache, FontScale,
     LoadResult, LoadedFile, LoadingState, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS,
     MIN_PLOT_HEIGHT, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
-    SelectedChannel, Tab, ToastType,
+    SelectedChannel, Tab, TileProviderId, ToastType,
 };
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
@@ -176,6 +176,24 @@ pub struct UltraLogApp {
     pub(crate) show_analysis_panel: bool,
     /// Selected category in analysis panel (None = show all)
     pub(crate) analysis_selected_category: Option<String>,
+    // === Track Map / Data Panel Preferences ===
+    // Live copies of persisted preferences, synced back into UserSettings
+    // by eframe::App::save (see the Settings Persistence Contract in
+    // CLAUDE.md - every field here appears in three places).
+    /// Default tile provider for the Track Map widget
+    pub(crate) tile_provider: TileProviderId,
+    /// Soft cap for the on-disk tile cache, in MB
+    pub(crate) tile_cache_max_mb: u32,
+    /// Whether the satellite/map tile background was last enabled
+    pub(crate) tiles_enabled: bool,
+    /// Tile overlay opacity (0.1..=1.0)
+    pub(crate) tile_opacity: f32,
+    /// Whether tiles render in grayscale
+    pub(crate) tile_grayscale: bool,
+    /// Whether the one-time tile privacy notice has been shown
+    pub(crate) tile_privacy_notice_seen: bool,
+    /// Widget IDs the user has hidden from the data panel
+    pub(crate) hidden_widgets: HashSet<String>,
     // === Internationalization ===
     /// User settings (persisted to disk)
     pub(crate) user_settings: UserSettings,
@@ -249,6 +267,13 @@ impl Default for UltraLogApp {
             analysis_results: HashMap::new(),
             show_analysis_panel: false,
             analysis_selected_category: None,
+            tile_provider: TileProviderId::default(),
+            tile_cache_max_mb: 256,
+            tiles_enabled: false,
+            tile_opacity: 1.0,
+            tile_grayscale: false,
+            tile_privacy_notice_seen: false,
+            hidden_widgets: HashSet::new(),
             user_settings: UserSettings::default(),
             language: Language::default(),
             spec_refresh_started: false,
@@ -313,6 +338,13 @@ impl UltraLogApp {
             cursor_tracking: user_settings.cursor_tracking,
             auto_check_updates: user_settings.auto_check_updates,
             custom_normalizations: user_settings.custom_normalizations.clone(),
+            tile_provider: user_settings.tile_provider,
+            tile_cache_max_mb: user_settings.tile_cache_max_mb,
+            tiles_enabled: user_settings.tiles_enabled,
+            tile_opacity: user_settings.tile_opacity,
+            tile_grayscale: user_settings.tile_grayscale,
+            tile_privacy_notice_seen: user_settings.tile_privacy_notice_seen,
+            hidden_widgets: user_settings.hidden_widgets.clone(),
             ..Self::default()
         };
 
@@ -2160,7 +2192,13 @@ impl eframe::App for UltraLogApp {
             cursor_tracking: self.cursor_tracking,
             auto_check_updates: self.auto_check_updates,
             custom_normalizations: self.custom_normalizations.clone(),
-            ..self.user_settings.clone()
+            tile_provider: self.tile_provider,
+            tile_cache_max_mb: self.tile_cache_max_mb,
+            tiles_enabled: self.tiles_enabled,
+            tile_opacity: self.tile_opacity,
+            tile_grayscale: self.tile_grayscale,
+            tile_privacy_notice_seen: self.tile_privacy_notice_seen,
+            hidden_widgets: self.hidden_widgets.clone(),
         };
         if settings != self.user_settings {
             self.user_settings = settings;

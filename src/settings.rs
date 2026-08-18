@@ -74,6 +74,11 @@ pub struct UserSettings {
     /// opened. The user re-adds it via the panel header's "+" button.
     #[serde(default)]
     pub hidden_widgets: HashSet<String>,
+    /// Whether the one-time "map tiles are downloaded from a third-party
+    /// provider" notice has been shown. Set the first time the user
+    /// enables the tile background.
+    #[serde(default)]
+    pub tile_privacy_notice_seen: bool,
 }
 
 fn default_version() -> u32 {
@@ -121,6 +126,7 @@ impl Default for UserSettings {
             tile_opacity: default_tile_opacity(),
             tile_grayscale: false,
             hidden_widgets: HashSet::new(),
+            tile_privacy_notice_seen: false,
         }
     }
 }

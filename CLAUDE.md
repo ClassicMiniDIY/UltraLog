@@ -64,6 +64,9 @@ src/
 ├── units.rs           # Unit preference types and conversions
 ├── normalize.rs       # Field name normalization system
 ├── computed.rs        # Computed channels data types and library
+├── colormap.rs        # Viridis/Turbo colormap LUTs for track coloring
+├── laps.rs            # GPS track sanitization and lap detection
+├── tiles.rs           # Map tile providers, bounded worker pool, disk/texture caches
 ├── expression/
 │   ├── mod.rs         # Formula parsing, channel refs, time shifts, evaluation
 │   └── engine.rs      # Built-in expression compiler/evaluator (replaced meval)
@@ -117,6 +120,10 @@ src/
     ├── settings_panel.rs             # Consolidated settings (display, units, normalization, updates)
     ├── tool_properties_panel.rs      # Dynamic panel showing controls for the active tool (channels / histogram / scatter)
     ├── analysis_panel.rs             # Window for running analysis algorithms (src/analysis) on the active log
+    ├── data_panel.rs                 # Right-side data panel hosting DataWidget panes (rail, header, hide/restore)
+    ├── widgets/
+    │   ├── mod.rs                    # DataWidget trait + static widget registry
+    │   └── track_map.rs              # GPS Track Map widget (polyline, laps, tile backgrounds)
     ├── sidebar.rs                    # Legacy files panel, superseded by files_panel (kept, not wired into render path)
     ├── channels.rs                   # Selected-channel cards; legacy channel-picker superseded by tool_properties_panel
     ├── chart.rs                      # Chart rendering, legends, LTTB algorithm
@@ -377,7 +384,7 @@ because it also leads with a `Time` column, and only matches a first column of e
 
 ### Settings Persistence Contract
 
-`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, and `custom_normalizations`.
+`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, `custom_normalizations`, and the Track Map preferences (`tile_provider`, `tile_cache_max_mb`, `tiles_enabled`, `tile_opacity`, `tile_grayscale`, `tile_privacy_notice_seen`, `hidden_widgets`).
 
 - **Load** - `UltraLogApp::new` calls `UserSettings::load()` and copies each field into the corresponding live `UltraLogApp` field (e.g. `app.color_blind_mode = user_settings.color_blind_mode`).
 - **Save** - `UltraLogApp` implements `eframe::App::save`, which eframe calls on its auto-save interval (~30s) and again at shutdown. `save()` rebuilds a `UserSettings` from the current live fields, and only writes to disk if it differs from the last-loaded/saved value.
@@ -393,11 +400,18 @@ Several `UltraLogApp` fields cache expensive per-file, per-channel computations 
 
 **Load-bearing invariant:** these caches are keyed by index (file index / channel index), not by identity. Any code path that mutates or reindexes channel data — removing a file, or removing/editing a computed channel (which shifts later computed channels' indices down) — **must clear the relevant caches**, or stale entries will silently render the wrong data against a different channel's index. See `remove_computed_channel` and the file-removal path in `src/app.rs` for the current call sites (`self.downsample_cache.clear()`, `self.minmax_cache.clear()`, `self.scatter_histogram_cache.clear()`).
 
+### Map Tile Fetching Contract (src/tiles.rs)
+
+The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.
+
+**Load-bearing invariant:** network fetches are gated by per-provider permits (`FetchPermits` + `TileProvider::max_concurrent_fetches`). The OSM tile usage policy allows at most **2 simultaneous download connections** (<https://operations.osmfoundation.org/policies/tiles/>), so `OpenStreetMap::max_concurrent_fetches` returns 2. Do not raise it and do not bypass the permit gate — exceeding the policy risks a per-IP block that would hit every UltraLog user at once.
+
 ## Key Features
 
 - **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, MHD Tuning, Motorsport Electronics, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
+- **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`)
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
 - **Unit Preferences** - Users can select display units for temperature, pressure, speed, distance, fuel economy, volume, flow rate, and acceleration
 - **Field Normalization** - Maps ECU-specific channel names to standardized names for cross-ECU comparison
@@ -474,7 +488,7 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/link/` - Link ECU LLG files
 - `exampleLogs/woolich/` - Woolich Racing Tuned CSV exports
 - `exampleLogs/emerald/` - Emerald K6/M3D `.lg1`/`.lg2` files
-- `exampleLogs/megasquirt/` - MegaSquirt TunerStudio CSV exports
+- `exampleLogs/megasquirt/` - MegaSquirt TunerStudio CSV exports, plus a `_gps.mlg` fixture with synthetic GPS channels (generated by `examples/inject_fake_gps_mlg.rs`; the coordinates are a fake closed loop, not a real location)
 - `exampleLogs/mhd/` - MHD Tuning CSV exports (VIN redacted)
 - `exampleLogs/motorsportElectronics/` - Motorsport Electronics ME Tuner CSV exports
 - `exampleLogs/bluedriver/` - BlueDriver OBD-II CSV exports

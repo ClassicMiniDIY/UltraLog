@@ -712,7 +712,6 @@ pub struct ColorSignature {
 #[derive(Debug, Clone)]
 pub struct TrackMapState {
     pub enabled: bool,
-    pub height_frac: f32,
     /// Index into `Tab.selected_channels` used to color the polyline.
     /// `None` means a single solid color.
     pub color_channel: Option<usize>,
@@ -742,7 +741,6 @@ impl Default for TrackMapState {
     fn default() -> Self {
         Self {
             enabled: true,
-            height_frac: 0.6,
             color_channel: None,
             colormap: Colormap::default(),
             color_min: None,
