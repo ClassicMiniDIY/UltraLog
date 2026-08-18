@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::colormap::Colormap;
-use crate::laps::LapInfo;
+use crate::laps::{GpsCoordSpec, LapInfo};
 use crate::parsers::{Channel, EcuType, Log};
 
 // ============================================================================
@@ -670,6 +670,10 @@ pub struct TrackCache {
     pub file_index: usize,
     pub lat_idx: usize,
     pub lon_idx: usize,
+    /// How the source channels encode coordinates. The cached geometry is
+    /// already normalized to decimal degrees; this is kept so single raw
+    /// channel reads (e.g. the hover tooltip) can be converted the same way.
+    pub coord_spec: GpsCoordSpec,
     /// Local meters projection (equirectangular) used in the no-tiles path.
     pub points_m: std::sync::Arc<[eframe::egui::Vec2]>,
     /// Web Mercator offsets at zoom 0 relative to the track bbox center.

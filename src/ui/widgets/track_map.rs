@@ -16,7 +16,9 @@ use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::colormap::{Colormap, sample as colormap_sample};
-use crate::laps::{GateParams, detect_laps, longitude_delta_degrees, sanitize_gps_track};
+use crate::laps::{
+    GateParams, GpsCoordSpec, detect_laps, longitude_delta_degrees, sanitize_gps_track,
+};
 use crate::state::{ActiveTool, ColorSignature, GpsChannelCache, MapView, TrackCache};
 
 use super::DataWidget;
@@ -203,6 +205,11 @@ fn ensure_cache(
     }
 
     let times = app.files[file_idx].log.get_times_as_f64();
+    // Detect how this log encodes coordinates (NMEA DDM, scaled-integer
+    // degrees, 0..360 longitude) and normalize to decimal degrees before
+    // anything downstream touches the data. Identity for valid degrees.
+    let coord_spec = GpsCoordSpec::detect(&lat_data, &lon_data);
+    coord_spec.normalize_in_place(&mut lat_data, &mut lon_data);
     sanitize_gps_track(&mut lat_data, &mut lon_data, times);
 
     // Pick a mid-latitude that is finite. Falls back to the first finite
@@ -286,6 +293,7 @@ fn ensure_cache(
         file_index: file_idx,
         lat_idx,
         lon_idx,
+        coord_spec,
         points_m: points_m.into(),
         mercator_offsets_z0: mercator_offsets_z0.into(),
         render_indices: render_indices.into(),
@@ -804,11 +812,15 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
                 app.tabs[tab_idx].cursor_time = Some(time);
                 app.tabs[tab_idx].cursor_record = Some(record);
             }
+            // Raw channel reads bypass the normalized cache, so convert
+            // through the detected coordinate encoding for display.
             let latitude = app
                 .get_value_at_record(file_idx, cache.lat_idx, record)
+                .map(|value| cache.coord_spec.lat_to_degrees(value))
                 .unwrap_or(f64::NAN);
             let longitude = app
                 .get_value_at_record(file_idx, cache.lon_idx, record)
+                .map(|value| cache.coord_spec.lon_to_degrees(value))
                 .unwrap_or(f64::NAN);
             response.clone().on_hover_text(format!(
                 "{}: {}\n{}: {:.5}, {:.5}",
@@ -1274,6 +1286,59 @@ mod tests {
         ensure_cache(&mut app, 0, 0, 0, 1);
         app.tabs[0].data_panel_state.track_map.tiles_enabled = true;
         app
+    }
+
+    #[test]
+    fn ensure_cache_normalizes_nmea_ddm_tracks_to_degrees() {
+        // 48° 07.038' N, 11° 31.324' E in NMEA DDMM.mmmm packing.
+        let log = Log {
+            meta: Meta::Empty,
+            channels: vec![
+                Channel::Aim(AimChannel {
+                    name: "GPS Latitude".to_string(),
+                    unit: "deg".to_string(),
+                }),
+                Channel::Aim(AimChannel {
+                    name: "GPS Longitude".to_string(),
+                    unit: "deg".to_string(),
+                }),
+            ],
+            times: vec![0.0, 1.0],
+            data: vec![
+                vec![Value::Float(4807.038), Value::Float(1131.324)],
+                vec![Value::Float(4807.040), Value::Float(1131.326)],
+            ],
+        };
+
+        let mut app = UltraLogApp::default();
+        app.files.push(LoadedFile::new(
+            PathBuf::from("ddm.csv"),
+            "ddm.csv".to_string(),
+            EcuType::Aim,
+            log,
+        ));
+        app.tabs.push(Tab::new(0, "ddm.csv".to_string()));
+        app.active_tab = Some(0);
+        ensure_cache(&mut app, 0, 0, 0, 1);
+
+        let cache = app.tabs[0]
+            .data_panel_state
+            .track_map
+            .cache
+            .as_ref()
+            .expect("DDM track should build a cache");
+        assert_eq!(
+            cache.coord_spec.format,
+            crate::laps::GpsCoordFormat::DegreesDecimalMinutes
+        );
+        let (west, east, south, north) = cache.lonlat_bbox;
+        assert!((south - 48.1173).abs() < 1e-3, "south was {south}");
+        assert!((north - 48.1173).abs() < 1e-3, "north was {north}");
+        assert!((west - 11.5221).abs() < 1e-3, "west was {west}");
+        assert!((east - 11.5221).abs() < 1e-3, "east was {east}");
+        // The raw-value converters used by the hover tooltip agree.
+        assert!((cache.coord_spec.lat_to_degrees(4807.038) - 48.1173).abs() < 1e-4);
+        assert!((cache.coord_spec.lon_to_degrees(1131.324) - 11.5221).abs() < 1e-4);
     }
 
     #[test]

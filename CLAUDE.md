@@ -65,7 +65,7 @@ src/
 ├── normalize.rs       # Field name normalization system
 ├── computed.rs        # Computed channels data types and library
 ├── colormap.rs        # Viridis/Turbo colormap LUTs for track coloring
-├── laps.rs            # GPS track sanitization and lap detection
+├── laps.rs            # GPS coordinate-format normalization, track sanitization, lap detection
 ├── tiles.rs           # Map tile providers, bounded worker pool, disk/texture caches
 ├── expression/
 │   ├── mod.rs         # Formula parsing, channel refs, time shifts, evaluation
@@ -411,7 +411,7 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 - **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, MHD Tuning, Motorsport Electronics, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
-- **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`)
+- **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
 - **Unit Preferences** - Users can select display units for temperature, pressure, speed, distance, fuel economy, volume, flow rate, and acceleration
 - **Field Normalization** - Maps ECU-specific channel names to standardized names for cross-ECU comparison
