@@ -109,6 +109,7 @@ src/
 │   ├── megasquirt.rs               # MegaSquirt (MS1/MS2/MS3) TunerStudio CSV parser
 │   ├── mhd.rs                      # MHD Tuning CSV parser (BMW N54/N55/S55/B58)
 │   ├── motorsport_electronics.rs   # Motorsport Electronics ME221/ME442 (ME Tuner) CSV parser
+│   ├── racechrono.rs               # RaceChrono CSV v3 session export parser (GPS + sensors + OBD/CAN)
 │   ├── bluedriver.rs               # BlueDriver OBD-II scan tool CSV parser
 │   └── dynamicefi.rs               # DynamicEFI EBL WhatsUp (GM TBI) CSV parser
 └── ui/
@@ -291,6 +292,7 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - **`parsers/megasquirt.rs`** - MegaSquirt (MS1/MS2/MS3/MS3Pro) TunerStudio CSV parser
 - **`parsers/mhd.rs`** - MHD Tuning CSV parser (BMW N54/N55/S55/B58 flashed with MHD)
 - **`parsers/motorsport_electronics.rs`** - Motorsport Electronics ME221/ME442 (ME Tuner) CSV parser
+- **`parsers/racechrono.rs`** - RaceChrono CSV v3 session export parser (lap-timing app; GPS + phone sensors + OBD/CAN merged on a unix-time base)
 - **`parsers/bluedriver.rs`** - BlueDriver OBD-II scan tool CSV parser (UTF-16 with BOM)
 - **`parsers/dynamicefi.rs`** - DynamicEFI EBL WhatsUp CSV parser (modified GM TBI systems)
 
@@ -309,6 +311,7 @@ Note: `EcuType` also reserves `Aem`, `MaxxEcu`, and `MotEc` variants for formats
 - MegaSquirt MS1/MS2/MS3 (TunerStudio CSV export)
 - MHD Tuning (CSV export — BMW N54/N55/S55/B58)
 - Motorsport Electronics ME221/ME442 (ME Tuner CSV export)
+- RaceChrono / RaceChrono Pro (CSV v3 session export — lap-timing app)
 - Woolich Racing Tuned (WRT CSV export — motorcycle ECUs)
 - BlueDriver (OBD-II scan tool CSV export)
 - DynamicEFI EBL WhatsUp (modified GM TBI CSV export)
@@ -345,6 +348,12 @@ interacts with the dispatch order above: `MotorsportElectronics::detect` runs fi
 because it also leads with a `Time` column, and only matches a first column of exactly `Time`.
 
 **Load-bearing invariant:** a parser whose own fingerprint lives inside that comment preamble must run its `detect()` against the **raw** text, before the strip. `Mhd::detect` is the current case, which is why it is dispatched ahead of `dispatch_text_content` rather than inside the chain. Anything added to the chain itself sees comment-stripped content.
+
+**RaceChrono parser load-bearing behaviors** (`src/parsers/racechrono.rs`):
+
+- **Time base is the unix `timestamp` column, never `elapsed_time`** - `elapsed_time` resets to zero at every fragment boundary (a fragment is one recording segment; sessions paused/resumed at the track have several), so re-basing `timestamp` to the first record is the only way to get a monotonic time axis. Monotonic times are required because computed-channel time-shift lookups binary-search the `times` vector.
+- **Duplicate column names are disambiguated by source, unique names stay raw** - RaceChrono exports the same column name once per source (`speed` from GPS and calc, `device_update_rate` from every sensor). Duplicates get the sources-row label appended (`speed (gps)`); unique names — including `latitude`/`longitude` — must stay exactly as exported because `find_gps_channels` in `src/ui/widgets/track_map.rs` matches those names *exactly* (lowercased), and a suffix would silently disable the GPS Track Map for RaceChrono logs.
+- **Detection accepts any `Format,N` version; `parse` rejects non-v3** - so a v1/v2 export surfaces a clear "re-export as CSV v3" error instead of falling through to the Haltech default parser and failing cryptically.
 
 **Haltech parser load-bearing behaviors** (`src/parsers/haltech.rs`, added for wall-clock-timestamped exports):
 
@@ -408,7 +417,7 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 
 ## Key Features
 
-- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, MHD Tuning, Motorsport Electronics, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
+- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, MHD Tuning, Motorsport Electronics, RaceChrono, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
 - **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
@@ -491,6 +500,7 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/megasquirt/` - MegaSquirt TunerStudio CSV exports, plus a `_gps.mlg` fixture with synthetic GPS channels (generated by `examples/inject_fake_gps_mlg.rs`; the coordinates are a fake closed loop, not a real location)
 - `exampleLogs/mhd/` - MHD Tuning CSV exports (VIN redacted)
 - `exampleLogs/motorsportElectronics/` - Motorsport Electronics ME Tuner CSV exports
+- `exampleLogs/racechrono/` - RaceChrono CSV v3 session excerpt (user-contributed track session, trimmed; covers blank-heavy pit-lane rows and fully-populated on-track rows across a fragment boundary)
 - `exampleLogs/bluedriver/` - BlueDriver OBD-II CSV exports
 - `exampleLogs/obdlink/` - OBDLink (iOS) OBD-II CSV exports (parsed by the RomRaider chain)
 - `exampleLogs/dynamicEFI/` - DynamicEFI EBL WhatsUp CSV exports

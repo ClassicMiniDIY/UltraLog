@@ -165,6 +165,13 @@ Configurable units for 8 measurement categories:
 - **Supported devices:** BMW N54, N55, S55, B58 and other platforms flashed with MHD
 - **Supported data:** Boost and boost target, wastegate duty, RPM, coolant and intake temps, per-cylinder timing correction, lambda/AFR per bank, fuel rail pressure, load, gear, torque, and all logged channels
 
+### RaceChrono - Full Support
+
+- **File type:** CSV v3 session exports from the RaceChrono / RaceChrono Pro lap-timing app (Android/iOS)
+- **Features:** GPS, phone-sensor, and OBD/CAN channels merged on a unix-time base; duplicate column names disambiguated by source (`speed (gps)` vs `speed (calc)`); paused-and-resumed multi-fragment sessions; `.C` temperature notation normalized to °C; GPS Track Map works out of the box (lap detection, channel-colored track polyline)
+- **Supported data:** Latitude, longitude, altitude, speed, bearing, and fix quality from GPS; accelerometer, gyroscope, and magnetometer axes; lap and fragment numbers; and any OBD/CAN channels the session logged (RPM, oil temp, throttle, and more)
+- **Note:** Export the session as **CSV v3** from RaceChrono — the other RaceChrono export formats (`.vbo`, `.rcz`, CSV v1/v2) are not supported
+
 ### Coming Soon
 - AEM
 - MaxxECU

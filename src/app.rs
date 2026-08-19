@@ -22,7 +22,7 @@ use crate::ipc::IpcServer;
 use crate::mcp::{DEFAULT_MCP_PORT, McpServerHandle, start_mcp_server};
 use crate::parsers::{
     Aim, BlueDriver, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive,
-    MegaSquirt, Mhd, MotorsportElectronics, Parseable, RomRaider, Speeduino, Woolich,
+    MegaSquirt, Mhd, MotorsportElectronics, Parseable, RaceChrono, RomRaider, Speeduino, Woolich,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -630,7 +630,17 @@ impl UltraLogApp {
 
     /// Run the text format detection chain against normalized content.
     fn dispatch_text_content(contents: &str) -> Result<(crate::parsers::Log, EcuType), LoadResult> {
-        if MegaSquirt::detect(contents) {
+        if RaceChrono::detect(contents) {
+            // RaceChrono CSV session export detected (banner + Format marker)
+            let parser = RaceChrono;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::RaceChrono)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse RaceChrono file: {}",
+                    e
+                ))),
+            }
+        } else if MegaSquirt::detect(contents) {
             // MegaSquirt TunerStudio datalog detected
             let parser = MegaSquirt;
             match parser.parse(contents) {
