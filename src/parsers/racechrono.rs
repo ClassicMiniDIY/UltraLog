@@ -18,13 +18,20 @@
 //! Column names repeat across sources (`speed` from GPS and calc,
 //! `device_update_rate` from every sensor), so duplicated names are
 //! disambiguated with the source label: `speed (gps)`, `speed (calc)`.
-//! Unique names — including `latitude`/`longitude`, which the GPS Track Map
-//! matches on — are kept exactly as exported.
+//! When the short labels themselves collide (two location devices both
+//! labeled `gps`), the first occurrence keeps its bare name — `latitude` /
+//! `longitude` must survive exactly for the GPS Track Map — and later ones
+//! carry the full source tag: `latitude (101: gps)`. Unique names are kept
+//! exactly as exported.
 //!
 //! `elapsed_time` resets to zero at every fragment boundary (a fragment is
 //! one recording segment; sessions paused and resumed at the track have
 //! several), so the unix `timestamp` column is the only valid time base.
 //! Times are re-based to seconds since the first record.
+//!
+//! The parser also survives a spreadsheet round-trip: Excel/Numbers/Sheets
+//! pad every preamble line with trailing commas out to the widest row, so
+//! metadata values are stripped of that padding before use.
 //!
 //! Reference: <https://racechrono.com/support/file-formats>
 
@@ -40,6 +47,11 @@ const DETECT_SCAN_LINES: usize = 12;
 
 /// The only CSV export version this parser understands.
 const SUPPORTED_FORMAT_VERSION: u32 = 3;
+
+/// Upper bound on continuation lines joined into one quoted metadata value
+/// (e.g. a multi-line `Note`). Stops an unterminated quote from swallowing
+/// the rest of the file.
+const MAX_QUOTED_VALUE_LINES: usize = 100;
 
 /// RaceChrono session metadata, taken from the `Key,Value` preamble.
 #[derive(Clone, Debug, Default, Serialize)]
@@ -104,6 +116,19 @@ impl RaceChrono {
         lines.any(|line| line.trim_start().starts_with("Format,"))
     }
 
+    /// Trim whitespace and the trailing-comma padding a spreadsheet
+    /// round-trip adds to preamble lines (`Format,3,,,,` -> `3`).
+    fn strip_padding(value: &str) -> &str {
+        value.trim().trim_end_matches(',').trim_end()
+    }
+
+    /// Whether a line is blank for structural purposes. A spreadsheet
+    /// round-trip pads the preamble-terminating blank line out to `,,,,,`,
+    /// which must still read as blank.
+    fn is_blank_line(line: &str) -> bool {
+        line.chars().all(|c| c == ',' || c.is_whitespace())
+    }
+
     /// Strip one pair of surrounding double quotes from a metadata value.
     fn unquote(value: &str) -> &str {
         let value = value.trim();
@@ -111,6 +136,12 @@ impl RaceChrono {
             .strip_prefix('"')
             .and_then(|v| v.strip_suffix('"'))
             .unwrap_or(value)
+    }
+
+    /// Whether a padded metadata value opens a quote it does not close, so
+    /// the value continues on following lines (a multi-line `Note`).
+    fn is_unterminated_quote(value: &str) -> bool {
+        value.starts_with('"') && (value.len() == 1 || !value.ends_with('"'))
     }
 
     /// Translate RaceChrono unit notation into the symbols the rest of the
@@ -123,6 +154,18 @@ impl RaceChrono {
         }
     }
 
+    /// Whether a field looks like a numbered device tag from the sources
+    /// row, e.g. "100: gps" or "300: canbus".
+    fn looks_like_device_tag(field: &str) -> bool {
+        match field.split_once(':') {
+            Some((id, label)) => {
+                let id = id.trim();
+                !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()) && !label.trim().is_empty()
+            }
+            None => false,
+        }
+    }
+
     /// Reduce a sources-row tag to its label: "100: gps" -> "gps",
     /// "calc" -> "calc". The numeric prefix is RaceChrono's device id.
     fn source_label(source: &str) -> &str {
@@ -130,6 +173,72 @@ impl RaceChrono {
             Some((id, label)) if id.trim().chars().all(|c| c.is_ascii_digit()) => label.trim(),
             _ => source.trim(),
         }
+    }
+
+    /// Build unique display names for columns `1..` of the header.
+    ///
+    /// - unique column names stay exactly as exported
+    /// - duplicated names get the source label appended when the labels
+    ///   differ: `speed (gps)`, `speed (calc)`
+    /// - when the labels collide too (two location devices both labeled
+    ///   `gps`), the first occurrence keeps the bare name — the GPS Track
+    ///   Map matches `latitude`/`longitude` exactly — and later ones carry
+    ///   the full source tag: `latitude (101: gps)`
+    /// - anything still colliding after that gets an ordinal suffix
+    fn build_channel_names(header_fields: &[&str], sources: &[String]) -> Vec<String> {
+        let column_count = header_fields.len();
+
+        let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
+        for (idx, field) in header_fields.iter().enumerate().skip(1) {
+            groups.entry(field.to_lowercase()).or_default().push(idx);
+        }
+
+        let mut names: Vec<String> = vec![String::new(); column_count];
+        for group in groups.values() {
+            if group.len() == 1 {
+                let idx = group[0];
+                names[idx] = header_fields[idx].to_string();
+                continue;
+            }
+
+            let labels: Vec<&str> = group
+                .iter()
+                .map(|&idx| Self::source_label(&sources[idx]))
+                .collect();
+            let mut seen_labels: HashMap<String, ()> = HashMap::new();
+            let labels_distinct = labels
+                .iter()
+                .all(|l| !l.is_empty() && seen_labels.insert(l.to_lowercase(), ()).is_none());
+
+            if labels_distinct {
+                for (pos, &idx) in group.iter().enumerate() {
+                    names[idx] = format!("{} ({})", header_fields[idx], labels[pos]);
+                }
+            } else {
+                names[group[0]] = header_fields[group[0]].to_string();
+                for &idx in &group[1..] {
+                    let tag = sources[idx].trim();
+                    names[idx] = if tag.is_empty() {
+                        header_fields[idx].to_string()
+                    } else {
+                        format!("{} ({})", header_fields[idx], tag)
+                    };
+                }
+            }
+        }
+
+        // Residual collisions get an ordinal so every channel stays
+        // individually addressable.
+        let mut seen: HashMap<String, usize> = HashMap::new();
+        for name in names.iter_mut().skip(1) {
+            let count = seen.entry(name.to_lowercase()).or_insert(0);
+            *count += 1;
+            if *count > 1 {
+                *name = format!("{} #{}", name, count);
+            }
+        }
+
+        names
     }
 }
 
@@ -139,10 +248,11 @@ impl Parseable for RaceChrono {
         let mut meta = RaceChronoMeta::default();
         let mut lines = file_contents.lines().peekable();
 
-        // Phase 1: metadata preamble, terminated by the first blank line.
-        for line in lines.by_ref() {
+        // Phase 1: metadata preamble, terminated by the first blank line
+        // (possibly comma-padded by a spreadsheet round-trip).
+        while let Some(line) = lines.next() {
             let trimmed = line.trim();
-            if trimmed.is_empty() {
+            if Self::is_blank_line(trimmed) {
                 break;
             }
 
@@ -154,7 +264,22 @@ impl Parseable for RaceChrono {
                 continue;
             };
 
-            let value = Self::unquote(value);
+            let mut value = Self::strip_padding(value).to_string();
+
+            // A quoted value can span lines (a multi-line Note). Join the
+            // continuation lines until the quote closes, bounded so an
+            // unterminated quote cannot swallow the rest of the file.
+            if Self::is_unterminated_quote(&value) {
+                for continuation in lines.by_ref().take(MAX_QUOTED_VALUE_LINES) {
+                    value.push('\n');
+                    value.push_str(Self::strip_padding(continuation));
+                    if value.ends_with('"') {
+                        break;
+                    }
+                }
+            }
+
+            let value = Self::unquote(&value);
             match key.trim() {
                 "Format" => {
                     meta.format_version = value.parse().map_err(|_| {
@@ -185,12 +310,17 @@ impl Parseable for RaceChrono {
                 .next()
                 .ok_or("Invalid RaceChrono format: no header row found")?;
             let trimmed = line.trim();
-            if !trimmed.is_empty() {
+            if !Self::is_blank_line(trimmed) {
                 break trimmed;
             }
         };
 
-        let header_fields: Vec<&str> = header.split(',').map(str::trim).collect();
+        let mut header_fields: Vec<&str> = header.split(',').map(str::trim).collect();
+        // Drop the trailing empty columns a spreadsheet round-trip appends
+        // so padding never becomes ghost channels.
+        while header_fields.len() > 1 && header_fields.last().is_some_and(|f| f.is_empty()) {
+            header_fields.pop();
+        }
         let time_header = header_fields.first().copied().unwrap_or("");
         if !time_header.eq_ignore_ascii_case("timestamp") {
             return Err(format!(
@@ -204,13 +334,17 @@ impl Parseable for RaceChrono {
         }
 
         // Phase 3: units and sources rows. Both sit between the header and
-        // the data and are recognized by a non-numeric first field, so a
-        // file missing either row still parses.
+        // the data (recognized by a non-numeric first field) and a file
+        // missing either one still parses. The sources row is identified by
+        // its numbered device tags ("100: gps"), so a lone sources row is
+        // not mistaken for units; two untagged rows keep the exported
+        // units-then-sources order. Any further annotation row is left for
+        // the data loop, which skips rows without a usable timestamp.
         let mut units_row: Option<Vec<String>> = None;
         let mut sources_row: Option<Vec<String>> = None;
         while let Some(&next) = lines.peek() {
             let trimmed = next.trim();
-            if trimmed.is_empty() {
+            if Self::is_blank_line(trimmed) {
                 lines.next();
                 continue;
             }
@@ -220,25 +354,26 @@ impl Parseable for RaceChrono {
             }
 
             let row: Vec<String> = next.split(',').map(|f| f.trim().to_string()).collect();
-            if units_row.is_none() {
-                units_row = Some(row);
-            } else if sources_row.is_none() {
-                sources_row = Some(row);
-            } else {
-                return Err(
-                    "Invalid RaceChrono format: too many non-data rows after the header"
-                        .to_string()
-                        .into(),
-                );
+            let has_device_tags = row
+                .iter()
+                .skip(1)
+                .any(|field| Self::looks_like_device_tag(field));
+            match (units_row.is_some(), sources_row.is_some()) {
+                (false, false) => {
+                    if has_device_tags {
+                        sources_row = Some(row);
+                    } else {
+                        units_row = Some(row);
+                    }
+                }
+                (true, false) => sources_row = Some(row),
+                (false, true) => units_row = Some(row),
+                (true, true) => break,
             }
             lines.next();
         }
 
         // Phase 4: build channels for every column after `timestamp`.
-        // Column names repeat across sources, so duplicated names get the
-        // source label appended; unique names (latitude, longitude, rpm, ...)
-        // stay exactly as exported so downstream name matching — the GPS
-        // Track Map, field normalization — keeps working.
         let field_at = |row: &Option<Vec<String>>, idx: usize| -> String {
             row.as_ref()
                 .and_then(|r| r.get(idx))
@@ -246,36 +381,17 @@ impl Parseable for RaceChrono {
                 .unwrap_or_default()
         };
 
-        let mut name_counts: HashMap<String, usize> = HashMap::new();
-        for field in &header_fields[1..] {
-            *name_counts.entry(field.to_lowercase()).or_default() += 1;
-        }
+        let sources: Vec<String> = (0..header_fields.len())
+            .map(|idx| field_at(&sources_row, idx))
+            .collect();
+        let names = Self::build_channel_names(&header_fields, &sources);
 
-        let mut final_names: HashMap<String, usize> = HashMap::new();
         let channels: Vec<Channel> = (1..header_fields.len())
             .map(|idx| {
-                let base = header_fields[idx];
-                let source = field_at(&sources_row, idx);
-                let label = Self::source_label(&source);
-
-                let mut name = if name_counts[&base.to_lowercase()] > 1 && !label.is_empty() {
-                    format!("{} ({})", base, label)
-                } else {
-                    base.to_string()
-                };
-
-                // Residual collisions (same name AND same source) get an
-                // ordinal so every channel stays individually addressable.
-                let seen = final_names.entry(name.to_lowercase()).or_insert(0);
-                *seen += 1;
-                if *seen > 1 {
-                    name = format!("{} #{}", name, seen);
-                }
-
                 Channel::RaceChrono(RaceChronoChannel {
-                    name,
+                    name: names[idx].clone(),
                     unit: Self::normalize_unit(&field_at(&units_row, idx)),
-                    source,
+                    source: sources[idx].clone(),
                 })
             })
             .collect();
@@ -287,27 +403,41 @@ impl Parseable for RaceChrono {
         // before the first valid sample), matching the Haltech, ECUMaster,
         // and MHD parsers. Times are re-based to the first record because
         // the raw timestamps are unix time.
-        let mut times: Vec<f64> = Vec::new();
-        let mut data: Vec<Vec<Value>> = Vec::new();
+        let estimated_rows = file_contents
+            .as_bytes()
+            .iter()
+            .filter(|&&b| b == b'\n')
+            .count();
+        let mut times: Vec<f64> = Vec::with_capacity(estimated_rows);
+        let mut data: Vec<Vec<Value>> = Vec::with_capacity(estimated_rows);
         let mut last_values: Vec<Value> = vec![Value::Float(0.0); channel_count];
         let mut first_time: Option<f64> = None;
         let mut out_of_order_rows = 0usize;
+        let mut malformed_rows = 0usize;
 
         for line in lines {
             let line = line.trim();
-            if line.is_empty() {
+            if Self::is_blank_line(line) {
                 continue;
             }
 
-            let parts: Vec<&str> = line.split(',').collect();
-            if parts.len() < header_fields.len() {
-                // Short row - not enough columns to fill every channel.
+            // Cheap column count so a short row is rejected before any
+            // last-known-value state is touched. Data rows are unquoted,
+            // so every comma is a field separator.
+            let field_count = 1 + line.as_bytes().iter().filter(|&&b| b == b',').count();
+            if field_count < header_fields.len() {
+                malformed_rows += 1;
                 continue;
             }
 
-            let time: f64 = match parts[0].trim().parse() {
+            let mut fields = line.split(',');
+            let time: f64 = match fields.next().unwrap_or("").trim().parse() {
                 Ok(t) => t,
-                Err(_) => continue, // Skip rows without a usable timestamp
+                Err(_) => {
+                    // Row without a usable timestamp.
+                    malformed_rows += 1;
+                    continue;
+                }
             };
 
             let base = *first_time.get_or_insert(time);
@@ -320,16 +450,17 @@ impl Parseable for RaceChrono {
                 continue;
             }
 
-            let row: Vec<Value> = (0..channel_count)
-                .map(|idx| match parts[idx + 1].trim().parse::<f64>() {
+            let mut row: Vec<Value> = Vec::with_capacity(channel_count);
+            for (idx, field) in fields.take(channel_count).enumerate() {
+                row.push(match field.trim().parse::<f64>() {
                     Ok(v) => {
                         let value = Value::Float(v);
                         last_values[idx] = value;
                         value
                     }
                     Err(_) => last_values[idx],
-                })
-                .collect();
+                });
+            }
 
             times.push(relative_time);
             data.push(row);
@@ -340,6 +471,16 @@ impl Parseable for RaceChrono {
                 "RaceChrono log contained {} out-of-order timestamps; those rows were dropped",
                 out_of_order_rows
             );
+        }
+        if malformed_rows > 0 {
+            tracing::warn!(
+                "RaceChrono log contained {} malformed rows (short or missing timestamp); those rows were skipped",
+                malformed_rows
+            );
+        }
+
+        if times.is_empty() {
+            return Err("No data rows found in RaceChrono log".into());
         }
 
         meta.channel_count = channel_count;
@@ -447,6 +588,58 @@ mod tests {
     }
 
     #[test]
+    fn survives_spreadsheet_round_trip_padding() {
+        // Excel/Numbers/Sheets pad every preamble line with trailing commas
+        // out to the widest row when a user opens and re-saves the CSV.
+        let contents = "This file is created using RaceChrono Pro v10.1.3,,,,,,\n\
+            Format,3,,,,,\n\
+            Session title,\"Padded Session\",,,,,\n\
+            Created,04/08/2026,13:14,,,,\n\
+            ,,,,,,\n\
+            timestamp,speed,rpm,,,,\n\
+            unix time,m/s,rpm,,,,\n\
+            ,calc,300: canbus,,,,\n\
+            100.0,1.0,1000,,,,\n\
+            100.1,2.0,1100,,,,\n";
+
+        // A padded blank line is no longer blank, so detection and the
+        // preamble terminator both need the padding handled.
+        let log = RaceChrono.parse(contents).expect("parse failed");
+        match &log.meta {
+            Meta::RaceChrono(meta) => {
+                assert_eq!(meta.format_version, 3);
+                assert_eq!(meta.session_title, "Padded Session");
+                assert_eq!(meta.created, "04/08/2026,13:14");
+            }
+            other => panic!("expected RaceChrono metadata, got {:?}", other),
+        }
+        // Trailing padding columns must not become ghost channels
+        let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
+        assert_eq!(names, vec!["speed", "rpm"]);
+        assert_eq!(log.data.len(), 2);
+        assert_eq!(log.data[1][1].as_f64(), 1100.0);
+    }
+
+    #[test]
+    fn joins_multiline_quoted_note() {
+        let contents = "RaceChrono banner\n\
+            Format,3\n\
+            Note,\"first line\nsecond line\"\n\
+            \n\
+            timestamp,speed\n\
+            100.0,1.0\n";
+
+        let log = RaceChrono.parse(contents).expect("parse failed");
+        match &log.meta {
+            Meta::RaceChrono(meta) => {
+                assert_eq!(meta.note, "first line\nsecond line");
+            }
+            other => panic!("expected RaceChrono metadata, got {:?}", other),
+        }
+        assert_eq!(log.data.len(), 1);
+    }
+
+    #[test]
     fn disambiguates_duplicate_names_with_source_labels() {
         let log = RaceChrono.parse(SAMPLE).expect("parse failed");
 
@@ -474,6 +667,34 @@ mod tests {
         let log = RaceChrono.parse(SAMPLE).expect("parse failed");
         assert!(log.channels.iter().any(|c| c.name() == "latitude"));
         assert!(log.channels.iter().any(|c| c.name() == "longitude"));
+    }
+
+    #[test]
+    fn dual_location_devices_keep_bare_latitude_longitude() {
+        // Two location devices (phone GPS + external receiver) export the
+        // same columns with the same short label. The first occurrence must
+        // keep its bare name for the GPS Track Map; the second carries the
+        // full source tag.
+        let contents = "RaceChrono banner\n\
+            Format,3\n\
+            \n\
+            timestamp,latitude,longitude,latitude,longitude\n\
+            unix time,deg,deg,deg,deg\n\
+            ,100: gps,100: gps,101: gps,101: gps\n\
+            100.0,44.8,11.2,44.9,11.3\n\
+            100.1,44.8,11.2,44.9,11.3\n";
+
+        let log = RaceChrono.parse(contents).expect("parse failed");
+        let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "latitude",
+                "longitude",
+                "latitude (101: gps)",
+                "longitude (101: gps)",
+            ]
+        );
     }
 
     #[test]
@@ -561,6 +782,28 @@ mod tests {
     }
 
     #[test]
+    fn skips_rows_with_unusable_timestamps() {
+        // A blank or garbage timestamp discards that row only, never the
+        // whole file — including a garbage row sitting where the data
+        // should start.
+        let contents = "RaceChrono banner\n\
+            Format,3\n\
+            \n\
+            timestamp,speed,rpm\n\
+            unix time,m/s,rpm\n\
+            ,calc,300: canbus\n\
+            ,5.0,1500\n\
+            100.0,1.0,1000\n\
+            garbage,9.9,9999\n\
+            100.1,2.0,1100\n";
+
+        let log = RaceChrono.parse(contents).expect("parse failed");
+        assert_eq!(log.times.len(), 2);
+        assert_eq!(log.data[0][1].as_f64(), 1000.0);
+        assert_eq!(log.data[1][1].as_f64(), 1100.0);
+    }
+
+    #[test]
     fn parses_without_units_and_sources_rows() {
         // Defensive: recognize the data start by its numeric first field
         // even if the units/sources rows are absent.
@@ -576,6 +819,37 @@ mod tests {
         assert_eq!(log.channels[0].name(), "speed");
         assert_eq!(log.channels[0].unit(), "");
         assert_eq!(log.data.len(), 2);
+    }
+
+    #[test]
+    fn sources_row_without_units_row_is_not_mistaken_for_units() {
+        // The sources row is recognized by its numbered device tags, so a
+        // file missing the units row still gets source-labeled duplicate
+        // names and empty units — not source tags as units.
+        let contents = "RaceChrono banner\n\
+            Format,3\n\
+            \n\
+            timestamp,speed,speed,rpm\n\
+            ,100: gps,calc,300: canbus\n\
+            100.0,1.0,0.9,1000\n\
+            100.1,2.0,1.9,1100\n";
+
+        let log = RaceChrono.parse(contents).expect("parse failed");
+        let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
+        assert_eq!(names, vec!["speed (gps)", "speed (calc)", "rpm"]);
+        assert!(log.channels.iter().all(|c| c.unit().is_empty()));
+    }
+
+    #[test]
+    fn errors_on_zero_data_rows() {
+        let contents = "RaceChrono banner\n\
+            Format,3\n\
+            \n\
+            timestamp,speed\n\
+            unix time,m/s\n";
+
+        let err = RaceChrono.parse(contents).unwrap_err().to_string();
+        assert!(err.contains("No data rows"), "unexpected error: {}", err);
     }
 
     #[test]

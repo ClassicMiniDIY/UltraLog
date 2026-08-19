@@ -39,11 +39,44 @@ fn test_parse_racechrono_example_file() {
     }
 
     // Times are relative to the first sample and monotonically increasing.
-    // The excerpt splices two slices of the session (pit lane + lap 29), so
-    // the span covers the fragment gap between them.
+    // The excerpt splices three slices of the session (pit lane, the
+    // fragment 0 -> 1 boundary, lap 29), so the span covers the gaps
+    // between them.
     assert_eq!(log.times[0], 0.0);
     assert!(log.times.windows(2).all(|w| w[0] <= w[1]));
     assert!((log.times.last().unwrap() - 4095.307).abs() < 0.001);
+}
+
+#[test]
+fn test_racechrono_fragment_boundary_uses_timestamp_not_elapsed_time() {
+    // The fixture contains the session's genuine fragment 0 -> 1 boundary:
+    // elapsed_time resets to ~0 there while the unix timestamps keep
+    // climbing. This is exactly why the parser must build its time axis
+    // from `timestamp` — an elapsed_time-based axis would jump backwards.
+    let contents = read_example_file(RACECHRONO_V3_EXCERPT);
+    let log = RaceChrono
+        .parse(&contents)
+        .expect("Failed to parse RaceChrono example");
+
+    let index_of = |name: &str| {
+        log.channels
+            .iter()
+            .position(|c| c.name() == name)
+            .unwrap_or_else(|| panic!("Missing channel '{}'", name))
+    };
+
+    let fragment = index_of("fragment_id");
+    let elapsed = index_of("elapsed_time");
+
+    // Rows 149/150 straddle the boundary
+    assert_eq!(log.data[149][fragment].as_f64(), 0.0);
+    assert_eq!(log.data[150][fragment].as_f64(), 1.0);
+    assert!((log.data[149][elapsed].as_f64() - 771.45).abs() < 1e-6);
+    assert!((log.data[150][elapsed].as_f64() - 0.002).abs() < 1e-6);
+
+    // elapsed_time drops across the boundary, the time axis must not
+    assert!(log.data[150][elapsed].as_f64() < log.data[149][elapsed].as_f64());
+    assert!(log.times[150] > log.times[149]);
 }
 
 #[test]
@@ -196,4 +229,25 @@ fn test_racechrono_not_confused_with_other_formats() {
     assert!(!RaceChrono::detect("Time,RPM,Load\n0,1000,50\n"));
     assert!(!RaceChrono::detect("%DataLog%\nDataLogVersion : 1.1\n"));
     assert!(!RaceChrono::detect("TIME;engine/rpm\n0.0;1000\n"));
+}
+
+#[test]
+fn test_racechrono_detect_rejects_example_corpus() {
+    // RaceChrono::detect runs first in the text dispatch chain, so a false
+    // positive against any other supported format would shadow its parser.
+    for example in [
+        HALTECH_SMALL,
+        ECUMASTER_STANDARD,
+        ROMRAIDER_EUROPEAN,
+        OBDLINK_SECONDS,
+        MHD_N55_PULL,
+        WOOLICH_STANDARD,
+    ] {
+        let contents = read_example_file(example);
+        assert!(
+            !RaceChrono::detect(&contents),
+            "RaceChrono::detect must not claim {}",
+            example
+        );
+    }
 }
