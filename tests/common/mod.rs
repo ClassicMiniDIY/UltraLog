@@ -87,6 +87,13 @@ pub mod example_files {
     // MHD Tuning example files
     pub const MHD_N55_PULL: &str = "exampleLogs/mhd/mhd-n55-pull.csv";
 
+    /// RaceChrono CSV v3 session excerpt (user-contributed track session,
+    /// trimmed to 200 pit-lane rows plus 200 mid-session rows on lap 29 so
+    /// the fixture covers both blank-heavy and fully-populated records
+    /// across a fragment boundary).
+    pub const RACECHRONO_V3_EXCERPT: &str =
+        "exampleLogs/racechrono/session_massa_finalese_v3_excerpt.csv";
+
     // Woolich Racing Tuned example files
     pub const WOOLICH_STANDARD: &str = "exampleLogs/woolich/Woolich.csv";
 }

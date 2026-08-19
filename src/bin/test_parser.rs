@@ -5,7 +5,7 @@ use std::path::Path;
 // Import from the library
 use ultralog::parsers::{
     BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Mhd, Parseable,
-    Speeduino, Woolich, strip_leading_comment_lines,
+    RaceChrono, Speeduino, Woolich, strip_leading_comment_lines,
 };
 
 use encoding_rs::{UTF_16BE, UTF_16LE};
@@ -98,6 +98,17 @@ fn main() {
             let parser = Mhd;
             match parser.parse(&contents) {
                 Ok(log) => (EcuType::Mhd, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if RaceChrono::detect(&contents) {
+            println!("\nDetected: RaceChrono CSV format");
+            println!("Parsing RaceChrono session export...");
+            let parser = RaceChrono;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::RaceChrono, log),
                 Err(e) => {
                     eprintln!("Parse error: {}", e);
                     std::process::exit(1);
