@@ -88,9 +88,10 @@ pub mod example_files {
     pub const MHD_N55_PULL: &str = "exampleLogs/mhd/mhd-n55-pull.csv";
 
     /// RaceChrono CSV v3 session excerpt (user-contributed track session,
-    /// trimmed to 200 pit-lane rows plus 200 mid-session rows on lap 29 so
-    /// the fixture covers both blank-heavy and fully-populated records
-    /// across a fragment boundary).
+    /// trimmed to 100 pit-lane rows, 100 rows straddling the genuine
+    /// fragment 0 -> 1 boundary where `elapsed_time` resets to zero, and
+    /// 200 mid-session rows on lap 29, so the fixture covers blank-heavy
+    /// records, fully-populated records, and the fragment reset).
     pub const RACECHRONO_V3_EXCERPT: &str =
         "exampleLogs/racechrono/session_massa_finalese_v3_excerpt.csv";
 
