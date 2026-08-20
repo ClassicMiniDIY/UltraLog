@@ -165,6 +165,25 @@ Configurable units for 8 measurement categories:
 - **Supported devices:** BMW N54, N55, S55, B58 and other platforms flashed with MHD
 - **Supported data:** Boost and boost target, wastegate duty, RPM, coolant and intake temps, per-cylinder timing correction, lambda/AFR per bank, fuel rail pressure, load, gear, torque, and all logged channels
 
+### Motorsport Electronics - Full Support
+
+- **File type:** CSV exports from the ME Tuner software (ME221/ME442 ECUs)
+- **Features:** Unit inference from channel names, seconds-based `Time` column detected ahead of RomRaider's millisecond convention so timestamps scale correctly
+- **Supported devices:** ME221 and ME442 — common on turbo/supercharged MX-5s, Ford Focus ST150, Honda S2000, Toyota Starlet, and Mitsubishi Evo builds
+- **Supported data:** RPM, MAP, TPS, sync status, and all channels logged by ME Tuner
+
+### DynamicEFI EBL WhatsUp - Full Support
+
+- **File type:** CSV exports from DynamicEFI's EBL WhatsUp software (modified GM TBI systems)
+- **Features:** `HH:MM:SS` RUNTIME timestamp handling at 1-second resolution, Y/N flag and P/N gear-indicator mapping to numeric values, trailing-comma handling
+- **Supported data:** BLM, BPC, INT, and the other GM TBI channel abbreviations, plus all logged channels
+
+### Locomotive Datalogger - Full Support
+
+- **File type:** CSV exports with a `TimeStamp:` / `Customer:` / `UnitNumber:` metadata header
+- **Features:** Wall-clock timestamp parsing from day-of-week-prefixed data rows, metadata capture (customer, unit number, software part number and version)
+- **Supported data:** All channels recorded by the datalogger
+
 ### RaceChrono - Full Support
 
 - **File type:** CSV v3 session exports from the RaceChrono / RaceChrono Pro lap-timing app (Android/iOS)
