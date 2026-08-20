@@ -71,7 +71,10 @@ pub mod example_files {
     pub const LINK_STANDARD: &str = "exampleLogs/link/linklog.llg";
 
     // RomRaider example files
-    pub const ROMRAIDER_EUROPEAN: &str = "exampleLogs/romraider/romraiderlog_20251031_170713.csv";
+    // Note the directory's capital R: macOS resolves either casing, but
+    // Linux CI is case-sensitive and a lowercase path silently skips every
+    // guarded test that uses it.
+    pub const ROMRAIDER_EUROPEAN: &str = "exampleLogs/RomRaider/romraiderlog_20251031_170713.csv";
 
     /// OBDLink (iOS) export from issue #80. Declares `Time (sec)`, unlike
     /// RomRaider's own `Time (msec)`, and carries a UTF-8 BOM plus a leading

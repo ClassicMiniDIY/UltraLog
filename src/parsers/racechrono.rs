@@ -57,7 +57,7 @@ const MAX_QUOTED_VALUE_LINES: usize = 100;
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct RaceChronoMeta {
     /// The full banner line, e.g.
-    /// "This file is created using RaceChrono Pro v10.1.3 ( http://racechrono.com/ )."
+    /// `"This file is created using RaceChrono Pro v10.1.3 ( http://racechrono.com/ )."`
     pub creator: String,
     /// `Format` value (3 for CSV v3)
     pub format_version: u32,
@@ -250,6 +250,7 @@ impl Parseable for RaceChrono {
 
         // Phase 1: metadata preamble, terminated by the first blank line
         // (possibly comma-padded by a spreadsheet round-trip).
+        let mut saw_format_line = false;
         while let Some(line) = lines.next() {
             let trimmed = line.trim();
             if Self::is_blank_line(trimmed) {
@@ -282,6 +283,7 @@ impl Parseable for RaceChrono {
             let value = Self::unquote(&value);
             match key.trim() {
                 "Format" => {
+                    saw_format_line = true;
                     meta.format_version = value.parse().map_err(|_| {
                         format!("Invalid RaceChrono format: unparseable version '{}'", value)
                     })?
@@ -296,6 +298,14 @@ impl Parseable for RaceChrono {
             }
         }
 
+        // A missing Format line gets its own message — reporting it as
+        // "version 0 is not supported" would mislead on corrupted or
+        // truncated exports.
+        if !saw_format_line {
+            return Err(
+                "Invalid RaceChrono format: no 'Format' metadata line found in the preamble".into(),
+            );
+        }
         if meta.format_version != SUPPORTED_FORMAT_VERSION {
             return Err(format!(
                 "RaceChrono CSV format version {} is not supported — re-export the session as CSV v3",
@@ -565,6 +575,25 @@ mod tests {
         let err = RaceChrono.parse(v2).unwrap_err().to_string();
         assert!(err.contains("version 2"), "unexpected error: {}", err);
         assert!(err.contains("CSV v3"), "unexpected error: {}", err);
+    }
+
+    #[test]
+    fn errors_clearly_on_missing_format_line() {
+        // A truncated preamble must not be reported as "version 0 is not
+        // supported".
+        let contents = "This file is created using RaceChrono Pro v10.1.3\n\
+            Session title,\"Test\"\n\
+            \n\
+            timestamp,speed\n\
+            100.0,1.0\n";
+
+        let err = RaceChrono.parse(contents).unwrap_err().to_string();
+        assert!(
+            err.contains("no 'Format' metadata line"),
+            "unexpected error: {}",
+            err
+        );
+        assert!(!err.contains("version 0"), "unexpected error: {}", err);
     }
 
     #[test]
