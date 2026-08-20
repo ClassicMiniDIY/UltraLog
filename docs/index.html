@@ -9,9 +9,9 @@
     <title>UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More</title>
     <meta name="title" content="UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More">
     <meta name="description"
-        content="UltraLog is a free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, BlueDriver, and MegaSquirt ECUs. Features include stacked plot areas, histogram heatmaps, scatter plots, computed channels, MCP server for AI integration, and professional analysis tools. Download for Windows, macOS, and Linux.">
+        content="UltraLog is a free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, BlueDriver, MegaSquirt, MHD, Woolich, and RaceChrono lap-timing sessions. Features include stacked plot areas, histogram heatmaps, scatter plots, computed channels, MCP server for AI integration, and professional analysis tools. Download for Windows, macOS, and Linux.">
     <meta name="keywords"
-        content="ECU log viewer, datalog analyzer, Haltech NSP, ECUMaster EMU Pro, RomRaider, Speeduino MLG, rusEFI, AiM XRK DRK, Link ECU LLG, Emerald K6 M3D, automotive tuning software, engine tuning, AFR analysis, boost log, free tuning software, open source ECU, car data logger, dyno analysis, motorsport data, fuel map analysis, ignition timing, lambda analysis, volumetric efficiency, injector duty cycle, Butterworth filter, scatter plot, histogram heatmap, computed channels, Rust application, stacked plots, MCP server, Model Context Protocol, Claude Desktop, BlueDriver OBD-II, AI log analysis">
+        content="ECU log viewer, datalog analyzer, Haltech NSP, ECUMaster EMU Pro, RomRaider, Speeduino MLG, rusEFI, AiM XRK DRK, Link ECU LLG, Emerald K6 M3D, automotive tuning software, engine tuning, AFR analysis, boost log, free tuning software, open source ECU, car data logger, dyno analysis, motorsport data, fuel map analysis, ignition timing, lambda analysis, volumetric efficiency, injector duty cycle, Butterworth filter, scatter plot, histogram heatmap, computed channels, Rust application, stacked plots, MCP server, Model Context Protocol, Claude Desktop, BlueDriver OBD-II, AI log analysis, RaceChrono CSV, lap timing analysis, track day data, GPS track map">
     <meta name="author" content="Cole Gentry">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
@@ -107,13 +107,13 @@
         "@type": "SoftwareApplication",
         "name": "UltraLog",
         "alternateName": ["UltraLog ECU Viewer", "UltraLog Datalog Analyzer"],
-        "description": "A high-performance, cross-platform ECU log viewer and analyzer built with Rust. Supports Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, and Emerald ECU formats with advanced analysis tools.",
+        "description": "A high-performance, cross-platform ECU log viewer and analyzer built with Rust. Supports Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, MHD, Motorsport Electronics, RaceChrono, Woolich, BlueDriver, DynamicEFI, and Locomotive log formats with advanced analysis tools.",
         "url": "https://ultralog.co/",
         "applicationCategory": "UtilitiesApplication",
         "applicationSubCategory": "Automotive Software",
         "operatingSystem": ["Windows 10", "Windows 11", "macOS", "Linux"],
-        "softwareVersion": "2.13.0",
-        "releaseNotes": "https://github.com/ClassicMiniDIY/UltraLog/releases/tag/v2.10.1",
+        "softwareVersion": "2.13.1",
+        "releaseNotes": "https://github.com/ClassicMiniDIY/UltraLog/releases/tag/v2.13.1",
         "downloadUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
         "installUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
         "screenshot": [
@@ -1427,7 +1427,7 @@
                 <div class="hero-badges">
                     <span class="version-badge">
                         <span class="new-tag">New</span>
-                        v2.13.0
+                        v2.13.1
                     </span>
                     <a href="https://github.com/ClassicMiniDIY/UltraLog" class="opensource-badge" target="_blank" rel="noopener noreferrer">
                         <i class="fa-brands fa-github" aria-hidden="true"></i> Open Source
@@ -1530,8 +1530,15 @@
         <!-- What's New -->
         <section class="whats-new-section">
             <h2>What's New</h2>
-            <p class="section-subtitle">GPS track maps with satellite imagery, stacked plots, AI-powered analysis via MCP, and more</p>
+            <p class="section-subtitle">RaceChrono lap-timing imports, GPS track maps with satellite imagery, stacked plots, AI-powered analysis via MCP, and more</p>
             <div class="new-features-grid">
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon orange"><i class="fa-solid fa-flag-checkered" aria-hidden="true"></i></div>
+                        <h3>RaceChrono Imports</h3>
+                    </div>
+                    <p>Open RaceChrono and RaceChrono Pro CSV v3 session exports directly — GPS, phone sensors, and OBD/CAN channels on one timeline, with lap numbers and the track map ready out of the box. Analyze your track days on a big screen instead of your phone.</p>
+                </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
                         <div class="feature-icon green"><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i></div>
@@ -1740,7 +1747,13 @@
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Link ECU (LLG)</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Emerald K6/M3D</span>
                 <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> MegaSquirt</span>
-                <span class="ecu-badge new"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> BlueDriver OBD-II</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> BlueDriver OBD-II</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Woolich Racing Tuned</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> MHD Tuning</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Motorsport Electronics</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> DynamicEFI</span>
+                <span class="ecu-badge supported"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Locomotive</span>
+                <span class="ecu-badge new"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> RaceChrono</span>
             </div>
         </section>
 
