@@ -30,6 +30,24 @@ impl TemperatureUnit {
             TemperatureUnit::Fahrenheit => (kelvin - 273.15) * 9.0 / 5.0 + 32.0,
         }
     }
+
+    /// Convert from Celsius to the selected unit
+    pub fn convert_from_celsius(&self, celsius: f64) -> f64 {
+        match self {
+            TemperatureUnit::Kelvin => celsius + 273.15,
+            TemperatureUnit::Celsius => celsius,
+            TemperatureUnit::Fahrenheit => celsius * 9.0 / 5.0 + 32.0,
+        }
+    }
+
+    /// Convert from Fahrenheit to the selected unit
+    pub fn convert_from_fahrenheit(&self, fahrenheit: f64) -> f64 {
+        match self {
+            TemperatureUnit::Kelvin => (fahrenheit - 32.0) * 5.0 / 9.0 + 273.15,
+            TemperatureUnit::Celsius => (fahrenheit - 32.0) * 5.0 / 9.0,
+            TemperatureUnit::Fahrenheit => fahrenheit,
+        }
+    }
 }
 
 /// Pressure unit preference
@@ -83,6 +101,11 @@ impl SpeedUnit {
             SpeedUnit::Mph => kmh * 0.621371,
         }
     }
+
+    /// Convert from m/s (GPS loggers such as RaceChrono) to the selected unit
+    pub fn convert_from_mps(&self, mps: f64) -> f64 {
+        self.convert_from_kmh(mps * 3.6)
+    }
 }
 
 /// Distance unit preference
@@ -106,6 +129,26 @@ impl DistanceUnit {
         match self {
             DistanceUnit::Kilometers => km,
             DistanceUnit::Miles => km * 0.621371,
+        }
+    }
+
+    /// Convert a short distance in meters for display. The imperial
+    /// counterpart of the meter is the foot — channels logged in meters
+    /// (GPS altitude, accuracy, distance traveled) would read as 0.00x mi
+    /// if forced through the km -> mi conversion.
+    pub fn convert_from_meters(&self, meters: f64) -> f64 {
+        match self {
+            DistanceUnit::Kilometers => meters,
+            DistanceUnit::Miles => meters * 3.28084,
+        }
+    }
+
+    /// Display symbol for short distances (the meter-sourced counterpart
+    /// of `symbol()`)
+    pub fn short_symbol(&self) -> &'static str {
+        match self {
+            DistanceUnit::Kilometers => "m",
+            DistanceUnit::Miles => "ft",
         }
     }
 }
@@ -290,6 +333,16 @@ impl UnitPreferences {
                 self.temperature.convert_from_kelvin(value),
                 self.temperature.symbol(),
             ),
+            // Temperature (source is Celsius — most CSV parsers emit °C)
+            "°C" => (
+                self.temperature.convert_from_celsius(value),
+                self.temperature.symbol(),
+            ),
+            // Temperature (source is Fahrenheit)
+            "°F" => (
+                self.temperature.convert_from_fahrenheit(value),
+                self.temperature.symbol(),
+            ),
             // Pressure (source is kPa)
             "kPa" => (
                 self.pressure.convert_from_kpa(value),
@@ -297,8 +350,17 @@ impl UnitPreferences {
             ),
             // Speed (source is km/h)
             "km/h" => (self.speed.convert_from_kmh(value), self.speed.symbol()),
+            // Speed (source is m/s — GPS loggers such as RaceChrono)
+            "m/s" => (self.speed.convert_from_mps(value), self.speed.symbol()),
             // Distance (source is km)
             "km" => (self.distance.convert_from_km(value), self.distance.symbol()),
+            // Short distance (source is meters). Metric keeps meters,
+            // imperial shows feet — altitude or GPS accuracy in miles
+            // would display as 0.00x mi.
+            "m" => (
+                self.distance.convert_from_meters(value),
+                self.distance.short_symbol(),
+            ),
             // Fuel economy (source is L/100km)
             "L/100km" => (
                 self.fuel_economy.convert_from_l_per_100km(value),
@@ -370,6 +432,31 @@ mod tests {
     }
 
     #[test]
+    fn test_temperature_from_celsius() {
+        // Identity
+        assert_eq!(TemperatureUnit::Celsius.convert_from_celsius(90.0), 90.0);
+        // 100°C = 212°F
+        assert!((TemperatureUnit::Fahrenheit.convert_from_celsius(100.0) - 212.0).abs() < 0.001);
+        // -40°C = -40°F
+        assert!((TemperatureUnit::Fahrenheit.convert_from_celsius(-40.0) - (-40.0)).abs() < 0.001);
+        // 0°C = 273.15K
+        assert!((TemperatureUnit::Kelvin.convert_from_celsius(0.0) - 273.15).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_temperature_from_fahrenheit() {
+        // Identity
+        assert_eq!(
+            TemperatureUnit::Fahrenheit.convert_from_fahrenheit(212.0),
+            212.0
+        );
+        // 212°F = 100°C
+        assert!((TemperatureUnit::Celsius.convert_from_fahrenheit(212.0) - 100.0).abs() < 0.001);
+        // 32°F = 273.15K
+        assert!((TemperatureUnit::Kelvin.convert_from_fahrenheit(32.0) - 273.15).abs() < 0.001);
+    }
+
+    #[test]
     fn test_temperature_symbols() {
         assert_eq!(TemperatureUnit::Kelvin.symbol(), "K");
         assert_eq!(TemperatureUnit::Celsius.symbol(), "°C");
@@ -438,6 +525,15 @@ mod tests {
     }
 
     #[test]
+    fn test_speed_from_mps() {
+        // 10 m/s = 36 km/h
+        assert!((SpeedUnit::KmH.convert_from_mps(10.0) - 36.0).abs() < 0.001);
+        // 10 m/s ≈ 22.37 mph
+        assert!((SpeedUnit::Mph.convert_from_mps(10.0) - 22.3694).abs() < 0.001);
+        assert_eq!(SpeedUnit::KmH.convert_from_mps(0.0), 0.0);
+    }
+
+    #[test]
     fn test_speed_symbols() {
         assert_eq!(SpeedUnit::KmH.symbol(), "km/h");
         assert_eq!(SpeedUnit::Mph.symbol(), "mph");
@@ -464,9 +560,19 @@ mod tests {
     }
 
     #[test]
+    fn test_distance_from_meters() {
+        // Metric keeps meters untouched
+        assert_eq!(DistanceUnit::Kilometers.convert_from_meters(100.0), 100.0);
+        // Imperial shows feet: 100 m ≈ 328.084 ft
+        assert!((DistanceUnit::Miles.convert_from_meters(100.0) - 328.084).abs() < 0.001);
+    }
+
+    #[test]
     fn test_distance_symbols() {
         assert_eq!(DistanceUnit::Kilometers.symbol(), "km");
         assert_eq!(DistanceUnit::Miles.symbol(), "mi");
+        assert_eq!(DistanceUnit::Kilometers.short_symbol(), "m");
+        assert_eq!(DistanceUnit::Miles.short_symbol(), "ft");
     }
 
     // ============================================
@@ -636,6 +742,60 @@ mod tests {
         let (value, unit) = prefs.convert_value(101.325, "kPa");
         assert!((value - 14.696).abs() < 0.01);
         assert_eq!(unit, "PSI");
+    }
+
+    #[test]
+    fn test_unit_preferences_convert_celsius_and_fahrenheit_sources() {
+        let mut prefs = UnitPreferences::default();
+
+        // °C source with the default Celsius preference is untouched
+        let (value, unit) = prefs.convert_value(90.0, "°C");
+        assert_eq!(value, 90.0);
+        assert_eq!(unit, "°C");
+
+        // Switch to Fahrenheit: parsers that emit °C now honor it
+        prefs.temperature = TemperatureUnit::Fahrenheit;
+        let (value, unit) = prefs.convert_value(100.0, "°C");
+        assert!((value - 212.0).abs() < 0.001);
+        assert_eq!(unit, "°F");
+
+        // °F source with a Celsius preference converts down
+        prefs.temperature = TemperatureUnit::Celsius;
+        let (value, unit) = prefs.convert_value(212.0, "°F");
+        assert!((value - 100.0).abs() < 0.001);
+        assert_eq!(unit, "°C");
+    }
+
+    #[test]
+    fn test_unit_preferences_convert_mps_source() {
+        let mut prefs = UnitPreferences::default();
+
+        // Default km/h preference: 10 m/s displays as 36 km/h
+        let (value, unit) = prefs.convert_value(10.0, "m/s");
+        assert!((value - 36.0).abs() < 0.001);
+        assert_eq!(unit, "km/h");
+
+        // mph preference
+        prefs.speed = SpeedUnit::Mph;
+        let (value, unit) = prefs.convert_value(10.0, "m/s");
+        assert!((value - 22.3694).abs() < 0.001);
+        assert_eq!(unit, "mph");
+    }
+
+    #[test]
+    fn test_unit_preferences_convert_meters_source() {
+        let mut prefs = UnitPreferences::default();
+
+        // Metric preference keeps meters as meters (altitude, GPS accuracy)
+        let (value, unit) = prefs.convert_value(100.0, "m");
+        assert_eq!(value, 100.0);
+        assert_eq!(unit, "m");
+
+        // Imperial preference shows feet, never 0.00x mi
+        prefs.distance = DistanceUnit::Miles;
+        let (value, unit) = prefs.convert_value(100.0, "m");
+        assert!((value - 328.084).abs() < 0.001);
+        assert_eq!(unit, "ft");
     }
 
     #[test]
