@@ -108,6 +108,7 @@ src/
 │   ├── locomotive.rs               # Locomotive datalogger CSV parser (TimeStamp/Customer/UnitNumber header)
 │   ├── megasquirt.rs               # MegaSquirt (MS1/MS2/MS3) TunerStudio CSV parser
 │   ├── mhd.rs                      # MHD Tuning CSV parser (BMW N54/N55/S55/B58)
+│   ├── msl.rs                      # TunerStudio MSL (legacy ASCII, tab-delimited) parser
 │   ├── motorsport_electronics.rs   # Motorsport Electronics ME221/ME442 (ME Tuner) CSV parser
 │   ├── racechrono.rs               # RaceChrono CSV v3 session export parser (GPS + sensors + OBD/CAN)
 │   ├── bluedriver.rs               # BlueDriver OBD-II scan tool CSV parser
@@ -291,6 +292,7 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - **`parsers/locomotive.rs`** - Locomotive datalogger CSV parser (detected via `TimeStamp:` / `Customer:` header lines, day-of-week-prefixed data rows)
 - **`parsers/megasquirt.rs`** - MegaSquirt (MS1/MS2/MS3/MS3Pro) TunerStudio CSV parser
 - **`parsers/mhd.rs`** - MHD Tuning CSV parser (BMW N54/N55/S55/B58 flashed with MHD)
+- **`parsers/msl.rs`** - TunerStudio MSL parser (tab-delimited legacy ASCII datalog; header row + units row; also written by RealDash)
 - **`parsers/motorsport_electronics.rs`** - Motorsport Electronics ME221/ME442 (ME Tuner) CSV parser
 - **`parsers/racechrono.rs`** - RaceChrono CSV v3 session export parser (lap-timing app; GPS + phone sensors + OBD/CAN merged on a unix-time base)
 - **`parsers/bluedriver.rs`** - BlueDriver OBD-II scan tool CSV parser (UTF-16 with BOM)
@@ -310,6 +312,7 @@ Note: `EcuType` also reserves `Aem`, `MaxxEcu`, and `MotEc` variants for formats
 - Emerald K6/M3D (.lg1/.lg2 binary)
 - MegaSquirt MS1/MS2/MS3 (TunerStudio CSV export)
 - MHD Tuning (CSV export — BMW N54/N55/S55/B58)
+- TunerStudio MSL (`.msl` legacy ASCII export — Speeduino/MegaSquirt via TunerStudio or RealDash)
 - Motorsport Electronics ME221/ME442 (ME Tuner CSV export)
 - RaceChrono / RaceChrono Pro (CSV v3 session export — lap-timing app)
 - Woolich Racing Tuned (WRT CSV export — motorcycle ECUs)
@@ -354,6 +357,29 @@ because it also leads with a `Time` column, and only matches a first column of e
 - **Time base is the unix `timestamp` column, never `elapsed_time`** - `elapsed_time` resets to zero at every fragment boundary (a fragment is one recording segment; sessions paused/resumed at the track have several), so re-basing `timestamp` to the first record is the only way to get a monotonic time axis. Monotonic times are required because computed-channel time-shift lookups binary-search the `times` vector.
 - **Duplicate column names are disambiguated by source, unique names stay raw** - RaceChrono exports the same column name once per source (`speed` from GPS and calc, `device_update_rate` from every sensor). Duplicates get the sources-row label appended (`speed (gps)`); unique names — including `latitude`/`longitude` — must stay exactly as exported because `find_gps_channels` in `src/ui/widgets/track_map.rs` matches those names *exactly* (lowercased), and a suffix would silently disable the GPS Track Map for RaceChrono logs. When the short labels themselves collide (two location devices both labeled `gps`), the first occurrence keeps its bare name — so `latitude` still survives — and later ones carry the full source tag (`latitude (101: gps)`).
 - **Detection accepts any `Format,N` version; `parse` rejects non-v3** - so a v1/v2 export surfaces a clear "re-export as CSV v3" error instead of falling through to the Haltech default parser and failing cryptically.
+
+**TunerStudio MSL parser load-bearing behaviors** (`src/parsers/msl.rs`):
+
+- **Detection requires the header/units row *pair*** - `.msl` is tab-delimited with `Time` as
+  the first column, which several other formats also are. What makes MSL unambiguous is the
+  second row: it holds a unit per column and names a time unit (`sec`, `s`, `ms`, ...) under
+  `Time`. Dropping that requirement would make the parser claim tab-delimited ECUMaster and
+  generic `Time`-first exports. `Msl::detect` runs after `MegaSquirt::detect` and before
+  `EcuMaster::detect` in the `dispatch_text_content` chain.
+- **Time scale comes from the units row, never assumed** - `sec`/`s`/`seconds` -> seconds,
+  `ms`/`msec`/`milliseconds` -> milliseconds. Same class of bug as issue #80's RomRaider
+  time-unit hardcode.
+- **Non-numeric and blank fields carry the last known value forward** - MSL columns are not
+  all numeric: RealDash writes `GPS Date` as `18.8.2026` and leaves fields blank until the GPS
+  gets a fix. Substitution preserves column alignment, the same approach as
+  `parsers/haltech.rs` and `parsers/ecumaster.rs`. Clock-style fields (`HH:MM`, `HH:MM:SS`)
+  are the exception: they convert to seconds since midnight so `GPS Time` plots as a channel.
+- **Times are forced monotonic** - a `.msl` can concatenate sessions, so a backwards jump in
+  `Time` accumulates an offset rather than being written through. Monotonic times are required
+  because computed-channel time-shift lookups binary-search the `times` vector.
+- **GPS column names stay exactly as exported** - `GPS Latitude` / `GPS Longitude` are matched
+  by name (lowercased) in `find_gps_channels` (`src/ui/widgets/track_map.rs`); renaming or
+  suffixing them silently disables the Track Map for MSL logs.
 
 **Haltech parser load-bearing behaviors** (`src/parsers/haltech.rs`, added for wall-clock-timestamped exports):
 
@@ -417,7 +443,7 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 
 ## Key Features
 
-- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, MHD Tuning, Motorsport Electronics, RaceChrono, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
+- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD Tuning, Motorsport Electronics, RaceChrono, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
 - **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
@@ -499,6 +525,7 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/emerald/` - Emerald K6/M3D `.lg1`/`.lg2` files
 - `exampleLogs/megasquirt/` - MegaSquirt TunerStudio CSV exports, plus a `_gps.mlg` fixture with synthetic GPS channels (generated by `examples/inject_fake_gps_mlg.rs`; the coordinates are a fake closed loop, not a real location)
 - `exampleLogs/mhd/` - MHD Tuning CSV exports (VIN redacted)
+- `exampleLogs/msl/` - TunerStudio MSL excerpt from issue #86 (RealDash logging a Speeduino; trimmed to 2000 data rows, keeping the leading no-GPS-fix rows where `GPS Date`/`GPS Time` are blank)
 - `exampleLogs/motorsportElectronics/` - Motorsport Electronics ME Tuner CSV exports
 - `exampleLogs/racechrono/` - RaceChrono CSV v3 session excerpt (user-contributed track session, trimmed; covers blank-heavy pit-lane rows, the genuine fragment 0->1 boundary where `elapsed_time` resets, and fully-populated on-track rows)
 - `exampleLogs/bluedriver/` - BlueDriver OBD-II CSV exports

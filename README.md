@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-2.13.1-green.svg)
+![Version](https://img.shields.io/badge/version-2.14.0-green.svg)
 
 ---
 
@@ -144,6 +144,14 @@ Configurable units for 8 measurement categories:
 - **Features:** Automatic channel and unit extraction, boolean value parsing (MIL lamp ON/OFF), anomalous first-row timestamp handling
 - **Supported devices:** MegaSquirt MS1, MS2, MS3, MS3Pro, Honda Tuning Studio, and any TunerStudio-compatible ECU
 - **Supported data:** RPM, MAP, TPS, injector duration/duty, ignition timing, ECT, IAT, AFR, battery voltage, boost, VSS, gear, and all logged channels
+
+### TunerStudio MSL - Full Support
+
+- **File type:** Tab-delimited legacy ASCII datalogs (`.msl`) from TunerStudio's Data Logging menu, and from third-party dashes that write the same dialect
+- **Features:** Units read from the row beneath the header, optional firmware/capture-date preamble, `MARK` lines skipped, blank and non-numeric fields carried forward from the last known value, clock columns (`GPS Time`) converted to seconds since midnight, monotonic time enforced across concatenated sessions
+- **Supported devices:** Speeduino, MegaSquirt, and any ECU logged through TunerStudio or RealDash (for example a Speeduino logged over Bluetooth by RealDash)
+- **Supported data:** RPM, MAP, TPS, MAT, CLT, AFR/AFR2, EGO corrections, pulse width, VE, duty cycle, boost, and GPS latitude/longitude/altitude — GPS logs drive the Track Map out of the box
+- **Note:** This is the tab-delimited `.msl` format. TunerStudio's comma-delimited CSV export is handled by the MegaSquirt parser above
 
 ### BlueDriver OBD-II - Full Support
 
@@ -624,6 +632,7 @@ UltraLog/
 │   │   ├── emerald.rs     # Emerald ECU parser
 │   │   ├── bluedriver.rs  # BlueDriver OBD-II parser
 │   │   ├── mhd.rs        # MHD Tuning parser
+│   │   ├── msl.rs         # TunerStudio MSL (legacy ASCII) parser
 │   │   └── woolich.rs     # Woolich Racing Tuned CSV parser
 │   ├── analysis/          # Analysis tools
 │   │   ├── filters.rs     # Signal processing filters

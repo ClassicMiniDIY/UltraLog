@@ -98,6 +98,12 @@ pub mod example_files {
     pub const RACECHRONO_V3_EXCERPT: &str =
         "exampleLogs/racechrono/session_massa_finalese_v3_excerpt.csv";
 
+    /// TunerStudio MSL (legacy ASCII) excerpt from issue #86: a RealDash
+    /// session logging a Speeduino over Bluetooth, trimmed to the first
+    /// 2000 data rows so the fixture keeps the leading rows where the GPS
+    /// has no fix yet and the `GPS Date`/`GPS Time` fields are blank.
+    pub const MSL_REALDASH_EXCERPT: &str = "exampleLogs/msl/realdash_speeduino_excerpt.msl";
+
     // Woolich Racing Tuned example files
     pub const WOOLICH_STANDARD: &str = "exampleLogs/woolich/Woolich.csv";
 }

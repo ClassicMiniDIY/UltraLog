@@ -38,7 +38,7 @@ pub const MAX_CHART_POINTS: usize = 2000;
 
 /// Supported log file extensions (used in file dialogs)
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "csv", "log", "txt", "mlg", "llg", "llg5", "xrk", "drk", "lg1", "lg2",
+    "csv", "log", "txt", "msl", "mlg", "llg", "llg5", "xrk", "drk", "lg1", "lg2",
 ];
 
 /// Color palette for chart lines (matches original theme)
