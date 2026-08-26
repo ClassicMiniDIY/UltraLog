@@ -118,13 +118,20 @@ fn is_header_row(line: &str) -> bool {
     first.eq_ignore_ascii_case("time") && fields.next().is_some()
 }
 
-/// A units row has the same field count as its header and names a time
-/// unit under the `Time` column.
+/// A units row names a time unit under the `Time` column and carries no
+/// more fields than its header.
+///
+/// The time unit is what actually discriminates: a data row can never hold
+/// `sec` or `ms` in its time column, so this is what keeps an ECUMaster tab
+/// export or any other `Time`-first format out. The field-count ceiling only
+/// rejects a row that is clearly not aligned to the header; exports that omit
+/// trailing empty units are still accepted, and `parse` treats a missing
+/// entry as an empty unit.
 fn is_units_row(header: &str, line: &str) -> bool {
     if !line.contains('\t') {
         return false;
     }
-    if line.split('\t').count() != header.split('\t').count() {
+    if line.split('\t').count() > header.split('\t').count() {
         return false;
     }
     let first = line.split('\t').next().unwrap_or("").trim().to_lowercase();
@@ -155,7 +162,7 @@ impl Msl {
     /// tab-delimited `Time`-first exports.
     pub fn detect(contents: &str) -> bool {
         let contents = contents.trim_start_matches('\u{FEFF}');
-        let Some((header, _units, data_offset)) = locate_header(contents) else {
+        let Some((_header, _units, data_offset)) = locate_header(contents) else {
             return false;
         };
 
@@ -170,7 +177,6 @@ impl Msl {
 
         // Header and units row present but no data — still an MSL file, and
         // `parse` gives a clearer error than a fallthrough parser would.
-        let _ = header;
         true
     }
 
@@ -181,7 +187,11 @@ impl Msl {
             return None;
         }
         if let Ok(v) = trimmed.parse::<f64>() {
-            return Some(v);
+            // `"NaN"` and `"inf"` parse successfully. A logger that writes
+            // either for a disconnected sensor would otherwise poison the
+            // min/max legend and the chart's auto-bounds, so treat them the
+            // same as a blank field and carry the last value forward.
+            return v.is_finite().then_some(v);
         }
         match trimmed.to_uppercase().as_str() {
             "ON" | "YES" | "TRUE" | "ACTIVE" => return Some(1.0),
@@ -400,6 +410,34 @@ mod tests {
         assert_eq!(Msl::parse_clock("1:2:3:4"), None);
         // A date is not a clock — it carries the last known value instead.
         assert_eq!(Msl::parse_value("18.8.2026"), None);
+    }
+
+    #[test]
+    fn non_finite_fields_carry_the_last_value_forward() {
+        // "NaN" and "inf" parse as f64 but must not reach the chart.
+        assert_eq!(Msl::parse_value("NaN"), None);
+        assert_eq!(Msl::parse_value("inf"), None);
+        assert_eq!(Msl::parse_value("-inf"), None);
+        // Windows-style sensor fault markers never parsed to begin with.
+        assert_eq!(Msl::parse_value("-1.#IND"), None);
+
+        let sample = "Time\tRPM\n\
+                      sec\tRPM\n\
+                      0.0\t1000.0\n\
+                      0.5\tNaN\n";
+        let log = Msl.parse(sample).unwrap();
+        assert_eq!(log.data[1][0].as_f64(), 1000.0);
+    }
+
+    #[test]
+    fn accepts_a_units_row_that_omits_trailing_units() {
+        let sample = "Time\tRPM\tMAP\n\
+                      sec\tRPM\n\
+                      0.0\t1000.0\t33.0\n";
+        assert!(Msl::detect(sample));
+        let log = Msl.parse(sample).unwrap();
+        assert_eq!(log.channels[1].name(), "MAP");
+        assert_eq!(log.channels[1].unit(), "");
     }
 
     #[test]

@@ -191,3 +191,65 @@ fn real_file_gps_coordinates_are_plausible_decimal_degrees() {
         );
     }
 }
+
+/// Every bundled example log of another format must be rejected. Adding a
+/// parser to the dispatch chain is the moment a detector can start stealing
+/// other formats' files, so this walks the whole `exampleLogs/` tree.
+///
+/// Only the head of each file is read: detection looks at the preamble, the
+/// header/units pair and the first data row, and some fixtures are hundreds
+/// of megabytes.
+#[test]
+fn does_not_claim_any_other_bundled_example_log() {
+    use std::io::Read;
+
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else {
+                out.push(path);
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    walk(std::path::Path::new("exampleLogs"), &mut files);
+    assert!(!files.is_empty(), "expected bundled example logs");
+
+    let mut checked = 0;
+    for path in files {
+        // Skip the MSL fixtures themselves and non-log files.
+        if path.components().any(|c| c.as_os_str() == "msl") {
+            continue;
+        }
+        if path.file_name().is_some_and(|n| n == ".DS_Store") {
+            continue;
+        }
+
+        let Ok(mut file) = std::fs::File::open(&path) else {
+            continue;
+        };
+        let mut head = vec![0u8; 64 * 1024];
+        let Ok(read) = file.read(&mut head) else {
+            continue;
+        };
+        head.truncate(read);
+        let Ok(text) = String::from_utf8(head) else {
+            continue; // binary format, never reaches the text dispatch chain
+        };
+
+        checked += 1;
+        assert!(
+            !Msl::detect(&text),
+            "MSL parser must not claim {}",
+            path.display()
+        );
+    }
+
+    assert!(checked > 0, "expected to check at least one text log");
+}
