@@ -22,7 +22,8 @@ use crate::ipc::IpcServer;
 use crate::mcp::{DEFAULT_MCP_PORT, McpServerHandle, start_mcp_server};
 use crate::parsers::{
     Aim, BlueDriver, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive,
-    MegaSquirt, Mhd, MotorsportElectronics, Parseable, RaceChrono, RomRaider, Speeduino, Woolich,
+    MegaSquirt, Mhd, MotorsportElectronics, Msl, Parseable, RaceChrono, RomRaider, Speeduino,
+    Woolich,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -647,6 +648,18 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::MegaSquirt)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse MegaSquirt file: {}",
+                    e
+                ))),
+            }
+        } else if Msl::detect(contents) {
+            // TunerStudio MSL (legacy ASCII) datalog detected — tab-delimited
+            // with a units row under the header. RealDash writes this format
+            // when logging a Speeduino over Bluetooth.
+            let parser = Msl;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::Msl)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse TunerStudio MSL file: {}",
                     e
                 ))),
             }

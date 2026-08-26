@@ -4,8 +4,8 @@ use std::path::Path;
 
 // Import from the library
 use ultralog::parsers::{
-    BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Mhd, Parseable,
-    RaceChrono, Speeduino, Woolich, strip_leading_comment_lines,
+    BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Mhd, Msl,
+    Parseable, RaceChrono, Speeduino, Woolich, strip_leading_comment_lines,
 };
 
 use encoding_rs::{UTF_16BE, UTF_16LE};
@@ -131,6 +131,17 @@ fn main() {
             let parser = EcuMaster;
             match parser.parse(&contents) {
                 Ok(log) => (EcuType::EcuMaster, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if Msl::detect(&contents) {
+            println!("\nDetected: TunerStudio MSL format");
+            println!("Parsing MSL log...");
+            let parser = Msl;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::Msl, log),
                 Err(e) => {
                     eprintln!("Parse error: {}", e);
                     std::process::exit(1);
