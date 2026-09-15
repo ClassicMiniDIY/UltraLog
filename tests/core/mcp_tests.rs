@@ -12,9 +12,13 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 
+use ultralog::app::UltraLogApp;
 use ultralog::ipc::IpcServer;
-use ultralog::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
+use ultralog::ipc::commands::{
+    ChannelStats, DEFAULT_MAX_POINTS, IpcCommand, IpcResponse, MAX_POINTS_LIMIT, ResponseData,
+};
 use ultralog::mcp::UltraLogMcpServer;
+use ultralog::mcp::server::MAX_RESPONSE_BYTES;
 
 use rmcp::ServerHandler;
 
@@ -383,4 +387,260 @@ fn test_mcp_server_handle_url() {
 
     assert_eq!(handle.port(), mcp_port);
     assert_eq!(handle.url(), format!("http://127.0.0.1:{}/mcp", mcp_port));
+}
+
+// ============================================================================
+// Response Size Budget Tests (issue #88)
+// ============================================================================
+//
+// Streamable-HTTP MCP clients cap a single SSE event at 1 MiB and drop anything
+// larger inside their SSE decoder, so an oversized tool result surfaces to the
+// caller as neither a value nor an error - the call simply never returns.
+// `evaluate_formula` and `get_channel_data` used to serialize one entry per log
+// record, so any log past ~22,000 rows crossed that cap and hung. These tests
+// pin the two defenses: a sample budget on the data itself, and a hard byte
+// guard on the serialized payload.
+
+/// The SSE event size limit that motivated the budget, in bytes.
+const SSE_EVENT_LIMIT: usize = 1024 * 1024;
+
+#[test]
+fn test_limit_samples_defaults_to_budget() {
+    let n = 178_000;
+    let times: Vec<f64> = (0..n).map(|i| i as f64 * 0.01).collect();
+    let values: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+
+    let (t, v, downsampled) = UltraLogApp::limit_samples(times, values, None);
+
+    assert!(downsampled, "A 178k-record series must report downsampling");
+    assert_eq!(t.len(), DEFAULT_MAX_POINTS);
+    assert_eq!(v.len(), DEFAULT_MAX_POINTS);
+}
+
+#[test]
+fn test_limit_samples_leaves_short_series_untouched() {
+    let times: Vec<f64> = (0..500).map(|i| i as f64).collect();
+    let values: Vec<f64> = (0..500).map(|i| i as f64 * 2.0).collect();
+
+    let (t, v, downsampled) = UltraLogApp::limit_samples(times.clone(), values.clone(), None);
+
+    assert!(
+        !downsampled,
+        "A series under budget must not be downsampled"
+    );
+    assert_eq!(t, times);
+    assert_eq!(v, values);
+}
+
+#[test]
+fn test_limit_samples_clamps_request_to_ceiling() {
+    let n = 200_000;
+    let times: Vec<f64> = (0..n).map(|i| i as f64 * 0.01).collect();
+    let values: Vec<f64> = (0..n).map(|i| (i as f64).cos()).collect();
+
+    let (t, _, downsampled) = UltraLogApp::limit_samples(times, values, Some(usize::MAX));
+
+    assert!(downsampled);
+    assert_eq!(
+        t.len(),
+        MAX_POINTS_LIMIT,
+        "An unbounded max_points must clamp to the ceiling, not honour the request"
+    );
+}
+
+#[test]
+fn test_limit_samples_preserves_endpoints() {
+    let n = 50_000;
+    let times: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+    let values: Vec<f64> = (0..n).map(|i| i as f64).collect();
+    let (first_t, last_t) = (times[0], times[n - 1]);
+    let (first_v, last_v) = (values[0], values[n - 1]);
+
+    let (t, v, _) = UltraLogApp::limit_samples(times, values, Some(1000));
+
+    assert_eq!(t.first().copied(), Some(first_t));
+    assert_eq!(t.last().copied(), Some(last_t));
+    assert_eq!(v.first().copied(), Some(first_v));
+    assert_eq!(v.last().copied(), Some(last_v));
+}
+
+#[test]
+fn test_limit_samples_handles_tiny_budgets() {
+    let times: Vec<f64> = (0..10_000).map(|i| i as f64).collect();
+    let values: Vec<f64> = (0..10_000).map(|i| i as f64).collect();
+
+    for budget in [1usize, 2, 3] {
+        let (t, v, downsampled) =
+            UltraLogApp::limit_samples(times.clone(), values.clone(), Some(budget));
+        assert!(downsampled);
+        assert_eq!(
+            t.len(),
+            budget,
+            "budget {} should be honoured exactly",
+            budget
+        );
+        assert_eq!(v.len(), budget);
+    }
+}
+
+#[test]
+fn test_max_budget_payload_fits_under_sse_event_limit() {
+    // Worst case a caller can ask for: the ceiling, with wide values that
+    // serialize to long decimal expansions.
+    let times: Vec<f64> = (0..MAX_POINTS_LIMIT)
+        .map(|i| i as f64 * 0.123_456_789_012)
+        .collect();
+    let values: Vec<f64> = (0..MAX_POINTS_LIMIT)
+        .map(|i| (i as f64).sin() * -123_456.789_012_345)
+        .collect();
+
+    let payload = serde_json::json!({
+        "sample_count": times.len(),
+        "total_samples": 500_000,
+        "downsampled": true,
+        "stats": {
+            "min": -1.0, "max": 1.0, "mean": 0.5, "std_dev": 0.1,
+            "median": 0.5, "count": 500_000, "min_time": 0.0, "max_time": 1.0
+        },
+        "times": times,
+        "values": values,
+    });
+    let encoded = serde_json::to_string(&payload).unwrap();
+
+    assert!(
+        encoded.len() <= MAX_RESPONSE_BYTES,
+        "Worst-case payload is {} bytes, over the {} byte guard",
+        encoded.len(),
+        MAX_RESPONSE_BYTES
+    );
+    assert!(
+        encoded.len() < SSE_EVENT_LIMIT,
+        "Worst-case payload is {} bytes, at or over the {} byte SSE event limit",
+        encoded.len(),
+        SSE_EVENT_LIMIT
+    );
+    const {
+        assert!(
+            MAX_RESPONSE_BYTES < SSE_EVENT_LIMIT,
+            "The guard must sit below the limit it is protecting against"
+        )
+    };
+}
+
+#[test]
+fn test_json_result_rejects_oversized_payload() {
+    let oversized = serde_json::json!({ "values": vec![1.234_567_890_123_f64; 200_000] });
+    let encoded_len = serde_json::to_string(&oversized).unwrap().len();
+    assert!(
+        encoded_len > MAX_RESPONSE_BYTES,
+        "Fixture must actually exceed the guard (was {} bytes)",
+        encoded_len
+    );
+
+    let err = UltraLogMcpServer::json_result(&oversized)
+        .expect_err("An oversized payload must be refused, not emitted");
+
+    // The caller has to be told what to do about it, since the transport would
+    // otherwise drop the event with no diagnostic at all.
+    assert!(
+        err.message.contains("max_points") && err.message.contains("time range"),
+        "Error should name the knobs that fix it, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_json_result_accepts_budgeted_payload() {
+    let times: Vec<f64> = (0..DEFAULT_MAX_POINTS).map(|i| i as f64 * 0.01).collect();
+    let payload = serde_json::json!({ "sample_count": times.len(), "times": times });
+
+    let result = UltraLogMcpServer::json_result(&payload).expect("Budgeted payload must be sent");
+    assert_eq!(result.is_error, Some(false));
+}
+
+#[test]
+fn test_evaluate_formula_response_roundtrips_at_full_scale() {
+    // End-to-end over the real IPC transport: a 178,000-record log (the size
+    // reported in issue #88) must come back bounded and fast.
+    let port = find_available_port();
+    let server = IpcServer::start_on_port(port).expect("Failed to start server");
+    std::thread::sleep(Duration::from_millis(200));
+
+    std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + Duration::from_secs(20);
+        while std::time::Instant::now() < deadline {
+            if let Some((command, response_tx)) = server.poll_command() {
+                let IpcCommand::EvaluateFormula { max_points, .. } = command else {
+                    let _ = response_tx.send(IpcResponse::error("Unexpected command"));
+                    continue;
+                };
+                let n = 178_000;
+                let times: Vec<f64> = (0..n).map(|i| i as f64 * 0.01).collect();
+                let values: Vec<f64> = (0..n).map(|i| (i as f64).sin() * 1234.5678).collect();
+                let total_samples = times.len();
+                let (times, values, downsampled) =
+                    UltraLogApp::limit_samples(times, values, max_points);
+                let _ = response_tx.send(IpcResponse::ok_with_data(ResponseData::FormulaResult {
+                    times,
+                    values,
+                    stats: ChannelStats {
+                        min: -1234.5678,
+                        max: 1234.5678,
+                        mean: 0.0,
+                        std_dev: 1.0,
+                        median: 0.0,
+                        count: total_samples,
+                        min_time: 0.0,
+                        max_time: 1779.99,
+                    },
+                    total_samples,
+                    downsampled,
+                }));
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    });
+
+    let client = ultralog::mcp::client::GuiClient::with_port(port);
+    let response = client
+        .send_command(IpcCommand::EvaluateFormula {
+            file_id: "0".to_string(),
+            formula: "RPM * 2".to_string(),
+            time_range: None,
+            max_points: None,
+        })
+        .expect("Full-scale evaluate_formula must return a response");
+
+    let IpcResponse::Ok(Some(ResponseData::FormulaResult {
+        times,
+        values,
+        stats,
+        total_samples,
+        downsampled,
+    })) = response
+    else {
+        panic!("Expected FormulaResult, got {:?}", response);
+    };
+
+    assert_eq!(total_samples, 178_000, "The true record count must survive");
+    assert_eq!(stats.count, 178_000, "Stats must describe every record");
+    assert!(downsampled);
+    assert_eq!(times.len(), DEFAULT_MAX_POINTS);
+    assert_eq!(values.len(), DEFAULT_MAX_POINTS);
+
+    let encoded = serde_json::to_string(&serde_json::json!({
+        "sample_count": times.len(),
+        "total_samples": total_samples,
+        "downsampled": downsampled,
+        "stats": stats,
+        "times": times,
+        "values": values,
+    }))
+    .unwrap();
+    assert!(
+        encoded.len() < SSE_EVENT_LIMIT,
+        "Full-scale response is {} bytes, which the transport would drop",
+        encoded.len()
+    );
 }

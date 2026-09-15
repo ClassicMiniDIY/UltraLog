@@ -29,7 +29,8 @@ impl UltraLogApp {
                 file_id,
                 channel_name,
                 time_range,
-            } => self.handle_get_channel_data(&file_id, &channel_name, time_range),
+                max_points,
+            } => self.handle_get_channel_data(&file_id, &channel_name, time_range, max_points),
 
             IpcCommand::GetChannelStats {
                 file_id,
@@ -66,7 +67,8 @@ impl UltraLogApp {
                 file_id,
                 formula,
                 time_range,
-            } => self.handle_evaluate_formula(&file_id, &formula, time_range),
+                max_points,
+            } => self.handle_evaluate_formula(&file_id, &formula, time_range, max_points),
 
             IpcCommand::SetTimeRange { start, end } => self.handle_set_time_range(start, end),
 
@@ -240,15 +242,20 @@ impl UltraLogApp {
         IpcResponse::ok_with_data(ResponseData::Channels(channels))
     }
 
-    fn handle_get_channel_data(
+    /// Resolve a channel (raw or computed) to its full, un-downsampled series.
+    ///
+    /// Callers that need exact aggregates - stats, peaks, correlation - must go
+    /// through this rather than [`Self::handle_get_channel_data`], whose
+    /// response is downsampled for transport.
+    fn channel_series(
         &self,
         file_id: &str,
         channel_name: &str,
         time_range: Option<(f64, f64)>,
-    ) -> IpcResponse {
+    ) -> Result<(Vec<f64>, Vec<f64>), String> {
         let file_idx = match file_id.parse::<usize>() {
             Ok(idx) if idx < self.files.len() => idx,
-            _ => return IpcResponse::error(format!("Invalid file ID: {}", file_id)),
+            _ => return Err(format!("Invalid file ID: {}", file_id)),
         };
 
         let file = &self.files[file_idx];
@@ -260,32 +267,83 @@ impl UltraLogApp {
             .iter()
             .position(|c| c.name().eq_ignore_ascii_case(channel_name));
 
-        let (times, values) = if let Some(idx) = channel_idx {
+        if let Some(idx) = channel_idx {
             let all_times = file.log.get_times_as_f64().to_vec();
             let all_values = file.log.get_channel_data(idx);
-            self.filter_by_time_range(all_times, all_values, time_range)
-        } else {
-            // Check computed channels
-            if let Some(computed) = self.file_computed_channels.get(&file_idx) {
-                if let Some(c) = computed
-                    .iter()
-                    .find(|c| c.name().eq_ignore_ascii_case(channel_name))
-                {
-                    if let Some(data) = &c.cached_data {
-                        let all_times = file.log.get_times_as_f64().to_vec();
-                        self.filter_by_time_range(all_times, data.clone(), time_range)
-                    } else {
-                        return IpcResponse::error("Computed channel not evaluated yet");
-                    }
-                } else {
-                    return IpcResponse::error(format!("Channel not found: {}", channel_name));
-                }
-            } else {
-                return IpcResponse::error(format!("Channel not found: {}", channel_name));
-            }
+            return Ok(self.filter_by_time_range(all_times, all_values, time_range));
+        }
+
+        // Check computed channels
+        let Some(computed) = self.file_computed_channels.get(&file_idx) else {
+            return Err(format!("Channel not found: {}", channel_name));
+        };
+        let Some(c) = computed
+            .iter()
+            .find(|c| c.name().eq_ignore_ascii_case(channel_name))
+        else {
+            return Err(format!("Channel not found: {}", channel_name));
+        };
+        let Some(data) = &c.cached_data else {
+            return Err("Computed channel not evaluated yet".to_string());
         };
 
-        IpcResponse::ok_with_data(ResponseData::ChannelData { times, values })
+        let all_times = file.log.get_times_as_f64().to_vec();
+        Ok(self.filter_by_time_range(all_times, data.clone(), time_range))
+    }
+
+    fn handle_get_channel_data(
+        &self,
+        file_id: &str,
+        channel_name: &str,
+        time_range: Option<(f64, f64)>,
+        max_points: Option<usize>,
+    ) -> IpcResponse {
+        let (times, values) = match self.channel_series(file_id, channel_name, time_range) {
+            Ok(series) => series,
+            Err(message) => return IpcResponse::error(message),
+        };
+
+        let total_samples = times.len();
+        let (times, values, downsampled) = Self::limit_samples(times, values, max_points);
+
+        IpcResponse::ok_with_data(ResponseData::ChannelData {
+            times,
+            values,
+            total_samples,
+            downsampled,
+        })
+    }
+
+    /// Reduce a series to at most `max_points` samples for transport.
+    ///
+    /// An unbounded per-record array is not deliverable over MCP: streamable-HTTP
+    /// clients silently discard any SSE event above 1 MiB, leaving the caller
+    /// hanging with neither a result nor an error (issue #88). LTTB is used
+    /// rather than plain striding so peaks and dropouts survive the reduction.
+    ///
+    /// Returns the reduced series plus whether any reduction actually happened.
+    pub fn limit_samples(
+        times: Vec<f64>,
+        values: Vec<f64>,
+        max_points: Option<usize>,
+    ) -> (Vec<f64>, Vec<f64>, bool) {
+        let budget = resolve_max_points(max_points);
+        if times.len() <= budget {
+            return (times, values, false);
+        }
+
+        // LTTB needs at least 3 buckets; below that, keep evenly spaced samples.
+        if budget < 3 {
+            let step = times.len().div_ceil(budget);
+            let t = times.iter().step_by(step).copied().take(budget).collect();
+            let v = values.iter().step_by(step).copied().take(budget).collect();
+            return (t, v, true);
+        }
+
+        let points = Self::downsample_lttb(&times, &values, budget);
+        let t = points.iter().map(|p| p[0]).collect();
+        let v = points.iter().map(|p| p[1]).collect();
+        (t, v, true)
     }
 
     fn handle_get_channel_stats(
@@ -294,21 +352,19 @@ impl UltraLogApp {
         channel_name: &str,
         time_range: Option<(f64, f64)>,
     ) -> IpcResponse {
-        // First get the data
-        let data_response = self.handle_get_channel_data(file_id, channel_name, time_range);
+        // Stats must be exact, so they run over the full series rather than the
+        // downsampled payload `handle_get_channel_data` returns.
+        let (times, values) = match self.channel_series(file_id, channel_name, time_range) {
+            Ok(series) => series,
+            Err(message) => return IpcResponse::error(message),
+        };
 
-        match data_response {
-            IpcResponse::Ok(Some(ResponseData::ChannelData { times, values })) => {
-                if values.is_empty() {
-                    return IpcResponse::error("No data in range");
-                }
-
-                let stats = self.compute_stats(&times, &values);
-                IpcResponse::ok_with_data(ResponseData::Stats(stats))
-            }
-            IpcResponse::Error { message } => IpcResponse::error(message),
-            _ => IpcResponse::error("Unexpected response"),
+        if values.is_empty() {
+            return IpcResponse::error("No data in range");
         }
+
+        let stats = self.compute_stats(&times, &values);
+        IpcResponse::ok_with_data(ResponseData::Stats(stats))
     }
 
     fn handle_select_channel(&mut self, file_id: &str, channel_name: &str) -> IpcResponse {
@@ -517,6 +573,7 @@ impl UltraLogApp {
         file_id: &str,
         formula: &str,
         time_range: Option<(f64, f64)>,
+        max_points: Option<usize>,
     ) -> IpcResponse {
         let file_idx = match file_id.parse::<usize>() {
             Ok(idx) if idx < self.files.len() => idx,
@@ -557,12 +614,19 @@ impl UltraLogApp {
         let all_times = file.log.get_times_as_f64().to_vec();
         let (times, values) = self.filter_by_time_range(all_times, all_values, time_range);
 
+        // Stats are computed before downsampling so they describe every record
+        // in range, not just the samples that fit in the response.
         let stats = self.compute_stats(&times, &values);
+
+        let total_samples = times.len();
+        let (times, values, downsampled) = Self::limit_samples(times, values, max_points);
 
         IpcResponse::ok_with_data(ResponseData::FormulaResult {
             times,
             values,
             stats,
+            total_samples,
+            downsampled,
         })
     }
 
@@ -635,16 +699,32 @@ impl UltraLogApp {
         channel_name: &str,
         min_prominence: Option<f64>,
     ) -> IpcResponse {
-        let data_response = self.handle_get_channel_data(file_id, channel_name, None);
+        let (times, values) = match self.channel_series(file_id, channel_name, None) {
+            Ok(series) => series,
+            Err(message) => return IpcResponse::error(message),
+        };
 
-        match data_response {
-            IpcResponse::Ok(Some(ResponseData::ChannelData { times, values })) => {
-                let peaks = self.find_peaks_in_data(&times, &values, min_prominence.unwrap_or(0.1));
-                IpcResponse::ok_with_data(ResponseData::Peaks(peaks))
-            }
-            IpcResponse::Error { message } => IpcResponse::error(message),
-            _ => IpcResponse::error("Unexpected response"),
+        let mut peaks = self.find_peaks_in_data(&times, &values, min_prominence.unwrap_or(0.1));
+
+        // Peak count scales with channel noise, not with anything the caller
+        // asked for, so a noisy channel can otherwise produce a payload too
+        // large to deliver (issue #88). Keep the most prominent, then restore
+        // chronological order.
+        if peaks.len() > MAX_PEAKS {
+            peaks.sort_by(|a, b| {
+                b.prominence
+                    .partial_cmp(&a.prominence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            peaks.truncate(MAX_PEAKS);
+            peaks.sort_by(|a, b| {
+                a.time
+                    .partial_cmp(&b.time)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         }
+
+        IpcResponse::ok_with_data(ResponseData::Peaks(peaks))
     }
 
     fn handle_correlate_channels(
@@ -653,31 +733,26 @@ impl UltraLogApp {
         channel_a: &str,
         channel_b: &str,
     ) -> IpcResponse {
-        let data_a = self.handle_get_channel_data(file_id, channel_a, None);
-        let data_b = self.handle_get_channel_data(file_id, channel_b, None);
+        let (_, a) = match self.channel_series(file_id, channel_a, None) {
+            Ok(series) => series,
+            Err(message) => return IpcResponse::error(message),
+        };
+        let (_, b) = match self.channel_series(file_id, channel_b, None) {
+            Ok(series) => series,
+            Err(message) => return IpcResponse::error(message),
+        };
 
-        match (data_a, data_b) {
-            (
-                IpcResponse::Ok(Some(ResponseData::ChannelData { values: a, .. })),
-                IpcResponse::Ok(Some(ResponseData::ChannelData { values: b, .. })),
-            ) => {
-                if a.len() != b.len() || a.is_empty() {
-                    return IpcResponse::error("Channels have different lengths or are empty");
-                }
-
-                let coefficient = self.compute_correlation(&a, &b);
-                let interpretation = self.interpret_correlation(coefficient);
-
-                IpcResponse::ok_with_data(ResponseData::Correlation {
-                    coefficient,
-                    interpretation,
-                })
-            }
-            (IpcResponse::Error { message }, _) | (_, IpcResponse::Error { message }) => {
-                IpcResponse::error(message)
-            }
-            _ => IpcResponse::error("Unexpected response"),
+        if a.len() != b.len() || a.is_empty() {
+            return IpcResponse::error("Channels have different lengths or are empty");
         }
+
+        let coefficient = self.compute_correlation(&a, &b);
+        let interpretation = self.interpret_correlation(coefficient);
+
+        IpcResponse::ok_with_data(ResponseData::Correlation {
+            coefficient,
+            interpretation,
+        })
     }
 
     fn handle_show_scatter_plot(

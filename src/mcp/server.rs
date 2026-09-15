@@ -23,7 +23,28 @@ use tokio::sync::oneshot;
 
 use super::client::GuiClient;
 use crate::ipc::DEFAULT_IPC_PORT;
-use crate::ipc::commands::{IpcCommand, IpcResponse, ResponseData};
+use crate::ipc::commands::{
+    DEFAULT_MAX_POINTS, IpcCommand, IpcResponse, MAX_POINTS_LIMIT, ResponseData,
+};
+
+/// Maximum size of a single tool-result payload, in bytes.
+///
+/// Streamable-HTTP MCP clients cap a single SSE event at 1 MiB
+/// (`DEFAULT_MAX_EVENT_SIZE_BYTES` in the reference client). An event above the
+/// cap is discarded by the client's SSE decoder without surfacing anything to
+/// the caller, so an oversized tool result reads as a hang: no value, no error,
+/// not even after the IPC layer's own 30s timeout would have fired (issue #88).
+///
+/// Payloads are bounded well before this point by the sample budget in
+/// `src/ipc/handler.rs`; this is the backstop that turns any remaining
+/// oversized response into an actionable error instead of silence.
+pub const MAX_RESPONSE_BYTES: usize = 512 * 1024;
+
+// The sample budget is quoted as a literal in the `#[schemars(description)]`
+// attributes below, which cannot interpolate constants. Fail the build if the
+// constants move so the tool schemas can never advertise stale numbers.
+const _: () = assert!(DEFAULT_MAX_POINTS == 2000, "update the tool descriptions");
+const _: () = assert!(MAX_POINTS_LIMIT == 10_000, "update the tool descriptions");
 
 /// Default port for the MCP HTTP server
 /// Port 52453 = 5-2-4-5-3, a nod to the 1-2-4-5-3 firing order of legendary inline-5 engines
@@ -160,6 +181,28 @@ impl UltraLogMcpServer {
             .map_err(Self::mcp_error)
     }
 
+    /// Serialize a tool result compactly and refuse to emit anything the
+    /// transport would silently drop.
+    ///
+    /// Compact rather than pretty: pretty-printing a numeric array puts one
+    /// value per line, which roughly doubles the payload for no benefit to the
+    /// caller.
+    pub fn json_result(value: &serde_json::Value) -> Result<CallToolResult, McpError> {
+        let text = serde_json::to_string(value)
+            .map_err(|e| Self::mcp_error(format!("Failed to serialize response: {}", e)))?;
+
+        if text.len() > MAX_RESPONSE_BYTES {
+            return Err(Self::mcp_error(format!(
+                "Response is {} bytes, over the {} byte limit this transport can deliver. \
+                 Narrow the time range (start_time/end_time) or lower max_points.",
+                text.len(),
+                MAX_RESPONSE_BYTES
+            )));
+        }
+
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
     fn mcp_error(message: impl Into<String>) -> McpError {
         McpError {
             code: ErrorCode(-32603),
@@ -211,6 +254,11 @@ pub struct ChannelDataRequest {
     #[schemars(description = "Optional end time in seconds")]
     #[serde(default)]
     pub end_time: Option<f64>,
+    #[schemars(
+        description = "Maximum samples to return (default 2000, max 10000). Longer series are downsampled with LTTB, which preserves peaks and dropouts. Use start_time/end_time for full resolution over a narrower window."
+    )]
+    #[serde(default)]
+    pub max_points: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -240,6 +288,11 @@ pub struct EvaluateFormulaRequest {
     #[schemars(description = "Optional end time in seconds")]
     #[serde(default)]
     pub end_time: Option<f64>,
+    #[schemars(
+        description = "Maximum samples to return (default 2000, max 10000). Longer series are downsampled with LTTB; the returned stats are always computed over every record in range, not just the returned samples."
+    )]
+    #[serde(default)]
+    pub max_points: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -395,7 +448,7 @@ impl UltraLogMcpServer {
     }
 
     #[tool(
-        description = "Get time series data for a specific channel. Optionally filter by time range."
+        description = "Get time series data for a specific channel. Optionally filter by time range. Returns at most max_points samples (default 2000); longer series are downsampled with LTTB and the response reports total_samples and downsampled so you can tell."
     )]
     async fn get_channel_data(
         &self,
@@ -411,19 +464,22 @@ impl UltraLogMcpServer {
                 file_id: req.file_id,
                 channel_name: req.channel_name,
                 time_range,
+                max_points: req.max_points,
             })
             .await?
         {
-            IpcResponse::Ok(Some(ResponseData::ChannelData { times, values })) => {
-                let result = serde_json::json!({
-                    "sample_count": times.len(),
-                    "times": times,
-                    "values": values
-                });
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&result).unwrap_or_default(),
-                )]))
-            }
+            IpcResponse::Ok(Some(ResponseData::ChannelData {
+                times,
+                values,
+                total_samples,
+                downsampled,
+            })) => Self::json_result(&serde_json::json!({
+                "sample_count": times.len(),
+                "total_samples": total_samples,
+                "downsampled": downsampled,
+                "times": times,
+                "values": values
+            })),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
         }
@@ -574,7 +630,7 @@ impl UltraLogMcpServer {
     }
 
     #[tool(
-        description = "Evaluate a mathematical formula against the log data without creating a permanent channel. Returns the computed values and statistics."
+        description = "Evaluate a mathematical formula against the log data without creating a permanent channel. Returns the computed values and statistics. Returns at most max_points samples (default 2000); longer series are downsampled with LTTB, but the statistics always cover every record in range."
     )]
     async fn evaluate_formula(
         &self,
@@ -590,6 +646,7 @@ impl UltraLogMcpServer {
                 file_id: req.file_id,
                 formula: req.formula,
                 time_range,
+                max_points: req.max_points,
             })
             .await?
         {
@@ -597,17 +654,16 @@ impl UltraLogMcpServer {
                 times,
                 values,
                 stats,
-            })) => {
-                let result = serde_json::json!({
-                    "sample_count": times.len(),
-                    "stats": stats,
-                    "times": times,
-                    "values": values
-                });
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&result).unwrap_or_default(),
-                )]))
-            }
+                total_samples,
+                downsampled,
+            })) => Self::json_result(&serde_json::json!({
+                "sample_count": times.len(),
+                "total_samples": total_samples,
+                "downsampled": downsampled,
+                "stats": stats,
+                "times": times,
+                "values": values
+            })),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
         }
