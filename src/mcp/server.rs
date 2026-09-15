@@ -24,7 +24,7 @@ use tokio::sync::oneshot;
 use super::client::GuiClient;
 use crate::ipc::DEFAULT_IPC_PORT;
 use crate::ipc::commands::{
-    DEFAULT_MAX_POINTS, IpcCommand, IpcResponse, MAX_POINTS_LIMIT, ResponseData,
+    DEFAULT_MAX_POINTS, IpcCommand, IpcResponse, MAX_PEAKS, MAX_POINTS_LIMIT, ResponseData,
 };
 
 /// Maximum size of a single tool-result payload, in bytes.
@@ -45,6 +45,7 @@ pub const MAX_RESPONSE_BYTES: usize = 512 * 1024;
 // constants move so the tool schemas can never advertise stale numbers.
 const _: () = assert!(DEFAULT_MAX_POINTS == 2000, "update the tool descriptions");
 const _: () = assert!(MAX_POINTS_LIMIT == 10_000, "update the tool descriptions");
+const _: () = assert!(MAX_PEAKS == 500, "update the find_peaks description");
 
 /// Default port for the MCP HTTP server
 /// Port 52453 = 5-2-4-5-3, a nod to the 1-2-4-5-3 firing order of legendary inline-5 engines
@@ -187,7 +188,9 @@ impl UltraLogMcpServer {
     /// Compact rather than pretty: pretty-printing a numeric array puts one
     /// value per line, which roughly doubles the payload for no benefit to the
     /// caller.
-    pub fn json_result(value: &serde_json::Value) -> Result<CallToolResult, McpError> {
+    pub fn json_result<T: serde::Serialize + ?Sized>(
+        value: &T,
+    ) -> Result<CallToolResult, McpError> {
         let text = serde_json::to_string(value)
             .map_err(|e| Self::mcp_error(format!("Failed to serialize response: {}", e)))?;
 
@@ -370,11 +373,7 @@ impl UltraLogMcpServer {
         Parameters(_): Parameters<EmptyRequest>,
     ) -> Result<CallToolResult, McpError> {
         match self.send_command_async(IpcCommand::GetState).await? {
-            IpcResponse::Ok(Some(ResponseData::State(state))) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&state).unwrap_or_default(),
-                )]))
-            }
+            IpcResponse::Ok(Some(ResponseData::State(state))) => Self::json_result(&state),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
         }
@@ -391,11 +390,7 @@ impl UltraLogMcpServer {
             .send_command_async(IpcCommand::LoadFile { path: req.path })
             .await?
         {
-            IpcResponse::Ok(Some(ResponseData::FileLoaded(info))) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&info).unwrap_or_default(),
-                )]))
-            }
+            IpcResponse::Ok(Some(ResponseData::FileLoaded(info))) => Self::json_result(&info),
             IpcResponse::Ok(Some(ResponseData::Ack)) => {
                 Ok(CallToolResult::success(vec![ContentBlock::text(
                     "File is being loaded. Use get_state to check when ready.",
@@ -437,11 +432,7 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(Some(ResponseData::Channels(channels))) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&channels).unwrap_or_default(),
-                )]))
-            }
+            IpcResponse::Ok(Some(ResponseData::Channels(channels))) => Self::json_result(&channels),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
         }
@@ -503,11 +494,7 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(Some(ResponseData::Stats(stats))) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&stats).unwrap_or_default(),
-                )]))
-            }
+            IpcResponse::Ok(Some(ResponseData::Stats(stats))) => Self::json_result(&stats),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
         }
@@ -620,9 +607,7 @@ impl UltraLogMcpServer {
             .await?
         {
             IpcResponse::Ok(Some(ResponseData::ComputedChannels(channels))) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&channels).unwrap_or_default(),
-                )]))
+                Self::json_result(&channels)
             }
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
@@ -761,18 +746,14 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(Some(ResponseData::CursorValues(values))) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&values).unwrap_or_default(),
-                )]))
-            }
+            IpcResponse::Ok(Some(ResponseData::CursorValues(values))) => Self::json_result(&values),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
         }
     }
 
     #[tool(
-        description = "Find peaks (local maxima) in a channel. Useful for finding acceleration events, boost spikes, etc."
+        description = "Find peaks (local maxima) in a channel. Useful for finding acceleration events, boost spikes, etc. At most 500 peaks are returned, selected by prominence and listed chronologically; check total_peaks and truncated before treating peak_count as an event count, and raise min_prominence to cut noise."
     )]
     async fn find_peaks(
         &self,
@@ -786,11 +767,16 @@ impl UltraLogMcpServer {
             })
             .await?
         {
-            IpcResponse::Ok(Some(ResponseData::Peaks(peaks))) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&peaks).unwrap_or_default(),
-                )]))
-            }
+            IpcResponse::Ok(Some(ResponseData::Peaks {
+                peaks,
+                total_peaks,
+                truncated,
+            })) => Self::json_result(&serde_json::json!({
+                "peak_count": peaks.len(),
+                "total_peaks": total_peaks,
+                "truncated": truncated,
+                "peaks": peaks,
+            })),
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),
         }
@@ -819,9 +805,7 @@ impl UltraLogMcpServer {
                     "coefficient": coefficient,
                     "interpretation": interpretation
                 });
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    serde_json::to_string_pretty(&result).unwrap_or_default(),
-                )]))
+                Self::json_result(&result)
             }
             IpcResponse::Error { message } => Err(Self::mcp_error(message)),
             _ => Err(Self::mcp_error("Unexpected response")),

@@ -223,8 +223,17 @@ pub enum ResponseData {
     /// List of computed channel templates
     ComputedChannels(Vec<ComputedChannelInfo>),
 
-    /// Peak detection results
-    Peaks(Vec<Peak>),
+    /// Peak detection results.
+    ///
+    /// `peaks` is capped at [`MAX_PEAKS`]; `total_peaks` is how many the
+    /// detector actually found, and `truncated` says whether the cap bit.
+    Peaks {
+        peaks: Vec<Peak>,
+        #[serde(default)]
+        total_peaks: usize,
+        #[serde(default)]
+        truncated: bool,
+    },
 
     /// Correlation result
     Correlation {
@@ -668,16 +677,59 @@ mod tests {
                 prominence: 800.0,
             },
         ];
-        let resp = IpcResponse::ok_with_data(ResponseData::Peaks(peaks));
+        let resp = IpcResponse::ok_with_data(ResponseData::Peaks {
+            peaks,
+            total_peaks: 2,
+            truncated: false,
+        });
         let json = serde_json::to_string(&resp).unwrap();
         let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
-        if let IpcResponse::Ok(Some(ResponseData::Peaks(p))) = parsed {
+        if let IpcResponse::Ok(Some(ResponseData::Peaks {
+            peaks: p,
+            total_peaks,
+            truncated,
+        })) = parsed
+        {
             assert_eq!(p.len(), 2);
             assert_eq!(p[0].time, 10.5);
             assert_eq!(p[1].value, 7500.0);
+            assert_eq!(total_peaks, 2);
+            assert!(!truncated);
         } else {
             panic!("Expected Peaks response");
         }
+    }
+
+    #[test]
+    fn test_truncated_peaks_response_reports_the_true_total() {
+        // A truncated list must not be indistinguishable from a complete one:
+        // a caller counting events off `peaks.len()` alone would read exactly
+        // MAX_PEAKS and believe the channel had no more.
+        let peaks: Vec<Peak> = (0..MAX_PEAKS)
+            .map(|i| Peak {
+                time: i as f64,
+                value: 1000.0 + i as f64,
+                prominence: 50.0,
+            })
+            .collect();
+        let resp = IpcResponse::ok_with_data(ResponseData::Peaks {
+            peaks,
+            total_peaks: 41_337,
+            truncated: true,
+        });
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        let IpcResponse::Ok(Some(ResponseData::Peaks {
+            peaks,
+            total_peaks,
+            truncated,
+        })) = parsed
+        else {
+            panic!("Expected Peaks response");
+        };
+        assert_eq!(peaks.len(), MAX_PEAKS);
+        assert_eq!(total_peaks, 41_337);
+        assert!(truncated);
     }
 
     // ========================================================================

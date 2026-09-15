@@ -270,6 +270,7 @@ impl UltraLogApp {
         if let Some(idx) = channel_idx {
             let all_times = file.log.get_times_as_f64().to_vec();
             let all_values = file.log.get_channel_data(idx);
+            Self::require_aligned(channel_name, &all_times, &all_values)?;
             return Ok(self.filter_by_time_range(all_times, all_values, time_range));
         }
 
@@ -288,7 +289,38 @@ impl UltraLogApp {
         };
 
         let all_times = file.log.get_times_as_f64().to_vec();
+        Self::require_aligned(channel_name, &all_times, data)?;
         Ok(self.filter_by_time_range(all_times, data.clone(), time_range))
+    }
+
+    /// Reject a times/values pair whose lengths disagree.
+    ///
+    /// `Log::get_channel_data` is a `filter_map` that drops a row missing the
+    /// column entirely, and an analysis-derived `cached_data` is only as long as
+    /// the algorithm made it, so a ragged log can yield fewer values than times.
+    /// Such a pair is not merely short, it is misaligned from the first dropped
+    /// row onward - and `filter_by_time_range`'s `zip` would quietly paper over
+    /// the mismatch while `downsample_lttb` indexes `values` off `times.len()`
+    /// and panics on the GUI thread.
+    ///
+    /// `src/ui/chart.rs` refuses to plot this case for the same reason; the data
+    /// API refuses to serve it rather than return numbers attributed to the
+    /// wrong timestamps.
+    pub fn require_aligned(
+        channel_name: &str,
+        times: &[f64],
+        values: &[f64],
+    ) -> Result<(), String> {
+        if times.len() != values.len() {
+            return Err(format!(
+                "Channel '{}' has {} values for {} timestamps; the log rows are ragged, \
+                 so samples cannot be matched to times",
+                channel_name,
+                values.len(),
+                times.len()
+            ));
+        }
+        Ok(())
     }
 
     fn handle_get_channel_data(
@@ -612,6 +644,12 @@ impl UltraLogApp {
         };
 
         let all_times = file.log.get_times_as_f64().to_vec();
+        // Same alignment precondition as `channel_series`: the evaluator emits
+        // one value per record, so a disagreement here means the log itself is
+        // ragged and `limit_samples` would index past the end of `values`.
+        if let Err(e) = Self::require_aligned(formula, &all_times, &all_values) {
+            return IpcResponse::error(e);
+        }
         let (times, values) = self.filter_by_time_range(all_times, all_values, time_range);
 
         // Stats are computed before downsampling so they describe every record
@@ -708,9 +746,16 @@ impl UltraLogApp {
 
         // Peak count scales with channel noise, not with anything the caller
         // asked for, so a noisy channel can otherwise produce a payload too
-        // large to deliver (issue #88). Keep the most prominent, then restore
-        // chronological order.
-        if peaks.len() > MAX_PEAKS {
+        // large to deliver (issue #88). Select the most prominent, then restore
+        // chronological order so the series still reads as a timeline.
+        //
+        // `total_peaks` is reported alongside because a bare truncated list is
+        // indistinguishable from a complete one: a caller asked "how many boost
+        // spikes?" would read exactly MAX_PEAKS off a channel with thousands and
+        // believe it.
+        let total_peaks = peaks.len();
+        let truncated = total_peaks > MAX_PEAKS;
+        if truncated {
             peaks.sort_by(|a, b| {
                 b.prominence
                     .partial_cmp(&a.prominence)
@@ -724,7 +769,11 @@ impl UltraLogApp {
             });
         }
 
-        IpcResponse::ok_with_data(ResponseData::Peaks(peaks))
+        IpcResponse::ok_with_data(ResponseData::Peaks {
+            peaks,
+            total_peaks,
+            truncated,
+        })
     }
 
     fn handle_correlate_channels(

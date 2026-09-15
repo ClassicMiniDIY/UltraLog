@@ -644,3 +644,42 @@ fn test_evaluate_formula_response_roundtrips_at_full_scale() {
         encoded.len()
     );
 }
+
+#[test]
+fn test_require_aligned_rejects_ragged_series() {
+    // `Log::get_channel_data` is a `filter_map` that drops a row missing the
+    // column, so a ragged log yields fewer values than times - misaligned, not
+    // merely short. Feeding that pair to LTTB indexes `values` off `times.len()`
+    // and panics on the GUI thread, so it has to be refused up front.
+    let times: Vec<f64> = (0..100).map(|i| i as f64).collect();
+    let values: Vec<f64> = (0..97).map(|i| i as f64).collect();
+
+    let err = UltraLogApp::require_aligned("MAP", &times, &values)
+        .expect_err("A ragged series must be refused");
+    assert!(
+        err.contains("MAP") && err.contains("97") && err.contains("100"),
+        "Error should name the channel and both counts, got: {}",
+        err
+    );
+
+    UltraLogApp::require_aligned("MAP", &times, &times).expect("Aligned series must pass");
+    UltraLogApp::require_aligned("MAP", &[], &[]).expect("Empty series must pass");
+}
+
+#[test]
+fn test_limit_samples_never_panics_on_aligned_series() {
+    // Guards the LTTB call itself: the budget path must hold for a range of
+    // lengths straddling DEFAULT_MAX_POINTS, not just the big ones.
+    for n in [0usize, 1, 2, 3, 4, 1999, 2000, 2001, 5000] {
+        let times: Vec<f64> = (0..n).map(|i| i as f64 * 0.01).collect();
+        let values: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+        let (t, v, _) = UltraLogApp::limit_samples(times, values, None);
+        assert_eq!(t.len(), v.len(), "n={} produced a misaligned result", n);
+        assert_eq!(
+            t.len(),
+            n.min(DEFAULT_MAX_POINTS),
+            "n={} exceeded budget",
+            n
+        );
+    }
+}

@@ -261,18 +261,29 @@ Two defenses keep that from recurring, and both must stay in place:
    (10,000), using the chart's LTTB so peaks and dropouts survive. `GetChannelData` and
    `EvaluateFormula` carry an optional `max_points`; responses report `total_samples` and
    `downsampled` so a caller can tell what it got. `FindPeaks` is capped at `MAX_PEAKS`
-   (500, most prominent first) because peak count scales with channel noise rather than
-   with anything the caller asked for.
+   (500) because peak count scales with channel noise rather than with anything the
+   caller asked for; it *selects* by prominence but *returns* chronologically, and
+   reports `total_peaks`/`truncated` — a bare truncated list is indistinguishable from a
+   complete one, so a caller counting events would read exactly 500 and believe it.
 2. **Byte guard** — `UltraLogMcpServer::json_result` (`src/mcp/server.rs`) serializes
    compactly (never `to_string_pretty`: one array element per line roughly doubles the
    payload for no benefit) and refuses anything over `MAX_RESPONSE_BYTES` (512 KiB) with
    an error naming `max_points` and the time range. An honest error beats silence.
 
 **Corollary:** anything needing exact aggregates must read the *full* series, not a
-downsampled response. `UltraLogApp::channel_series` is that accessor; `handle_get_channel_stats`,
-`handle_find_peaks`, `handle_correlate_channels`, and `handle_evaluate_formula`'s stats all
-go through it. Routing one of them back through `handle_get_channel_data` would silently
-compute statistics over 2000 samples instead of 178,000.
+downsampled response. `UltraLogApp::channel_series` is that accessor, and
+`handle_get_channel_stats`, `handle_find_peaks` and `handle_correlate_channels` all go
+through it. `handle_evaluate_formula` does not use it — it has already evaluated its own
+series — but it holds the same invariant by calling `compute_stats` *before*
+`limit_samples`. Either way the rule is the same: routing an aggregate through a
+downsampled series would silently compute statistics over 2000 samples instead of 178,000.
+
+`channel_series` also enforces that `times` and `values` are the same length
+(`require_aligned`). `Log::get_channel_data` is a `filter_map` that drops a row missing
+the column, and an analysis-derived `cached_data` is only as long as the algorithm made
+it, so a ragged log yields a pair that is *misaligned*, not merely short — and
+`downsample_lttb` indexes `values` off `times.len()`, which panics on the GUI thread.
+`src/ui/chart.rs` refuses to plot that case; the data API refuses to serve it.
 
 ### UI Modules (src/ui/)
 
