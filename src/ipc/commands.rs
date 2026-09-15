@@ -2,6 +2,37 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Default number of samples returned by the data-bearing commands
+/// (`GetChannelData`, `EvaluateFormula`) when the caller does not ask for a
+/// specific count.
+///
+/// This matches the chart's own LTTB budget in `src/ui/chart.rs`: 2000 points
+/// is enough to see every feature of a trace and costs ~55 KB of compact JSON.
+pub const DEFAULT_MAX_POINTS: usize = 2000;
+
+/// Hard ceiling on the caller-supplied `max_points`.
+///
+/// Streamable-HTTP MCP clients drop any single SSE event larger than 1 MiB
+/// (`DEFAULT_MAX_EVENT_SIZE_BYTES` in the reference client), and the drop is
+/// silent: the caller never receives a result *or* an error, it just hangs
+/// (issue #88). 10,000 samples is ~275 KB of compact JSON, which leaves ample
+/// headroom under that limit for the surrounding envelope.
+pub const MAX_POINTS_LIMIT: usize = 10_000;
+
+/// Maximum number of peaks returned by `FindPeaks`.
+///
+/// Peak counts grow with the noise in a channel, not with anything the caller
+/// controls, so this is capped for the same reason as `MAX_POINTS_LIMIT`. The
+/// most prominent peaks are kept.
+pub const MAX_PEAKS: usize = 500;
+
+/// Clamp a caller-supplied sample budget into the supported range.
+pub fn resolve_max_points(requested: Option<usize>) -> usize {
+    requested
+        .unwrap_or(DEFAULT_MAX_POINTS)
+        .clamp(1, MAX_POINTS_LIMIT)
+}
+
 /// Commands that can be sent from the MCP server to the GUI
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
@@ -27,6 +58,10 @@ pub enum IpcCommand {
         channel_name: String,
         /// Optional time range (start, end) in seconds
         time_range: Option<(f64, f64)>,
+        /// Maximum number of samples to return. Defaults to
+        /// [`DEFAULT_MAX_POINTS`] and is clamped to [`MAX_POINTS_LIMIT`].
+        #[serde(default)]
+        max_points: Option<usize>,
     },
 
     /// Get statistics for a channel
@@ -72,6 +107,10 @@ pub enum IpcCommand {
         formula: String,
         /// Optional time range
         time_range: Option<(f64, f64)>,
+        /// Maximum number of samples to return. Defaults to
+        /// [`DEFAULT_MAX_POINTS`] and is clamped to [`MAX_POINTS_LIMIT`].
+        #[serde(default)]
+        max_points: Option<usize>,
     },
 
     /// Set the visible time range on the chart
@@ -148,17 +187,34 @@ pub enum ResponseData {
     /// List of channels
     Channels(Vec<ChannelInfo>),
 
-    /// Channel time series data
-    ChannelData { times: Vec<f64>, values: Vec<f64> },
+    /// Channel time series data.
+    ///
+    /// `times`/`values` may be downsampled; `total_samples` is always the
+    /// number of records the series was drawn from.
+    ChannelData {
+        times: Vec<f64>,
+        values: Vec<f64>,
+        #[serde(default)]
+        total_samples: usize,
+        #[serde(default)]
+        downsampled: bool,
+    },
 
     /// Channel statistics
     Stats(ChannelStats),
 
-    /// Formula evaluation result
+    /// Formula evaluation result.
+    ///
+    /// `times`/`values` may be downsampled; `stats` is always computed over
+    /// the full series, and `total_samples` is its length.
     FormulaResult {
         times: Vec<f64>,
         values: Vec<f64>,
         stats: ChannelStats,
+        #[serde(default)]
+        total_samples: usize,
+        #[serde(default)]
+        downsampled: bool,
     },
 
     /// Values at cursor position
@@ -167,8 +223,17 @@ pub enum ResponseData {
     /// List of computed channel templates
     ComputedChannels(Vec<ComputedChannelInfo>),
 
-    /// Peak detection results
-    Peaks(Vec<Peak>),
+    /// Peak detection results.
+    ///
+    /// `peaks` is capped at [`MAX_PEAKS`]; `total_peaks` is how many the
+    /// detector actually found, and `truncated` says whether the cap bit.
+    Peaks {
+        peaks: Vec<Peak>,
+        #[serde(default)]
+        total_peaks: usize,
+        #[serde(default)]
+        truncated: bool,
+    },
 
     /// Correlation result
     Correlation {
@@ -350,6 +415,7 @@ mod tests {
             file_id: "0".to_string(),
             channel_name: "RPM".to_string(),
             time_range: Some((10.0, 20.0)),
+            max_points: Some(500),
         };
         let json = serde_json::to_string(&cmd).unwrap();
         let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
@@ -357,11 +423,13 @@ mod tests {
             file_id,
             channel_name,
             time_range,
+            max_points,
         } = parsed
         {
             assert_eq!(file_id, "0");
             assert_eq!(channel_name, "RPM");
             assert_eq!(time_range, Some((10.0, 20.0)));
+            assert_eq!(max_points, Some(500));
         } else {
             panic!("Expected GetChannelData command");
         }
@@ -373,6 +441,7 @@ mod tests {
             file_id: "0".to_string(),
             channel_name: "Boost".to_string(),
             time_range: None,
+            max_points: None,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         let parsed: IpcCommand = serde_json::from_str(&json).unwrap();
@@ -380,11 +449,13 @@ mod tests {
             file_id,
             channel_name,
             time_range,
+            max_points,
         } = parsed
         {
             assert_eq!(file_id, "0");
             assert_eq!(channel_name, "Boost");
             assert!(time_range.is_none());
+            assert!(max_points.is_none());
         } else {
             panic!("Expected GetChannelData command");
         }
@@ -488,12 +559,22 @@ mod tests {
         let resp = IpcResponse::ok_with_data(ResponseData::ChannelData {
             times: vec![0.0, 0.1, 0.2, 0.3],
             values: vec![1000.0, 1500.0, 2000.0, 2500.0],
+            total_samples: 4,
+            downsampled: false,
         });
         let json = serde_json::to_string(&resp).unwrap();
         let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
-        if let IpcResponse::Ok(Some(ResponseData::ChannelData { times, values })) = parsed {
+        if let IpcResponse::Ok(Some(ResponseData::ChannelData {
+            times,
+            values,
+            total_samples,
+            downsampled,
+        })) = parsed
+        {
             assert_eq!(times, vec![0.0, 0.1, 0.2, 0.3]);
             assert_eq!(values, vec![1000.0, 1500.0, 2000.0, 2500.0]);
+            assert_eq!(total_samples, 4);
+            assert!(!downsampled);
         } else {
             panic!("Expected ChannelData response");
         }
@@ -596,16 +677,59 @@ mod tests {
                 prominence: 800.0,
             },
         ];
-        let resp = IpcResponse::ok_with_data(ResponseData::Peaks(peaks));
+        let resp = IpcResponse::ok_with_data(ResponseData::Peaks {
+            peaks,
+            total_peaks: 2,
+            truncated: false,
+        });
         let json = serde_json::to_string(&resp).unwrap();
         let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
-        if let IpcResponse::Ok(Some(ResponseData::Peaks(p))) = parsed {
+        if let IpcResponse::Ok(Some(ResponseData::Peaks {
+            peaks: p,
+            total_peaks,
+            truncated,
+        })) = parsed
+        {
             assert_eq!(p.len(), 2);
             assert_eq!(p[0].time, 10.5);
             assert_eq!(p[1].value, 7500.0);
+            assert_eq!(total_peaks, 2);
+            assert!(!truncated);
         } else {
             panic!("Expected Peaks response");
         }
+    }
+
+    #[test]
+    fn test_truncated_peaks_response_reports_the_true_total() {
+        // A truncated list must not be indistinguishable from a complete one:
+        // a caller counting events off `peaks.len()` alone would read exactly
+        // MAX_PEAKS and believe the channel had no more.
+        let peaks: Vec<Peak> = (0..MAX_PEAKS)
+            .map(|i| Peak {
+                time: i as f64,
+                value: 1000.0 + i as f64,
+                prominence: 50.0,
+            })
+            .collect();
+        let resp = IpcResponse::ok_with_data(ResponseData::Peaks {
+            peaks,
+            total_peaks: 41_337,
+            truncated: true,
+        });
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: IpcResponse = serde_json::from_str(&json).unwrap();
+        let IpcResponse::Ok(Some(ResponseData::Peaks {
+            peaks,
+            total_peaks,
+            truncated,
+        })) = parsed
+        else {
+            panic!("Expected Peaks response");
+        };
+        assert_eq!(peaks.len(), MAX_PEAKS);
+        assert_eq!(total_peaks, 41_337);
+        assert!(truncated);
     }
 
     // ========================================================================
@@ -641,20 +765,33 @@ mod tests {
 
     #[test]
     fn test_command_can_be_parsed_from_external_json() {
-        // Test parsing JSON that might come from an external MCP client
+        // Test parsing JSON that might come from an external MCP client.
+        // `max_points` is absent here on purpose: it is `#[serde(default)]`, so
+        // a payload written before the sample budget existed still parses.
         let json = r#"{"type":"GetChannelData","payload":{"file_id":"0","channel_name":"RPM","time_range":[0.0,10.0]}}"#;
         let cmd: IpcCommand = serde_json::from_str(json).unwrap();
         if let IpcCommand::GetChannelData {
             file_id,
             channel_name,
             time_range,
+            max_points,
         } = cmd
         {
             assert_eq!(file_id, "0");
             assert_eq!(channel_name, "RPM");
             assert_eq!(time_range, Some((0.0, 10.0)));
+            assert!(max_points.is_none(), "Omitted max_points must default");
         } else {
             panic!("Expected GetChannelData command");
         }
+    }
+
+    #[test]
+    fn test_resolve_max_points_clamps_into_supported_range() {
+        assert_eq!(resolve_max_points(None), DEFAULT_MAX_POINTS);
+        assert_eq!(resolve_max_points(Some(750)), 750);
+        assert_eq!(resolve_max_points(Some(0)), 1, "Zero would return no data");
+        assert_eq!(resolve_max_points(Some(usize::MAX)), MAX_POINTS_LIMIT);
+        assert_eq!(resolve_max_points(Some(MAX_POINTS_LIMIT)), MAX_POINTS_LIMIT);
     }
 }

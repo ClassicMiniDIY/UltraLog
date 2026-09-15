@@ -246,6 +246,45 @@ UltraLog embeds an MCP (Model Context Protocol) HTTP server so Claude Desktop ca
 
 **Load-bearing contract:** the IPC server wakes the GUI via a repaint callback (`request_repaint()`), not a polling timer — see `IpcServer::start_with_repaint` in `src/ipc/server.rs` and its wiring in `UltraLogApp::new`. Incoming commands are drained in `UltraLogApp::process_ipc_commands`, which caps processing at **10 commands per frame** to avoid blocking the UI thread; if more are queued, it requests another repaint to continue next frame.
 
+**Response size contract (load-bearing):** every MCP tool result travels as a single
+Server-Sent Event, and streamable-HTTP MCP clients cap one SSE event at **1 MiB**
+(`DEFAULT_MAX_EVENT_SIZE_BYTES` in the reference client). An event over that cap is
+discarded inside the client's SSE decoder — the caller receives no value *and* no error,
+so the tool call simply never returns, even past the IPC layer's own 30s timeout. That
+is issue #80's cousin for the MCP path: issue #88, where `evaluate_formula` worked up to
+~22,000 rows and hung on everything larger.
+
+Two defenses keep that from recurring, and both must stay in place:
+
+1. **Sample budget** — `UltraLogApp::limit_samples` (`src/ipc/handler.rs`) reduces any
+   per-record series to `DEFAULT_MAX_POINTS` (2000), clamped to `MAX_POINTS_LIMIT`
+   (10,000), using the chart's LTTB so peaks and dropouts survive. `GetChannelData` and
+   `EvaluateFormula` carry an optional `max_points`; responses report `total_samples` and
+   `downsampled` so a caller can tell what it got. `FindPeaks` is capped at `MAX_PEAKS`
+   (500) because peak count scales with channel noise rather than with anything the
+   caller asked for; it *selects* by prominence but *returns* chronologically, and
+   reports `total_peaks`/`truncated` — a bare truncated list is indistinguishable from a
+   complete one, so a caller counting events would read exactly 500 and believe it.
+2. **Byte guard** — `UltraLogMcpServer::json_result` (`src/mcp/server.rs`) serializes
+   compactly (never `to_string_pretty`: one array element per line roughly doubles the
+   payload for no benefit) and refuses anything over `MAX_RESPONSE_BYTES` (512 KiB) with
+   an error naming `max_points` and the time range. An honest error beats silence.
+
+**Corollary:** anything needing exact aggregates must read the *full* series, not a
+downsampled response. `UltraLogApp::channel_series` is that accessor, and
+`handle_get_channel_stats`, `handle_find_peaks` and `handle_correlate_channels` all go
+through it. `handle_evaluate_formula` does not use it — it has already evaluated its own
+series — but it holds the same invariant by calling `compute_stats` *before*
+`limit_samples`. Either way the rule is the same: routing an aggregate through a
+downsampled series would silently compute statistics over 2000 samples instead of 178,000.
+
+`channel_series` also enforces that `times` and `values` are the same length
+(`require_aligned`). `Log::get_channel_data` is a `filter_map` that drops a row missing
+the column, and an analysis-derived `cached_data` is only as long as the algorithm made
+it, so a ragged log yields a pair that is *misaligned*, not merely short — and
+`downsample_lttb` indexes `values` off `times.len()`, which panics on the GUI thread.
+`src/ui/chart.rs` refuses to plot that case; the data API refuses to serve it.
+
 ### UI Modules (src/ui/)
 
 UI rendering is split into focused modules that implement methods on `UltraLogApp`. The current layout is a VS Code-style activity bar + side panel; a couple of pre-activity-bar modules remain in the tree but are superseded (noted below):
