@@ -19,6 +19,9 @@ impl UltraLogApp {
             ActiveTool::LogViewer => self.render_log_viewer_properties(ui),
             ActiveTool::Histogram => self.render_histogram_properties(ui),
             ActiveTool::ScatterPlot => self.render_scatter_plot_properties(ui),
+            ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
+                self.render_table_tool_properties(ui)
+            }
         }
     }
 
