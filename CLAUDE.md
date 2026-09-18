@@ -132,7 +132,8 @@ src/
     ├── settings_panel.rs             # Consolidated settings (display, units, normalization, updates)
     ├── tool_properties_panel.rs      # Dynamic panel showing controls for the active tool (channels / histogram / scatter)
     ├── analysis_panel.rs             # Window for running analysis algorithms (src/analysis) on the active log
-    ├── table_generator.rs            # Table generator window (setup / heatmap results / event inspector / export)
+    ├── table_generator.rs            # Table tools: Tool Properties setup + central heatmap / inspector view
+    ├── table_export.rs               # PNG / PDF export for generated tables (pure renderers + app wrappers)
     ├── data_panel.rs                 # Right-side data panel hosting DataWidget panes (rail, header, hide/restore)
     ├── widgets/
     │   ├── mod.rs                    # DataWidget trait + static widget registry
@@ -145,7 +146,7 @@ src/
     ├── toast.rs                      # Toast notification system
     ├── icons.rs                      # Custom icon drawing utilities
     ├── tab_bar.rs                    # Multi-file tab interface
-    ├── tool_switcher.rs              # Switch between Log Viewer, Scatter Plot, and Histogram tools
+    ├── tool_switcher.rs              # Switch between the five tools (ActiveTool::ALL)
     ├── scatter_plot.rs               # XY scatter plot visualization
     ├── histogram.rs                  # 2D histogram/heatmap view for channel distributions
     ├── export.rs                     # PNG and PDF export functionality
@@ -291,6 +292,21 @@ low cells are never interpolated and export blank.
 - **Axis cap** - `binning::MAX_BINS_PER_AXIS` (64) keeps any future MCP payload well under the
   512 KiB response guard. `histogram.rs` now calls `binning::uniform_bin` for its cell math so both
   tools agree on boundaries.
+- **Tools, not a window** - `ActiveTool::LambdaDelay` / `ActiveTool::AccelEnrich` render like
+  Histogram: setup in the Tool Properties panel (`render_table_tool_properties`), results in the
+  central panel (`render_table_tool_view`). `ActiveTool::generator_kind()` is the one helper the
+  match sites use, and `ActiveTool::ALL` fixes the switcher / View-menu / Cmd+1..5 order, so a new
+  tool is appended there and nowhere else. Tool switches go through `UltraLogApp::set_active_tool`
+  (analytics + table selection reset), not direct assignment.
+- **State is app-level, not per-tab** - unlike `Tab::histogram_state`, `UltraLogApp::table_generator`
+  holds the accumulators, mappings and export options for both generators. The tables are
+  multi-log by design, so the active tab only decides which file *Run / Add current file* reads;
+  switching tabs or tools does not lose a table.
+- **PNG has no text** - the crate has no font rasterizer, so `table_export::render_table_png`
+  draws cells and grid lines only (same as the histogram PNG). `render_table_pdf` draws values,
+  counts and axis labels with built-in Helvetica, whose encoding turns `~` into an arrow, so the
+  confidence markers are `*` (medium) and `?` (low). Both go through `tables::export::cell_value`
+  so PNG, PDF, CSV and clipboard blank the same cells and convert delay units identically.
 - **Auto-suggestion** (`channel_map::suggest_mapping`) - normalization hit (100) → strong name
   hints (50) → spec category + hint (60) → generic hints (40), then a data-plausibility veto on the
   channel median; `overall|avg|average` names lose 10 points so a single sensor beats an averaged
@@ -372,7 +388,7 @@ UI rendering is split into focused modules that implement methods on `UltraLogAp
 - **`toast.rs`** - Toast notification overlay for user feedback
 - **`icons.rs`** - Custom icon drawing (upload icon for drop zone)
 - **`tab_bar.rs`** - Chrome-style tabs for multi-file support
-- **`tool_switcher.rs`** - Switch between Log Viewer, Scatter Plot, and Histogram tools
+- **`tool_switcher.rs`** - Switch between the five tools in `ActiveTool::ALL` (Log Viewer, Scatter Plot, Histogram, Lambda Delay, Accel Enrichment)
 - **`scatter_plot.rs`** - XY scatter plot for channel correlation analysis
 - **`histogram.rs`** - 2D histogram/heatmap view of channel distributions, with configurable cell coloring (average Z-value or hit count)
 - **`export.rs`** - PNG and PDF export with chart rendering
@@ -553,7 +569,7 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 - **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD Tuning, Motorsport Electronics, RaceChrono, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
-- **Table Generators** - Lambda delay and acceleration enrichment tuning tables mined from one or more logs, with auto-suggested channel roles, confidence-tiered cells, an event inspector, and CSV/clipboard export (`src/analysis/tables/`, `src/ui/table_generator.rs`)
+- **Table Generators** - Lambda delay and acceleration enrichment tuning tables mined from one or more logs, each a top-level tool beside Histogram, with auto-suggested channel roles, confidence-tiered cells, an event inspector, and CSV/clipboard/PNG/PDF export (`src/analysis/tables/`, `src/ui/table_generator.rs`, `src/ui/table_export.rs`)
 - **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
 - **Unit Preferences** - Users can select display units for temperature, pressure, speed, distance, fuel economy, volume, flow rate, and acceleration
@@ -578,7 +594,7 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 - **Cmd/Ctrl+O** - Open file
 - **Cmd/Ctrl+W** - Close current tab
 - **Cmd/Ctrl+,** - Open Settings panel
-- **Cmd/Ctrl+1/2/3** - Switch tool (Log Viewer / Scatter Plot / Histogram)
+- **Cmd/Ctrl+1..5** - Switch tool, in `ActiveTool::ALL` order (Log Viewer / Scatter Plot / Histogram / Lambda Delay / Accel Enrichment)
 - **Cmd/Ctrl+Shift+F/C/T** - Switch side panel (Files / Tool Properties / Tools)
 - **Arrow Left/Right** - Step cursor one record (Shift = 10 records)
 - **Home/End** - Jump cursor to start/end of log

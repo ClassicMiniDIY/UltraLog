@@ -6,7 +6,6 @@
 use eframe::egui;
 use rust_i18n::t;
 
-use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::state::ActiveTool;
 
@@ -16,14 +15,7 @@ impl UltraLogApp {
         ui.horizontal(|ui| {
             ui.add_space(10.0);
 
-            // Define available tools
-            let tools = [
-                ActiveTool::LogViewer,
-                ActiveTool::ScatterPlot,
-                ActiveTool::Histogram,
-            ];
-
-            for tool in tools {
+            for tool in ActiveTool::ALL {
                 let is_selected = self.active_tool == tool;
 
                 // Style the button based on selection state
@@ -50,6 +42,8 @@ impl UltraLogApp {
                     ActiveTool::LogViewer => t!("tools.log_viewer"),
                     ActiveTool::ScatterPlot => t!("tools.scatter_plots"),
                     ActiveTool::Histogram => t!("tools.histogram"),
+                    ActiveTool::LambdaDelay => t!("tools.lambda_delay"),
+                    ActiveTool::AccelEnrich => t!("tools.accel_enrich"),
                 };
 
                 // Create pill-style button
@@ -66,8 +60,7 @@ impl UltraLogApp {
                 );
 
                 if response.clicked() {
-                    self.active_tool = tool;
-                    analytics::track_tool_switched(tool.name());
+                    self.set_active_tool(tool);
                 }
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);

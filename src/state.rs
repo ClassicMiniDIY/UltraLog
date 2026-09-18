@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::analysis::tables::GeneratorKind;
 use crate::colormap::Colormap;
 use crate::laps::{GpsCoordSpec, LapInfo};
 use crate::parsers::{Channel, EcuType, Log};
@@ -270,15 +271,51 @@ pub enum ActiveTool {
     ScatterPlot,
     /// Histogram view for 2D distribution analysis
     Histogram,
+    /// Lambda delay table generator (RPM x load)
+    LambdaDelay,
+    /// Acceleration enrichment table generator (RPM x TPS rate)
+    AccelEnrich,
 }
 
 impl ActiveTool {
+    /// Every tool, in tool-switcher / menu / shortcut order (Cmd+1..5).
+    pub const ALL: [ActiveTool; 5] = [
+        ActiveTool::LogViewer,
+        ActiveTool::ScatterPlot,
+        ActiveTool::Histogram,
+        ActiveTool::LambdaDelay,
+        ActiveTool::AccelEnrich,
+    ];
+
     /// Get the display name for this tool
     pub fn name(&self) -> &'static str {
         match self {
             ActiveTool::LogViewer => "Log Viewer",
             ActiveTool::ScatterPlot => "Scatter Plots",
             ActiveTool::Histogram => "Histogram",
+            ActiveTool::LambdaDelay => "Lambda Delay",
+            ActiveTool::AccelEnrich => "Accel Enrichment",
+        }
+    }
+
+    /// The table generator behind this tool, if it is one.
+    ///
+    /// Table tools share one code path (`src/ui/table_generator.rs`), so the
+    /// match sites that only care whether the active tool is a table use this
+    /// instead of listing both variants.
+    pub fn generator_kind(self) -> Option<GeneratorKind> {
+        match self {
+            ActiveTool::LambdaDelay => Some(GeneratorKind::LambdaDelay),
+            ActiveTool::AccelEnrich => Some(GeneratorKind::AccelEnrich),
+            _ => None,
+        }
+    }
+
+    /// The tool that hosts a table generator.
+    pub fn for_generator(kind: GeneratorKind) -> ActiveTool {
+        match kind {
+            GeneratorKind::LambdaDelay => ActiveTool::LambdaDelay,
+            GeneratorKind::AccelEnrich => ActiveTool::AccelEnrich,
         }
     }
 }

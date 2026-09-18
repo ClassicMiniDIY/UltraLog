@@ -1,14 +1,20 @@
-//! Table generator window: lambda delay (#4) and acceleration enrichment (#3)
+//! Table generator tools: lambda delay (#4) and acceleration enrichment (#3)
 //! tables mined from the loaded logs.
 //!
-//! Three states, like the analysis panel:
-//! 1. **Setup** - channel roles (auto-suggested, ⚠ on ambiguity), axes,
-//!    parameters, and *Run on current file*.
-//! 2. **Results** - Viridis heatmap with value text and a count badge coloured
-//!    by confidence; hover for the cell tooltip; click for the event inspector
-//!    with jump-to-time; toolbar for adding / removing logs, measure, export.
-//! 3. **Empty** - the run report with its rejection breakdown, so threshold
-//!    tuning is guided rather than guesswork.
+//! Each generator is an `ActiveTool` (`ActiveTool::LambdaDelay`,
+//! `ActiveTool::AccelEnrich`), split the way Histogram is:
+//!
+//! - **Tool Properties panel** (`render_table_tool_properties`) - channel roles
+//!   (auto-suggested, ⚠ on ambiguity), load axis, axes, parameters, and
+//!   *Run / Add current file*.
+//! - **Central panel** (`render_table_tool_view`) - Viridis heatmap with value
+//!   text and a count badge coloured by confidence; hover for the cell tooltip;
+//!   click for the event inspector with jump-to-time; toolbar for removing
+//!   logs, measure, unit, export. With no accepted events it shows the run
+//!   report's rejection breakdown so threshold tuning is guided.
+//!
+//! State is **app-level, not per-tab**: the accumulators are multi-log by
+//! design, so switching tabs only changes which file *Run* reads.
 
 use std::collections::HashMap;
 
@@ -42,17 +48,14 @@ struct MappingState {
 
 /// All table-generator window state, held on `UltraLogApp`.
 pub struct TableGeneratorState {
-    pub open: bool,
-    pub kind: GeneratorKind,
     generators: HashMap<GeneratorKind, Box<dyn TableAnalyzer>>,
     mappings: HashMap<GeneratorKind, MappingState>,
     pub accumulators: HashMap<GeneratorKind, TableAccumulator>,
     last_report: HashMap<GeneratorKind, RunReport>,
-    last_error: Option<String>,
+    last_error: HashMap<GeneratorKind, String>,
     measure: HashMap<GeneratorKind, usize>,
     selected_cell: Option<(usize, usize)>,
-    export: ExportOptions,
-    show_setup: bool,
+    pub export: ExportOptions,
     show_warnings: bool,
 }
 
@@ -63,30 +66,20 @@ impl Default for TableGeneratorState {
             .map(|k| (k, k.create()))
             .collect();
         Self {
-            open: false,
-            kind: GeneratorKind::default(),
             generators,
             mappings: HashMap::new(),
             accumulators: HashMap::new(),
             last_report: HashMap::new(),
-            last_error: None,
+            last_error: HashMap::new(),
             measure: HashMap::new(),
             selected_cell: None,
             export: ExportOptions::default(),
-            show_setup: true,
             show_warnings: false,
         }
     }
 }
 
 impl TableGeneratorState {
-    /// Open the window on a generator.
-    pub fn open_for(&mut self, kind: GeneratorKind) {
-        self.open = true;
-        self.kind = kind;
-        self.selected_cell = None;
-    }
-
     /// Status line for the tools panel, e.g. `2 logs, 14 events`.
     pub fn status(&self, kind: GeneratorKind) -> Option<String> {
         let acc = self.accumulators.get(&kind)?;
@@ -103,12 +96,32 @@ impl TableGeneratorState {
         )
     }
 
-    fn generator(&self) -> &dyn TableAnalyzer {
-        self.generators[&self.kind].as_ref()
+    fn generator(&self, kind: GeneratorKind) -> &dyn TableAnalyzer {
+        self.generators[&kind].as_ref()
     }
 
-    fn measure_index(&self) -> usize {
-        self.measure.get(&self.kind).copied().unwrap_or(0)
+    /// Selected measure for `kind`, clamped to the accumulator's measure list.
+    pub fn measure_index(&self, kind: GeneratorKind) -> usize {
+        let n = self
+            .accumulators
+            .get(&kind)
+            .map(|a| a.measures.len())
+            .unwrap_or(1);
+        self.measure
+            .get(&kind)
+            .copied()
+            .unwrap_or(0)
+            .min(n.saturating_sub(1))
+    }
+
+    /// The accumulator for `kind` when it holds at least one log.
+    pub fn table(&self, kind: GeneratorKind) -> Option<&TableAccumulator> {
+        self.accumulators.get(&kind).filter(|a| !a.logs.is_empty())
+    }
+
+    /// Forget the selected cell (called when the active tool changes).
+    pub fn clear_selection(&mut self) {
+        self.selected_cell = None;
     }
 }
 
@@ -135,108 +148,127 @@ fn fmt_value(v: f64, decimals: usize) -> String {
 }
 
 impl UltraLogApp {
-    /// Render the table generator window.
-    pub fn render_table_generator(&mut self, ctx: &egui::Context) {
-        if !self.table_generator.open {
+    /// Central-panel view for a table tool: results, or the empty state.
+    pub fn render_table_tool_view(&mut self, ui: &mut egui::Ui) {
+        let Some(kind) = self.active_tool.generator_kind() else {
             return;
-        }
-        let mut open = true;
-        egui::Window::new(t!("table_gen.window_title"))
-            .open(&mut open)
-            .resizable(true)
-            .default_width(760.0)
-            .default_height(640.0)
-            .order(egui::Order::Foreground)
-            .show(ctx, |ui| {
-                self.render_table_generator_body(ui);
-            });
-        if !open {
-            self.table_generator.open = false;
-        }
-    }
-
-    fn render_table_generator_body(&mut self, ui: &mut egui::Ui) {
-        // Generator switcher.
-        ui.horizontal(|ui| {
-            for kind in GeneratorKind::ALL {
-                let name = self.table_generator.generators[&kind].name();
-                let selected = self.table_generator.kind == kind;
-                if ui.selectable_label(selected, name).clicked() && !selected {
-                    self.table_generator.kind = kind;
-                    self.table_generator.selected_cell = None;
-                    self.table_generator.last_error = None;
-                }
-            }
-        });
-        ui.label(
-            egui::RichText::new(self.table_generator.generator().description())
-                .small()
-                .color(egui::Color32::GRAY),
-        );
-        ui.add_space(4.0);
-
+        };
+        let has_table = self.table_generator.table(kind).is_some();
         let file_index = self.selected_file.filter(|&i| i < self.files.len());
-        if file_index.is_none()
-            && self
-                .table_generator
-                .accumulators
-                .get(&self.table_generator.kind)
-                .is_none_or(|a| a.is_empty())
-        {
+
+        if !has_table {
             ui.vertical_centered(|ui| {
                 ui.add_space(30.0);
-                ui.label(
-                    egui::RichText::new(t!("analysis.no_file_loaded"))
-                        .color(egui::Color32::GRAY)
-                        .size(16.0),
-                );
-                ui.label(
-                    egui::RichText::new(t!("analysis.load_file_help"))
-                        .color(egui::Color32::GRAY)
-                        .small(),
-                );
+                if file_index.is_none() {
+                    ui.label(
+                        egui::RichText::new(t!("analysis.no_file_loaded"))
+                            .color(egui::Color32::GRAY)
+                            .size(16.0),
+                    );
+                    ui.label(
+                        egui::RichText::new(t!("analysis.load_file_help"))
+                            .color(egui::Color32::GRAY)
+                            .small(),
+                    );
+                } else {
+                    ui.label(
+                        egui::RichText::new(self.table_generator.generator(kind).description())
+                            .color(egui::Color32::GRAY)
+                            .size(14.0),
+                    );
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new(t!("table_gen.configure_hint"))
+                            .color(egui::Color32::GRAY)
+                            .small(),
+                    );
+                    if let Some(report) = self.table_generator.last_report.get(&kind) {
+                        ui.add_space(12.0);
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{}: {}",
+                                report.log_name,
+                                report.summary()
+                            ))
+                            .color(egui::Color32::from_rgb(230, 170, 50)),
+                        );
+                        for w in &report.warnings {
+                            ui.label(
+                                egui::RichText::new(format!("• {w}"))
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        }
+                    }
+                    if let Some(err) = self.table_generator.last_error.get(&kind) {
+                        ui.add_space(8.0);
+                        ui.label(
+                            egui::RichText::new(err).color(egui::Color32::from_rgb(220, 80, 80)),
+                        );
+                    }
+                }
                 ui.add_space(30.0);
             });
             return;
         }
 
-        if let Some(fi) = file_index {
-            self.ensure_table_mapping(fi);
-        }
+        egui::ScrollArea::vertical()
+            .id_salt(format!("table_tool_view_{}", kind.id()))
+            .show(ui, |ui| {
+                self.render_table_results(ui, kind);
+            });
+    }
 
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            if let Some(fi) = file_index {
-                let kind = self.table_generator.kind;
-                let header = t!(
-                    "table_gen.setup_header",
-                    file = self.files[fi].name.as_str()
-                );
-                let open_default = self
-                    .table_generator
-                    .accumulators
-                    .get(&kind)
-                    .is_none_or(|a| a.is_empty());
-                egui::CollapsingHeader::new(egui::RichText::new(header.as_ref()).strong())
-                    .default_open(open_default)
-                    .open(if self.table_generator.show_setup {
-                        None
-                    } else {
-                        Some(false)
-                    })
-                    .show(ui, |ui| {
-                        self.table_generator.show_setup = true;
-                        self.render_table_setup(ui, fi);
-                    });
-            }
-            ui.add_space(6.0);
-            self.render_table_results(ui);
-        });
+    /// Tool Properties panel content for a table tool: the setup controls.
+    pub fn render_table_tool_properties(&mut self, ui: &mut egui::Ui) {
+        let Some(kind) = self.active_tool.generator_kind() else {
+            return;
+        };
+        let font_12 = self.scaled_font(12.0);
+        let font_14 = self.scaled_font(14.0);
+
+        ui.label(
+            egui::RichText::new(self.table_generator.generator(kind).name())
+                .size(font_14)
+                .strong(),
+        );
+        ui.label(
+            egui::RichText::new(self.table_generator.generator(kind).description())
+                .size(font_12)
+                .color(egui::Color32::GRAY),
+        );
+        ui.add_space(8.0);
+
+        let file_index = self.selected_file.filter(|&i| i < self.files.len());
+        let Some(fi) = file_index else {
+            ui.label(
+                egui::RichText::new(t!("table_gen.load_file_hint"))
+                    .size(font_12)
+                    .color(egui::Color32::GRAY),
+            );
+            return;
+        };
+        self.ensure_table_mapping(kind, fi);
+
+        ui.label(
+            egui::RichText::new(t!(
+                "table_gen.setup_header",
+                file = self.files[fi].name.as_str()
+            ))
+            .size(font_12)
+            .color(egui::Color32::GRAY),
+        );
+        ui.add_space(4.0);
+        egui::ScrollArea::vertical()
+            .id_salt(format!("table_tool_props_{}", kind.id()))
+            .show(ui, |ui| {
+                self.render_table_setup(ui, kind, fi);
+            });
     }
 
     /// Make sure a mapping exists for the current generator and file,
     /// re-suggesting when the file changed.
-    fn ensure_table_mapping(&mut self, file_index: usize) {
-        let kind = self.table_generator.kind;
+    fn ensure_table_mapping(&mut self, kind: GeneratorKind, file_index: usize) {
         let load_id = self.files[file_index].load_id;
         if self
             .table_generator
@@ -246,11 +278,15 @@ impl UltraLogApp {
         {
             return;
         }
-        self.suggest_table_mapping(file_index, true);
+        self.suggest_table_mapping(kind, file_index, true);
     }
 
-    fn suggest_table_mapping(&mut self, file_index: usize, keep_overrides: bool) {
-        let kind = self.table_generator.kind;
+    fn suggest_table_mapping(
+        &mut self,
+        kind: GeneratorKind,
+        file_index: usize,
+        keep_overrides: bool,
+    ) {
         let file = &self.files[file_index];
         let generator = &self.table_generator.generators[&kind];
         let suggestion = suggest_mapping(
@@ -282,8 +318,7 @@ impl UltraLogApp {
         self.table_generator.mappings.insert(kind, state);
     }
 
-    fn render_table_setup(&mut self, ui: &mut egui::Ui, file_index: usize) {
-        let kind = self.table_generator.kind;
+    fn render_table_setup(&mut self, ui: &mut egui::Ui, kind: GeneratorKind, file_index: usize) {
         let channel_names: Vec<String> = self.files[file_index]
             .log
             .channels
@@ -325,7 +360,7 @@ impl UltraLogApp {
                         kind.id(),
                         spec.role
                     ))
-                    .width(260.0)
+                    .width((ui.available_width() - 40.0).clamp(120.0, 320.0))
                     .selected_text(shown)
                     .show_ui(ui, |ui| {
                         if ui
@@ -400,34 +435,37 @@ impl UltraLogApp {
                     .data_mut(|d| d.insert_temp(egui::Id::new("table_gen_reaxis"), true));
             }
         });
-        egui::Grid::new(format!("table_gen_axes_{}", kind.id()))
-            .num_columns(3)
-            .spacing([8.0, 4.0])
-            .show(ui, |ui| {
-                for (label, text, axis) in [
-                    (state.axes.0.header(), &mut state.x_text, &mut state.axes.0),
-                    (state.axes.1.header(), &mut state.y_text, &mut state.axes.1),
-                ] {
-                    ui.label(label);
-                    let resp = ui.add(egui::TextEdit::singleline(text).desired_width(420.0));
-                    if resp.changed()
-                        && let Some(edges) = AxisSpec::parse_edges(text.as_str())
-                    {
-                        *axis = AxisSpec::new(axis.label.clone(), axis.unit.clone(), edges);
-                    }
-                    let valid = AxisSpec::parse_edges(text.as_str()).is_some();
-                    ui.label(if valid {
-                        egui::RichText::new(t!("table_gen.bins", n = axis.bins()))
-                            .small()
-                            .color(egui::Color32::GRAY)
-                    } else {
-                        egui::RichText::new(t!("table_gen.invalid_axis"))
-                            .small()
-                            .color(egui::Color32::from_rgb(220, 80, 80))
-                    });
-                    ui.end_row();
-                }
+        for (i, (text, axis)) in [
+            (&mut state.x_text, &mut state.axes.0),
+            (&mut state.y_text, &mut state.axes.1),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let valid = AxisSpec::parse_edges(text.as_str()).is_some();
+            ui.horizontal(|ui| {
+                ui.label(axis.header());
+                ui.label(if valid {
+                    egui::RichText::new(t!("table_gen.bins", n = axis.bins()))
+                        .small()
+                        .color(egui::Color32::GRAY)
+                } else {
+                    egui::RichText::new(t!("table_gen.invalid_axis"))
+                        .small()
+                        .color(egui::Color32::from_rgb(220, 80, 80))
+                });
             });
+            let resp = ui.add(
+                egui::TextEdit::singleline(text)
+                    .id_salt(format!("table_gen_axis_{}_{}", kind.id(), i))
+                    .desired_width(f32::INFINITY),
+            );
+            if resp.changed()
+                && let Some(edges) = AxisSpec::parse_edges(text.as_str())
+            {
+                *axis = AxisSpec::new(axis.label.clone(), axis.unit.clone(), edges);
+            }
+        }
 
         // --- Parameters ---------------------------------------------------
         ui.add_space(6.0);
@@ -547,7 +585,7 @@ impl UltraLogApp {
                 .add_enabled(missing.is_empty() && axes_ok, button)
                 .clicked()
             {
-                self.run_table_generator(file_index);
+                self.run_table_generator(kind, file_index);
             }
             if !missing.is_empty() {
                 let names: Vec<&str> = missing.iter().map(|r| r.label()).collect();
@@ -558,7 +596,7 @@ impl UltraLogApp {
                 );
             }
         });
-        if let Some(err) = &self.table_generator.last_error {
+        if let Some(err) = self.table_generator.last_error.get(&kind) {
             ui.label(egui::RichText::new(err).color(egui::Color32::from_rgb(220, 80, 80)));
         }
 
@@ -572,7 +610,7 @@ impl UltraLogApp {
             .data_mut(|d| d.remove_temp::<bool>(egui::Id::new("table_gen_reaxis")))
             .unwrap_or(false);
         if redetect {
-            self.suggest_table_mapping(file_index, false);
+            self.suggest_table_mapping(kind, file_index, false);
         } else if reaxis && let Some(state) = self.table_generator.mappings.get_mut(&kind) {
             let generator = &self.table_generator.generators[&kind];
             state.axes = generator.default_axes(&self.files[file_index].log, &state.mapping);
@@ -584,8 +622,7 @@ impl UltraLogApp {
     /// Run the current generator on `file_index` and fold the events into
     /// the accumulator. Axes are frozen when the accumulator is created; a
     /// later file with different axes replaces the table.
-    fn run_table_generator(&mut self, file_index: usize) {
-        let kind = self.table_generator.kind;
+    fn run_table_generator(&mut self, kind: GeneratorKind, file_index: usize) {
         let Some(state) = self.table_generator.mappings.get(&kind).cloned() else {
             return;
         };
@@ -632,20 +669,18 @@ impl UltraLogApp {
                 let summary = report.summary();
                 acc.add_log(file.load_id, &file.name, events, report.clone());
                 self.table_generator.last_report.insert(kind, report);
-                self.table_generator.last_error = None;
+                self.table_generator.last_error.remove(&kind);
                 self.table_generator.selected_cell = None;
-                self.table_generator.show_setup = false;
                 self.show_toast(&summary);
             }
             Err(e) => {
-                self.table_generator.last_error = Some(e.to_string());
+                self.table_generator.last_error.insert(kind, e.to_string());
                 self.show_toast_error(&e.to_string());
             }
         }
     }
 
-    fn render_table_results(&mut self, ui: &mut egui::Ui) {
-        let kind = self.table_generator.kind;
+    fn render_table_results(&mut self, ui: &mut egui::Ui, kind: GeneratorKind) {
         let Some(acc) = self.table_generator.accumulators.get(&kind) else {
             return;
         };
@@ -653,10 +688,7 @@ impl UltraLogApp {
             return;
         }
         let measures = acc.measures.clone();
-        let measure_idx = self
-            .table_generator
-            .measure_index()
-            .min(measures.len().saturating_sub(1));
+        let measure_idx = self.table_generator.measure_index(kind);
         let grid = acc.grid(measure_idx);
         let logs: Vec<(u64, String)> = acc.logs.iter().map(|l| (l.id, l.name.clone())).collect();
         let accepted = acc.accepted_count();
@@ -884,10 +916,9 @@ impl UltraLogApp {
             }
             self.table_generator.last_report.remove(&kind);
             self.table_generator.selected_cell = None;
-            self.table_generator.show_setup = true;
         }
         if export_csv {
-            self.export_table_csv();
+            self.export_table_csv(kind);
         }
         if copy {
             let acc = &self.table_generator.accumulators[&kind];
@@ -1067,19 +1098,30 @@ impl UltraLogApp {
             self.show_toast_warning(&t!("table_gen.log_unloaded"));
             return;
         };
-        if let Some(tab_idx) = self.tabs.iter().position(|t| t.file_index == file_index) {
-            self.active_tab = Some(tab_idx);
-            self.selected_file = Some(file_index);
+        {
+            // Reopens the tab if it was closed with Cmd+W; the file is still loaded.
+            self.switch_to_file_tab(file_index);
+            self.set_active_tool(crate::state::ActiveTool::LogViewer);
+            // Same sequence as the min/max jump buttons in channels.rs. The
+            // record is looked up on the event's own file, not `files.first()`
+            // as `find_record_at_time` does.
+            let times = self.files[file_index].log.get_times_as_f64();
+            let record = times
+                .partition_point(|&t| t < time)
+                .min(times.len().saturating_sub(1));
+            self.set_cursor_time(Some(time));
+            self.set_cursor_record(Some(record));
             self.set_jump_to_time(Some(time));
+            self.is_playing = false;
+            self.last_frame_time = None;
         }
     }
 
-    fn export_table_csv(&mut self) {
-        let kind = self.table_generator.kind;
+    fn export_table_csv(&mut self, kind: GeneratorKind) {
         let Some(acc) = self.table_generator.accumulators.get(&kind) else {
             return;
         };
-        let measure_idx = self.table_generator.measure_index();
+        let measure_idx = self.table_generator.measure_index(kind);
         let generated = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
         let csv = to_csv(acc, measure_idx, &self.table_generator.export, &generated);
         let Some(path) = rfd::FileDialog::new()
@@ -1099,5 +1141,52 @@ impl UltraLogApp {
             }
             Err(e) => self.show_toast_error(&format!("{}: {e}", t!("table_gen.export_failed"))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::tables::{AxisSpec, MeasureSpec};
+
+    #[test]
+    fn measure_index_clamps_to_the_accumulator() {
+        let mut state = TableGeneratorState::default();
+        let kind = GeneratorKind::LambdaDelay;
+        // No accumulator yet: whatever is stored, the index is 0.
+        state.measure.insert(kind, 7);
+        assert_eq!(state.measure_index(kind), 0);
+        let x = AxisSpec::new("RPM", "rpm", vec![1000.0, 2000.0]);
+        let y = AxisSpec::new("MAP", "kPa", vec![30.0, 50.0]);
+        let measures = vec![
+            MeasureSpec {
+                key: "a",
+                label: "a",
+                unit: "ms",
+                decimals: 0,
+            },
+            MeasureSpec {
+                key: "b",
+                label: "b",
+                unit: "ms",
+                decimals: 0,
+            },
+        ];
+        state
+            .accumulators
+            .insert(kind, TableAccumulator::new(kind, (x, y), measures));
+        assert_eq!(state.measure_index(kind), 1);
+        state.measure.insert(kind, 0);
+        assert_eq!(state.measure_index(kind), 0);
+    }
+
+    #[test]
+    fn clear_selection_forgets_the_cell() {
+        let mut state = TableGeneratorState {
+            selected_cell: Some((1, 2)),
+            ..Default::default()
+        };
+        state.clear_selection();
+        assert_eq!(state.selected_cell, None);
     }
 }

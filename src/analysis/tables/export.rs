@@ -79,7 +79,8 @@ fn fmt_number(v: f64, decimals: usize) -> String {
     format!("{v:.decimals$}")
 }
 
-fn fmt_edge(v: f64) -> String {
+/// Axis edge label: integers print bare, otherwise two decimals.
+pub fn fmt_edge(v: f64) -> String {
     if (v - v.round()).abs() < 1e-9 {
         format!("{}", v.round() as i64)
     } else {
@@ -98,7 +99,7 @@ fn header_row(grid: &TableGrid, sep: &str) -> String {
 }
 
 /// Value of one cell after options: `None` renders blank.
-fn cell_value(
+pub fn cell_value(
     grid: &TableGrid,
     row: usize,
     col: usize,

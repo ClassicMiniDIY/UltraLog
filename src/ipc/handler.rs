@@ -144,6 +144,8 @@ impl UltraLogApp {
                 ActiveTool::LogViewer => "chart".to_string(),
                 ActiveTool::ScatterPlot => "scatter".to_string(),
                 ActiveTool::Histogram => "histogram".to_string(),
+                ActiveTool::LambdaDelay => "lambda_delay".to_string(),
+                ActiveTool::AccelEnrich => "accel_enrich".to_string(),
             },
         };
 
@@ -829,7 +831,7 @@ impl UltraLogApp {
             .position(|c| c.name().eq_ignore_ascii_case(y_channel));
 
         // Switch to scatter plot view
-        self.active_tool = ActiveTool::ScatterPlot;
+        self.set_active_tool(ActiveTool::ScatterPlot);
 
         // Configure the scatter plot (now we can get mutable borrow)
         if let Some(state) = self.get_scatter_plot_state_mut()
@@ -843,7 +845,7 @@ impl UltraLogApp {
     }
 
     fn handle_show_chart(&mut self) -> IpcResponse {
-        self.active_tool = ActiveTool::LogViewer;
+        self.set_active_tool(ActiveTool::LogViewer);
         IpcResponse::ok()
     }
 

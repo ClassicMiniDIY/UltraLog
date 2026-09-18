@@ -144,9 +144,11 @@ impl UltraLogApp {
                 let status = self.table_generator.status(kind);
                 let enabled = has_file || status.is_some();
                 ui.horizontal(|ui| {
-                    let btn = egui::Button::new(egui::RichText::new(name).size(font_12));
+                    let tool = ActiveTool::for_generator(kind);
+                    let btn = egui::Button::new(egui::RichText::new(name).size(font_12))
+                        .selected(self.active_tool == tool);
                     if ui.add_enabled(enabled, btn).clicked() {
-                        self.table_generator.open_for(kind);
+                        self.set_active_tool(tool);
                     }
                     if let Some(status) = status {
                         ui.label(
@@ -321,19 +323,20 @@ impl UltraLogApp {
 
                 let has_file = self.selected_file.is_some() && !self.files.is_empty();
                 let has_channels = !self.get_selected_channels().is_empty();
+                let has_table = self
+                    .active_tool
+                    .generator_kind()
+                    .is_some_and(|k| self.table_generator.table(k).is_some());
 
                 // Determine what can be exported based on active tool
                 let can_export_png = match self.active_tool {
                     ActiveTool::LogViewer => has_file && has_channels,
                     ActiveTool::ScatterPlot => has_file,
                     ActiveTool::Histogram => has_file,
+                    ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => has_table,
                 };
 
-                let can_export_pdf = match self.active_tool {
-                    ActiveTool::LogViewer => has_file && has_channels,
-                    ActiveTool::ScatterPlot => has_file,
-                    ActiveTool::Histogram => has_file,
-                };
+                let can_export_pdf = can_export_png;
 
                 ui.horizontal(|ui| {
                     // PNG Export
@@ -363,6 +366,9 @@ impl UltraLogApp {
                                 ActiveTool::LogViewer => self.export_chart_png(),
                                 ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
                                 ActiveTool::Histogram => self.export_histogram_png(),
+                                ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
+                                    self.export_table_png()
+                                }
                             }
                         }
 
@@ -398,6 +404,9 @@ impl UltraLogApp {
                                 ActiveTool::LogViewer => self.export_chart_pdf(),
                                 ActiveTool::ScatterPlot => self.export_scatter_plot_pdf(),
                                 ActiveTool::Histogram => self.export_histogram_pdf(),
+                                ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
+                                    self.export_table_pdf()
+                                }
                             }
                         }
 

@@ -9,9 +9,9 @@
     <title>UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More</title>
     <meta name="title" content="UltraLog - Free ECU Log Viewer & Analyzer | Haltech, ECUMaster, Speeduino, AiM & More">
     <meta name="description"
-        content="UltraLog is a free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, BlueDriver, MegaSquirt, TunerStudio MSL, MHD, Woolich, and RaceChrono lap-timing sessions. Features include stacked plot areas, histogram heatmaps, scatter plots, computed channels, MCP server for AI integration, and professional analysis tools. Download for Windows, macOS, and Linux.">
+        content="UltraLog is a free, open-source ECU datalog viewer built with Rust. Analyze logs from Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, BlueDriver, MegaSquirt, TunerStudio MSL, MHD, Woolich, and RaceChrono lap-timing sessions. Features include lambda delay and acceleration enrichment table generators, stacked plot areas, histogram heatmaps, scatter plots, computed channels, MCP server for AI integration, and professional analysis tools. Download for Windows, macOS, and Linux.">
     <meta name="keywords"
-        content="ECU log viewer, datalog analyzer, Haltech NSP, ECUMaster EMU Pro, RomRaider, Speeduino MLG, rusEFI, AiM XRK DRK, Link ECU LLG, Emerald K6 M3D, automotive tuning software, engine tuning, AFR analysis, boost log, free tuning software, open source ECU, car data logger, dyno analysis, motorsport data, fuel map analysis, ignition timing, lambda analysis, volumetric efficiency, injector duty cycle, Butterworth filter, scatter plot, histogram heatmap, computed channels, Rust application, stacked plots, MCP server, Model Context Protocol, Claude Desktop, BlueDriver OBD-II, AI log analysis, RaceChrono CSV, TunerStudio MSL, RealDash log, lap timing analysis, track day data, GPS track map">
+        content="ECU log viewer, datalog analyzer, Haltech NSP, ECUMaster EMU Pro, RomRaider, Speeduino MLG, rusEFI, AiM XRK DRK, Link ECU LLG, Emerald K6 M3D, automotive tuning software, engine tuning, AFR analysis, boost log, free tuning software, open source ECU, car data logger, dyno analysis, motorsport data, fuel map analysis, ignition timing, lambda analysis, volumetric efficiency, injector duty cycle, Butterworth filter, scatter plot, histogram heatmap, computed channels, Rust application, stacked plots, MCP server, Model Context Protocol, Claude Desktop, BlueDriver OBD-II, AI log analysis, RaceChrono CSV, TunerStudio MSL, RealDash log, lap timing analysis, track day data, GPS track map, lambda delay table, O2 delay table, acceleration enrichment, accel enrichment table, transient fuel tuning">
     <meta name="author" content="Cole Gentry">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
@@ -107,13 +107,13 @@
         "@type": "SoftwareApplication",
         "name": "UltraLog",
         "alternateName": ["UltraLog ECU Viewer", "UltraLog Datalog Analyzer"],
-        "description": "A high-performance, cross-platform ECU log viewer and analyzer built with Rust. Supports Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD, Motorsport Electronics, RaceChrono, Woolich, BlueDriver, DynamicEFI, and Locomotive log formats with advanced analysis tools.",
+        "description": "A high-performance, cross-platform ECU log viewer and analyzer built with Rust. Supports Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD, Motorsport Electronics, RaceChrono, Woolich, BlueDriver, DynamicEFI, and Locomotive log formats with advanced analysis tools, including lambda delay and acceleration enrichment table generators.",
         "url": "https://ultralog.co/",
         "applicationCategory": "UtilitiesApplication",
         "applicationSubCategory": "Automotive Software",
         "operatingSystem": ["Windows 10", "Windows 11", "macOS", "Linux"],
-        "softwareVersion": "2.14.1",
-        "releaseNotes": "https://github.com/ClassicMiniDIY/UltraLog/releases/tag/v2.14.1",
+        "softwareVersion": "2.15.0",
+        "releaseNotes": "https://github.com/ClassicMiniDIY/UltraLog/releases/tag/v2.15.0",
         "downloadUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
         "installUrl": "https://github.com/ClassicMiniDIY/UltraLog/releases/latest",
         "screenshot": [
@@ -147,6 +147,8 @@
         },
         "featureList": [
             "Multi-channel time series visualization",
+            "Lambda delay table generator",
+            "Acceleration enrichment table generator",
             "2D histogram heatmaps",
             "XY scatter plot analysis",
             "Computed math channels with formulas",
@@ -1427,7 +1429,7 @@
                 <div class="hero-badges">
                     <span class="version-badge">
                         <span class="new-tag">New</span>
-                        v2.14.1
+                        v2.15.0
                     </span>
                     <a href="https://github.com/ClassicMiniDIY/UltraLog" class="opensource-badge" target="_blank" rel="noopener noreferrer">
                         <i class="fa-brands fa-github" aria-hidden="true"></i> Open Source
@@ -1530,8 +1532,22 @@
         <!-- What's New -->
         <section class="whats-new-section">
             <h2>What's New</h2>
-            <p class="section-subtitle">TunerStudio MSL imports, RaceChrono lap-timing sessions, GPS track maps with satellite imagery, stacked plots, AI-powered analysis via MCP, and more</p>
+            <p class="section-subtitle">Lambda delay and acceleration enrichment table generators, TunerStudio MSL imports, RaceChrono lap-timing sessions, GPS track maps, AI-powered analysis via MCP, and more</p>
             <div class="new-features-grid">
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon cyan"><i class="fa-solid fa-stopwatch" aria-hidden="true"></i></div>
+                        <h3>Lambda Delay Tables</h3>
+                    </div>
+                    <p>A new tool that mines your logs for injector pulse-width steps and measures how long the wideband takes to respond, binned by RPM and load. Every cell carries a sample count and confidence, sparse cells stay blank, and the result exports as CSV, clipboard, PNG or PDF in milliseconds, engine cycles or ignition events — ready for your ECU's closed-loop O2 delay table.</p>
+                </div>
+                <div class="new-feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon cyan"><i class="fa-solid fa-gauge-high" aria-hidden="true"></i></div>
+                        <h3>Accel Enrichment Tables</h3>
+                    </div>
+                    <p>Detects tip-ins, shifts the lambda window by the measured delay, and reports the lean or rich excursion against target with a suggested starting correction, binned by RPM and throttle rate. Runs across several logs at once and composes with a lambda delay table generated in the same session.</p>
+                </div>
                 <div class="new-feature-card">
                     <div class="feature-header">
                         <div class="feature-icon orange"><i class="fa-solid fa-file-lines" aria-hidden="true"></i></div>
