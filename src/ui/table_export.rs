@@ -18,7 +18,7 @@ use printpdf::*;
 use rust_i18n::t;
 
 use crate::analysis::tables::binning::Confidence;
-use crate::analysis::tables::export::{ExportOptions, cell_value};
+use crate::analysis::tables::export::{ExportOptions, cell_value, fmt_edge};
 use crate::analysis::tables::{GeneratorKind, TableAccumulator};
 use crate::analytics;
 use crate::app::UltraLogApp;
@@ -43,14 +43,6 @@ fn text_on(rgb: [u8; 3]) -> bool {
     };
     let lum = 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
     lum > 0.4
-}
-
-fn fmt_edge(v: f64) -> String {
-    if v.fract().abs() < 1e-9 {
-        format!("{}", v as i64)
-    } else {
-        format!("{v:.1}")
-    }
 }
 
 /// `(value, decimals)` per cell after export options; `None` renders blank.
@@ -399,6 +391,10 @@ impl UltraLogApp {
         let Some(kind) = self.active_tool.generator_kind() else {
             return;
         };
+        if self.table_generator.table(kind).is_none() {
+            self.show_toast_error(&t!("table_gen.no_events"));
+            return;
+        }
         let Some(path) = rfd::FileDialog::new()
             .add_filter("PNG Image", &["png"])
             .set_file_name(format!("ultralog_{}.png", kind.id()))
@@ -427,6 +423,10 @@ impl UltraLogApp {
         let Some(kind) = self.active_tool.generator_kind() else {
             return;
         };
+        if self.table_generator.table(kind).is_none() {
+            self.show_toast_error(&t!("table_gen.no_events"));
+            return;
+        }
         let Some(path) = rfd::FileDialog::new()
             .add_filter("PDF Document", &["pdf"])
             .set_file_name(format!("ultralog_{}.pdf", kind.id()))
@@ -463,6 +463,7 @@ impl UltraLogApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analysis::tables::export::DelayUnit;
     use crate::analysis::tables::{AxisSpec, MeasureSpec, RunReport, TableEvent};
 
     fn synthetic_accumulator() -> TableAccumulator {
@@ -530,6 +531,84 @@ mod tests {
         assert!(bytes.starts_with(b"%PDF"));
         assert!(bytes.len() > 1000);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn png_draws_the_highest_row_at_the_top() {
+        // Row 0 (MAP 30-50) holds every event's low value; row 1 is empty.
+        // On screen the highest Y bin is at the top, so the PNG must put
+        // row 0's Viridis fill in the bottom band and dark grey in the top.
+        let x = AxisSpec::new("RPM", "rpm", vec![1000.0, 2000.0]);
+        let y = AxisSpec::new("MAP", "kPa", vec![30.0, 50.0, 70.0]);
+        let measures = vec![MeasureSpec {
+            key: "dead_time",
+            label: "Dead time",
+            unit: "ms",
+            decimals: 0,
+        }];
+        let mut acc = TableAccumulator::new(GeneratorKind::LambdaDelay, (x, y), measures);
+        let events: Vec<TableEvent> = (0..10)
+            .map(|i| TableEvent {
+                log_id: 1,
+                log_name: "s".into(),
+                time: i as f64,
+                rpm: 1500.0,
+                axis_value: 40.0,
+                values: vec![100.0],
+                quality: 1.0,
+                reject: None,
+                note: String::new(),
+            })
+            .collect();
+        acc.add_log(1, "s", events, RunReport::default());
+        let dir = std::env::temp_dir().join(format!("ultralog_row_order_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rows.png");
+        render_table_png(&acc, 0, &ExportOptions::default(), &path).unwrap();
+        let img = ::image::open(&path).unwrap().to_rgba8();
+        let top = img.get_pixel(960, 80 + 200);
+        let bottom = img.get_pixel(960, 1080 - 80 - 200);
+        assert_eq!(top.0, [36, 36, 36, 255], "empty row 1 must be at the top");
+        assert_ne!(
+            bottom.0,
+            [36, 36, 36, 255],
+            "filled row 0 must be at the bottom"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_cells_honours_export_options() {
+        let acc = synthetic_accumulator();
+        // Every cell in the fixture has 2 samples -> Low, so blanking low
+        // cells empties the table and the colour range falls back to 0..1.
+        let blank = ExportOptions {
+            exclude_low: true,
+            ..ExportOptions::default()
+        };
+        let (cells, lo, hi) = resolve_cells(&acc, 0, &blank).unwrap();
+        assert!(cells.iter().flatten().all(Option::is_none));
+        assert_eq!((lo, hi), (0.0, 1.0));
+
+        // Unit conversion goes through the same path CSV uses.
+        let ms = ExportOptions {
+            exclude_low: false,
+            ..ExportOptions::default()
+        };
+        let cycles = ExportOptions {
+            exclude_low: false,
+            delay_unit: DelayUnit::EngineCycles,
+            ..ExportOptions::default()
+        };
+        let (a, _, _) = resolve_cells(&acc, 0, &ms).unwrap();
+        let (b, _, _) = resolve_cells(&acc, 0, &cycles).unwrap();
+        let (va, _) = a[0][0].unwrap();
+        let (vb, _) = b[0][0].unwrap();
+        // 1000-2000 rpm cell centre is 1500 rpm: cycles = ms * rpm / 120000.
+        assert!((vb - va * 1500.0 / 120_000.0).abs() < 1e-9);
+
+        // A measure index past the list is an error, not a panic.
+        assert!(resolve_cells(&acc, 5, &ms).is_err());
     }
 
     #[test]

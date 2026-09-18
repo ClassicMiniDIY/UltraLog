@@ -1608,7 +1608,6 @@ impl UltraLogApp {
         }
     }
 
-    /// Get the cursor time for the active tab
     /// Switch the active tool. The single entry point for the tool switcher,
     /// menu radios, and Cmd+1..5, so analytics and table-tool selection
     /// reset stay in one place.
@@ -1621,6 +1620,7 @@ impl UltraLogApp {
         analytics::track_tool_switched(tool.name());
     }
 
+    /// Get the cursor time for the active tab
     pub fn get_cursor_time(&self) -> Option<f64> {
         self.active_tab.and_then(|idx| self.tabs[idx].cursor_time)
     }

@@ -52,7 +52,7 @@ pub struct TableGeneratorState {
     mappings: HashMap<GeneratorKind, MappingState>,
     pub accumulators: HashMap<GeneratorKind, TableAccumulator>,
     last_report: HashMap<GeneratorKind, RunReport>,
-    last_error: Option<String>,
+    last_error: HashMap<GeneratorKind, String>,
     measure: HashMap<GeneratorKind, usize>,
     selected_cell: Option<(usize, usize)>,
     pub export: ExportOptions,
@@ -70,7 +70,7 @@ impl Default for TableGeneratorState {
             mappings: HashMap::new(),
             accumulators: HashMap::new(),
             last_report: HashMap::new(),
-            last_error: None,
+            last_error: HashMap::new(),
             measure: HashMap::new(),
             selected_cell: None,
             export: ExportOptions::default(),
@@ -200,7 +200,7 @@ impl UltraLogApp {
                             );
                         }
                     }
-                    if let Some(err) = &self.table_generator.last_error {
+                    if let Some(err) = self.table_generator.last_error.get(&kind) {
                         ui.add_space(8.0);
                         ui.label(
                             egui::RichText::new(err).color(egui::Color32::from_rgb(220, 80, 80)),
@@ -596,7 +596,7 @@ impl UltraLogApp {
                 );
             }
         });
-        if let Some(err) = &self.table_generator.last_error {
+        if let Some(err) = self.table_generator.last_error.get(&kind) {
             ui.label(egui::RichText::new(err).color(egui::Color32::from_rgb(220, 80, 80)));
         }
 
@@ -669,12 +669,12 @@ impl UltraLogApp {
                 let summary = report.summary();
                 acc.add_log(file.load_id, &file.name, events, report.clone());
                 self.table_generator.last_report.insert(kind, report);
-                self.table_generator.last_error = None;
+                self.table_generator.last_error.remove(&kind);
                 self.table_generator.selected_cell = None;
                 self.show_toast(&summary);
             }
             Err(e) => {
-                self.table_generator.last_error = Some(e.to_string());
+                self.table_generator.last_error.insert(kind, e.to_string());
                 self.show_toast_error(&e.to_string());
             }
         }
@@ -1098,9 +1098,9 @@ impl UltraLogApp {
             self.show_toast_warning(&t!("table_gen.log_unloaded"));
             return;
         };
-        if let Some(tab_idx) = self.tabs.iter().position(|t| t.file_index == file_index) {
-            self.active_tab = Some(tab_idx);
-            self.selected_file = Some(file_index);
+        {
+            // Reopens the tab if it was closed with Cmd+W; the file is still loaded.
+            self.switch_to_file_tab(file_index);
             self.set_active_tool(crate::state::ActiveTool::LogViewer);
             // Same sequence as the min/max jump buttons in channels.rs. The
             // record is looked up on the event's own file, not `files.first()`
@@ -1141,5 +1141,52 @@ impl UltraLogApp {
             }
             Err(e) => self.show_toast_error(&format!("{}: {e}", t!("table_gen.export_failed"))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::tables::{AxisSpec, MeasureSpec};
+
+    #[test]
+    fn measure_index_clamps_to_the_accumulator() {
+        let mut state = TableGeneratorState::default();
+        let kind = GeneratorKind::LambdaDelay;
+        // No accumulator yet: whatever is stored, the index is 0.
+        state.measure.insert(kind, 7);
+        assert_eq!(state.measure_index(kind), 0);
+        let x = AxisSpec::new("RPM", "rpm", vec![1000.0, 2000.0]);
+        let y = AxisSpec::new("MAP", "kPa", vec![30.0, 50.0]);
+        let measures = vec![
+            MeasureSpec {
+                key: "a",
+                label: "a",
+                unit: "ms",
+                decimals: 0,
+            },
+            MeasureSpec {
+                key: "b",
+                label: "b",
+                unit: "ms",
+                decimals: 0,
+            },
+        ];
+        state
+            .accumulators
+            .insert(kind, TableAccumulator::new(kind, (x, y), measures));
+        assert_eq!(state.measure_index(kind), 1);
+        state.measure.insert(kind, 0);
+        assert_eq!(state.measure_index(kind), 0);
+    }
+
+    #[test]
+    fn clear_selection_forgets_the_cell() {
+        let mut state = TableGeneratorState {
+            selected_cell: Some((1, 2)),
+            ..Default::default()
+        };
+        state.clear_selection();
+        assert_eq!(state.selected_cell, None);
     }
 }
