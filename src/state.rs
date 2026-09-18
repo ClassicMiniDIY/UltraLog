@@ -74,6 +74,9 @@ pub const COLORBLIND_COLORS: &[[u8; 3]] = &[
 // Core Types
 // ============================================================================
 
+/// Source of [`LoadedFile::load_id`] nonces.
+static NEXT_LOAD_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 /// Represents a loaded log file with its parsed data
 #[derive(Clone)]
 pub struct LoadedFile {
@@ -88,6 +91,12 @@ pub struct LoadedFile {
     /// Cached flag for each channel: true if channel has non-zero data
     /// Computed once on load for UI performance
     pub channels_with_data: Vec<bool>,
+    /// Per-load nonce, unique for the lifetime of the process. Session
+    /// state that must survive tabs closing (the table generators'
+    /// accumulated events) keys on this rather than on the file index,
+    /// which shifts when an earlier file is removed, or on the bare file
+    /// name, which every rusEFI install shares (`Log1.mlg`).
+    pub load_id: u64,
     /// Lazy column-major view of `log.data` as `Vec<Vec<f64>>`. Built on first
     /// access so the chart hot path can borrow `&[f64]` for a channel instead
     /// of re-collecting an owned `Vec<f64>` from the row-major store on every
@@ -112,6 +121,7 @@ impl LoadedFile {
             ecu_type,
             log,
             channels_with_data,
+            load_id: NEXT_LOAD_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             channel_columns: OnceLock::new(),
         }
     }

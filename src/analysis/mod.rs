@@ -14,6 +14,7 @@ pub mod afr;
 pub mod derived;
 pub mod filters;
 pub mod statistics;
+pub mod tables;
 
 use crate::parsers::types::Log;
 use std::collections::HashMap;
