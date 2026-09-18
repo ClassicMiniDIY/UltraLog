@@ -12,7 +12,14 @@ use crate::normalize::normalize_channel_name_with_custom;
 use crate::state::HistogramMode;
 
 /// Helper to push text ops into a Vec<Op>
-fn push_text(ops: &mut Vec<Op>, text: &str, size: f32, x: Mm, y: Mm, font: &PdfFontHandle) {
+pub(crate) fn push_text(
+    ops: &mut Vec<Op>,
+    text: &str,
+    size: f32,
+    x: Mm,
+    y: Mm,
+    font: &PdfFontHandle,
+) {
     ops.push(Op::StartTextSection);
     ops.push(Op::SetFont {
         font: font.clone(),
@@ -28,7 +35,7 @@ fn push_text(ops: &mut Vec<Op>, text: &str, size: f32, x: Mm, y: Mm, font: &PdfF
 }
 
 /// Helper to push a filled rectangle (polygon) into ops
-fn push_filled_rect(ops: &mut Vec<Op>, x: f32, y: f32, w: f32, h: f32) {
+pub(crate) fn push_filled_rect(ops: &mut Vec<Op>, x: f32, y: f32, w: f32, h: f32) {
     let rect = Polygon {
         rings: vec![PolygonRing {
             points: vec![
@@ -57,7 +64,7 @@ fn push_filled_rect(ops: &mut Vec<Op>, x: f32, y: f32, w: f32, h: f32) {
 }
 
 /// Helper to push a closed line (border) into ops
-fn push_closed_line(ops: &mut Vec<Op>, points: &[(f32, f32)]) {
+pub(crate) fn push_closed_line(ops: &mut Vec<Op>, points: &[(f32, f32)]) {
     let line = Line {
         points: points
             .iter()
@@ -1592,7 +1599,7 @@ impl UltraLogApp {
 }
 
 /// Draw a line between two points using Bresenham's algorithm
-fn draw_line(img: &mut RgbaImage, x0: u32, y0: u32, x1: u32, y1: u32, color: Rgba<u8>) {
+pub(crate) fn draw_line(img: &mut RgbaImage, x0: u32, y0: u32, x1: u32, y1: u32, color: Rgba<u8>) {
     let dx = (x1 as i32 - x0 as i32).abs();
     let dy = -(y1 as i32 - y0 as i32).abs();
     let sx: i32 = if x0 < x1 { 1 } else { -1 };

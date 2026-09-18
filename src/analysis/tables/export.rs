@@ -98,7 +98,7 @@ fn header_row(grid: &TableGrid, sep: &str) -> String {
 }
 
 /// Value of one cell after options: `None` renders blank.
-fn cell_value(
+pub fn cell_value(
     grid: &TableGrid,
     row: usize,
     col: usize,
