@@ -52,18 +52,18 @@ const CURSOR_CROSSHAIR_COLOR: egui::Color32 = egui::Color32::from_rgb(128, 128, 
 /// Maximum length for axis labels before truncation
 const MAX_AXIS_LABEL_LENGTH: usize = 20;
 
-/// Calculate which bin a normalized value (0.0 to 1.0) falls into
-/// Uses floor-based calculation for consistent cell boundaries
+/// Calculate which bin a normalized value (0.0 to 1.0) falls into.
+/// Delegates to the table generators' binning helper so both tools agree on
+/// cell boundaries.
 #[inline]
 fn calculate_bin(normalized: f32, grid_size: usize) -> usize {
-    ((normalized * grid_size as f32).floor() as usize).min(grid_size - 1)
+    crate::analysis::tables::binning::uniform_bin(normalized as f64, 0.0, 1.0, grid_size)
 }
 
-/// Calculate which bin a data value falls into given the data range
+/// Calculate which bin a data value falls into given the data range.
 #[inline]
 fn calculate_data_bin(value: f64, min: f64, range: f64, grid_size: usize) -> usize {
-    let normalized = ((value - min) / range) as f32;
-    calculate_bin(normalized.clamp(0.0, 1.0), grid_size)
+    crate::analysis::tables::binning::uniform_bin(value, min, range, grid_size)
 }
 
 /// Truncate a string to max length with ellipsis
@@ -104,7 +104,7 @@ fn contrast_ratio(color1: egui::Color32, color2: egui::Color32) -> f64 {
 
 /// Get the best text color (black or white) for AAA compliance on given background
 /// Returns the color that provides the highest contrast ratio
-fn get_aaa_text_color(background: egui::Color32) -> egui::Color32 {
+pub(crate) fn get_aaa_text_color(background: egui::Color32) -> egui::Color32 {
     let white_contrast = contrast_ratio(egui::Color32::WHITE, background);
     let black_contrast = contrast_ratio(egui::Color32::BLACK, background);
 

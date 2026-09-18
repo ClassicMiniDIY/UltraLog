@@ -79,6 +79,10 @@ Configurable units for 8 measurement categories:
 - **Scatter Plot** - XY scatter visualization for channel correlation analysis
 - **Histogram** - 2D heatmap visualization with configurable grid sizes (10x10 to 25x25) for analyzing channel distributions
 - **MCP Server** - Built-in Model Context Protocol server lets Claude Desktop (or any MCP client) control UltraLog — load files, select channels, get stats, create computed channels, and run analysis via `http://localhost:52453/mcp`
+- **Table Generators** - Mine logged events into tuning tables (Tools panel → Table Generators):
+  - **Lambda Delay Table** - time from injector pulse-width steps to the wideband response, binned by RPM × load, for closed-loop O2 delay tables (ms, engine cycles or ignition events)
+  - **Acceleration Enrichment Table** - tip-in lean/rich excursion depth, duration and a suggested starting correction, binned by RPM × throttle rate, with lambda-delay compensation from a table generated in the same session
+  - Auto-suggested channel roles, per-cell sample counts and confidence, multi-log accumulation, event inspector with jump-to-time, CSV export and tab-separated clipboard copy
 - **Analysis Tools** - Built-in signal processing and statistics:
   - **Filters** - Moving average, Kalman filter, and other signal processing tools
   - **Statistics** - Min/max, percentiles, standard deviation calculations

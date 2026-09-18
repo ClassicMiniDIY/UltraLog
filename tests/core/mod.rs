@@ -16,4 +16,5 @@ pub mod mcp_tests;
 pub mod normalize_tests;
 pub mod settings_tests;
 pub mod state_tests;
+pub mod table_generator_tests;
 pub mod units_tests;

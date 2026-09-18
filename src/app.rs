@@ -32,6 +32,7 @@ use crate::state::{
     MIN_PLOT_HEIGHT, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
     SelectedChannel, Tab, TileProviderId, ToastType,
 };
+use crate::ui::table_generator::TableGeneratorState;
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
 
@@ -177,6 +178,8 @@ pub struct UltraLogApp {
     pub(crate) show_analysis_panel: bool,
     /// Selected category in analysis panel (None = show all)
     pub(crate) analysis_selected_category: Option<String>,
+    /// Table generator window state (lambda delay / accel enrichment tables)
+    pub(crate) table_generator: TableGeneratorState,
     // === Track Map / Data Panel Preferences ===
     // Live copies of persisted preferences, synced back into UserSettings
     // by eframe::App::save (see the Settings Persistence Contract in
@@ -268,6 +271,7 @@ impl Default for UltraLogApp {
             analysis_results: HashMap::new(),
             show_analysis_panel: false,
             analysis_selected_category: None,
+            table_generator: TableGeneratorState::default(),
             tile_provider: TileProviderId::default(),
             tile_cache_max_mb: 256,
             tiles_enabled: false,
@@ -2286,6 +2290,7 @@ impl eframe::App for UltraLogApp {
         self.render_computed_channels_manager(ctx);
         self.render_formula_editor(ctx);
         self.render_analysis_panel(ctx);
+        self.render_table_generator(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

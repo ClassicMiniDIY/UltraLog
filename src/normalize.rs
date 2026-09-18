@@ -226,6 +226,34 @@ static NORMALIZATION_MAP: LazyLock<HashMap<&'static str, Vec<&'static str>>> =
                 "NJ_GPW_AVE",
                 "PW",
                 "pw",
+                // Injector on-time channels used by the lambda delay table
+                // generator (issue #4). Haltech logs on-time per injector,
+                // Link "Injection Effective PW", rusEFI/Speeduino the last
+                // pulse width, MegaSquirt "Base PW".
+                "Injector 1 On Time",
+                "Injector On Time",
+                "Injection Stage 1 Average Injection Time",
+                "Injection Effective PW",
+                "Injection Actual PW",
+                "Fuel: Last inj pulse width",
+                "Base PW",
+                "INJ Duration(ms)",
+            ],
+        );
+
+        // Throttle rate of change (%/s). Native ECU derivative channels the
+        // accel enrichment table generator (issue #3) prefers over a
+        // computed derivative: Speeduino/MegaSquirt "TPS DOT", Haltech
+        // "Throttle Position Derivative", ME "TPS Delta".
+        map.insert(
+            "TPS Rate",
+            vec![
+                "TPS DOT",
+                "TPSdot",
+                "Throttle Position Derivative",
+                "TPS Delta",
+                "TPS Rate",
+                "tpsDot",
             ],
         );
 

@@ -3,7 +3,9 @@
 //! Provides quick access to analysis and export functionality inline in the side panel.
 
 use eframe::egui;
+use rust_i18n::t;
 
+use crate::analysis::tables::GeneratorKind;
 use crate::app::UltraLogApp;
 use crate::state::ActiveTool;
 
@@ -15,6 +17,13 @@ impl UltraLogApp {
 
         // Analysis Tools Section
         self.render_tools_analysis_section(ui);
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(8.0);
+
+        // Table Generators Section
+        self.render_tools_table_section(ui);
 
         ui.add_space(12.0);
         ui.separator();
@@ -102,6 +111,55 @@ impl UltraLogApp {
             } else {
                 ui.label(
                     egui::RichText::new("Load a file to access analysis tools")
+                        .size(font_12)
+                        .color(egui::Color32::from_rgb(100, 100, 100))
+                        .italics(),
+                );
+            }
+        });
+    }
+
+    /// Render the table generators section (lambda delay / accel enrichment)
+    fn render_tools_table_section(&mut self, ui: &mut egui::Ui) {
+        let font_12 = self.scaled_font(12.0);
+        let font_14 = self.scaled_font(14.0);
+
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!("📊 {}", t!("table_gen.section_title")))
+                .size(font_14)
+                .strong(),
+        )
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(t!("table_gen.section_help"))
+                    .size(font_12)
+                    .color(egui::Color32::GRAY),
+            );
+            ui.add_space(8.0);
+
+            let has_file = self.selected_file.is_some() && !self.files.is_empty();
+            for kind in GeneratorKind::ALL {
+                let name = kind.create().name();
+                let status = self.table_generator.status(kind);
+                let enabled = has_file || status.is_some();
+                ui.horizontal(|ui| {
+                    let btn = egui::Button::new(egui::RichText::new(name).size(font_12));
+                    if ui.add_enabled(enabled, btn).clicked() {
+                        self.table_generator.open_for(kind);
+                    }
+                    if let Some(status) = status {
+                        ui.label(
+                            egui::RichText::new(status)
+                                .size(font_12)
+                                .color(egui::Color32::from_rgb(150, 200, 150)),
+                        );
+                    }
+                });
+            }
+            if !has_file {
+                ui.label(
+                    egui::RichText::new(t!("table_gen.load_file_hint"))
                         .size(font_12)
                         .color(egui::Color32::from_rgb(100, 100, 100))
                         .italics(),

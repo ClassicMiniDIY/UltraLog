@@ -84,7 +84,17 @@ src/
 │   ├── afr.rs         # AFR/Lambda analysis (fuel trim drift CUSUM, rich/lean zones)
 │   ├── derived.rs      # Derived metrics (Volumetric Efficiency, injector duty cycle, ...)
 │   ├── filters.rs      # Signal-processing filters (moving average, etc.)
-│   └── statistics.rs   # Descriptive statistics and correlation analysis
+│   ├── statistics.rs   # Descriptive statistics and correlation analysis
+│   └── tables/         # Table generators (issues #3, #4) — see Table Generators below
+│       ├── mod.rs          # TableAnalyzer trait, TableEvent/RejectReason/RunReport, TableAccumulator
+│       ├── stats.rs        # median/MAD/percentile, update instants, effective update interval, robust sigma
+│       ├── binning.rs      # AxisSpec (edge lists), CellStats, Confidence, TableGrid, uniform_bin
+│       ├── channel_map.rs  # ChannelRole, ChannelMapping, three-tier auto-suggestion
+│       ├── events.rs       # invalid-sample masking, steadiness, interpolated crossings, rate runs
+│       ├── lambda_delay.rs # Lambda delay table generator (#4)
+│       ├── accel_enrich.rs # Acceleration enrichment table generator (#3)
+│       ├── export.rs       # CSV / clipboard TSV rendering, delay unit conversion
+│       └── synthetic.rs    # Synthetic-log builder + xorshift RNG for ground-truth tests
 ├── ipc/
 │   ├── mod.rs          # IPC module exports, DEFAULT_IPC_PORT
 │   ├── commands.rs     # IpcCommand/IpcResponse wire types shared with mcp/client.rs
@@ -122,6 +132,7 @@ src/
     ├── settings_panel.rs             # Consolidated settings (display, units, normalization, updates)
     ├── tool_properties_panel.rs      # Dynamic panel showing controls for the active tool (channels / histogram / scatter)
     ├── analysis_panel.rs             # Window for running analysis algorithms (src/analysis) on the active log
+    ├── table_generator.rs            # Table generator window (setup / heatmap results / event inspector / export)
     ├── data_panel.rs                 # Right-side data panel hosting DataWidget panes (rail, header, hide/restore)
     ├── widgets/
     │   ├── mod.rs                    # DataWidget trait + static widget registry
@@ -233,6 +244,63 @@ Trait-based framework (`Analyzer`) for algorithms that process log data and can 
 - **`statistics.rs`** - Descriptive statistics and correlation analysis.
 
 The `analysis_panel.rs` UI module (see below) hosts these analyzers, with category tabs and configurable parameters per algorithm.
+
+### Table Generators (src/analysis/tables/)
+
+Two generators mine events out of loaded logs into 2-D tuning tables (design doc:
+`docs/plans/2026-07-16-tuning-table-generators.md`, revised per the 2026-09-17 review on issues #3/#4):
+
+- **`lambda_delay.rs`** (issue #4) - injector pulse-width steps → first wideband crossing of
+  `max(k·σ, min_delta)`, binned RPM × load (MAP or TPS). Primary value is dead time (ms); t63,
+  response magnitude and step size are alternate measures. Strict/relaxed gating profiles.
+- **`accel_enrich.rs`** (issue #3) - tip-ins from a native throttle-rate channel (scale detected;
+  Haltech's parser already divides ×10) or a computed TPS/MAP derivative → delay-compensated
+  signed excursion vs target/baseline, binned RPM × peak rate. Measures: correction %, depth,
+  duration, area-based %, area, delay used. When an `AeActive` role is mapped the table kind is
+  *additional* (multiply the ECU's current value) and events without ECU activity are rejected
+  (`AeKindMismatch`) so one cell never mixes kinds.
+
+They implement the sibling `TableAnalyzer` trait (not `Analyzer`, whose result is one value per
+timestamp). Every event, accepted or rejected with a `RejectReason`, stays in the list so the
+inspector and the run report's rejection breakdown ("41 events found · 39 rejected: 30 unsteady,
+9 no response") can tell the user what to log next. `TableAccumulator` keeps raw per-event values
+(medians/MADs cannot be merged incrementally) so logs can be added and removed, and re-bins per
+measure on demand. Cells are median + MAD + `Confidence` (Empty / Low / Medium / High); empty and
+low cells are never interpolated and export blank.
+
+**Load-bearing behaviors:**
+
+- **Sample-and-hold interpolation** (`events::find_crossing`, `stats::update_instants`) - CAN
+  widebands often update at 10-20 Hz inside a 50-500 Hz log. Noise (`robust_sigma_diff`) and
+  crossings are computed over distinct-value *update instants*, never raw samples (most raw first
+  differences are exactly zero). The previous reading for interpolation is the last update, but no
+  earlier than `t - effective_update_interval`: a flat baseline is still being sampled every
+  interval, so interpolating from its last value change would place every crossing far too early.
+- **Invalid-sample masking** (`events::mask_invalid`) - Haltech writes an i32 sentinel family
+  (`-2147483617`, `…637`, …) for "no reading"; those and out-of-band samples become `NaN` before any
+  math, and a window with >10 % masked lambda rejects as `InvalidSamples`.
+- **Alignment** (`tables::mapped_column`) - `Log::get_channel_data` drops ragged rows, so a column
+  can be shorter than `times`; the generators refuse with `ComputationError` rather than index
+  misaligned pairs (same contract as `channel_series` in the IPC handler).
+- **Log identity** - accumulated events key on `LoadedFile::load_id`, a per-load nonce, never the
+  file index (shifts when a tab closes) or the bare file name (every rusEFI install has a
+  `Log1.mlg`). The UI's mapping cache keys on the same nonce.
+- **Lambda-delay → AE composition** - `GeneratorContext::delay_table` carries the session's
+  lambda-delay grid; an AE event uses the matching cell's median when that cell is Medium/High,
+  else `assumed_delay_ms`, and records which in `TableEvent::note` and the `delay_used_ms` measure.
+- **Axis cap** - `binning::MAX_BINS_PER_AXIS` (64) keeps any future MCP payload well under the
+  512 KiB response guard. `histogram.rs` now calls `binning::uniform_bin` for its cell math so both
+  tools agree on boundaries.
+- **Auto-suggestion** (`channel_map::suggest_mapping`) - normalization hit (100) → strong name
+  hints (50) → spec category + hint (60) → generic hints (40), then a data-plausibility veto on the
+  channel median; `overall|avg|average` names lose 10 points so a single sensor beats an averaged
+  one (averaging sensors with different transport delays smears the rise). Ties within 10 points
+  are flagged ⚠ in the UI. New built-in normalization entries back this: injector on-time names →
+  `Pulse Width`, and `TPS DOT` / `Throttle Position Derivative` / `TPS Delta` → `TPS Rate`.
+
+Not yet implemented from the design: MCP tools for the generators, per-ECU mapping presets on
+disk (mapping and accumulators are session-only), the windowed cross-correlation mode, and the
+wiki page.
 
 ### IPC + MCP System (src/ipc/, src/mcp/)
 
@@ -485,6 +553,7 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 - **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD Tuning, Motorsport Electronics, RaceChrono, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
+- **Table Generators** - Lambda delay and acceleration enrichment tuning tables mined from one or more logs, with auto-suggested channel roles, confidence-tiered cells, an event inspector, and CSV/clipboard export (`src/analysis/tables/`, `src/ui/table_generator.rs`)
 - **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
 - **Unit Preferences** - Users can select display units for temperature, pressure, speed, distance, fuel economy, volume, flow rate, and acceleration
