@@ -53,6 +53,8 @@ pub mod normalization_editor;
 pub mod scatter_plot;
 pub mod sidebar;
 pub mod tab_bar;
+pub mod table_export;
+pub mod table_generator;
 pub mod timeline;
 pub mod toast;
 pub mod tool_switcher;

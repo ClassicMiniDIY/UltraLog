@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::analysis::tables::GeneratorKind;
 use crate::colormap::Colormap;
 use crate::laps::{GpsCoordSpec, LapInfo};
 use crate::parsers::{Channel, EcuType, Log};
@@ -74,6 +75,9 @@ pub const COLORBLIND_COLORS: &[[u8; 3]] = &[
 // Core Types
 // ============================================================================
 
+/// Source of [`LoadedFile::load_id`] nonces.
+static NEXT_LOAD_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 /// Represents a loaded log file with its parsed data
 #[derive(Clone)]
 pub struct LoadedFile {
@@ -88,6 +92,12 @@ pub struct LoadedFile {
     /// Cached flag for each channel: true if channel has non-zero data
     /// Computed once on load for UI performance
     pub channels_with_data: Vec<bool>,
+    /// Per-load nonce, unique for the lifetime of the process. Session
+    /// state that must survive tabs closing (the table generators'
+    /// accumulated events) keys on this rather than on the file index,
+    /// which shifts when an earlier file is removed, or on the bare file
+    /// name, which every rusEFI install shares (`Log1.mlg`).
+    pub load_id: u64,
     /// Lazy column-major view of `log.data` as `Vec<Vec<f64>>`. Built on first
     /// access so the chart hot path can borrow `&[f64]` for a channel instead
     /// of re-collecting an owned `Vec<f64>` from the row-major store on every
@@ -112,6 +122,7 @@ impl LoadedFile {
             ecu_type,
             log,
             channels_with_data,
+            load_id: NEXT_LOAD_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             channel_columns: OnceLock::new(),
         }
     }
@@ -260,15 +271,51 @@ pub enum ActiveTool {
     ScatterPlot,
     /// Histogram view for 2D distribution analysis
     Histogram,
+    /// Lambda delay table generator (RPM x load)
+    LambdaDelay,
+    /// Acceleration enrichment table generator (RPM x TPS rate)
+    AccelEnrich,
 }
 
 impl ActiveTool {
+    /// Every tool, in tool-switcher / menu / shortcut order (Cmd+1..5).
+    pub const ALL: [ActiveTool; 5] = [
+        ActiveTool::LogViewer,
+        ActiveTool::ScatterPlot,
+        ActiveTool::Histogram,
+        ActiveTool::LambdaDelay,
+        ActiveTool::AccelEnrich,
+    ];
+
     /// Get the display name for this tool
     pub fn name(&self) -> &'static str {
         match self {
             ActiveTool::LogViewer => "Log Viewer",
             ActiveTool::ScatterPlot => "Scatter Plots",
             ActiveTool::Histogram => "Histogram",
+            ActiveTool::LambdaDelay => "Lambda Delay",
+            ActiveTool::AccelEnrich => "Accel Enrichment",
+        }
+    }
+
+    /// The table generator behind this tool, if it is one.
+    ///
+    /// Table tools share one code path (`src/ui/table_generator.rs`), so the
+    /// match sites that only care whether the active tool is a table use this
+    /// instead of listing both variants.
+    pub fn generator_kind(self) -> Option<GeneratorKind> {
+        match self {
+            ActiveTool::LambdaDelay => Some(GeneratorKind::LambdaDelay),
+            ActiveTool::AccelEnrich => Some(GeneratorKind::AccelEnrich),
+            _ => None,
+        }
+    }
+
+    /// The tool that hosts a table generator.
+    pub fn for_generator(kind: GeneratorKind) -> ActiveTool {
+        match kind {
+            GeneratorKind::LambdaDelay => ActiveTool::LambdaDelay,
+            GeneratorKind::AccelEnrich => ActiveTool::AccelEnrich,
         }
     }
 }

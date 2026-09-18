@@ -79,7 +79,12 @@ impl UltraLogApp {
                         config.x_channel.is_some() && config.y_channel.is_some()
                     };
 
-                let can_export = has_chart_data || has_histogram_data;
+                let has_table_data = self
+                    .active_tool
+                    .generator_kind()
+                    .is_some_and(|k| self.table_generator.table(k).is_some());
+
+                let can_export = has_chart_data || has_histogram_data || has_table_data;
 
                 ui.add_enabled_ui(can_export, |ui| {
                     ui.menu_button(t!("menu.export"), |ui| {
@@ -87,7 +92,16 @@ impl UltraLogApp {
                             .text_styles
                             .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
 
-                        if self.active_tool == ActiveTool::Histogram && has_histogram_data {
+                        if has_table_data {
+                            if ui.button(t!("menu.export_table_png")).clicked() {
+                                self.export_table_png();
+                                ui.close();
+                            }
+                            if ui.button(t!("menu.export_table_pdf")).clicked() {
+                                self.export_table_pdf();
+                                ui.close();
+                            }
+                        } else if self.active_tool == ActiveTool::Histogram && has_histogram_data {
                             if ui.button(t!("menu.export_histogram_pdf")).clicked() {
                                 self.export_histogram_pdf();
                                 ui.close();
@@ -139,38 +153,22 @@ impl UltraLogApp {
                         .color(egui::Color32::GRAY),
                 );
 
-                if ui
-                    .radio_value(
-                        &mut self.active_tool,
-                        ActiveTool::LogViewer,
-                        t!("menu.log_viewer"),
-                    )
-                    .on_hover_text("\u{2318}1")
-                    .clicked()
-                {
-                    ui.close();
-                }
-                if ui
-                    .radio_value(
-                        &mut self.active_tool,
-                        ActiveTool::ScatterPlot,
-                        t!("menu.scatter_plots"),
-                    )
-                    .on_hover_text("\u{2318}2")
-                    .clicked()
-                {
-                    ui.close();
-                }
-                if ui
-                    .radio_value(
-                        &mut self.active_tool,
-                        ActiveTool::Histogram,
-                        t!("menu.histogram"),
-                    )
-                    .on_hover_text("\u{2318}3")
-                    .clicked()
-                {
-                    ui.close();
+                for (i, tool) in ActiveTool::ALL.into_iter().enumerate() {
+                    let label = match tool {
+                        ActiveTool::LogViewer => t!("menu.log_viewer"),
+                        ActiveTool::ScatterPlot => t!("menu.scatter_plots"),
+                        ActiveTool::Histogram => t!("menu.histogram"),
+                        ActiveTool::LambdaDelay => t!("menu.lambda_delay"),
+                        ActiveTool::AccelEnrich => t!("menu.accel_enrich"),
+                    };
+                    if ui
+                        .radio(self.active_tool == tool, label.as_ref())
+                        .on_hover_text(format!("\u{2318}{}", i + 1))
+                        .clicked()
+                    {
+                        self.set_active_tool(tool);
+                        ui.close();
+                    }
                 }
 
                 ui.separator();

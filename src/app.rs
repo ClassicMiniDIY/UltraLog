@@ -32,6 +32,7 @@ use crate::state::{
     MIN_PLOT_HEIGHT, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
     SelectedChannel, Tab, TileProviderId, ToastType,
 };
+use crate::ui::table_generator::TableGeneratorState;
 use crate::units::UnitPreferences;
 use crate::updater::{DownloadResult, UpdateCheckResult, UpdateState};
 
@@ -177,6 +178,8 @@ pub struct UltraLogApp {
     pub(crate) show_analysis_panel: bool,
     /// Selected category in analysis panel (None = show all)
     pub(crate) analysis_selected_category: Option<String>,
+    /// Table generator window state (lambda delay / accel enrichment tables)
+    pub(crate) table_generator: TableGeneratorState,
     // === Track Map / Data Panel Preferences ===
     // Live copies of persisted preferences, synced back into UserSettings
     // by eframe::App::save (see the Settings Persistence Contract in
@@ -268,6 +271,7 @@ impl Default for UltraLogApp {
             analysis_results: HashMap::new(),
             show_analysis_panel: false,
             analysis_selected_category: None,
+            table_generator: TableGeneratorState::default(),
             tile_provider: TileProviderId::default(),
             tile_cache_max_mb: 256,
             tiles_enabled: false,
@@ -1604,6 +1608,18 @@ impl UltraLogApp {
         }
     }
 
+    /// Switch the active tool. The single entry point for the tool switcher,
+    /// menu radios, and Cmd+1..5, so analytics and table-tool selection
+    /// reset stay in one place.
+    pub fn set_active_tool(&mut self, tool: ActiveTool) {
+        if self.active_tool == tool {
+            return;
+        }
+        self.active_tool = tool;
+        self.table_generator.clear_selection();
+        analytics::track_tool_switched(tool.name());
+    }
+
     /// Get the cursor time for the active tab
     pub fn get_cursor_time(&self) -> Option<f64> {
         self.active_tab.and_then(|idx| self.tabs[idx].cursor_time)
@@ -2028,19 +2044,20 @@ impl UltraLogApp {
                 return;
             }
 
-            // ⌘1/2/3 - Switch tool modes
+            // ⌘1..5 - Switch tool modes (same order as ActiveTool::ALL)
             if cmd && !shift {
-                if i.key_pressed(egui::Key::Num1) {
-                    self.active_tool = crate::state::ActiveTool::LogViewer;
-                    return;
-                }
-                if i.key_pressed(egui::Key::Num2) {
-                    self.active_tool = crate::state::ActiveTool::ScatterPlot;
-                    return;
-                }
-                if i.key_pressed(egui::Key::Num3) {
-                    self.active_tool = crate::state::ActiveTool::Histogram;
-                    return;
+                const KEYS: [egui::Key; 5] = [
+                    egui::Key::Num1,
+                    egui::Key::Num2,
+                    egui::Key::Num3,
+                    egui::Key::Num4,
+                    egui::Key::Num5,
+                ];
+                for (key, tool) in KEYS.into_iter().zip(ActiveTool::ALL) {
+                    if i.key_pressed(key) {
+                        self.set_active_tool(tool);
+                        return;
+                    }
                 }
             }
 
@@ -2137,6 +2154,7 @@ impl UltraLogApp {
                     ActiveTool::LogViewer => self.export_chart_png(),
                     ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
                     ActiveTool::Histogram => self.export_histogram_png(),
+                    ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => self.export_table_png(),
                 }
                 return;
             }
@@ -2350,8 +2368,9 @@ impl eframe::App for UltraLogApp {
             });
 
         // Bottom panel for timeline scrubber (visible in LogViewer and Histogram modes)
-        let show_timeline =
-            self.get_time_range().is_some() && self.active_tool != ActiveTool::ScatterPlot;
+        let show_timeline = self.get_time_range().is_some()
+            && self.active_tool != ActiveTool::ScatterPlot
+            && self.active_tool.generator_kind().is_none();
 
         if show_timeline {
             egui::Panel::bottom("timeline_panel")
@@ -2427,6 +2446,10 @@ impl eframe::App for UltraLogApp {
                 ActiveTool::Histogram => {
                     ui.add_space(10.0);
                     self.render_histogram_view(ui);
+                }
+                ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
+                    ui.add_space(10.0);
+                    self.render_table_tool_view(ui);
                 }
             }
         });

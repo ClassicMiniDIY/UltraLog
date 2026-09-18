@@ -187,6 +187,35 @@ fn test_active_tool_names() {
     assert_eq!(ActiveTool::LogViewer.name(), "Log Viewer");
     assert_eq!(ActiveTool::ScatterPlot.name(), "Scatter Plots");
     assert_eq!(ActiveTool::Histogram.name(), "Histogram");
+    assert_eq!(ActiveTool::LambdaDelay.name(), "Lambda Delay");
+    assert_eq!(ActiveTool::AccelEnrich.name(), "Accel Enrichment");
+}
+
+#[test]
+fn test_active_tool_all_is_shortcut_order() {
+    // Cmd+1..5 index into this array; the first three must not move.
+    assert_eq!(ActiveTool::ALL.len(), 5);
+    assert!(ActiveTool::ALL[0] == ActiveTool::LogViewer);
+    assert!(ActiveTool::ALL[1] == ActiveTool::ScatterPlot);
+    assert!(ActiveTool::ALL[2] == ActiveTool::Histogram);
+    assert!(ActiveTool::ALL[3] == ActiveTool::LambdaDelay);
+    assert!(ActiveTool::ALL[4] == ActiveTool::AccelEnrich);
+}
+
+#[test]
+fn test_active_tool_generator_kind_round_trips() {
+    use ultralog::analysis::tables::GeneratorKind;
+    for tool in ActiveTool::ALL {
+        match tool.generator_kind() {
+            Some(kind) => assert!(ActiveTool::for_generator(kind) == tool),
+            None => assert!(matches!(
+                tool,
+                ActiveTool::LogViewer | ActiveTool::ScatterPlot | ActiveTool::Histogram
+            )),
+        }
+    }
+    assert!(ActiveTool::LambdaDelay.generator_kind() == Some(GeneratorKind::LambdaDelay));
+    assert!(ActiveTool::AccelEnrich.generator_kind() == Some(GeneratorKind::AccelEnrich));
 }
 
 #[test]
