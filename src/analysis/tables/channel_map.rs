@@ -284,6 +284,9 @@ impl ChannelRole {
                 "good",
                 "ready",
                 "protect",
+                // Sensor voltage (Emerald "Lambda Sensor Voltage" is a 0-1 V
+                // narrowband input): higher reads richer, so it is not lambda.
+                "volt",
             ],
             Self::LambdaTarget => &[
                 "error", "airmass", "airflow", "boost", "idle", "rpm", "cam", "angle", "position",
@@ -566,6 +569,10 @@ mod tests {
             90
         );
         assert_eq!(name_score(ChannelRole::Lambda, "Target Lambda", None), 0);
+        assert_eq!(
+            name_score(ChannelRole::Lambda, "Lambda Sensor Voltage", None),
+            0
+        );
         assert!(name_score(ChannelRole::PulseWidth, "Injector 1 On Time", None) >= 40);
         assert_eq!(
             name_score(ChannelRole::PulseWidth, "Injection Stage 1 Dead Time", None),

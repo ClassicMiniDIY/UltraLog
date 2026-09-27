@@ -38,6 +38,9 @@ struct ChannelDefinition {
 /// Two logs from the same car show the effect: with `1` MAP is stored in whole
 /// kPa (25-235), with `2` it is stored in mbar (586 at idle, 2327 on boost).
 /// Any other code keeps the mbar scaling the parser has always used.
+///
+/// Only ID 32 is known to follow this setting. The other pressure IDs (3, 10,
+/// 33) are unconfirmed and keep a fixed x0.1 until a log shows otherwise.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum PressureUnit {
     Kpa,
@@ -78,9 +81,10 @@ struct Lg2Config {
 fn get_channel_definition(id: u8, pressure_unit: PressureUnit) -> ChannelDefinition {
     match id {
         // "AFR/Lambda" in EM Soft: the K6's own lambda input, a 0-1 V
-        // narrowband signal stored in mV (every log tops out at 900).
+        // narrowband signal stored in mV (every log tops out at 900). The
+        // name says "Voltage" so the table generators never take it as lambda.
         1 => ChannelDefinition {
-            name: "Lambda Sensor",
+            name: "Lambda Sensor Voltage",
             unit: "V",
             scale: 0.001,
             offset: 0.0,
@@ -558,11 +562,17 @@ impl Emerald {
         let mut channels: Vec<EmeraldChannel> = Vec::with_capacity(8);
         for (slot, channel_id) in &config.channels {
             let def = get_channel_definition(*channel_id, config.pressure_unit);
-            let name = if def.name == "Unknown" {
+            let mut name = if def.name == "Unknown" {
                 format!("Channel {} (ID {})", slot, channel_id)
             } else {
                 def.name.to_string()
             };
+            // Several IDs share a name (21 and 24 are both ignition advance,
+            // 45 and 46 are both AFR). Name lookups return the first match,
+            // so a repeat would be unreachable by name.
+            if channels.iter().any(|c| c.name == name) {
+                name = format!("{} (ID {})", name, channel_id);
+            }
 
             channels.push(EmeraldChannel {
                 name,
@@ -749,7 +759,7 @@ mod tests {
         assert_eq!(tps.unit, "%");
         assert_eq!(
             get_channel_definition(1, PressureUnit::Mbar).name,
-            "Lambda Sensor"
+            "Lambda Sensor Voltage"
         );
 
         assert_eq!(get_channel_definition(32, PressureUnit::Kpa).scale, 1.0);
@@ -850,7 +860,7 @@ mod tests {
             [
                 "RPM",
                 "TPS",
-                "Lambda Sensor",
+                "Lambda Sensor Voltage",
                 "MAP",
                 "Ignition Advance",
                 "Inj Duration",
@@ -862,7 +872,7 @@ mod tests {
         // Raw first record: 3732, 580, 430, 150, 745, 210, 286, 11
         assert_channel(&record, "RPM", "RPM", 3732.0);
         assert_channel(&record, "TPS", "%", 58.0);
-        assert_channel(&record, "Lambda Sensor", "V", 0.43);
+        assert_channel(&record, "Lambda Sensor Voltage", "V", 0.43);
         assert_channel(&record, "MAP", "kPa", 150.0);
         assert_channel(&record, "Ignition Advance", "°", 24.5);
         assert_channel(&record, "Inj Duration", "%", 21.0);
@@ -879,13 +889,35 @@ mod tests {
     }
 
     #[test]
+    fn test_duplicate_names_get_the_channel_id() {
+        let config = Lg2Config {
+            channels: vec![(1, 21), (2, 24), (3, 45), (4, 46)],
+            pressure_unit: PressureUnit::Mbar,
+        };
+        let mut data = vec![0u8; 24];
+        data[0..8].copy_from_slice(&46022.5f64.to_le_bytes());
+        let log = Emerald::parse_binary_with_channels(&data, &config, Path::new("x.lg1"))
+            .expect("Should parse successfully");
+        let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
+        assert_eq!(
+            names,
+            [
+                "Ignition Advance",
+                "Ignition Advance (ID 24)",
+                "AFR",
+                "AFR (ID 46)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_mbar_pressure_unit_map() {
         // [ValU] pressure unit 2: MAP stored in mbar, 586 at idle
         let path = Path::new("exampleLogs/emerald/EM Log MG ZS Turbo idle and rev.lg1");
         let log = Emerald::parse_file(path).expect("Should parse successfully");
         let record = first_record(&log);
         assert_channel(&record, "MAP", "kPa", 58.6);
-        assert_channel(&record, "Lambda Sensor", "V", 0.52);
+        assert_channel(&record, "Lambda Sensor Voltage", "V", 0.52);
         assert_channel(&record, "Load Site", "", 0.0);
     }
 }

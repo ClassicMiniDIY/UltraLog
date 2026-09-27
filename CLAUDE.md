@@ -518,6 +518,12 @@ because it also leads with a `Time` column, and only matches a first column of e
 - **MAP scaling depends on `[ValU]`** - the second `[ValU]` value is the logger's pressure unit:
   `1` stores MAP in whole kPa, `2` in mbar. Hardcoding either one makes the other log read 10x
   wrong. Unknown codes keep the mbar scaling.
+- **ID 1 is named "Lambda Sensor Voltage" on purpose** - it is a 0-1 V narrowband input where
+  a higher reading is richer. The `"volt"` veto on `ChannelRole::Lambda` in
+  `channel_map.rs` depends on that word, so the table generators never map it as lambda.
+- **Repeated names get the channel ID appended** - IDs 21/24 and 45/46 share a name, and name
+  lookups return the first match, so `parse_binary_with_channels` renames the second one
+  (`Ignition Advance (ID 24)`).
 - **Ign Adv (ID 24) offset is inferred** - `raw * 0.1 - 50` gives 5.5° at idle and 14-17° at
   230 kPa boost. It is not from Emerald documentation.
 
