@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-2.15.0-green.svg)
+![Version](https://img.shields.io/badge/version-2.15.1-green.svg)
 
 ---
 
@@ -139,7 +139,8 @@ Configurable units for 8 measurement categories:
 - **File type:** Binary format (`.lg1` data + `.lg2` channel definitions)
 - **Features:** Native binary format parser for Emerald K6/M3D ECUs
 - **Supported devices:** Emerald K6, M3D, and compatible ECU models
-- **Supported data:** TPS, Air Temp, MAP, Lambda, Oil/Fuel Pressure, Oil/Fuel Temp, Exhaust Temp, Boost Target/Duty, RPM, Coolant Temp, Battery Voltage, Ignition Advance, Injector Pulse Width, and more
+- **Supported data:** RPM, TPS, MAP, lambda sensor, ignition advance, injector duration, boost PWM, load site, air and coolant temperature, and more
+- **Units:** MAP is shown in kPa. The EM Soft logger pressure setting must be kPa or bar; other settings are not yet supported
 - **Note:** Both `.lg1` (data) and `.lg2` (channel definitions) files must be in the same directory
 
 ### MegaSquirt / Honda Tuning Studio - Full Support
