@@ -13,7 +13,7 @@
 //! LG1 values are stored as the logger's display value times a fixed factor
 //! (TPS 0-1000 for 0-100.0 %), not as raw ECU bytes. Pressure is the exception:
 //! the `[ValU]` section of the LG2 records the pressure unit the logger was set
-//! to, and MAP is stored in that unit (see [`PressureUnit`]).
+//! to, and MAP is stored in that unit (see `PressureUnit`).
 
 use serde::Serialize;
 use std::error::Error;
