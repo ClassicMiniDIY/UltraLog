@@ -522,8 +522,12 @@ because it also leads with a `Time` column, and only matches a first column of e
   a higher reading is richer. The `"volt"` veto on `ChannelRole::Lambda` in
   `channel_map.rs` depends on that word, so the table generators never map it as lambda.
 - **Repeated names get the channel ID appended** - IDs 21/24 and 45/46 share a name, and name
-  lookups return the first match, so `parse_binary_with_channels` renames the second one
-  (`Ignition Advance (ID 24)`).
+  lookups return the first match. `disambiguate_names` keeps the plain name on a
+  `CONFIRMED_IDS` entry (else the first by slot) and appends ` (ID n)` to the others, so a
+  formula bound to `Ignition Advance` does not change meaning with slot order.
+- **The value column is the slot number, not the list position** - `[chanN]` reads bytes
+  `8 + (N-1)*2` of the record. `parse_lg2` drops slots outside 1-8 and repeated slots, so an
+  unreadable or missing `[chanN]` cannot shift later channels onto the wrong data.
 - **Ign Adv (ID 24) offset is inferred** - `raw * 0.1 - 50` gives 5.5° at idle and 14-17° at
   230 kPa boost. It is not from Emerald documentation.
 

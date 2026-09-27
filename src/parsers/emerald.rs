@@ -73,12 +73,19 @@ struct Lg2Config {
     pressure_unit: PressureUnit,
 }
 
+/// Channel ID of MAP, the one channel scaled by the `[ValU]` pressure unit
+const MAP_ID: u8 = 32;
+
+/// Channel IDs confirmed against EM Soft by the log attached to issue #93
+/// (MG ZS turbo). The other IDs are unconfirmed guesses from the original
+/// reverse engineering.
+const CONFIRMED_IDS: [u8; 8] = [1, 15, 20, 24, 26, 31, MAP_ID, 41];
+
+/// Number of value slots in an LG1 record (`[chan1]`..`[chan8]`)
+const SLOTS: u8 = 8;
+
 /// Get channel definition for a known channel ID
-///
-/// IDs 1, 15, 20, 24, 26, 31, 32 and 41 are confirmed against EM Soft by the
-/// log attached to issue #93 (MG ZS turbo). The other IDs are unconfirmed
-/// guesses from the original reverse engineering.
-fn get_channel_definition(id: u8, pressure_unit: PressureUnit) -> ChannelDefinition {
+fn get_channel_definition(id: u8) -> ChannelDefinition {
     match id {
         // "AFR/Lambda" in EM Soft: the K6's own lambda input, a 0-1 V
         // narrowband signal stored in mV (every log tops out at 900). The
@@ -276,10 +283,12 @@ fn get_channel_definition(id: u8, pressure_unit: PressureUnit) -> ChannelDefinit
             scale: 1.0,
             offset: 0.0,
         },
-        32 => ChannelDefinition {
+        // Scale here is the mbar default; parse_binary_with_channels
+        // replaces it from the [ValU] pressure unit.
+        MAP_ID => ChannelDefinition {
             name: "MAP",
             unit: "kPa",
-            scale: pressure_unit.kpa_scale(),
+            scale: 0.1,
             offset: 0.0,
         },
         33 => ChannelDefinition {
@@ -333,6 +342,33 @@ fn get_channel_definition(id: u8, pressure_unit: PressureUnit) -> ChannelDefinit
             scale: 1.0,
             offset: 0.0,
         },
+    }
+}
+
+/// Append the channel ID to repeated names.
+///
+/// Several IDs share a name (21 and 24 are both ignition advance, 45 and 46
+/// are both AFR), and name lookups return the first match, so a repeat would
+/// be unreachable by name. A confirmed ID keeps the plain name whatever slot
+/// it is in; the others get ` (ID n)`.
+fn disambiguate_names(channels: &mut [EmeraldChannel]) {
+    for i in 0..channels.len() {
+        let group: Vec<usize> = (0..channels.len())
+            .filter(|&j| channels[j].name == channels[i].name)
+            .collect();
+        if group.len() < 2 {
+            continue;
+        }
+        let keep = group
+            .iter()
+            .copied()
+            .find(|&j| CONFIRMED_IDS.contains(&channels[j].channel_id))
+            .unwrap_or(group[0]);
+        for j in group {
+            if j != keep {
+                channels[j].name = format!("{} (ID {})", channels[j].name, channels[j].channel_id);
+            }
+        }
     }
 }
 
@@ -467,7 +503,7 @@ impl Emerald {
     /// Parse the LG2 channel definition file
     fn parse_lg2(contents: &str) -> Result<Lg2Config, Box<dyn Error>> {
         let mut channels: Vec<(u8, u8)> = Vec::new();
-        let mut pressure_code: Option<u8> = None;
+        let mut valu: Option<Vec<&str>> = None;
 
         let lines: Vec<&str> = contents.lines().collect();
         let mut i = 0;
@@ -483,15 +519,28 @@ impl Emerald {
                     // Next line should be the channel ID
                     if i + 1 < lines.len() {
                         let id_line = lines[i + 1].trim();
-                        if let Ok(channel_id) = id_line.parse::<u8>() {
+                        // An LG1 record has 8 value slots; a slot outside
+                        // 1-8, or a repeat, has no column of its own.
+                        if let Ok(channel_id) = id_line.parse::<u8>()
+                            && (1..=SLOTS).contains(&slot)
+                            && !channels.iter().any(|(s, _)| *s == slot)
+                        {
                             channels.push((slot, channel_id));
                         }
                         i += 1;
                     }
                 }
             } else if line == "[ValU]" {
-                // One value per line; the second is the pressure unit
-                pressure_code = lines.get(i + 2).and_then(|l| l.trim().parse::<u8>().ok());
+                // One value per line up to the next section. Blank lines are
+                // skipped so they cannot shift which value is which.
+                valu = Some(
+                    lines[i + 1..]
+                        .iter()
+                        .map(|l| l.trim())
+                        .take_while(|l| !l.starts_with('['))
+                        .filter(|l| !l.is_empty())
+                        .collect(),
+                );
             }
 
             i += 1;
@@ -506,7 +555,10 @@ impl Emerald {
 
         Ok(Lg2Config {
             channels,
-            pressure_unit: PressureUnit::from_valu(pressure_code),
+            // The second [ValU] value is the pressure unit
+            pressure_unit: PressureUnit::from_valu(
+                valu.and_then(|v| v.get(1).and_then(|c| c.parse::<u8>().ok())),
+            ),
         })
     }
 
@@ -558,30 +610,34 @@ impl Emerald {
             return Err("LG1 file contains no data records".into());
         }
 
-        // Build channel metadata
-        let mut channels: Vec<EmeraldChannel> = Vec::with_capacity(8);
+        // Build channel metadata. `columns` holds each channel's byte offset
+        // inside a record: the value for [chanN] is always column N, even
+        // when an earlier slot is missing from the LG2.
+        let mut channels: Vec<EmeraldChannel> = Vec::with_capacity(config.channels.len());
+        let mut columns: Vec<usize> = Vec::with_capacity(config.channels.len());
         for (slot, channel_id) in &config.channels {
-            let def = get_channel_definition(*channel_id, config.pressure_unit);
-            let mut name = if def.name == "Unknown" {
+            let def = get_channel_definition(*channel_id);
+            let name = if def.name == "Unknown" {
                 format!("Channel {} (ID {})", slot, channel_id)
             } else {
                 def.name.to_string()
             };
-            // Several IDs share a name (21 and 24 are both ignition advance,
-            // 45 and 46 are both AFR). Name lookups return the first match,
-            // so a repeat would be unreachable by name.
-            if channels.iter().any(|c| c.name == name) {
-                name = format!("{} (ID {})", name, channel_id);
-            }
+            let scale = if *channel_id == MAP_ID {
+                config.pressure_unit.kpa_scale()
+            } else {
+                def.scale
+            };
 
             channels.push(EmeraldChannel {
                 name,
                 unit: def.unit.to_string(),
                 channel_id: *channel_id,
-                scale: def.scale,
+                scale,
                 offset: def.offset,
             });
+            columns.push(8 + (*slot as usize - 1) * 2);
         }
+        disambiguate_names(&mut channels);
 
         // Parse binary data
         let mut times: Vec<f64> = Vec::with_capacity(num_records);
@@ -611,8 +667,8 @@ impl Emerald {
 
             // Read 8 channel values (16 bytes, 8 x u16)
             let mut row: Vec<Value> = Vec::with_capacity(channels.len());
-            for (ch_idx, channel) in channels.iter().enumerate() {
-                let value_offset = offset + 8 + (ch_idx * 2);
+            for (channel, column) in channels.iter().zip(&columns) {
+                let value_offset = offset + column;
                 let raw_value =
                     u16::from_le_bytes([data[value_offset], data[value_offset + 1]]) as f64;
 
@@ -745,28 +801,22 @@ mod tests {
     #[test]
     fn test_channel_definitions() {
         // Test known channel IDs
-        let rpm = get_channel_definition(20, PressureUnit::Mbar);
+        let rpm = get_channel_definition(20);
         assert_eq!(rpm.name, "RPM");
         assert_eq!(rpm.unit, "RPM");
 
-        let coolant = get_channel_definition(19, PressureUnit::Mbar);
+        let coolant = get_channel_definition(19);
         assert_eq!(coolant.name, "Coolant Temp");
         assert_eq!(coolant.unit, "°C");
 
         // Issue #93: ID 41 is Throttle Pos and ID 1 is the lambda input
-        let tps = get_channel_definition(41, PressureUnit::Mbar);
+        let tps = get_channel_definition(41);
         assert_eq!(tps.name, "TPS");
         assert_eq!(tps.unit, "%");
-        assert_eq!(
-            get_channel_definition(1, PressureUnit::Mbar).name,
-            "Lambda Sensor Voltage"
-        );
-
-        assert_eq!(get_channel_definition(32, PressureUnit::Kpa).scale, 1.0);
-        assert_eq!(get_channel_definition(32, PressureUnit::Mbar).scale, 0.1);
+        assert_eq!(get_channel_definition(1).name, "Lambda Sensor Voltage");
 
         // Test unknown channel
-        let unknown = get_channel_definition(255, PressureUnit::Mbar);
+        let unknown = get_channel_definition(255);
         assert_eq!(unknown.name, "Unknown");
     }
 
@@ -888,26 +938,108 @@ mod tests {
         );
     }
 
+    /// One LG1 record whose 8 slot values are `values`
+    fn record(values: [u16; 8]) -> Vec<u8> {
+        let mut data = 46022.5f64.to_le_bytes().to_vec();
+        for v in values {
+            data.extend_from_slice(&v.to_le_bytes());
+        }
+        data
+    }
+
+    fn parse_config(config: &Lg2Config, data: &[u8]) -> Log {
+        Emerald::parse_binary_with_channels(data, config, Path::new("x.lg1"))
+            .expect("Should parse successfully")
+    }
+
     #[test]
     fn test_duplicate_names_get_the_channel_id() {
+        // The confirmed ID 24 keeps the plain name in either slot order
+        for channels in [vec![(1, 21), (2, 24)], vec![(1, 24), (2, 21)]] {
+            let config = Lg2Config {
+                channels,
+                pressure_unit: PressureUnit::Mbar,
+            };
+            let log = parse_config(&config, &record([0; 8]));
+            let plain = log
+                .channels
+                .iter()
+                .find(|c| c.name() == "Ignition Advance")
+                .expect("plain name kept");
+            let Channel::Emerald(ch) = plain else {
+                panic!("not an Emerald channel")
+            };
+            assert_eq!(ch.channel_id, 24);
+            assert!(
+                log.channels
+                    .iter()
+                    .any(|c| c.name() == "Ignition Advance (ID 21)")
+            );
+        }
+
+        // Neither AFR ID is confirmed: the first keeps the plain name
         let config = Lg2Config {
-            channels: vec![(1, 21), (2, 24), (3, 45), (4, 46)],
+            channels: vec![(1, 45), (2, 46)],
             pressure_unit: PressureUnit::Mbar,
         };
-        let mut data = vec![0u8; 24];
-        data[0..8].copy_from_slice(&46022.5f64.to_le_bytes());
-        let log = Emerald::parse_binary_with_channels(&data, &config, Path::new("x.lg1"))
-            .expect("Should parse successfully");
-        let names: Vec<String> = log.channels.iter().map(|c| c.name()).collect();
+        let names: Vec<String> = parse_config(&config, &record([0; 8]))
+            .channels
+            .iter()
+            .map(|c| c.name())
+            .collect();
+        assert_eq!(names, ["AFR", "AFR (ID 46)"]);
+    }
+
+    #[test]
+    fn test_value_column_follows_slot_number() {
+        // [chan2] is unreadable, so slot 3 must still read column 3
+        let lg2 = "[chan1]\n20\n[chan2]\n\n[chan3]\n41\n[chan4]\n19\n";
+        let config = Emerald::parse_lg2(lg2).unwrap();
+        assert_eq!(config.channels, [(1, 20), (3, 41), (4, 19)]);
+
+        let log = parse_config(&config, &record([3000, 999, 500, 90, 0, 0, 0, 0]));
+        let values: Vec<f64> = log.data[0].iter().map(|v| v.as_f64()).collect();
+        assert_eq!(values, [3000.0, 50.0, 90.0]);
+    }
+
+    #[test]
+    fn test_slots_outside_record_are_dropped() {
+        // [chan9] has no column and a repeated [chan1] would read slot 1 twice
+        let lg2 = "[chan1]\n20\n[chan1]\n41\n[chan9]\n19\n[chan0]\n2\n[chan8]\n31\n";
+        let config = Emerald::parse_lg2(lg2).unwrap();
+        assert_eq!(config.channels, [(1, 20), (8, 31)]);
+
+        // Parsing the last record must not read past the end of the data
+        let data = [record([1; 8]), record([2; 8])].concat();
+        assert_eq!(parse_config(&config, &data).data.len(), 2);
+    }
+
+    #[test]
+    fn test_valu_ignores_blank_lines() {
+        let lg2 = "[chan1]\n20\n[chan2]\n32\n[chan3]\n1\n[chan4]\n41\n[ValU]\n\n0\n\n1\n0\n0\n0\n";
         assert_eq!(
-            names,
-            [
-                "Ignition Advance",
-                "Ignition Advance (ID 24)",
-                "AFR",
-                "AFR (ID 46)"
-            ]
+            Emerald::parse_lg2(lg2).unwrap().pressure_unit,
+            PressureUnit::Kpa
         );
+
+        // A [ValU] with a single value has no pressure code
+        let short = "[chan1]\n20\n[chan2]\n32\n[chan3]\n1\n[chan4]\n41\n[ValU]\n0\n[chan5]\n1\n";
+        assert_eq!(
+            Emerald::parse_lg2(short).unwrap().pressure_unit,
+            PressureUnit::Mbar
+        );
+    }
+
+    #[test]
+    fn test_map_scale_follows_pressure_unit() {
+        for (unit, expected) in [(PressureUnit::Kpa, 150.0), (PressureUnit::Mbar, 15.0)] {
+            let config = Lg2Config {
+                channels: vec![(1, MAP_ID)],
+                pressure_unit: unit,
+            };
+            let log = parse_config(&config, &record([150, 0, 0, 0, 0, 0, 0, 0]));
+            assert_eq!(log.data[0][0].as_f64(), expected);
+        }
     }
 
     #[test]
