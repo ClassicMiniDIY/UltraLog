@@ -139,7 +139,8 @@ Configurable units for 8 measurement categories:
 - **File type:** Binary format (`.lg1` data + `.lg2` channel definitions)
 - **Features:** Native binary format parser for Emerald K6/M3D ECUs
 - **Supported devices:** Emerald K6, M3D, and compatible ECU models
-- **Supported data:** TPS, Air Temp, MAP, Lambda, Oil/Fuel Pressure, Oil/Fuel Temp, Exhaust Temp, Boost Target/Duty, RPM, Coolant Temp, Battery Voltage, Ignition Advance, Injector Pulse Width, and more
+- **Supported data:** RPM, TPS, MAP, lambda sensor, ignition advance, injector duration, boost PWM, load site, air and coolant temperature, and more
+- **Units:** MAP is read in the pressure unit the EM Soft logger was set to (kPa or bar) and shown in kPa
 - **Note:** Both `.lg1` (data) and `.lg2` (channel definitions) files must be in the same directory
 
 ### MegaSquirt / Honda Tuning Studio - Full Support
