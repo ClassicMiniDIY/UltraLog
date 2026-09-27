@@ -511,8 +511,10 @@ because it also leads with a `Time` column, and only matches a first column of e
   document. Only IDs 1, 15, 20, 24, 26, 31, 32 and 41 are confirmed (issue #93, reporter's EM
   Soft labels). The rest are original guesses. ID 1 is the K6 lambda input in mV (not TPS),
   41 is TPS, 31 is the 0-15 load site (not injector duty). Confirm an ID against an EM Soft
-  screenshot before renaming it. `spec/OECUASpecs/adapters/emerald/emerald-lg.adapter.yaml`
-  still carries the old guesses in `internal_id`; UltraLog does not read that field.
+  screenshot before renaming it. A rename must also go into the `source_names` of
+  `adapters/emerald/emerald-lg.adapter.yaml` in the ClassicMiniDIY/OECUASpecs repo (fetched
+  by `build.rs` into the gitignored `spec/OECUASpecs/`); spec normalization matches on those
+  names. Its `internal_id` field documents the IDs but UltraLog does not read it.
 - **MAP scaling depends on `[ValU]`** - the second `[ValU]` value is the logger's pressure unit:
   `1` stores MAP in whole kPa, `2` in mbar. Hardcoding either one makes the other log read 10x
   wrong. Unknown codes keep the mbar scaling.
