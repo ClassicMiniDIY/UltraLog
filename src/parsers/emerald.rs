@@ -84,6 +84,9 @@ const CONFIRMED_IDS: [u8; 8] = [1, 15, 20, 24, 26, 31, MAP_ID, 41];
 /// Number of value slots in an LG1 record (`[chan1]`..`[chan8]`)
 const SLOTS: u8 = 8;
 
+/// Plausible OLE record timestamps: days since 1899-12-30, ~1995 to ~2050
+const OLE_DATE_RANGE: std::ops::RangeInclusive<f64> = 35000.0..=55000.0;
+
 /// Get channel definition for a known channel ID
 fn get_channel_definition(id: u8) -> ChannelDefinition {
     match id {
@@ -459,7 +462,7 @@ impl Emerald {
         ]);
 
         // Check for reasonable OLE date range
-        if !(35000.0..=55000.0).contains(&timestamp) {
+        if !OLE_DATE_RANGE.contains(&timestamp) {
             return false;
         }
 
@@ -469,8 +472,9 @@ impl Emerald {
                 data[24], data[25], data[26], data[27], data[28], data[29], data[30], data[31],
             ]);
 
-            // Second timestamp should be close to first (within 1 day)
-            if (timestamp2 - timestamp).abs() > 1.0 {
+            // Second timestamp should be close to first (within 1 day). A zero
+            // is EM Soft filler (see parse_binary_with_channels), not a mismatch.
+            if timestamp2 != 0.0 && (timestamp2 - timestamp).abs() > 1.0 {
                 return false;
             }
         }
@@ -644,6 +648,8 @@ impl Emerald {
         let mut data_matrix: Vec<Vec<Value>> = Vec::with_capacity(num_records);
 
         let mut first_timestamp: Option<f64> = None;
+        let mut last_timestamp = f64::NEG_INFINITY;
+        let mut skipped = 0usize;
 
         for i in 0..num_records {
             let offset = i * RECORD_SIZE;
@@ -659,6 +665,16 @@ impl Emerald {
                 data[offset + 6],
                 data[offset + 7],
             ]);
+
+            // EM Soft writes filler records with a zero timestamp (5 % of the
+            // issue #93 log) that repeat the previous values. Skip them, and
+            // any backwards timestamp, so times stay monotonic: a zero would
+            // otherwise land ~4e9 s before the log start.
+            if !OLE_DATE_RANGE.contains(&ole_timestamp) || ole_timestamp < last_timestamp {
+                skipped += 1;
+                continue;
+            }
+            last_timestamp = ole_timestamp;
 
             // Convert OLE date to seconds since start
             let first_ts = *first_timestamp.get_or_insert(ole_timestamp);
@@ -680,10 +696,22 @@ impl Emerald {
             data_matrix.push(row);
         }
 
+        if times.is_empty() {
+            return Err("LG1 file contains no records with a valid timestamp".into());
+        }
+        if skipped > 0 {
+            tracing::warn!(
+                "Skipped {} of {} Emerald records with an invalid or backwards timestamp",
+                skipped,
+                num_records
+            );
+        }
+        let record_count = times.len();
+
         // Calculate metadata
         let duration = times.last().copied().unwrap_or(0.0);
         let sample_rate = if duration > 0.0 {
-            num_records as f64 / duration
+            record_count as f64 / duration
         } else {
             0.0
         };
@@ -695,7 +723,7 @@ impl Emerald {
 
         let meta = EmeraldMeta {
             source_file,
-            record_count: num_records,
+            record_count,
             duration_seconds: duration,
             sample_rate_hz: sample_rate,
         };
@@ -703,7 +731,7 @@ impl Emerald {
         tracing::info!(
             "Parsed Emerald ECU log: {} channels, {} records, {:.1}s duration, {:.1} Hz",
             channels.len(),
-            num_records,
+            record_count,
             duration,
             sample_rate
         );
@@ -901,7 +929,9 @@ mod tests {
         // BoostPWM, Load site.
         let path = Path::new("exampleLogs/emerald/EM Log MG ZS Turbo boost run.lg1");
         let log = Emerald::parse_file(path).expect("Should parse successfully");
-        assert_eq!(log.data.len(), 2000);
+        // 105 of the 2000 records are zero-timestamp filler
+        assert_eq!(log.data.len(), 1895);
+        assert!(log.times.windows(2).all(|w| w[0] <= w[1]));
 
         let record = first_record(&log);
         let names: Vec<&str> = record.iter().map(|(n, _, _)| n.as_str()).collect();
@@ -1028,6 +1058,35 @@ mod tests {
             Emerald::parse_lg2(short).unwrap().pressure_unit,
             PressureUnit::Mbar
         );
+    }
+
+    #[test]
+    fn test_zero_and_backwards_timestamps_are_skipped() {
+        let config = Lg2Config {
+            channels: vec![(1, 20)],
+            pressure_unit: PressureUnit::Mbar,
+        };
+        let at = |days: f64, rpm: u16| {
+            let mut r = record([rpm, 0, 0, 0, 0, 0, 0, 0]);
+            r[0..8].copy_from_slice(&days.to_le_bytes());
+            r
+        };
+        let second = 1.0 / 86_400.0;
+        let data = [
+            at(46022.5, 1000),
+            at(0.0, 1000),
+            at(46022.5 + second, 2000),
+            at(46022.5 + second / 2.0, 3000),
+            at(46022.5 + 2.0 * second, 4000),
+        ]
+        .concat();
+        let log = parse_config(&config, &data);
+        let rpm: Vec<f64> = log.data.iter().map(|r| r[0].as_f64()).collect();
+        assert_eq!(rpm, [1000.0, 2000.0, 4000.0]);
+        assert!((log.times[2] - 2.0).abs() < 1e-6);
+        if let Meta::Emerald(meta) = &log.meta {
+            assert_eq!(meta.record_count, 3);
+        }
     }
 
     #[test]

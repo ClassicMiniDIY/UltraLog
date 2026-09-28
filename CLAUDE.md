@@ -529,7 +529,14 @@ because it also leads with a `Time` column, and only matches a first column of e
   `8 + (N-1)*2` of the record. `parse_lg2` drops slots outside 1-8 and repeated slots, so an
   unreadable or missing `[chanN]` cannot shift later channels onto the wrong data.
 - **Ign Adv (ID 24) offset is inferred** - `raw * 0.1 - 50` gives 5.5° at idle and 14-17° at
-  230 kPa boost. It is not from Emerald documentation.
+  230 kPa boost. It is not from Emerald documentation. One EM Soft point confirms it (raw 680 =
+  18.0°, issue #93); a second point is needed to rule out a different scale with the same fit.
+- **EM Soft shows MAP as gauge bar, UltraLog shows absolute kPa** - with `[ValU]` pressure code
+  `1`, raw 215 is 215 kPa absolute and EM Soft displays 1.15 Bar. Both are correct.
+- **Zero-timestamp records are filler and are skipped** - EM Soft writes records with an OLE
+  timestamp of 0 that repeat the previous values (105 of 2000 in the issue #93 log).
+  `parse_binary_with_channels` drops records outside `OLE_DATE_RANGE` or earlier than the last
+  kept record, so `times` stays monotonic, and `detect` accepts a zero second record.
 
 **Haltech parser load-bearing behaviors** (`src/parsers/haltech.rs`, added for wall-clock-timestamped exports):
 
