@@ -10,7 +10,7 @@
 //! - First column is "Time" (seconds since logging start), second column is
 //!   "Marker" (the ME Tuner marker button state)
 //! - The remaining columns are whatever channels the user picked in ME Tuner,
-//!   so a short ME442 log can hold only RPM, MAP, coolant and AFR (issue #95)
+//!   so a short ME442 log can hold a custom 8-channel list (issue #95)
 //! - Channel names carry no inline units; units are inferred from the name
 //!
 //! Note: The RomRaider parser also detects files starting with "Time" but
@@ -92,11 +92,17 @@ impl MotorsportElectronicsChannel {
             return "RPM".to_string();
         }
 
-        // Temperatures
-        if n.contains("coolant temp")
-            || n.contains("intake air temp")
-            || n.contains("fuel temperature")
-            || n.contains("internal iat")
+        // Temperatures. A compensation named after a temperature
+        // ("Coolant Temp. Comp.") is a percentage, not a temperature, and
+        // must not get a unit the °F preference would convert.
+        let is_adjustment = ["comp", "mod", "trim", "add", "correction"]
+            .iter()
+            .any(|w| n.contains(w));
+        if !is_adjustment
+            && (n.contains("coolant temp")
+                || n.contains("intake air temp")
+                || n.contains("fuel temperature")
+                || n.contains("internal iat"))
         {
             return "°C".to_string();
         }
@@ -176,11 +182,6 @@ impl MotorsportElectronicsChannel {
         // AFR / lambda
         if n.contains("afr") || n.contains("lambda") {
             return "AFR".to_string();
-        }
-
-        // O2 sensor raw/value
-        if n == "o2 raw" || n == "o2 val" {
-            return "".to_string();
         }
 
         // Speed
@@ -496,6 +497,14 @@ mod tests {
         assert_eq!(unit("MAP"), "kPa");
         assert_eq!(unit("Coolant temperature"), "°C");
         assert_eq!(unit("Battery Voltage"), "V");
+    }
+
+    #[test]
+    fn temperature_compensations_are_not_temperatures() {
+        let unit = |h: &str| MotorsportElectronicsChannel::from_header(h).unit;
+        assert_eq!(unit("Coolant Temp. Comp."), "%");
+        assert_eq!(unit("Intake Air Temp. Mod"), "%");
+        assert_eq!(unit("Intake Air Temp."), "°C");
     }
 
     #[test]

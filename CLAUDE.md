@@ -458,6 +458,8 @@ Before the text detection chain runs, the content is normalized twice, so indivi
 1. A leading **UTF-8 BOM** is stripped (`trim_start_matches('\u{FEFF}')`). Windows and mobile exporters commonly prepend one.
 2. A leading block of **`#`-prefixed comment lines** is dropped via `parsers::strip_leading_comment_lines`, so the real CSV header row is the first line detection sees. MHD Tuning and OBD-II apps such as OBDLink write a metadata preamble there; without this the header is never found and the log loads with zero channels (issue #78). Only the *leading* contiguous block is removed — a `#` after the header row is data.
 
+**Load-bearing invariant:** a parser whose own fingerprint lives inside that comment preamble must run its `detect()` against the **raw** text, before the strip. `Mhd::detect` is the current case, which is why it is dispatched ahead of `dispatch_text_content` rather than inside the chain. Anything added to the chain itself sees comment-stripped content.
+
 **RomRaider time-column unit contract** (`src/parsers/romraider.rs`):
 
 `RomRaider::detect` accepts any CSV whose first column starts with `time`, which makes it the
@@ -476,7 +478,7 @@ because it also leads with a `Time` column, and only matches a first column of e
 **Motorsport Electronics detection contract** (`src/parsers/motorsport_electronics.rs`):
 
 ME Tuner's channel list is whatever the user picks, so the column names cannot be the
-fingerprint. A short ME442 log with only RPM, MAP, coolant and AFR has none of the ME221
+fingerprint. A short ME442 log with a custom 8-channel list has none of the ME221
 columns (`Sync status`, `MAP Raw`, ...), failed detection, and fell through to the RomRaider
 catch-all, which read its bare `Time` as milliseconds: 1,878 s showed as 1.878 s (issue #95).
 `MotorsportElectronics::detect` therefore accepts `Time` first plus `Marker` second (ME Tuner
@@ -484,8 +486,6 @@ writes the marker button state there in every export), and keeps the two-ME221-c
 only as a fallback. Unit inference returns no unit for any name containing the word `raw` or
 `status`: those are ADC counts and state enums, and a `kPa` or `°C` label would make the unit
 preferences convert them.
-
-**Load-bearing invariant:** a parser whose own fingerprint lives inside that comment preamble must run its `detect()` against the **raw** text, before the strip. `Mhd::detect` is the current case, which is why it is dispatched ahead of `dispatch_text_content` rather than inside the chain. Anything added to the chain itself sees comment-stripped content.
 
 **RaceChrono parser load-bearing behaviors** (`src/parsers/racechrono.rs`):
 

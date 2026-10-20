@@ -2473,4 +2473,18 @@ mod tests {
         assert!(matches!(ecu, EcuType::MotorsportElectronics));
         assert!((log.times[1] - 1878.31).abs() < 1e-6);
     }
+
+    #[test]
+    fn me442_issue_95_fixture_dispatches_to_motorsport_electronics() {
+        // The real file through the whole chain, so a parser added ahead of
+        // Motorsport Electronics cannot claim it without this failing.
+        let path = "exampleLogs/motorsportElectronics/ME442-V2B-PNP_2026_10_20_16_44_06.csv";
+        let contents = std::fs::read_to_string(path).expect("issue #95 fixture is bundled");
+        let Ok((log, ecu)) = UltraLogApp::parse_text_content(&contents) else {
+            panic!("ME442 fixture should parse");
+        };
+        assert!(matches!(ecu, EcuType::MotorsportElectronics));
+        assert_eq!(log.times.len(), 17_140);
+        assert!((log.times.last().unwrap() - 1878.31).abs() < 1e-6);
+    }
 }
