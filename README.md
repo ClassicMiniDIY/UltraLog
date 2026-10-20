@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-2.15.1-green.svg)
+![Version](https://img.shields.io/badge/version-2.15.2-green.svg)
 
 ---
 
@@ -181,7 +181,7 @@ Configurable units for 8 measurement categories:
 ### Motorsport Electronics - Full Support
 
 - **File type:** CSV exports from the ME Tuner software (ME221/ME442 ECUs)
-- **Features:** Unit inference from channel names, seconds-based `Time` column detected ahead of RomRaider's millisecond convention so timestamps scale correctly
+- **Features:** Unit inference from channel names (raw ADC and status channels stay unitless), seconds-based `Time` column detected ahead of RomRaider's millisecond convention so timestamps scale correctly, works with any channel list picked in ME Tuner
 - **Supported devices:** ME221 and ME442 — common on turbo/supercharged MX-5s, Ford Focus ST150, Honda S2000, Toyota Starlet, and Mitsubishi Evo builds
 - **Supported data:** RPM, MAP, TPS, sync status, and all channels logged by ME Tuner
 

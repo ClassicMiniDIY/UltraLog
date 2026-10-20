@@ -5,7 +5,7 @@
 //! - Unit inference from channel names (ME Tuner doesn't embed units)
 //! - Time-in-seconds handling (regression test for 1000x scaling bug
 //!   caused by the RomRaider parser treating Time as milliseconds)
-//! - Real file parsing using the bundled ME221 example logs
+//! - Real file parsing using the bundled ME221 and ME442 example logs
 
 #[path = "../common/mod.rs"]
 mod common;
@@ -18,6 +18,10 @@ use ultralog::parsers::types::Parseable;
 
 const ME221_SMALL: &str = "exampleLogs/motorsportElectronics/ME221_2025_12_22_13_13_40.csv";
 const ME221_LARGE: &str = "exampleLogs/motorsportElectronics/ME221_2026_04_12_11_59_52.csv";
+/// Issue #95 log: an ME442 with a custom 8-channel list, 17,140 rows over
+/// 1,878 seconds, CRLF line endings.
+const ME442_ISSUE_95: &str =
+    "exampleLogs/motorsportElectronics/ME442-V2B-PNP_2026_10_20_16_44_06.csv";
 
 const SAMPLE_HEADER: &str =
     "Time, Marker, RPM, Sync status, Lost sync count, Injector duty, MAP Raw, MAP, TPS Raw, TPS";
@@ -170,4 +174,58 @@ fn parses_me221_large_example_file() {
         "Large ME221 log should span more than 10s (got {} s)",
         last
     );
+}
+
+#[test]
+fn parses_me442_issue_95_example_file() {
+    if !example_file_exists(ME442_ISSUE_95) {
+        eprintln!("Skipping test: {} not found", ME442_ISSUE_95);
+        return;
+    }
+
+    let content = read_example_file(ME442_ISSUE_95);
+    assert!(
+        MotorsportElectronics::detect(&content),
+        "ME442 log with a custom channel list should be detected"
+    );
+
+    let log = MotorsportElectronics
+        .parse(&content)
+        .expect("Should parse ME442 log");
+
+    assert_valid_log_structure(&log);
+    assert_finite_values(&log);
+    assert_monotonic_times(&log);
+
+    assert_eq!(log.channels.len(), 8);
+    assert_eq!(log.data.len(), 17_140);
+
+    // The bug: RomRaider read the bare "Time" column as ms and showed
+    // 1.878 s. The log spans 0.11 s to 1878.42 s.
+    let last = *log.get_times_as_f64().last().unwrap();
+    assert_approx_eq(last, 1878.31, 1e-6);
+
+    let units: std::collections::HashMap<String, String> = log
+        .channels
+        .iter()
+        .map(|c| (c.name(), c.unit().to_string()))
+        .collect();
+    assert_eq!(units.get("RPM").map(String::as_str), Some("RPM"));
+    assert_eq!(units.get("MAP").map(String::as_str), Some("kPa"));
+    assert_eq!(units.get("Coolant Temp.").map(String::as_str), Some("°C"));
+    assert_eq!(
+        units.get("Lambda Ext. AFR").map(String::as_str),
+        Some("AFR")
+    );
+    assert_eq!(units.get("ALS Status").map(String::as_str), Some(""));
+
+    // First data row: 0.11,0,1004.00,35.70,59.00,0.00,12.04,0.00,0.00
+    let rpm_idx = log.channels.iter().position(|c| c.name() == "RPM").unwrap();
+    let afr_idx = log
+        .channels
+        .iter()
+        .position(|c| c.name() == "Lambda Ext. AFR")
+        .unwrap();
+    assert_approx_eq(log.data[0][rpm_idx].as_f64(), 1004.0, 1e-9);
+    assert_approx_eq(log.data[0][afr_idx].as_f64(), 12.04, 1e-9);
 }
