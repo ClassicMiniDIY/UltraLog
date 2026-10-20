@@ -7,24 +7,31 @@
 //!
 //! Format characteristics:
 //! - Comma-delimited CSV
-//! - First column is "Time" (seconds since logging start)
+//! - First column is "Time" (seconds since logging start), second column is
+//!   "Marker" (the ME Tuner marker button state)
+//! - The remaining columns are whatever channels the user picked in ME Tuner,
+//!   so a short ME442 log can hold only RPM, MAP, coolant and AFR (issue #95)
 //! - Channel names carry no inline units; units are inferred from the name
-//! - Headers include ME-specific markers such as "Sync status",
-//!   "Lost sync count", "MAP Raw", "TPS Raw", etc.
 //!
 //! Note: The RomRaider parser also detects files starting with "Time" but
-//! treats that column as milliseconds, which would scale ME221 timestamps
-//! 1000x smaller than reality. Detection for this parser therefore runs
-//! before RomRaider detection in the dispatch chain.
+//! treats a bare "Time" column as milliseconds, which would scale ME Tuner
+//! timestamps 1000x smaller than reality. Detection for this parser therefore
+//! runs before RomRaider detection in the dispatch chain.
 
 use serde::Serialize;
 use std::error::Error;
 
 use super::types::{Channel, Log, Meta, Parseable, Value};
 
-/// Distinctive column names used to fingerprint an ME Tuner CSV export.
-/// Requiring multiple matches keeps detection specific enough to avoid
-/// collisions with other "Time"-prefixed CSV formats (e.g. RomRaider).
+/// ME Tuner writes the marker button state as the second column of every
+/// export, whatever channels the user picked. `Time, Marker` is the primary
+/// fingerprint because the channel list itself is user-configurable.
+const ME_TUNER_MARKER_COLUMN: &str = "Marker";
+
+/// Distinctive column names used as a fallback fingerprint for an ME Tuner
+/// export without the `Marker` column. Requiring multiple matches keeps
+/// detection specific enough to avoid collisions with other "Time"-prefixed
+/// CSV formats (e.g. RomRaider).
 const ME221_MARKER_COLUMNS: &[&str] = &[
     "Sync status",
     "Lost sync count",
@@ -66,6 +73,14 @@ impl MotorsportElectronicsChannel {
     fn infer_unit(name: &str) -> String {
         let n = name.to_lowercase();
 
+        // Raw ADC counts ("MAP Raw", "Coolant temperature Raw") and state
+        // enums ("Sync status", "Lambda Status") carry no physical unit.
+        // Check them first: a "kPa" or "°C" label would make the unit
+        // preferences convert a 5908-count ADC reading as a pressure.
+        if n.split_whitespace().any(|w| w == "raw" || w == "status") {
+            return String::new();
+        }
+
         // RPM
         if n == "rpm"
             || n.ends_with(" rpm")
@@ -78,7 +93,7 @@ impl MotorsportElectronicsChannel {
         }
 
         // Temperatures
-        if n.contains("coolant temperature")
+        if n.contains("coolant temp")
             || n.contains("intake air temp")
             || n.contains("fuel temperature")
             || n.contains("internal iat")
@@ -212,8 +227,9 @@ impl MotorsportElectronics {
     /// Detect if the file contents look like an ME Tuner CSV export.
     ///
     /// Requires the first column to be exactly `Time` (not `Time (msec)` or
-    /// `TIME;`) plus at least two ME221-specific channel names in the
-    /// header. This keeps us from colliding with the RomRaider parser.
+    /// `TIME;`), then either `Marker` as the second column or at least two
+    /// ME221-specific channel names in the header. This keeps us from
+    /// colliding with the RomRaider parser.
     pub fn detect(contents: &str) -> bool {
         let Some(first_line) = contents.lines().next() else {
             return false;
@@ -225,13 +241,19 @@ impl MotorsportElectronics {
         }
 
         // First column must be exactly "Time" (no unit suffix).
-        let first_col = first_line.split(',').next().unwrap_or("").trim();
-        if first_col != "Time" {
+        let mut columns = first_line.split(',').map(str::trim);
+        if columns.next() != Some("Time") {
             return false;
         }
 
-        // Require a couple of ME221-specific column names to fingerprint
-        // the format and reject generic "Time,..." CSVs.
+        // ME Tuner always writes "Marker" second. This is the only
+        // fingerprint a short log with a custom channel list has.
+        if columns.next() == Some(ME_TUNER_MARKER_COLUMN) {
+            return true;
+        }
+
+        // Otherwise require a couple of ME221-specific column names to
+        // fingerprint the format and reject generic "Time,..." CSVs.
         let match_count = ME221_MARKER_COLUMNS
             .iter()
             .filter(|marker| first_line.contains(*marker))
@@ -375,6 +397,30 @@ mod tests {
     }
 
     #[test]
+    fn detects_me442_custom_channel_list() {
+        // Issue #95: an ME442 log with a user-picked channel list has none of
+        // the ME221 fingerprint columns. "Time, Marker" alone identifies it.
+        let me442 = "Time, Marker, RPM, MAP, Coolant Temp., DBW A Pedal Pos Raw 1, Lambda Ext. AFR, DBW A Sens. Status, ALS Status\r\n\
+                     0.11,0,1004.00,35.70,59.00,0.00,12.04,0.00,0.00\r\n";
+        assert!(MotorsportElectronics::detect(me442));
+    }
+
+    #[test]
+    fn detects_marker_without_space_after_comma() {
+        assert!(MotorsportElectronics::detect(
+            "Time,Marker,RPM\n0.1,0,900\n"
+        ));
+    }
+
+    #[test]
+    fn rejects_marker_outside_second_column() {
+        // "Marker" only counts in ME Tuner's fixed position.
+        assert!(!MotorsportElectronics::detect(
+            "Time,RPM,Marker\n0.1,900,0\n"
+        ));
+    }
+
+    #[test]
     fn parses_sample_log() {
         let parser = MotorsportElectronics;
         let log = parser.parse(&sample_log()).expect("should parse");
@@ -422,6 +468,34 @@ mod tests {
             MotorsportElectronicsChannel::from_header("Ign. Adv. Base Table Output").unit,
             "°"
         );
+    }
+
+    #[test]
+    fn me442_channel_units() {
+        let unit = |h: &str| MotorsportElectronicsChannel::from_header(h).unit;
+        assert_eq!(unit("Coolant Temp."), "°C");
+        assert_eq!(unit("Lambda Ext. AFR"), "AFR");
+        assert_eq!(unit("Marker"), "");
+        assert_eq!(unit("DBW A Sens. Status"), "");
+        assert_eq!(unit("ALS Status"), "");
+        assert_eq!(unit("DBW A Pedal Pos Raw 1"), "");
+    }
+
+    #[test]
+    fn raw_and_status_channels_have_no_unit() {
+        // Raw ADC counts must not inherit the engineering unit, or the unit
+        // preferences convert them (a 5908-count "MAP Raw" shown as 857 psi).
+        let unit = |h: &str| MotorsportElectronicsChannel::from_header(h).unit;
+        assert_eq!(unit("MAP Raw"), "");
+        assert_eq!(unit("TPS Raw"), "");
+        assert_eq!(unit("Coolant temperature Raw"), "");
+        assert_eq!(unit("Battery Voltage Raw"), "");
+        assert_eq!(unit("Lambda Status"), "");
+        assert_eq!(unit("DL - Switch status"), "");
+        // The calibrated channels keep their units.
+        assert_eq!(unit("MAP"), "kPa");
+        assert_eq!(unit("Coolant temperature"), "°C");
+        assert_eq!(unit("Battery Voltage"), "V");
     }
 
     #[test]

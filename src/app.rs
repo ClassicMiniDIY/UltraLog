@@ -2455,3 +2455,22 @@ impl eframe::App for UltraLogApp {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn me442_custom_channel_log_dispatches_to_motorsport_electronics() {
+        // Issue #95: a bare "Time" column with no ME221 fingerprint columns
+        // fell through to the RomRaider catch-all, which read it as ms.
+        let contents = "Time, Marker, RPM, MAP, Coolant Temp., Lambda Ext. AFR\r\n\
+                        0.11,0,1004.00,35.70,59.00,12.04\r\n\
+                        1878.42,0,0.00,66.93,103.00,12.96\r\n";
+        let Ok((log, ecu)) = UltraLogApp::parse_text_content(contents) else {
+            panic!("ME442 log should parse");
+        };
+        assert!(matches!(ecu, EcuType::MotorsportElectronics));
+        assert!((log.times[1] - 1878.31).abs() < 1e-6);
+    }
+}
