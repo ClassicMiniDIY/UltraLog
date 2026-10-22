@@ -121,6 +121,7 @@ src/
 │   ├── msl.rs                      # TunerStudio MSL (legacy ASCII, tab-delimited) parser
 │   ├── motorsport_electronics.rs   # Motorsport Electronics ME221/ME442 (ME Tuner) CSV parser
 │   ├── racechrono.rs               # RaceChrono CSV v3 session export parser (GPS + sensors + OBD/CAN)
+│   ├── torque.rs                   # Torque Pro (Android OBD-II app) trackLog CSV parser
 │   ├── bluedriver.rs               # BlueDriver OBD-II scan tool CSV parser
 │   └── dynamicefi.rs               # DynamicEFI EBL WhatsUp (GM TBI) CSV parser
 └── ui/
@@ -420,6 +421,7 @@ The parser system uses a trait-based design for supporting multiple ECU formats:
 - **`parsers/racechrono.rs`** - RaceChrono CSV v3 session export parser (lap-timing app; GPS + phone sensors + OBD/CAN merged on a unix-time base)
 - **`parsers/bluedriver.rs`** - BlueDriver OBD-II scan tool CSV parser (UTF-16 with BOM)
 - **`parsers/dynamicefi.rs`** - DynamicEFI EBL WhatsUp CSV parser (modified GM TBI systems)
+- **`parsers/torque.rs`** - Torque Pro trackLog CSV parser (Android OBD-II app; phone GPS + accelerometer + OBD-II/custom PIDs)
 
 Note: `EcuType` also reserves `Aem`, `MaxxEcu`, and `MotEc` variants for formats without an implemented parser yet (no `detect()`/`Parseable` wiring in `app.rs`) — don't assume these are supported just because the enum has a slot for them.
 
@@ -441,6 +443,7 @@ Note: `EcuType` also reserves `Aem`, `MaxxEcu`, and `MotEc` variants for formats
 - Woolich Racing Tuned (WRT CSV export — motorcycle ECUs)
 - BlueDriver (OBD-II scan tool CSV export)
 - DynamicEFI EBL WhatsUp (modified GM TBI CSV export)
+- Torque Pro (Android OBD-II app trackLog CSV)
 - Locomotive datalogger (CSV export)
 
 To add a new ECU format:
@@ -492,6 +495,38 @@ preferences convert them.
 - **Time base is the unix `timestamp` column, never `elapsed_time`** - `elapsed_time` resets to zero at every fragment boundary (a fragment is one recording segment; sessions paused/resumed at the track have several), so re-basing `timestamp` to the first record is the only way to get a monotonic time axis. Monotonic times are required because computed-channel time-shift lookups binary-search the `times` vector.
 - **Duplicate column names are disambiguated by source, unique names stay raw** - RaceChrono exports the same column name once per source (`speed` from GPS and calc, `device_update_rate` from every sensor). Duplicates get the sources-row label appended (`speed (gps)`); unique names — including `latitude`/`longitude` — must stay exactly as exported because `find_gps_channels` in `src/ui/widgets/track_map.rs` matches those names *exactly* (lowercased), and a suffix would silently disable the GPS Track Map for RaceChrono logs. When the short labels themselves collide (two location devices both labeled `gps`), the first occurrence keeps its bare name — so `latitude` still survives — and later ones carry the full source tag (`latitude (101: gps)`).
 - **Detection accepts any `Format,N` version; `parse` rejects non-v3** - so a v1/v2 export surfaces a clear "re-export as CSV v3" error instead of falling through to the Haltech default parser and failing cryptically.
+
+**Torque Pro parser load-bearing behaviors** (`src/parsers/torque.rs`):
+
+- **Detection is the `GPS Time, Device Time` header pair, searched in the first 64 lines** - the
+  first column is not `Time`, so without `Torque::detect` (dispatched right after RaceChrono) the
+  file falls through to the Haltech default and fails. The search is not limited to line 1
+  because a file cut out of a longer log can start mid-session.
+- **Time base is `Device Time`, never `GPS Time`** - `Device Time` (`05-Jan-2013 14:32:13.526`)
+  has milliseconds; `GPS Time` is a Java `Date.toString()` with 1 s resolution and can lag the
+  device clock by minutes. Epoch milliseconds stay `i64` until the first row is subtracted, so
+  steps are exact. The source is chosen from the first data row: full datetime, else the clock in
+  the last token (Excel re-saves the column as `mm:ss.0`, which wraps each hour; a non-English
+  month name also lands here), else the `GPS Time` clock. Clock sources unwrap through
+  `ClockAxis`; rows that step backwards are dropped so `times` stays sorted.
+- **A repeated header row starts a new section** - Torque appends a restarted session to the same
+  file and writes the header again, and the PID set can change. Channels are the union of all
+  sections by raw header text; a channel missing from a section carries its last value.
+- **`-` means no reading; empty columns are dropped** - Torque polls PIDs round-robin and writes
+  `-` until one answers, so readings carry forward (0.0 before the first). With "log all PIDs"
+  the header lists ~220 PIDs, most of which the car never answers; a column with no numeric
+  value anywhere is dropped (`TorqueMeta::empty_columns_dropped`).
+- **Names: fixed columns from a table, PIDs split on the last parenthesis group** - PID headers
+  are `Name(unit)`, and only the last group is the unit (`Air Fuel Ratio(Commanded)(:1)`). The
+  fixed `G(x)` / `G(y)` / `G(z)` columns would all become `G` under that rule, so the leading
+  GPS/G columns come from `FIXED_COLUMNS`. `Latitude` / `Longitude` must keep those exact names
+  for `find_gps_channels` in `src/ui/widgets/track_map.rs`.
+- **A header-only file is an error, not an empty log** - the issue #97 reporter's first file had
+  no data rows; the error says Torque recorded no samples.
+- **No built-in normalization for Torque PID names** - `Engine RPM` and `Timing Advance` are
+  already source or display names in the OECUA specs (Haltech, RomRaider, ...), and the built-in
+  map in `normalize.rs` runs before the spec map, so adding them there would rename those
+  parsers' channels too.
 
 **TunerStudio MSL parser load-bearing behaviors** (`src/parsers/msl.rs`):
 
@@ -605,7 +640,7 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 
 ## Key Features
 
-- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD Tuning, Motorsport Electronics, RaceChrono, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
+- **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD Tuning, Motorsport Electronics, RaceChrono, Torque Pro, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
 - **Table Generators** - Lambda delay and acceleration enrichment tuning tables mined from one or more logs, each a top-level tool beside Histogram, with auto-suggested channel roles, confidence-tiered cells, an event inspector, and CSV/clipboard/PNG/PDF export (`src/analysis/tables/`, `src/ui/table_generator.rs`, `src/ui/table_export.rs`)
@@ -694,6 +729,7 @@ Example log files are in `exampleLogs/` organized by ECU type:
 - `exampleLogs/bluedriver/` - BlueDriver OBD-II CSV exports
 - `exampleLogs/obdlink/` - OBDLink (iOS) OBD-II CSV exports (parsed by the RomRaider chain)
 - `exampleLogs/dynamicEFI/` - DynamicEFI EBL WhatsUp CSV exports
+- `exampleLogs/torque/` - Torque Pro trackLogs: `trackLog_header_only_issue97.csv` is the issue #97 reporter's file (a header row and no data; it carries the full "log all PIDs" header). `trackLog_synthetic_two_sessions.csv` is synthetic rows on that header (generated, fake GPS loop) with a repeated header after a 30 s restart
 - `exampleLogs/locomotive/` - Locomotive datalogger CSV exports
 - `exampleLogs/rusefi/`, `exampleLogs/speeduino/` - MLG binary logs
 - `exampleLogs/ecumaster/`, `exampleLogs/RomRaider/` - CSV exports

@@ -18,4 +18,5 @@ pub mod msl_tests;
 pub mod racechrono_tests;
 pub mod romraider_tests;
 pub mod speeduino_tests;
+pub mod torque_tests;
 pub mod woolich_tests;

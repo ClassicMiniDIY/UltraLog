@@ -23,7 +23,7 @@ use crate::mcp::{DEFAULT_MCP_PORT, McpServerHandle, start_mcp_server};
 use crate::parsers::{
     Aim, BlueDriver, DynamicEfi, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive,
     MegaSquirt, Mhd, MotorsportElectronics, Msl, Parseable, RaceChrono, RomRaider, Speeduino,
-    Woolich,
+    Torque, Woolich,
 };
 use crate::settings::UserSettings;
 use crate::state::{
@@ -642,6 +642,17 @@ impl UltraLogApp {
                 Ok(l) => Ok((l, EcuType::RaceChrono)),
                 Err(e) => Err(LoadResult::Error(format!(
                     "Failed to parse RaceChrono file: {}",
+                    e
+                ))),
+            }
+        } else if Torque::detect(contents) {
+            // Torque Pro trackLog detected ("GPS Time, Device Time" header).
+            // Must run before RomRaider's generic Time-first catch-all.
+            let parser = Torque;
+            match parser.parse(contents) {
+                Ok(l) => Ok((l, EcuType::TorquePro)),
+                Err(e) => Err(LoadResult::Error(format!(
+                    "Failed to parse Torque Pro file: {}",
                     e
                 ))),
             }

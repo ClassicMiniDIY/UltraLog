@@ -204,6 +204,13 @@ Configurable units for 8 measurement categories:
 - **Supported data:** Latitude, longitude, altitude, speed, bearing, and fix quality from GPS; accelerometer, gyroscope, and magnetometer axes; lap and fragment numbers; and any OBD/CAN channels the session logged (RPM, oil temp, throttle, and more)
 - **Note:** Export the session as **CSV v3** from RaceChrono — the other RaceChrono export formats (`.vbo`, `.rcz`, CSV v1/v2) are not supported
 
+### Torque Pro - Full Support
+
+- **File type:** `trackLog-*.csv` exports from the Torque Pro OBD-II app (Android)
+- **Features:** Millisecond `Device Time` base (falls back to the clock only when Excel re-saved the column as `mm:ss.0`, or to `GPS Time`); `-` readings carry the last value forward; PID columns the car never answered are hidden, so a "log all PIDs" session shows only real data; a header row repeated after a logging restart starts a new section in the same log; GPS Track Map works out of the box
+- **Supported data:** Phone GPS (latitude, longitude, speed, altitude, bearing) and accelerometer, plus every OBD-II and custom PID Torque logged (RPM, coolant and intake temperatures, fuel trims, O2 sensors, boost, and more)
+- **Note:** A file that holds only the header row means Torque recorded no samples in that session. UltraLog reports this instead of opening an empty log
+
 ### Coming Soon
 - AEM
 - MaxxECU
@@ -638,6 +645,7 @@ UltraLog/
 │   │   ├── bluedriver.rs  # BlueDriver OBD-II parser
 │   │   ├── mhd.rs        # MHD Tuning parser
 │   │   ├── msl.rs         # TunerStudio MSL (legacy ASCII) parser
+│   │   ├── torque.rs      # Torque Pro trackLog CSV parser
 │   │   └── woolich.rs     # Woolich Racing Tuned CSV parser
 │   ├── analysis/          # Analysis tools
 │   │   ├── filters.rs     # Signal processing filters
@@ -725,6 +733,7 @@ The following trademarks are the property of their respective owners:
 - **BlueDriver** is a trademark of Lemur Vehicle Monitors
 - **MHD** is a trademark of MHD Tuning LLC
 - **Woolich Racing** and **Woolich Racing Tuned** are trademarks of Woolich Racing
+- **Torque Pro** is a trademark of its owner (torque-bhp.com)
 - **AEM** is a trademark of AEM Performance Electronics
 - **MoTeC** is a trademark of MoTeC Pty Ltd
 - **MaxxECU** is a trademark of MaxxECU

@@ -16,6 +16,7 @@ use super::msl::{MslChannel, MslMeta};
 use super::racechrono::{RaceChronoChannel, RaceChronoMeta};
 use super::romraider::{RomRaiderChannel, RomRaiderMeta};
 use super::speeduino::{SpeeduinoChannel, SpeeduinoMeta};
+use super::torque::{TorqueChannel, TorqueMeta};
 use super::woolich::{WoolichChannel, WoolichMeta};
 use crate::adapters::{ChannelCategory, ChannelMetadata, get_channel_metadata};
 
@@ -37,6 +38,7 @@ pub enum Meta {
     RaceChrono(RaceChronoMeta),
     RomRaider(RomRaiderMeta),
     Speeduino(SpeeduinoMeta),
+    Torque(TorqueMeta),
     Woolich(WoolichMeta),
     #[default]
     Empty,
@@ -71,6 +73,7 @@ pub enum Channel {
     RaceChrono(RaceChronoChannel),
     RomRaider(RomRaiderChannel),
     Speeduino(SpeeduinoChannel),
+    Torque(TorqueChannel),
     Woolich(WoolichChannel),
     /// A computed/virtual channel derived from a formula
     Computed(ComputedChannelInfo),
@@ -97,6 +100,7 @@ impl Serialize for Channel {
             Channel::RaceChrono(r) => r.serialize(serializer),
             Channel::RomRaider(r) => r.serialize(serializer),
             Channel::Speeduino(s) => s.serialize(serializer),
+            Channel::Torque(t) => t.serialize(serializer),
             Channel::Woolich(w) => w.serialize(serializer),
             Channel::Computed(c) => c.serialize(serializer),
         }
@@ -121,6 +125,7 @@ impl Channel {
             Channel::RaceChrono(r) => r.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
+            Channel::Torque(t) => t.name.clone(),
             Channel::Woolich(w) => w.name.clone(),
             Channel::Computed(c) => c.name.clone(),
         }
@@ -144,6 +149,7 @@ impl Channel {
             Channel::RaceChrono(r) => r.name.clone(),
             Channel::RomRaider(r) => r.name.clone(),
             Channel::Speeduino(s) => s.name.clone(),
+            Channel::Torque(t) => t.name.clone(),
             Channel::Woolich(w) => w.name.clone(),
             Channel::Computed(c) => format!("computed_{}", c.name),
         }
@@ -166,6 +172,7 @@ impl Channel {
             Channel::RaceChrono(_) => "RaceChrono".to_string(),
             Channel::RomRaider(_) => "RomRaider".to_string(),
             Channel::Speeduino(_) => "Speeduino/rusEFI".to_string(),
+            Channel::Torque(_) => "Torque Pro".to_string(),
             Channel::Woolich(_) => "Woolich".to_string(),
             Channel::Computed(_) => "Computed".to_string(),
         }
@@ -191,6 +198,7 @@ impl Channel {
             Channel::RaceChrono(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
+            Channel::Torque(_) => None,
             Channel::Woolich(_) => None,
             Channel::Computed(_) => None,
         };
@@ -219,6 +227,7 @@ impl Channel {
             Channel::RaceChrono(_) => None,
             Channel::RomRaider(_) => None,
             Channel::Speeduino(_) => None,
+            Channel::Torque(_) => None,
             Channel::Woolich(_) => None,
             Channel::Computed(_) => None,
         };
@@ -259,6 +268,7 @@ impl Channel {
             Channel::RaceChrono(r) => &r.unit,
             Channel::RomRaider(r) => r.unit(),
             Channel::Speeduino(s) => s.unit(),
+            Channel::Torque(t) => &t.unit,
             Channel::Woolich(w) => w.unit(),
             Channel::Computed(c) => &c.unit,
         }
@@ -360,6 +370,7 @@ pub enum EcuType {
     Locomotive,
     RomRaider,
     Speeduino,
+    TorquePro,
     Woolich,
     Unknown,
 }
@@ -385,6 +396,7 @@ impl EcuType {
             EcuType::Locomotive => "Locomotive",
             EcuType::RomRaider => "RomRaider",
             EcuType::Speeduino => "Speeduino/rusEFI",
+            EcuType::TorquePro => "Torque Pro",
             EcuType::Woolich => "Woolich",
             EcuType::Unknown => "Unknown",
         }
