@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-2.16.0-green.svg)
+![Version](https://img.shields.io/badge/version-2.16.1-green.svg)
 
 ---
 
@@ -119,7 +119,7 @@ Configurable units for 8 measurement categories:
 
 ### Speeduino / rusEFI - Full Support
 - **File type:** MegaLogViewer binary format (`.mlg`)
-- **Features:** Binary format parsing with field type detection
+- **Features:** Binary format parsing with field type detection, no fixed channel limit (current rusEFI firmware logs over 1,000 channels)
 - **Supported data:** All standard Speeduino/rusEFI channels with timestamps
 
 ### AiM - Full Support

@@ -567,6 +567,15 @@ preferences convert them.
   by name (lowercased) in `find_gps_channels` (`src/ui/widgets/track_map.rs`); renaming or
   suffixing them silently disables the Track Map for MSL logs.
 
+**Speeduino/rusEFI MLG field-count contract** (`src/parsers/speeduino.rs`):
+
+- **No fixed channel cap** - the field count is bounded by the file itself: the descriptor table
+  (`offset + num_fields * field_length`) must end at or before `data_begin_index`, which must be
+  inside the file. A hard limit of 1000 rejected every log from current rusEFI firmware, which
+  writes 1096 fields (issue #100). In real rusEFI v2 logs the table ends exactly at
+  `info_data_start`. Do not add a numeric cap back; the file-size bound already stops a crafted
+  header from allocating more than the file can describe.
+
 **Emerald parser load-bearing behaviors** (`src/parsers/emerald.rs`):
 
 - **Channel IDs come from EM Soft's variable list, and most are unconfirmed** - the `[chanN]`
