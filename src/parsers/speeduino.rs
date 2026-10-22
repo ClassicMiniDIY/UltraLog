@@ -164,14 +164,23 @@ impl Speeduino {
         );
 
         // Validate bounds before parsing
-        if num_fields > 1000 {
-            return Err(format!("Unreasonable field count: {}", num_fields).into());
-        }
         if data_begin_index > data.len() {
             return Err(format!(
                 "data_begin_index {} exceeds file size {}",
                 data_begin_index,
                 data.len()
+            )
+            .into());
+        }
+        // rusEFI logs can legitimately contain more than 1000 fields. Bound
+        // the count by the available descriptor table, not an arbitrary cap.
+        // The u16 field count and fixed descriptor size keep this arithmetic
+        // within usize on supported 32-bit and 64-bit targets.
+        let fields_end = offset + num_fields * field_length;
+        if fields_end > data_begin_index {
+            return Err(format!(
+                "Field definitions end at {} beyond data_begin_index {} ({} fields)",
+                fields_end, data_begin_index, num_fields
             )
             .into());
         }
@@ -687,6 +696,61 @@ mod tests {
     // Binary Parsing Error Tests
     // ============================================
 
+    fn make_many_field_log(version: u16, num_fields: u16) -> Vec<u8> {
+        let header_length = if version == 2 { 24 } else { 22 };
+        let field_length = if version == 2 { 89 } else { 55 };
+        let data_begin = header_length + usize::from(num_fields) * field_length;
+        let mut data = Vec::new();
+        data.extend_from_slice(b"MLVLG\0");
+        data.extend_from_slice(&version.to_be_bytes());
+        data.extend_from_slice(&0_u32.to_be_bytes());
+        if version == 2 {
+            data.extend_from_slice(&(data_begin as u32).to_be_bytes());
+        } else {
+            data.extend_from_slice(&(data_begin as u16).to_be_bytes());
+        }
+        data.extend_from_slice(&(data_begin as u32).to_be_bytes());
+        data.extend_from_slice(&num_fields.to_be_bytes()); // One U08 byte per field
+        data.extend_from_slice(&num_fields.to_be_bytes());
+        for i in 0..num_fields {
+            let mut field = vec![0; field_length];
+            let name = format!("Channel {i}");
+            field[1..1 + name.len()].copy_from_slice(name.as_bytes());
+            field[46..50].copy_from_slice(&1.0_f32.to_be_bytes());
+            data.extend_from_slice(&field);
+        }
+        for timestamp in [1000_u16, 2000] {
+            data.extend_from_slice(&[0, 0]); // Data block and counter
+            data.extend_from_slice(&timestamp.to_be_bytes());
+            data.extend((0..num_fields).map(|i| (i % 256) as u8));
+            data.push(0); // CRC (not validated by the parser)
+        }
+        data
+    }
+
+    #[test]
+    fn test_parse_more_than_1000_fields() {
+        // Issue #100: real rusEFI logs have 1096 fields. Synthetic data keeps
+        // private customer logs out of the regression suite.
+        for version in [1, 2] {
+            let data = make_many_field_log(version, 1096);
+            let log =
+                Speeduino::parse_binary(&data).expect("Should accept valid large field tables");
+            assert_eq!(log.channels.len(), 1096);
+            assert_eq!(log.channels[1095].name(), "Channel 1095");
+            assert_eq!(log.times.len(), 2);
+            assert!((log.times[0] - 0.01).abs() < 1e-12);
+            assert!((log.times[1] - 0.02).abs() < 1e-12);
+            assert_eq!(log.data.len(), 2);
+            for row in &log.data {
+                assert_eq!(row.len(), 1096);
+                for (i, value) in row.iter().enumerate() {
+                    assert_eq!(value.as_f64(), (i % 256) as f64);
+                }
+            }
+        }
+    }
+
     #[test]
     fn test_parse_binary_invalid_header() {
         let invalid_data = b"NOT_MLG_FORMAT";
@@ -709,8 +773,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_binary_unreasonable_field_count() {
-        // Create a minimal header with unreasonable field count
+    fn test_parse_binary_field_definitions_exceed_data_start() {
+        // A large count with no room for its descriptors must still fail.
         let mut data = Vec::new();
         data.extend_from_slice(b"MLVLG\x00"); // Header (6 bytes)
         data.extend_from_slice(&1_i16.to_be_bytes()); // Format version
@@ -718,7 +782,8 @@ mod tests {
         data.extend_from_slice(&100_u16.to_be_bytes()); // info_data_start
         data.extend_from_slice(&200_u32.to_be_bytes()); // data_begin_index
         data.extend_from_slice(&10_u16.to_be_bytes()); // record_length
-        data.extend_from_slice(&5000_u16.to_be_bytes()); // num_fields (unreasonable)
+        data.extend_from_slice(&5000_u16.to_be_bytes()); // num_fields
+        data.resize(200, 0); // data_begin_index is within the file
 
         let result = Speeduino::parse_binary(&data);
         assert!(result.is_err());
@@ -726,8 +791,38 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("Unreasonable field count")
+                .contains("Field definitions end at")
         );
+    }
+
+    #[test]
+    fn test_parse_binary_data_start_exceeds_file_size() {
+        for version in [1, 2] {
+            let mut data = make_many_field_log(version, 1096);
+            let data_begin_offset = if version == 2 { 16 } else { 14 };
+            let beyond_end = data.len() as u32 + 1;
+            data[data_begin_offset..data_begin_offset + 4]
+                .copy_from_slice(&beyond_end.to_be_bytes());
+            let error = Speeduino::parse_binary(&data).unwrap_err();
+            assert!(error.to_string().contains("exceeds file size"));
+        }
+    }
+
+    #[test]
+    fn test_parse_binary_field_table_overlaps_data() {
+        for version in [1, 2] {
+            let mut data = make_many_field_log(version, 1096);
+            let data_begin_offset = if version == 2 { 16 } else { 14 };
+            let data_begin = u32::from_be_bytes(
+                data[data_begin_offset..data_begin_offset + 4]
+                    .try_into()
+                    .unwrap(),
+            );
+            data[data_begin_offset..data_begin_offset + 4]
+                .copy_from_slice(&(data_begin - 1).to_be_bytes());
+            let error = Speeduino::parse_binary(&data).unwrap_err();
+            assert!(error.to_string().contains("Field definitions end at"));
+        }
     }
 
     // ============================================
