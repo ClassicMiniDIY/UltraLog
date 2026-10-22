@@ -5,7 +5,7 @@ use std::path::Path;
 // Import from the library
 use ultralog::parsers::{
     BlueDriver, EcuMaster, EcuType, Emerald, Haltech, Link, Locomotive, MegaSquirt, Mhd, Msl,
-    Parseable, RaceChrono, Speeduino, Woolich, strip_leading_comment_lines,
+    Parseable, RaceChrono, Speeduino, Torque, Woolich, strip_leading_comment_lines,
 };
 
 use encoding_rs::{UTF_16BE, UTF_16LE};
@@ -109,6 +109,17 @@ fn main() {
             let parser = RaceChrono;
             match parser.parse(&contents) {
                 Ok(log) => (EcuType::RaceChrono, log),
+                Err(e) => {
+                    eprintln!("Parse error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        } else if Torque::detect(&contents) {
+            println!("\nDetected: Torque Pro trackLog format");
+            println!("Parsing Torque Pro log...");
+            let parser = Torque;
+            match parser.parse(&contents) {
+                Ok(log) => (EcuType::TorquePro, log),
                 Err(e) => {
                     eprintln!("Parse error: {}", e);
                     std::process::exit(1);

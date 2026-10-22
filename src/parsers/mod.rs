@@ -13,6 +13,7 @@ pub mod msl;
 pub mod racechrono;
 pub mod romraider;
 pub mod speeduino;
+pub mod torque;
 pub mod types;
 pub mod woolich;
 
@@ -31,6 +32,7 @@ pub use msl::Msl;
 pub use racechrono::RaceChrono;
 pub use romraider::RomRaider;
 pub use speeduino::Speeduino;
+pub use torque::Torque;
 pub use types::{Channel, EcuType, Log, Parseable, Value};
 pub use woolich::Woolich;
 

@@ -104,6 +104,12 @@ pub mod example_files {
     /// has no fix yet and the `GPS Date`/`GPS Time` fields are blank.
     pub const MSL_REALDASH_EXCERPT: &str = "exampleLogs/msl/realdash_speeduino_excerpt.msl";
 
+    // Torque Pro trackLog files
+    pub const TORQUE_SYNTHETIC_TWO_SESSIONS: &str =
+        "exampleLogs/torque/trackLog_synthetic_two_sessions.csv";
+    pub const TORQUE_HEADER_ONLY_ISSUE_97: &str =
+        "exampleLogs/torque/trackLog_header_only_issue97.csv";
+
     // Woolich Racing Tuned example files
     pub const WOOLICH_STANDARD: &str = "exampleLogs/woolich/Woolich.csv";
 }
