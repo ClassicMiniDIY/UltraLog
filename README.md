@@ -207,7 +207,7 @@ Configurable units for 8 measurement categories:
 ### Torque Pro - Full Support
 
 - **File type:** `trackLog-*.csv` exports from the Torque Pro OBD-II app (Android)
-- **Features:** Millisecond `Device Time` base (falls back to the clock only when Excel re-saved the column as `mm:ss.0`, or to `GPS Time`); `-` readings carry the last value forward; PID columns the car never answered are hidden, so a "log all PIDs" session shows only real data; a header row repeated after a logging restart starts a new section in the same log; GPS Track Map works out of the box
+- **Features:** Millisecond `Device Time` base (falls back to the clock part when Excel re-saved the column as `mm:ss.0` or the phone wrote a non-English month name, and to `GPS Time` last); a phone clock that steps back (time-zone crossing, DST) does not drop rows; `-` readings carry the last value forward; PID columns the car never answered are hidden, so a "log all PIDs" session shows only real data; a header row repeated after a logging restart starts a new section in the same log; GPS Track Map works out of the box
 - **Supported data:** Phone GPS (latitude, longitude, speed, altitude, bearing) and accelerometer, plus every OBD-II and custom PID Torque logged (RPM, coolant and intake temperatures, fuel trims, O2 sensors, boost, and more)
 - **Note:** A file that holds only the header row means Torque recorded no samples in that session. UltraLog reports this instead of opening an empty log
 

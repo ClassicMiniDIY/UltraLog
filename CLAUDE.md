@@ -500,18 +500,32 @@ preferences convert them.
 
 - **Detection is the `GPS Time, Device Time` header pair, searched in the first 64 lines** - the
   first column is not `Time`, so without `Torque::detect` (dispatched right after RaceChrono) the
-  file falls through to the Haltech default and fails. The search is not limited to line 1
-  because a file cut out of a longer log can start mid-session.
+  file falls through to the Haltech default and fails. A file cut out of a longer log still
+  detects when a restart header follows within 64 lines; the rows above it are skipped because
+  they cannot be mapped to channels.
 - **Time base is `Device Time`, never `GPS Time`** - `Device Time` (`05-Jan-2013 14:32:13.526`)
   has milliseconds; `GPS Time` is a Java `Date.toString()` with 1 s resolution and can lag the
   device clock by minutes. Epoch milliseconds stay `i64` until the first row is subtracted, so
-  steps are exact. The source is chosen from the first data row: full datetime, else the clock in
-  the last token (Excel re-saves the column as `mm:ss.0`, which wraps each hour; a non-English
-  month name also lands here), else the `GPS Time` clock. Clock sources unwrap through
-  `ClockAxis`; rows that step backwards are dropped so `times` stays sorted.
+  steps are exact. The source is chosen from the first 50 data rows (`choose_time_source`), so
+  one corrupt first row cannot put the file on the 1 s GPS clock: full datetime if any row has
+  one, else the clock in the last token (Excel re-saves the column as `mm:ss.0`, which wraps each
+  hour; a non-English month name also lands here), else the `GPS Time` clock.
+- **`TimeAxis::place` keeps `times` sorted without dropping data** - `Device Time` is local
+  time, so a time-zone crossing or the DST fall-back steps it back. A clock step back of more
+  than half its period is a wrap (one period added); any other step back over 1 s is a clock
+  change that the offset absorbs, so the axis continues from the last row (same contract as
+  MSL); 1 s or less is jitter and that row is dropped. Do not go back to "drop every row that
+  steps backwards": that lost up to an hour of data after a DST change.
+- **Restart gaps are lost in the clock-only modes** - an `mm:ss` or `HH:MM:SS` clock carries no
+  date, so a restart hours or a day later shows a gap of only the clock difference. The data
+  cannot recover it; do not try to "fix" it.
 - **A repeated header row starts a new section** - Torque appends a restarted session to the same
   file and writes the header again, and the PID set can change. Channels are the union of all
-  sections by raw header text; a channel missing from a section carries its last value.
+  sections by raw header text; a channel missing from a section carries its last value (and one
+  first seen in a later section reads 0.0 for the earlier ones). A header that names one column
+  twice keys the second occurrence separately, so its `-` cannot overwrite the first reading.
+- **Rows are stored sparse** - `(channel, reading)` pairs only, because with "log all PIDs" about
+  90 % of fields are `-`; a dense `Vec<Option<f64>>` per row cost ~320 MB at 100k rows.
 - **`-` means no reading; empty columns are dropped** - Torque polls PIDs round-robin and writes
   `-` until one answers, so readings carry forward (0.0 before the first). With "log all PIDs"
   the header lists ~220 PIDs, most of which the car never answers; a column with no numeric
@@ -520,7 +534,9 @@ preferences convert them.
   are `Name(unit)`, and only the last group is the unit (`Air Fuel Ratio(Commanded)(:1)`). The
   fixed `G(x)` / `G(y)` / `G(z)` columns would all become `G` under that rule, so the leading
   GPS/G columns come from `FIXED_COLUMNS`. `Latitude` / `Longitude` must keep those exact names
-  for `find_gps_channels` in `src/ui/widgets/track_map.rs`.
+  for `find_gps_channels` in `src/ui/widgets/track_map.rs`. Display names that still collide
+  get the unit, then a counter (`unique_name`). `canonical_unit` maps `l/100km`, `l`, `:1`
+  (AFR) and `lambda` to the spellings `UnitPreferences` converts.
 - **A header-only file is an error, not an empty log** - the issue #97 reporter's first file had
   no data rows; the error says Torque recorded no samples.
 - **No built-in normalization for Torque PID names** - `Engine RPM` and `Timing Advance` are

@@ -647,7 +647,8 @@ impl UltraLogApp {
             }
         } else if Torque::detect(contents) {
             // Torque Pro trackLog detected ("GPS Time, Device Time" header).
-            // Must run before RomRaider's generic Time-first catch-all.
+            // No other detector claims it; without this it falls through to
+            // the Haltech default and fails.
             let parser = Torque;
             match parser.parse(contents) {
                 Ok(l) => Ok((l, EcuType::TorquePro)),

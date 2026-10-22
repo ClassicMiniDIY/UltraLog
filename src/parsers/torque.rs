@@ -20,7 +20,7 @@
 //! Reference: <https://torque-bhp.com/>
 
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 
 use super::types::{Channel, Log, Meta, Parseable, Value};
@@ -113,9 +113,16 @@ fn canonical_unit(unit: &str) -> &str {
     match unit {
         "l/100km" => "L/100km",
         "l" => "L",
+        // `Air Fuel Ratio(Measured)(:1)`
+        ":1" => "AFR",
+        // `Commanded Equivalence Ratio(lambda)`
+        "lambda" => "λ",
         other => other,
     }
 }
+
+/// How many data rows `choose_time_source` looks at.
+const TIME_SOURCE_SAMPLE_ROWS: usize = 50;
 
 /// Which column, and which reading of it, gives the time axis.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -129,6 +136,25 @@ enum TimeSource {
     /// `GPS Time` clock (`Sat Jan 05 14:34:31 MST 2013`), 1 s resolution.
     /// Only used when `Device Time` is unreadable.
     GpsClock,
+}
+
+/// Pick the time source from the first data rows, as `(GPS Time, Device
+/// Time)` pairs. One unreadable first row must not put the whole file on the
+/// 1 s GPS clock.
+fn choose_time_source(rows: &[(&str, &str)]) -> TimeSource {
+    if rows
+        .iter()
+        .any(|(_, device)| parse_device_datetime(device).is_some())
+    {
+        return TimeSource::DeviceDateTime;
+    }
+    if let Some((_, period)) = rows
+        .iter()
+        .find_map(|(_, device)| parse_device_clock(device))
+    {
+        return TimeSource::DeviceClock { period };
+    }
+    TimeSource::GpsClock
 }
 
 /// Parse `[HH:]MM:SS[.fff]` into seconds, plus the period the clock wraps at.
@@ -149,23 +175,36 @@ fn parse_clock(token: &str) -> Option<(f64, f64)> {
     ))
 }
 
-/// Turns a wrapping clock into a monotonic time axis.
+/// Builds a sorted time axis from readings that can wrap or step back.
 #[derive(Default)]
-struct ClockAxis {
+struct TimeAxis {
     offset: f64,
     last: Option<f64>,
 }
 
-impl ClockAxis {
-    /// A clock wraps each hour (`mm:ss`) or at midnight (`HH:MM:SS`). A step
-    /// back of more than 1 s adds one period. The 1 s guard ignores jitter,
-    /// the same as the Haltech midnight rollover.
-    fn unwrap(&mut self, clock: f64, period: f64) -> f64 {
-        if self.last.is_some_and(|last| clock < last - 1.0) {
-            self.offset += period;
+impl TimeAxis {
+    /// Place one reading on the axis, or return `None` to drop the row.
+    ///
+    /// - A clock (`period` is `Some`) that steps back by more than half its
+    ///   period has wrapped (`mm:ss` each hour, `HH:MM:SS` at midnight), so
+    ///   one period is added.
+    /// - Any other step back of more than 1 s is a clock change on the phone
+    ///   (a time-zone crossing, the DST fall-back). The offset absorbs it and
+    ///   the axis continues from the last row, as the MSL parser does.
+    /// - A step back of 1 s or less is jitter, and the row is dropped.
+    fn place(&mut self, reading: f64, period: Option<f64>) -> Option<f64> {
+        if let Some(last) = self.last
+            && reading < last
+        {
+            let back = last - reading;
+            match period {
+                Some(period) if back > period / 2.0 => self.offset += period,
+                _ if back > 1.0 => self.offset += back,
+                _ => return None,
+            }
         }
-        self.last = Some(clock);
-        clock + self.offset
+        self.last = Some(reading);
+        Some(reading + self.offset)
     }
 }
 
@@ -198,6 +237,28 @@ fn parse_value(field: &str) -> Option<f64> {
     field.trim().parse::<f64>().ok().filter(|v| v.is_finite())
 }
 
+/// A display name not yet in `used`: the plain name, then the name with its
+/// unit, then a counter.
+fn unique_name(name: &str, unit: &str, used: &HashSet<String>) -> String {
+    if !used.contains(name) {
+        return name.to_string();
+    }
+    if !unit.is_empty() {
+        let with_unit = format!("{name} ({unit})");
+        if !used.contains(&with_unit) {
+            return with_unit;
+        }
+    }
+    let mut n = 2;
+    loop {
+        let candidate = format!("{name} ({n})");
+        if !used.contains(&candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
 /// Torque Pro trackLog parser
 pub struct Torque;
 
@@ -213,72 +274,108 @@ impl Torque {
 
     /// Detect a Torque Pro trackLog.
     ///
-    /// The header is normally the first line, but a file a user cut out of
-    /// a longer log can start mid-session, so the first few lines are
-    /// searched. The `GPS Time, Device Time` pair is specific enough that
-    /// no other supported format starts a row with it.
+    /// The header is normally the first line. The first few lines are
+    /// searched so a file cut out of a longer log still detects when a
+    /// restart header follows soon; the rows above that header cannot be
+    /// mapped to channels and are skipped. The `GPS Time, Device Time` pair
+    /// is specific enough that no other supported format starts a row with it.
     pub fn detect(contents: &str) -> bool {
         contents
             .lines()
             .take(DETECT_LINE_LIMIT)
             .any(|line| Self::is_header(line.trim()))
     }
+
+    /// Lines that carry no data: blank, or only commas.
+    fn is_blank(line: &str) -> bool {
+        line.chars().all(|c| c == ',')
+    }
+
+    /// `(GPS Time, Device Time)` of the first data rows after the first header.
+    fn sample_time_fields(contents: &str) -> Vec<(&str, &str)> {
+        contents
+            .lines()
+            .map(str::trim)
+            .skip_while(|line| !Self::is_header(line))
+            .filter(|line| !Self::is_blank(line) && !Self::is_header(line))
+            .take(TIME_SOURCE_SAMPLE_ROWS)
+            .map(|line| {
+                let mut fields = line.split(',');
+                (fields.next().unwrap_or(""), fields.next().unwrap_or(""))
+            })
+            .collect()
+    }
 }
 
 /// Column layout of one header section.
 struct Section {
     /// Union channel index for each column after the two time columns
-    columns: Vec<usize>,
+    columns: Vec<Option<usize>>,
 }
 
 impl Parseable for Torque {
     fn parse(&self, file_contents: &str) -> Result<Log, Box<dyn Error>> {
+        let source = choose_time_source(&Self::sample_time_fields(file_contents));
+
         // Channels are the union of every section's columns, in first-seen
-        // order. Raw readings are kept as `Option` per row so a channel that
-        // only appears in a later section can be added without reshaping.
+        // order. Rows are stored sparse, as `(channel, reading)` pairs: with
+        // "log all PIDs" about 90 % of fields are `-`, and a channel that
+        // first appears in a later section needs no reshaping.
         let mut channels: Vec<TorqueChannel> = Vec::new();
         let mut channel_index: HashMap<String, usize> = HashMap::new();
+        let mut has_reading: Vec<bool> = Vec::new();
         let mut section: Option<Section> = None;
         let mut sessions = 0usize;
 
-        let mut time_source: Option<TimeSource> = None;
         let mut start_time = String::new();
         let mut raw_times: Vec<f64> = Vec::new();
-        let mut rows: Vec<Vec<Option<f64>>> = Vec::new();
+        let mut rows: Vec<Vec<(usize, f64)>> = Vec::new();
+        let mut data_rows = 0usize;
         let mut rows_before_header = 0usize;
         let mut unreadable_time_rows = 0usize;
         let mut out_of_order_rows = 0usize;
 
-        let mut clock_axis = ClockAxis::default();
+        let mut axis = TimeAxis::default();
         let mut datetime_base: Option<i64> = None;
 
         for line in file_contents.lines() {
             let line = line.trim();
-            if line.is_empty() || line.chars().all(|c| c == ',') {
+            if Self::is_blank(line) {
                 continue;
             }
 
             if Self::is_header(line) {
                 sessions += 1;
+                // A header that names one column twice keeps both columns:
+                // the second occurrence gets its own key. Without that, the
+                // later column's `-` would overwrite the earlier reading.
+                let mut occurrences: HashMap<&str, usize> = HashMap::new();
                 let mut columns = Vec::new();
                 for header in line.split(',').skip(2) {
                     let header = header.trim();
                     if header.is_empty() {
                         // Trailing padding from a spreadsheet round-trip.
-                        columns.push(usize::MAX);
+                        columns.push(None);
                         continue;
                     }
-                    let channel = TorqueChannel::from_header(header);
-                    let idx = *channel_index.entry(header.to_string()).or_insert_with(|| {
-                        channels.push(channel);
+                    let occurrence = occurrences.entry(header).or_insert(0);
+                    let key = match *occurrence {
+                        0 => header.to_string(),
+                        n => format!("{header}\u{0}{n}"),
+                    };
+                    *occurrence += 1;
+                    let idx = *channel_index.entry(key).or_insert_with(|| {
+                        channels.push(TorqueChannel::from_header(header));
+                        has_reading.push(false);
                         channels.len() - 1
                     });
-                    columns.push(idx);
+                    columns.push(Some(idx));
                 }
                 section = Some(Section { columns });
                 continue;
             }
 
+            data_rows += 1;
             let Some(section) = section.as_ref() else {
                 // Data with no header above it cannot be mapped to channels.
                 rows_before_header += 1;
@@ -289,42 +386,34 @@ impl Parseable for Torque {
             let gps_time = fields.next().unwrap_or("");
             let device_time = fields.next().unwrap_or("");
 
-            let source = *time_source.get_or_insert_with(|| {
-                if parse_device_datetime(device_time).is_some() {
-                    TimeSource::DeviceDateTime
-                } else if let Some((_, period)) = parse_device_clock(device_time) {
-                    TimeSource::DeviceClock { period }
-                } else {
-                    TimeSource::GpsClock
-                }
-            });
-
-            let time = match source {
-                TimeSource::DeviceDateTime => parse_device_datetime(device_time)
-                    .map(|ms| (ms - *datetime_base.get_or_insert(ms)) as f64 / 1000.0),
+            let reading = match source {
+                TimeSource::DeviceDateTime => parse_device_datetime(device_time).map(|ms| {
+                    let ms = ms - *datetime_base.get_or_insert(ms);
+                    (ms as f64 / 1000.0, None)
+                }),
                 TimeSource::DeviceClock { period } => parse_device_clock(device_time)
                     .filter(|(_, p)| *p == period)
-                    .map(|(clock, _)| clock_axis.unwrap(clock, period)),
+                    .map(|(clock, _)| (clock, Some(period))),
                 TimeSource::GpsClock => {
-                    parse_gps_clock(gps_time).map(|clock| clock_axis.unwrap(clock, 86_400.0))
+                    parse_gps_clock(gps_time).map(|clock| (clock, Some(86_400.0)))
                 }
             };
-            let Some(time) = time else {
+            let Some((reading, period)) = reading else {
                 unreadable_time_rows += 1;
                 continue;
             };
-
             // `times` must stay sorted: computed-channel time-shift lookups
-            // binary-search it. Drop any row that steps backwards.
-            if raw_times.last().is_some_and(|last| time < *last) {
+            // binary-search it.
+            let Some(time) = axis.place(reading, period) else {
                 out_of_order_rows += 1;
                 continue;
-            }
+            };
 
-            let mut row = vec![None; channels.len()];
-            for (field, &idx) in fields.zip(&section.columns) {
-                if idx != usize::MAX {
-                    row[idx] = parse_value(field);
+            let mut row = Vec::new();
+            for (field, column) in fields.zip(&section.columns) {
+                if let (Some(idx), Some(value)) = (*column, parse_value(field)) {
+                    has_reading[idx] = true;
+                    row.push((idx, value));
                 }
             }
 
@@ -341,21 +430,29 @@ impl Parseable for Torque {
             );
         }
         if raw_times.is_empty() {
+            if unreadable_time_rows > 0 {
+                return Err(format!(
+                    "Torque Pro log has {} data rows, but none has a readable Device Time or GPS Time.",
+                    unreadable_time_rows
+                )
+                .into());
+            }
             return Err("Torque Pro log has a header row but no data rows. \
                         Torque recorded no samples in this logging session."
                 .into());
         }
         if rows_before_header > 0 {
             tracing::warn!(
-                "Torque Pro log had {} rows before the first header row; those rows were skipped",
-                rows_before_header
+                "Torque Pro log had {} of {} data rows before the first header row; those rows were skipped",
+                rows_before_header,
+                data_rows
             );
         }
         if unreadable_time_rows > 0 {
             tracing::warn!(
                 "Torque Pro log had {} rows with an unreadable time ({:?}); those rows were skipped",
                 unreadable_time_rows,
-                time_source
+                source
             );
         }
         if out_of_order_rows > 0 {
@@ -366,31 +463,27 @@ impl Parseable for Torque {
         }
 
         // Keep only the channels that hold at least one reading.
-        let total_channels = channels.len();
-        let keep: Vec<usize> = (0..total_channels)
-            .filter(|&c| {
-                rows.iter()
-                    .any(|row| row.get(c).copied().flatten().is_some())
-            })
-            .collect();
-        let empty_columns_dropped = total_channels - keep.len();
+        let mut kept_position: Vec<Option<usize>> = vec![None; channels.len()];
+        let mut kept: Vec<usize> = Vec::new();
+        for (idx, _) in has_reading.iter().enumerate().filter(|(_, seen)| **seen) {
+            kept_position[idx] = Some(kept.len());
+            kept.push(idx);
+        }
+        let empty_columns_dropped = channels.len() - kept.len();
 
         // Torque polls PIDs round-robin and writes `-` until a PID answers,
         // so missing readings carry the last known value forward (0.0 before
         // the first one), the same as the Haltech, MSL and RaceChrono parsers.
-        let mut last_values = vec![0.0; keep.len()];
+        let mut last_values = vec![0.0; kept.len()];
         let data: Vec<Vec<Value>> = rows
             .iter()
             .map(|row| {
-                keep.iter()
-                    .zip(last_values.iter_mut())
-                    .map(|(&c, last)| {
-                        if let Some(v) = row.get(c).copied().flatten() {
-                            *last = v;
-                        }
-                        Value::Float(*last)
-                    })
-                    .collect()
+                for &(idx, value) in row {
+                    if let Some(position) = kept_position[idx] {
+                        last_values[position] = value;
+                    }
+                }
+                last_values.iter().copied().map(Value::Float).collect()
             })
             .collect();
 
@@ -398,19 +491,15 @@ impl Parseable for Torque {
         let times: Vec<f64> = raw_times.iter().map(|t| t - base).collect();
 
         // Unique display names: a channel name can repeat once the unit is
-        // stripped (`Fuel Rate(L/m)` and a custom `Fuel Rate(l/hr)`).
-        let mut seen: HashMap<String, usize> = HashMap::new();
-        let channels: Vec<Channel> = keep
+        // stripped (`Fuel Rate(L/m)` and a custom `Fuel Rate(l/hr)`), or when
+        // a header names one column twice.
+        let mut used: HashSet<String> = HashSet::new();
+        let channels: Vec<Channel> = kept
             .iter()
-            .map(|&c| {
-                let mut channel = channels[c].clone();
-                let count = seen.entry(channel.name.clone()).or_insert(0);
-                *count += 1;
-                if *count > 1 && !channel.unit.is_empty() {
-                    channel.name = format!("{} ({})", channel.name, channel.unit);
-                } else if *count > 1 {
-                    channel.name = format!("{} ({})", channel.name, count);
-                }
+            .map(|&idx| {
+                let mut channel = channels[idx].clone();
+                channel.name = unique_name(&channel.name, &channel.unit, &used);
+                used.insert(channel.name.clone());
                 Channel::Torque(channel)
             })
             .collect();
@@ -492,8 +581,10 @@ mod tests {
         let c = TorqueChannel::from_header("Air Fuel Ratio(Commanded)(:1)");
         assert_eq!(
             (c.name.as_str(), c.unit.as_str()),
-            ("Air Fuel Ratio(Commanded)", ":1")
+            ("Air Fuel Ratio(Commanded)", "AFR")
         );
+        let c = TorqueChannel::from_header("Commanded Equivalence Ratio(lambda)");
+        assert_eq!(c.unit, "λ");
         let c = TorqueChannel::from_header("Hybrid Battery Charge (%)(%)");
         assert_eq!(
             (c.name.as_str(), c.unit.as_str()),
@@ -667,5 +758,95 @@ mod tests {
         let log = Torque.parse(&contents).expect("parse");
         assert_eq!(column(&log, "Engine RPM"), vec![800.0, 810.0]);
         assert_eq!(column(&log, "Engine Coolant Temperature"), vec![80.0, 80.0]);
+    }
+
+    #[test]
+    fn duplicate_header_column_keeps_both_readings() {
+        // Review finding: the second column's `-` overwrote the first
+        // column's reading, and the channel was dropped as empty.
+        let header = "GPS Time, Device Time, Longitude, Latitude,GPS Speed (Meters/second), \
+            Horizontal Dilution of Precision, Altitude, Bearing, G(x), G(y), G(z), G(calibrated),\
+            Engine RPM(rpm),Engine RPM(rpm)";
+        let contents = [
+            header.to_string(),
+            row("x", "05-Jan-2013 14:32:13.000", "800,-"),
+            row("x", "05-Jan-2013 14:32:14.000", "810,-"),
+        ]
+        .join("\n");
+
+        let log = Torque.parse(&contents).expect("parse");
+        assert_eq!(column(&log, "Engine RPM"), vec![800.0, 810.0]);
+        assert!(log.find_channel_index("Engine RPM (rpm)").is_none());
+    }
+
+    #[test]
+    fn device_clock_stepping_back_an_hour_keeps_the_rows() {
+        // A time-zone crossing or the DST fall-back moves the phone clock back.
+        let contents = [
+            HEADER.to_string(),
+            row("x", "05-Jan-2013 14:59:58.000", "800,-,-,-,-"),
+            row("x", "05-Jan-2013 14:59:59.000", "810,-,-,-,-"),
+            row("x", "05-Jan-2013 14:00:00.000", "820,-,-,-,-"),
+            row("x", "05-Jan-2013 14:00:01.000", "830,-,-,-,-"),
+        ]
+        .join("\n");
+
+        let log = Torque.parse(&contents).expect("parse");
+        assert_eq!(column(&log, "Engine RPM"), vec![800.0, 810.0, 820.0, 830.0]);
+        assert_eq!(log.times, vec![0.0, 1.0, 1.0, 2.0]);
+    }
+
+    #[test]
+    fn gps_clock_zone_change_is_not_a_midnight_wrap() {
+        let contents = [
+            HEADER.to_string(),
+            row("Sun Nov 03 01:59:58 MDT 2013", "garbage", "800,-,-,-,-"),
+            row("Sun Nov 03 01:00:00 MST 2013", "garbage", "810,-,-,-,-"),
+        ]
+        .join("\n");
+
+        let log = Torque.parse(&contents).expect("parse");
+        assert!(log.times[1] < 2.0, "{:?}", log.times);
+    }
+
+    #[test]
+    fn unreadable_first_device_time_does_not_pick_the_gps_clock() {
+        let contents = [
+            HEADER.to_string(),
+            row("-", "05-Ja", "800,-,-,-,-"),
+            row("-", "05-Jan-2013 14:32:13.250", "810,-,-,-,-"),
+            row("-", "05-Jan-2013 14:32:13.750", "820,-,-,-,-"),
+        ]
+        .join("\n");
+
+        let log = Torque.parse(&contents).expect("parse");
+        assert_eq!(log.times, vec![0.0, 0.5]);
+        assert_eq!(column(&log, "Engine RPM"), vec![810.0, 820.0]);
+    }
+
+    #[test]
+    fn rows_without_any_readable_time_are_reported() {
+        let contents = [HEADER.to_string(), row("-", "-", "800,-,-,-,-")].join("\n");
+        let err = Torque.parse(&contents).unwrap_err().to_string();
+        assert!(err.contains("none has a readable"), "{err}");
+    }
+
+    #[test]
+    fn display_names_stay_unique() {
+        let header = "GPS Time, Device Time, Longitude, Latitude,GPS Speed (Meters/second), \
+            Horizontal Dilution of Precision, Altitude, Bearing, G(x), G(y), G(z), G(calibrated),\
+            Fuel Rate(L/m),Fuel Rate(l/hr),Fuel Rate (l/hr)(x)";
+        let contents = [
+            header.to_string(),
+            row("x", "05-Jan-2013 14:32:13.000", "1,2,3"),
+        ]
+        .join("\n");
+
+        let log = Torque.parse(&contents).expect("parse");
+        let names = names(&log);
+        let unique: HashSet<&String> = names.iter().collect();
+        assert_eq!(unique.len(), names.len(), "{names:?}");
+        assert_eq!(column(&log, "Fuel Rate"), vec![1.0]);
+        assert_eq!(column(&log, "Fuel Rate (l/hr)"), vec![2.0]);
     }
 }
