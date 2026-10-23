@@ -22,88 +22,98 @@ impl UltraLogApp {
             .map(|(i, tab)| (tab.name.clone(), self.active_tab == Some(i)))
             .collect();
 
-        ui.horizontal(|ui| {
-            for (i, (name, is_active)) in tab_info.iter().enumerate() {
-                let tab_color = if *is_active {
-                    egui::Color32::from_rgb(60, 60, 60)
-                } else {
-                    egui::Color32::from_rgb(40, 40, 40)
-                };
+        // A horizontal scroll area caps the row at the panel width. A bare
+        // `horizontal` grew with the tabs and pushed the chart and data panel
+        // past the window's right edge once five or six logs were open.
+        egui::ScrollArea::horizontal()
+            .id_salt("tab_bar_scroll")
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (i, (name, is_active)) in tab_info.iter().enumerate() {
+                        let tab_color = if *is_active {
+                            egui::Color32::from_rgb(60, 60, 60)
+                        } else {
+                            egui::Color32::from_rgb(40, 40, 40)
+                        };
 
-                let text_color = if *is_active {
-                    egui::Color32::WHITE
-                } else {
-                    egui::Color32::from_rgb(180, 180, 180)
-                };
+                        let text_color = if *is_active {
+                            egui::Color32::WHITE
+                        } else {
+                            egui::Color32::from_rgb(180, 180, 180)
+                        };
 
-                let border_color = if *is_active {
-                    egui::Color32::from_rgb(113, 120, 78) // Primary olive green
-                } else {
-                    egui::Color32::from_rgb(60, 60, 60)
-                };
+                        let border_color = if *is_active {
+                            egui::Color32::from_rgb(113, 120, 78) // Primary olive green
+                        } else {
+                            egui::Color32::from_rgb(60, 60, 60)
+                        };
 
-                egui::Frame::NONE
-                    .fill(tab_color)
-                    .corner_radius(egui::CornerRadius {
-                        nw: 6,
-                        ne: 6,
-                        sw: 0,
-                        se: 0,
-                    })
-                    .stroke(egui::Stroke::new(
-                        if *is_active { 2.0 } else { 1.0 },
-                        border_color,
-                    ))
-                    .inner_margin(egui::Margin {
-                        left: 12,
-                        right: 8,
-                        top: 6,
-                        bottom: 6,
-                    })
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            // Tab name (clickable)
-                            let font_13 = self.scaled_font(13.0);
-                            let label_response = ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(name).color(text_color).size(font_13),
-                                )
-                                .sense(egui::Sense::click()),
-                            );
+                        egui::Frame::NONE
+                            .fill(tab_color)
+                            .corner_radius(egui::CornerRadius {
+                                nw: 6,
+                                ne: 6,
+                                sw: 0,
+                                se: 0,
+                            })
+                            .stroke(egui::Stroke::new(
+                                if *is_active { 2.0 } else { 1.0 },
+                                border_color,
+                            ))
+                            .inner_margin(egui::Margin {
+                                left: 12,
+                                right: 8,
+                                top: 6,
+                                bottom: 6,
+                            })
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    // Tab name (clickable)
+                                    let font_13 = self.scaled_font(13.0);
+                                    let label_response = ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(name)
+                                                .color(text_color)
+                                                .size(font_13),
+                                        )
+                                        .sense(egui::Sense::click()),
+                                    );
 
-                            if label_response.clicked() {
-                                tab_to_activate = Some(i);
-                            }
-                            if label_response.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
+                                    if label_response.clicked() {
+                                        tab_to_activate = Some(i);
+                                    }
+                                    if label_response.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
 
-                            ui.add_space(4.0);
+                                    ui.add_space(4.0);
 
-                            // Close button
-                            let font_14 = self.scaled_font(14.0);
-                            let close_btn = ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("x")
-                                        .color(egui::Color32::from_rgb(150, 150, 150))
-                                        .size(font_14),
-                                )
-                                .sense(egui::Sense::click()),
-                            );
+                                    // Close button
+                                    let font_14 = self.scaled_font(14.0);
+                                    let close_btn = ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new("x")
+                                                .color(egui::Color32::from_rgb(150, 150, 150))
+                                                .size(font_14),
+                                        )
+                                        .sense(egui::Sense::click()),
+                                    );
 
-                            if close_btn.clicked() {
-                                tab_to_close = Some(i);
-                            }
+                                    if close_btn.clicked() {
+                                        tab_to_close = Some(i);
+                                    }
 
-                            if close_btn.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                        });
-                    });
+                                    if close_btn.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                });
+                            });
 
-                ui.add_space(2.0);
-            }
-        });
+                        ui.add_space(2.0);
+                    }
+                });
+            });
 
         // Handle deferred tab activation
         if let Some(index) = tab_to_activate {
