@@ -10,6 +10,7 @@ use rust_i18n::t;
 use crate::app::UltraLogApp;
 use crate::normalize::sort_channels_by_priority;
 use crate::state::{ActiveTool, MAX_CHANNELS};
+use crate::ui::components::{self, Kind, icon};
 
 impl UltraLogApp {
     /// Render the tool properties panel content (called from side_panel.rs)
@@ -138,37 +139,16 @@ impl UltraLogApp {
             ui.add_space(8.0);
 
             // Computed Channels button
-            let primary_color = self.tokens.cyan;
-            let computed_btn = egui::Frame::NONE
-                .fill(primary_color)
-                .corner_radius(4)
-                .inner_margin(egui::vec2(10.0, 6.0))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new("\u{0192}")
-                                .color(self.tokens.on_cyan)
-                                .text_style(egui::TextStyle::Body),
-                        );
-                        ui.label(
-                            egui::RichText::new(t!("channels.computed_channels"))
-                                .color(self.tokens.on_cyan)
-                                .text_style(egui::TextStyle::Body),
-                        );
-                    });
-                });
-
-            if computed_btn
-                .response
-                .interact(egui::Sense::click())
-                .on_hover_text(t!("channels.computed_channels_tooltip"))
-                .clicked()
+            if components::button(
+                ui,
+                Kind::Secondary,
+                Some("\u{0192}"),
+                t!("channels.computed_channels"),
+            )
+            .on_hover_text(t!("channels.computed_channels_tooltip"))
+            .clicked()
             {
                 self.show_computed_channels_manager = true;
-            }
-
-            if computed_btn.response.hovered() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
 
             ui.add_space(8.0);
@@ -437,34 +417,13 @@ impl UltraLogApp {
         let mut plot_to_delete: Option<usize> = None;
 
         // "+ New Plot" button
-        let new_plot_btn = egui::Frame::NONE
-            .fill(self.tokens.bg_raised)
-            .stroke(egui::Stroke::new(1.0, self.tokens.line_control))
-            .corner_radius(4)
-            .inner_margin(egui::vec2(10.0, 6.0))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("+ New Plot")
-                            .color(self.tokens.ink)
-                            .text_style(egui::TextStyle::Body),
-                    );
-                });
-            });
-
-        if new_plot_btn
-            .response
-            .interact(egui::Sense::click())
+        if components::button(ui, Kind::Secondary, Some(icon::PLUS), "New Plot")
             .on_hover_text("Create a new plot area")
             .clicked()
         {
             let next_id = self.tabs[tab_idx].next_plot_area_id;
             let name = format!("Plot {}", next_id + 1);
             self.create_plot_area(name);
-        }
-
-        if new_plot_btn.response.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
 
         ui.add_space(8.0);

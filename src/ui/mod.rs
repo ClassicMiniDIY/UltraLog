@@ -30,6 +30,7 @@
 
 // New activity bar architecture
 pub mod activity_bar;
+pub mod components;
 pub mod data_panel;
 pub mod files_panel;
 pub mod fonts;

@@ -9,6 +9,7 @@
 //! overrides both. Data colours never depend on intensity.
 
 pub mod codegen;
+pub mod paint;
 #[rustfmt::skip]
 pub mod tokens;
 

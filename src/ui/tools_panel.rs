@@ -8,6 +8,7 @@ use rust_i18n::t;
 use crate::analysis::tables::GeneratorKind;
 use crate::app::UltraLogApp;
 use crate::state::ActiveTool;
+use crate::ui::components::{self, Kind, icon};
 
 impl UltraLogApp {
     /// Render the tools panel content (called from side_panel.rs)
@@ -64,25 +65,15 @@ impl UltraLogApp {
                     ui.add_space(4.0);
 
                     // Open full analysis panel button
-                    let primary_color = self.tokens.cyan;
-                    let btn = egui::Frame::NONE
-                        .fill(primary_color)
-                        .corner_radius(4)
-                        .inner_margin(egui::vec2(12.0, 6.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                egui::RichText::new("Open Analysis Panel")
-                                    .color(self.tokens.on_cyan)
-                                    .text_style(egui::TextStyle::Body),
-                            );
-                        });
-
-                    if btn.response.interact(egui::Sense::click()).clicked() {
+                    if components::button(
+                        ui,
+                        Kind::Primary,
+                        Some(icon::FLASK),
+                        "Open Analysis Panel",
+                    )
+                    .clicked()
+                    {
                         self.show_analysis_panel = true;
-                    }
-
-                    if btn.response.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
 
                     // Show results count if any
@@ -186,47 +177,11 @@ impl UltraLogApp {
 
             // Buttons row
             ui.horizontal(|ui| {
-                // New Channel button
-                let accent_color = self.tokens.cyan;
-                let new_btn = egui::Frame::NONE
-                    .fill(accent_color)
-                    .corner_radius(4)
-                    .inner_margin(egui::vec2(10.0, 5.0))
-                    .show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new("+ New")
-                                .color(self.tokens.on_cyan)
-                                .small(),
-                        );
-                    });
-
-                if new_btn.response.interact(egui::Sense::click()).clicked() {
+                if components::button_sm(ui, Kind::Ghost, Some(icon::PLUS), "New").clicked() {
                     self.formula_editor_state.open_new();
                 }
-
-                if new_btn.response.hovered() {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                }
-
-                // Manage Library button
-                let manage_btn = egui::Frame::NONE
-                    .fill(self.tokens.bg_raised)
-                    .corner_radius(4)
-                    .inner_margin(egui::vec2(10.0, 5.0))
-                    .show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new("Manage Library")
-                                .color(self.tokens.ink_muted)
-                                .small(),
-                        );
-                    });
-
-                if manage_btn.response.interact(egui::Sense::click()).clicked() {
+                if components::button_sm(ui, Kind::Secondary, None, "Manage Library").clicked() {
                     self.show_computed_channels_manager = true;
-                }
-
-                if manage_btn.response.hovered() {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
             });
 
@@ -324,28 +279,13 @@ impl UltraLogApp {
                 ui.horizontal(|ui| {
                     // PNG Export
                     ui.add_enabled_ui(can_export_png, |ui| {
-                        let btn = egui::Frame::NONE
-                            .fill(if can_export_png {
-                                self.tokens.bg_raised
-                            } else {
-                                self.tokens.bg_field
-                            })
-                            .stroke(egui::Stroke::new(1.0, self.tokens.line_control))
-                            .corner_radius(4)
-                            .inner_margin(egui::vec2(12.0, 6.0))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    egui::RichText::new("PNG")
-                                        .color(if can_export_png {
-                                            self.tokens.ink
-                                        } else {
-                                            self.tokens.ink_disabled
-                                        })
-                                        .text_style(egui::TextStyle::Body),
-                                );
-                            });
-
-                        if can_export_png && btn.response.interact(egui::Sense::click()).clicked() {
+                        let png = components::button(
+                            ui,
+                            Kind::Secondary,
+                            Some(icon::DOWNLOAD_SIMPLE),
+                            "PNG",
+                        );
+                        if png.clicked() {
                             match self.active_tool {
                                 ActiveTool::LogViewer => self.export_chart_png(),
                                 ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
@@ -355,36 +295,17 @@ impl UltraLogApp {
                                 }
                             }
                         }
-
-                        if btn.response.hovered() && can_export_png {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
                     });
 
                     // PDF Export
                     ui.add_enabled_ui(can_export_pdf, |ui| {
-                        let btn = egui::Frame::NONE
-                            .fill(if can_export_pdf {
-                                self.tokens.bg_raised
-                            } else {
-                                self.tokens.bg_field
-                            })
-                            .stroke(egui::Stroke::new(1.0, self.tokens.line_control))
-                            .corner_radius(4)
-                            .inner_margin(egui::vec2(12.0, 6.0))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    egui::RichText::new("PDF")
-                                        .color(if can_export_pdf {
-                                            self.tokens.ink
-                                        } else {
-                                            self.tokens.ink_disabled
-                                        })
-                                        .text_style(egui::TextStyle::Body),
-                                );
-                            });
-
-                        if can_export_pdf && btn.response.interact(egui::Sense::click()).clicked() {
+                        let pdf = components::button(
+                            ui,
+                            Kind::Secondary,
+                            Some(icon::DOWNLOAD_SIMPLE),
+                            "PDF",
+                        );
+                        if pdf.clicked() {
                             match self.active_tool {
                                 ActiveTool::LogViewer => self.export_chart_pdf(),
                                 ActiveTool::ScatterPlot => self.export_scatter_plot_pdf(),
@@ -393,10 +314,6 @@ impl UltraLogApp {
                                     self.export_table_pdf()
                                 }
                             }
-                        }
-
-                        if btn.response.hovered() && can_export_pdf {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
                     });
                 });

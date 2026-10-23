@@ -28,6 +28,12 @@ pub const DISPLAY_BOLD_ITALIC: &str = "display-bold-italic";
 pub const DISPLAY_BLACK_ITALIC: &str = "display-black-italic";
 /// JetBrains Mono 500: large data readouts.
 pub const MONO_MEDIUM: &str = "mono-medium";
+/// Phosphor fill: transport glyphs (play, stop) and the favourite star only.
+pub const PHOSPHOR_FILL: &str = "phosphor-fill";
+
+/// Phosphor regular sits right after each brand face, so an icon codepoint in any label
+/// resolves to the outline icon set.
+const PHOSPHOR: &str = "phosphor";
 
 /// Named text styles beyond egui's five (Body, Button, Small, Heading, Monospace).
 pub mod style {
@@ -125,8 +131,18 @@ fn build_definitions(system_cjk: Option<FontData>) -> FontDefinitions {
         scripts.push(SYSTEM_CJK.to_owned());
     }
 
+    fonts.font_data.insert(
+        PHOSPHOR.to_owned(),
+        FontData::from_static(egui_phosphor::Variant::Regular.font_bytes()).into(),
+    );
+    fonts.font_data.insert(
+        PHOSPHOR_FILL.to_owned(),
+        FontData::from_static(egui_phosphor::Variant::Fill.font_bytes()).into(),
+    );
+
     let with_tail = |face: &str, tail: &[String]| -> Vec<String> {
-        std::iter::once(face.to_owned())
+        [face.to_owned(), PHOSPHOR.to_owned()]
+            .into_iter()
             .chain(tail.iter().cloned())
             .chain(scripts.iter().cloned())
             .collect()
@@ -177,6 +193,10 @@ fn build_definitions(system_cjk: Option<FontData>) -> FontDefinitions {
     for (family, face, tail) in families {
         fonts.families.insert(family, with_tail(face, tail));
     }
+    fonts.families.insert(
+        FontFamily::Name(PHOSPHOR_FILL.into()),
+        vec![PHOSPHOR_FILL.to_owned()],
+    );
     fonts
 }
 
@@ -328,10 +348,17 @@ mod tests {
         assert_eq!(first(FontFamily::Proportional), "Outfit-Regular");
         assert_eq!(first(FontFamily::Monospace), "JetBrainsMono-Regular");
         assert_eq!(first(FontFamily::Name(DISPLAY.into())), "Saira-SemiBold");
-        for list in fonts.families.values() {
+        for (family, list) in &fonts.families {
             for name in list {
                 assert!(fonts.font_data.contains_key(name), "{name} has no data");
             }
+            if *family == FontFamily::Name(PHOSPHOR_FILL.into()) {
+                continue; // icon-only family
+            }
+            assert_eq!(
+                list[1], PHOSPHOR,
+                "{family:?}: icons resolve right after the face"
+            );
             assert!(list.iter().any(|n| n == "NotoSansDevanagari"));
             assert!(list.iter().any(|n| n == "NotoSansSC-LanguageNames"));
             // egui's defaults stay as fallbacks for Greek, Cyrillic and emoji.

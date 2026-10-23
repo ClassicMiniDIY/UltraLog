@@ -32,6 +32,8 @@ eframe = { version = "0.36.1", default-features = false, features = [
     "wayland",
 ] }
 egui_plot = "0.37.0"
+# Phosphor icons (regular outline; fill for transport and the favourite star)
+egui-phosphor = { version = "0.14", features = ["fill"] }
 egui_extras = { version = "0.36.1", features = ["image"] }
 
 # Serialization

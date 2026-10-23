@@ -2507,6 +2507,9 @@ impl eframe::App for UltraLogApp {
                     }
                 }
             });
+
+        // One focus ring for every control, after everything else has laid out.
+        crate::ui::theme::paint::keyboard_focus_ring(ui.ctx(), &self.tokens, self.high_contrast);
     }
 }
 

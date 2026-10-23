@@ -14,6 +14,7 @@ use crate::normalize::sort_channels_by_priority;
 use crate::parsers::Channel;
 use crate::parsers::types::ComputedChannelInfo;
 use crate::state::{CHART_COLORS, SelectedChannel};
+use crate::ui::components::{self, Kind};
 
 /// Info about an analyzer for display (avoids borrow issues)
 struct AnalyzerInfo {
@@ -406,11 +407,16 @@ impl UltraLogApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // "Run & Chart" button (primary action)
-                        let run_chart_btn = egui::Button::new(
-                            egui::RichText::new(t!("analysis.run_and_chart")).color(t.on_cyan),
-                        )
-                        .fill(t.cyan);
-                        let run_chart_response = ui.add_enabled(channels_available, run_chart_btn);
+                        let run_chart_response = ui
+                            .add_enabled_ui(channels_available, |ui| {
+                                components::button(
+                                    ui,
+                                    Kind::Primary,
+                                    None,
+                                    t!("analysis.run_and_chart"),
+                                )
+                            })
+                            .inner;
 
                         if run_chart_response.clicked() {
                             action = Some(AnalyzerAction::RunAndChart);
