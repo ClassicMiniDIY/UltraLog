@@ -11,7 +11,10 @@ use crate::computed::ComputedChannelTemplate;
 use crate::expression::{
     build_channel_bindings, extract_channel_references, generate_preview, validate_formula,
 };
-use crate::ui::components;
+use crate::ui::components::{self, Kind, Status};
+use crate::ui::fonts::{self, style};
+use crate::ui::formula_syntax;
+use crate::ui::theme::tokens::space;
 
 impl UltraLogApp {
     /// Render the formula editor dialog
@@ -37,11 +40,16 @@ impl UltraLogApp {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                ui.add_space(4.0);
+                let t = self.tokens;
+                let label = |text: std::borrow::Cow<'_, str>| {
+                    egui::RichText::new(text)
+                        .text_style(fonts::text_style(style::LABEL))
+                        .color(t.ink_muted)
+                };
 
                 // Name field
                 ui.horizontal(|ui| {
-                    ui.label(t!("formula.name"));
+                    ui.label(label(t!("formula.name")));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.formula_editor_state.name)
                             .hint_text(t!("formula.name_hint"))
@@ -49,16 +57,23 @@ impl UltraLogApp {
                     );
                 });
 
-                ui.add_space(8.0);
+                ui.add_space(space::SPACE_2);
 
-                // Formula field
-                ui.label(t!("formula.formula"));
+                // Formula field, syntax coloured
+                ui.label(label(t!("formula.formula")));
+                let data_font = fonts::text_style(style::DATA).resolve(ui.style());
+                let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
+                    let job =
+                        formula_syntax::layout(text.as_str(), data_font.clone(), &t, wrap_width);
+                    ui.fonts_mut(|f| f.layout_job(job))
+                };
                 let formula_response = ui.add(
                     egui::TextEdit::multiline(&mut self.formula_editor_state.formula)
                         .hint_text(t!("formula.formula_hint"))
                         .desired_width(ui.available_width())
-                        .desired_rows(3)
-                        .font(egui::TextStyle::Monospace),
+                        .desired_rows(2)
+                        .font(fonts::text_style(style::DATA))
+                        .layouter(&mut layouter),
                 );
 
                 // Validate on formula change
@@ -69,7 +84,11 @@ impl UltraLogApp {
                 // Quick pattern buttons
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(t!("formula.insert")).small().weak());
+                    ui.label(
+                        egui::RichText::new(t!("formula.insert"))
+                            .small()
+                            .color(t.ink_subtle),
+                    );
                     ui.add_space(4.0);
 
                     // Math operators
@@ -83,7 +102,11 @@ impl UltraLogApp {
                         ("sqrt", "sqrt("),
                     ] {
                         if ui
-                            .small_button(egui::RichText::new(label).monospace())
+                            .small_button(
+                                egui::RichText::new(label)
+                                    .text_style(fonts::text_style(style::DATA_SM))
+                                    .color(t.ink_muted),
+                            )
                             .on_hover_text(t!("formula.insert_tooltip", op = insert.trim()))
                             .clicked()
                         {
@@ -96,7 +119,11 @@ impl UltraLogApp {
 
                     // Time-shift operators
                     if ui
-                        .small_button(egui::RichText::new("[-1]").monospace())
+                        .small_button(
+                            egui::RichText::new("[-1]")
+                                .text_style(fonts::text_style(style::DATA_SM))
+                                .color(t.orange),
+                        )
                         .on_hover_text(t!("formula.prev_sample_tooltip"))
                         .clicked()
                     {
@@ -104,7 +131,11 @@ impl UltraLogApp {
                         self.validate_current_formula();
                     }
                     if ui
-                        .small_button(egui::RichText::new("@-0.1s").monospace())
+                        .small_button(
+                            egui::RichText::new("@-0.1s")
+                                .text_style(fonts::text_style(style::DATA_SM))
+                                .color(t.orange),
+                        )
                         .on_hover_text(t!("formula.time_ago_tooltip"))
                         .clicked()
                     {
@@ -116,16 +147,25 @@ impl UltraLogApp {
                 // Show validation status
                 ui.add_space(4.0);
                 if let Some(error) = &self.formula_editor_state.validation_error {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(
-                            egui::RichText::new(t!("formula.error")).color(egui::Color32::RED),
+                            egui::RichText::new(format!(
+                                "{} {}",
+                                Status::Danger.icon(),
+                                t!("formula.error")
+                            ))
+                            .color(t.danger),
                         );
-                        ui.label(egui::RichText::new(error).color(egui::Color32::RED).small());
+                        ui.label(egui::RichText::new(error).color(t.ink));
                     });
                 } else if !self.formula_editor_state.formula.is_empty() {
                     ui.label(
-                        egui::RichText::new(t!("formula.formula_valid"))
-                            .color(egui::Color32::GREEN),
+                        egui::RichText::new(format!(
+                            "{} {}",
+                            Status::Success.icon(),
+                            t!("formula.formula_valid")
+                        ))
+                        .color(t.success),
                     );
                 }
 
@@ -133,7 +173,7 @@ impl UltraLogApp {
 
                 // Unit and description in a row
                 ui.horizontal(|ui| {
-                    ui.label(t!("formula.unit"));
+                    ui.label(label(t!("formula.unit")));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.formula_editor_state.unit)
                             .hint_text(t!("formula.unit_hint"))
@@ -142,7 +182,7 @@ impl UltraLogApp {
 
                     ui.add_space(16.0);
 
-                    ui.label(t!("formula.description"));
+                    ui.label(label(t!("formula.description")));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.formula_editor_state.description)
                             .hint_text(t!("formula.description_hint"))
@@ -161,13 +201,13 @@ impl UltraLogApp {
                             if channels.is_empty() {
                                 ui.label(
                                     egui::RichText::new(t!("formula.no_channels_available"))
-                                        .color(egui::Color32::GRAY),
+                                        .color(t.ink_subtle),
                                 );
                             } else {
                                 ui.label(
                                     egui::RichText::new(t!("formula.click_to_insert"))
                                         .small()
-                                        .weak(),
+                                        .color(t.ink_subtle),
                                 );
                                 egui::ScrollArea::vertical()
                                     .id_salt("channel_browser")
@@ -175,7 +215,16 @@ impl UltraLogApp {
                                     .show(ui, |ui| {
                                         ui.horizontal_wrapped(|ui| {
                                             for name in &channels {
-                                                if ui.small_button(name).clicked() {
+                                                if ui
+                                                    .small_button(
+                                                        egui::RichText::new(name)
+                                                            .text_style(fonts::text_style(
+                                                                style::DATA_SM,
+                                                            ))
+                                                            .color(t.cyan),
+                                                    )
+                                                    .clicked()
+                                                {
                                                     // Insert channel name into formula
                                                     let insert = if name.contains(' ') {
                                                         format!("\"{}\"", name)
@@ -222,45 +271,61 @@ impl UltraLogApp {
                             ui.add_space(8.0);
 
                             // Stats in a compact row
-                            ui.label(egui::RichText::new(t!("formula.min")).small().weak());
+                            ui.label(
+                                egui::RichText::new(t!("formula.min"))
+                                    .text_style(fonts::text_style(style::DATA_SM))
+                                    .color(t.ink_subtle),
+                            );
                             ui.label(
                                 egui::RichText::new(format!("{:.2}", min))
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_BLUE),
+                                    .text_style(fonts::text_style(style::DATA))
+                                    .color(t.ink),
                             );
                             ui.add_space(8.0);
 
-                            ui.label(egui::RichText::new(t!("formula.avg")).small().weak());
+                            ui.label(
+                                egui::RichText::new(t!("formula.avg"))
+                                    .text_style(fonts::text_style(style::DATA_SM))
+                                    .color(t.ink_subtle),
+                            );
                             ui.label(
                                 egui::RichText::new(format!("{:.2}", avg))
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_GREEN),
+                                    .text_style(fonts::text_style(style::DATA))
+                                    .color(t.ink),
                             );
                             ui.add_space(8.0);
 
-                            ui.label(egui::RichText::new(t!("formula.max")).small().weak());
+                            ui.label(
+                                egui::RichText::new(t!("formula.max"))
+                                    .text_style(fonts::text_style(style::DATA_SM))
+                                    .color(t.ink_subtle),
+                            );
                             ui.label(
                                 egui::RichText::new(format!("{:.2}", max))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(255, 180, 100)),
+                                    .text_style(fonts::text_style(style::DATA))
+                                    .color(t.ink),
                             );
                         });
 
                         // Sample values
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(t!("formula.sample")).small().weak());
+                            ui.label(
+                                egui::RichText::new(t!("formula.sample"))
+                                    .small()
+                                    .color(t.ink_subtle),
+                            );
                             for (i, val) in preview_values.iter().take(5).enumerate() {
                                 if i > 0 {
-                                    ui.label(egui::RichText::new(",").weak());
+                                    ui.label(egui::RichText::new(",").color(t.ink_subtle));
                                 }
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", val))
-                                        .monospace()
-                                        .color(egui::Color32::GRAY),
+                                        .text_style(fonts::text_style(style::DATA))
+                                        .color(t.ink_muted),
                                 );
                             }
                             if preview_values.len() > 5 {
-                                ui.label(egui::RichText::new("...").weak());
+                                ui.label(egui::RichText::new("…").color(t.ink_subtle));
                             }
                         });
                     }
@@ -270,28 +335,26 @@ impl UltraLogApp {
                 ui.separator();
                 ui.add_space(8.0);
 
-                // Buttons
-                ui.horizontal(|ui| {
-                    if ui.button(t!("formula.cancel")).clicked() {
-                        self.formula_editor_state.close();
-                    }
+                // Footer: actions right-aligned, ghost Cancel, secondary, one primary.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let can_save = !self.formula_editor_state.name.is_empty()
+                        && !self.formula_editor_state.formula.is_empty()
+                        && self.formula_editor_state.validation_error.is_none();
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let can_save = !self.formula_editor_state.name.is_empty()
-                            && !self.formula_editor_state.formula.is_empty()
-                            && self.formula_editor_state.validation_error.is_none();
-
-                        ui.add_enabled_ui(can_save, |ui| {
-                            if ui.button(t!("formula.save")).clicked() {
-                                should_save = true;
-                            }
-                        });
-
-                        // Validate button
-                        if ui.button(t!("formula.validate")).clicked() {
-                            self.validate_current_formula();
+                    ui.add_enabled_ui(can_save, |ui| {
+                        if components::button(ui, Kind::Primary, None, t!("formula.save")).clicked()
+                        {
+                            should_save = true;
                         }
                     });
+                    if components::button(ui, Kind::Secondary, None, t!("formula.validate"))
+                        .clicked()
+                    {
+                        self.validate_current_formula();
+                    }
+                    if components::button(ui, Kind::Ghost, None, t!("formula.cancel")).clicked() {
+                        self.formula_editor_state.close();
+                    }
                 });
             });
 

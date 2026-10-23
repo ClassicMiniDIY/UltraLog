@@ -47,6 +47,7 @@ pub mod chart;
 pub mod computed_channels_manager;
 pub mod export;
 pub mod formula_editor;
+pub mod formula_syntax;
 pub mod histogram;
 pub mod icons;
 pub mod menu;
