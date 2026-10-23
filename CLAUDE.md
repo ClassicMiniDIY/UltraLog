@@ -710,6 +710,10 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 - **strum** (0.28) - Enum string conversion for channel types
 - **regex** (1.13) - Log file parsing
 - **ureq** (3.4) - HTTP client for auto-updates and OpenECU Alliance API
+  - **TLS trusts `webpki-roots`, not the OS store** - ureq's rustls backend uses the root list
+    compiled into the binary. When a CA is distrusted (eMudhra, 2026-10: `webpki-roots` 1.0.10
+    dropped `emSign ECC Root CA - G3`), OS updates do not reach UltraLog users. Bump
+    `webpki-roots`/`rustls-webpki` and ship a tagged release.
 - **semver** (1.0) - Version comparison
 - **serde_norway** (0.9) - YAML parsing for adapter/protocol specs. Replaced `serde_yml`, which was
   flagged unsound (RUSTSEC-2025-0068) and then deprecated; `serde_norway` is the maintained
