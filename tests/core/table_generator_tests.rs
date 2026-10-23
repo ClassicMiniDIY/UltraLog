@@ -240,13 +240,14 @@ fn haltech_blip_log_is_all_rejected_with_a_breakdown() {
     assert!(report.summary().contains("rejected"));
     // Every event, accepted or not, stays in the list.
     assert_eq!(events.len(), report.candidates);
-    // The Haltech sentinel rows are masked, not treated as readings: the
-    // wideband column carries -2147483.637 samples and nothing panicked or
-    // produced an absurd delay.
+    // The raw file has -2147483637 "no reading" sentinels in the wideband
+    // column. The Haltech parser now fills them like blank fields, so no
+    // scaled sentinel (-2147483.637 λ) reaches the generators or the UI, and
+    // nothing panicked or produced an absurd delay.
     let wb = column(&log, "Wideband O2 1");
     assert!(
-        wb.iter().any(|v| *v < -1e6),
-        "fixture should contain sentinels"
+        wb.iter().all(|v| *v > -1e6),
+        "scaled sentinels must not reach the log"
     );
     for e in events.iter().filter(|e| e.accepted()) {
         assert!(e.value(0).is_finite() && e.value(0) < 2000.0);

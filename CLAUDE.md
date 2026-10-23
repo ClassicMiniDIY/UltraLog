@@ -278,9 +278,11 @@ low cells are never interpolated and export blank.
   differences are exactly zero). The previous reading for interpolation is the last update, but no
   earlier than `t - effective_update_interval`: a flat baseline is still being sampled every
   interval, so interpolating from its last value change would place every crossing far too early.
-- **Invalid-sample masking** (`events::mask_invalid`) - Haltech writes an i32 sentinel family
+- **Invalid-sample masking** (`events::mask_invalid`) - ECUs write an i32 sentinel family
   (`-2147483617`, `…637`, …) for "no reading"; those and out-of-band samples become `NaN` before any
-  math, and a window with >10 % masked lambda rejects as `InvalidSamples`.
+  math, and a window with >10 % masked lambda rejects as `InvalidSamples`. Haltech sentinels never
+  get this far: the Haltech parser fills them (see its load-bearing behaviors), so a Haltech wideband
+  dropout reaches the generators as a held value and is caught by steadiness / band gating instead.
 - **Alignment** (`tables::mapped_column`) - `Log::get_channel_data` drops ragged rows, so a column
   can be shorter than `times`; the generators refuse with `ComputationError` rather than index
   misaligned pairs (same contract as `channel_series` in the IPC handler).
@@ -606,6 +608,7 @@ preferences convert them.
 **Haltech parser load-bearing behaviors** (`src/parsers/haltech.rs`, added for wall-clock-timestamped exports):
 
 - **Last-known-value substitution** - Unparseable/blank fields are filled with the last successfully parsed value for that column (`0.0` before the first valid sample), matching the approach used in `parsers/ecumaster.rs`. This preserves column alignment instead of shifting subsequent columns when a field fails to parse.
+- **"No reading" sentinels are filled before scaling** - NSP writes an i32 sentinel family (`-2147483617`, `-2147483637`, ...) when a channel has no reading. The parser checks the *raw* value with `analysis::tables::events::is_invalid_sample` and treats a hit like a blank field (last known value, `0.0` before the first). It must run before `ChannelType::convert_value`: once scaled (lambda / 1000, pressure / 10) the sentinel drops below `SENTINEL_MAGNITUDE`, no longer matches, and showed up as a -31,568,009 AFR minimum on the channel card and a flattened chart.
 - **Midnight rollover handling** - Timestamps are wall-clock time-of-day, so a logging session that crosses midnight wraps from ~86400 back toward 0. The parser tracks the previous raw timestamp and accumulates a 24h (`86_400.0`) offset on each backwards jump greater than 1 second (the 1s guard avoids tripping on timestamp jitter), keeping `times` monotonically increasing. This is the same technique used in `parsers/woolich.rs` (`Log Time` column) — monotonic times are required because computed-channel time-shift lookups binary-search the `times` vector.
 
 ### Data Flow
