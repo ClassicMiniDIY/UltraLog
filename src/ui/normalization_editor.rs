@@ -18,6 +18,11 @@ impl UltraLogApp {
         let mut open = true;
 
         egui::Window::new(t!("normalization.title"))
+            // First open is centered; egui's default (0, 0) put the title bar
+            // over the menu bar. The user can still drag it, and egui keeps
+            // the moved position after that.
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
             .open(&mut open)
             .resizable(true)
             .default_width(550.0)

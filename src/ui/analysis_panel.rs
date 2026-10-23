@@ -55,6 +55,11 @@ impl UltraLogApp {
         let mut open = true;
 
         egui::Window::new(t!("analysis.window_title"))
+            // First open is centered; egui's default (0, 0) put the title bar
+            // over the menu bar. The user can still drag it, and egui keeps
+            // the moved position after that.
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
             .open(&mut open)
             .resizable(true)
             .default_width(550.0)
@@ -391,16 +396,11 @@ impl UltraLogApp {
             .inner_margin(10.0)
             .outer_margin(egui::Margin::symmetric(0, 2))
             .show(ui, |ui| {
-                // Header row with name and Run button
+                // Header row with name and Run buttons. The description goes on
+                // its own full-width row below: inside this row it wrapped
+                // under the right-aligned buttons and the two overlapped.
                 ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.label(egui::RichText::new(&info.name).strong().size(14.0));
-                        ui.label(
-                            egui::RichText::new(&info.description)
-                                .color(egui::Color32::GRAY)
-                                .size(12.0),
-                        );
-                    });
+                    ui.label(egui::RichText::new(&info.name).strong().size(14.0));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // "Run & Chart" button (primary action)
@@ -435,6 +435,12 @@ impl UltraLogApp {
                         }
                     });
                 });
+
+                ui.label(
+                    egui::RichText::new(&info.description)
+                        .color(egui::Color32::GRAY)
+                        .size(12.0),
+                );
 
                 ui.add_space(6.0);
 
