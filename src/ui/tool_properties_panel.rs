@@ -61,19 +61,19 @@ impl UltraLogApp {
                     // Single Plot button
                     let is_single = !stacked_mode;
                     let single_fill = if is_single {
-                        egui::Color32::from_rgb(70, 70, 70)
+                        self.tokens.bg_active
                     } else {
-                        egui::Color32::from_rgb(45, 45, 45)
+                        self.tokens.bg_raised
                     };
                     let single_text_color = if is_single {
-                        egui::Color32::WHITE
+                        self.tokens.ink
                     } else {
-                        egui::Color32::from_rgb(180, 180, 180)
+                        self.tokens.ink_muted
                     };
                     let single_stroke = if is_single {
-                        egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                        egui::Stroke::new(1.5, self.tokens.cyan)
                     } else {
-                        egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                        egui::Stroke::new(1.0, self.tokens.line_control)
                     };
 
                     let single_btn = ui.add(
@@ -100,19 +100,19 @@ impl UltraLogApp {
                     // Stacked Plots button
                     let is_stacked = stacked_mode;
                     let stacked_fill = if is_stacked {
-                        egui::Color32::from_rgb(70, 70, 70)
+                        self.tokens.bg_active
                     } else {
-                        egui::Color32::from_rgb(45, 45, 45)
+                        self.tokens.bg_raised
                     };
                     let stacked_text_color = if is_stacked {
-                        egui::Color32::WHITE
+                        self.tokens.ink
                     } else {
-                        egui::Color32::from_rgb(180, 180, 180)
+                        self.tokens.ink_muted
                     };
                     let stacked_stroke = if is_stacked {
-                        egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                        egui::Stroke::new(1.5, self.tokens.cyan)
                     } else {
-                        egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                        egui::Stroke::new(1.0, self.tokens.line_control)
                     };
 
                     let stacked_btn = ui.add(
@@ -141,7 +141,7 @@ impl UltraLogApp {
             ui.add_space(8.0);
 
             // Computed Channels button
-            let primary_color = egui::Color32::from_rgb(113, 120, 78);
+            let primary_color = self.tokens.cyan;
             let computed_btn = egui::Frame::NONE
                 .fill(primary_color)
                 .corner_radius(4)
@@ -150,12 +150,12 @@ impl UltraLogApp {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new("\u{0192}")
-                                .color(egui::Color32::WHITE)
+                                .color(self.tokens.on_cyan)
                                 .size(font_14),
                         );
                         ui.label(
                             egui::RichText::new(t!("channels.computed_channels"))
-                                .color(egui::Color32::WHITE)
+                                .color(self.tokens.on_cyan)
                                 .size(font_14),
                         );
                     });
@@ -180,7 +180,7 @@ impl UltraLogApp {
             let mut search_text = current_search;
             let mut search_changed = false;
             egui::Frame::NONE
-                .fill(egui::Color32::from_rgb(50, 50, 50))
+                .fill(self.tokens.bg_raised)
                 .corner_radius(4)
                 .inner_margin(egui::vec2(8.0, 6.0))
                 .show(ui, |ui| {
@@ -188,7 +188,7 @@ impl UltraLogApp {
                         ui.label(
                             egui::RichText::new("\u{1F50D}")
                                 .size(font_14)
-                                .color(egui::Color32::GRAY),
+                                .color(self.tokens.ink_subtle),
                         );
                         let response = ui.add(
                             egui::TextEdit::singleline(&mut search_text)
@@ -215,7 +215,7 @@ impl UltraLogApp {
                     total = channel_count
                 ))
                 .size(font_12)
-                .color(egui::Color32::GRAY),
+                .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(4.0);
@@ -235,19 +235,19 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new("\u{1F4CA}")
                         .size(32.0)
-                        .color(egui::Color32::from_rgb(100, 100, 100)),
+                        .color(self.tokens.ink_subtle),
                 );
                 ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new(t!("channels.no_file_selected"))
                         .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_muted),
                 );
                 ui.add_space(4.0);
                 ui.label(
                     egui::RichText::new(t!("channels.load_file_to_view"))
                         .size(font_12)
-                        .color(egui::Color32::from_rgb(100, 100, 100)),
+                        .color(self.tokens.ink_subtle),
                 );
             });
         }
@@ -301,15 +301,15 @@ impl UltraLogApp {
             let is_selected = selected_idx.is_some();
 
             let text_color = if is_empty {
-                egui::Color32::from_rgb(100, 100, 100)
+                self.tokens.ink_disabled
             } else if is_selected {
-                egui::Color32::WHITE
+                self.tokens.ink
             } else {
-                egui::Color32::LIGHT_GRAY
+                self.tokens.ink_muted
             };
 
             let bg_color = if is_selected {
-                egui::Color32::from_rgb(55, 60, 50)
+                self.tokens.bg_active
             } else {
                 egui::Color32::TRANSPARENT
             };
@@ -385,7 +385,7 @@ impl UltraLogApp {
                             t!("channels.empty", count = channels_without.len())
                         ))
                         .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                     )
                     .default_open(false)
                     .show(ui, |ui| {
@@ -437,14 +437,15 @@ impl UltraLogApp {
 
         // "+ New Plot" button
         let new_plot_btn = egui::Frame::NONE
-            .fill(egui::Color32::from_rgb(71, 108, 155))
+            .fill(self.tokens.bg_raised)
+            .stroke(egui::Stroke::new(1.0, self.tokens.line_control))
             .corner_radius(4)
             .inner_margin(egui::vec2(10.0, 6.0))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new("+ New Plot")
-                            .color(egui::Color32::WHITE)
+                            .color(self.tokens.ink)
                             .size(font_14),
                     );
                 });
@@ -504,9 +505,9 @@ impl UltraLogApp {
                                 );
                                 let center = rect.center();
                                 let color = if response.hovered() {
-                                    egui::Color32::WHITE
+                                    self.tokens.ink
                                 } else {
-                                    egui::Color32::LIGHT_GRAY
+                                    self.tokens.ink_muted
                                 };
 
                                 if open {
@@ -528,7 +529,7 @@ impl UltraLogApp {
                                     egui::RichText::new(&header_text)
                                         .size(font_14)
                                         .strong()
-                                        .color(egui::Color32::from_rgb(159, 166, 119)),
+                                        .color(self.tokens.ink),
                                 );
 
                                 // Right-aligned delete button (only if not last plot)
@@ -587,10 +588,7 @@ impl UltraLogApp {
                                     ui.painter().rect_stroke(
                                         rect,
                                         egui::CornerRadius::same(4),
-                                        egui::Stroke::new(
-                                            2.0,
-                                            egui::Color32::from_rgb(71, 108, 155),
-                                        ),
+                                        egui::Stroke::new(2.0, self.tokens.cyan),
                                         egui::StrokeKind::Inside,
                                     );
                                 }
@@ -605,7 +603,7 @@ impl UltraLogApp {
                                         ui.label(
                                             egui::RichText::new("Drag channels here")
                                                 .size(font_14)
-                                                .color(egui::Color32::GRAY)
+                                                .color(self.tokens.ink_subtle)
                                                 .italics(),
                                         );
                                     });
@@ -613,7 +611,7 @@ impl UltraLogApp {
                                     child_ui.add_space(10.0);
                                     for (channel_idx, channel_name) in &plot_channels {
                                         let frame = egui::Frame::NONE
-                                            .fill(egui::Color32::from_rgb(55, 60, 50))
+                                            .fill(self.tokens.bg_active)
                                             .corner_radius(3)
                                             .inner_margin(egui::Margin::symmetric(6, 3));
 
@@ -623,12 +621,12 @@ impl UltraLogApp {
                                                     ui.label(
                                                         egui::RichText::new("✓")
                                                             .size(font_14)
-                                                            .color(egui::Color32::WHITE),
+                                                            .color(self.tokens.ink),
                                                     );
                                                     ui.label(
                                                         egui::RichText::new(channel_name)
                                                             .size(font_14)
-                                                            .color(egui::Color32::WHITE),
+                                                            .color(self.tokens.ink),
                                                     );
                                                 });
                                             })
@@ -702,9 +700,9 @@ impl UltraLogApp {
                         }
 
                         let text_color = if is_empty {
-                            egui::Color32::from_rgb(100, 100, 100)
+                            self.tokens.ink_disabled
                         } else {
-                            egui::Color32::LIGHT_GRAY
+                            self.tokens.ink_muted
                         };
 
                         // Make channel draggable
@@ -717,9 +715,9 @@ impl UltraLogApp {
                                     let is_hovered = ui.ui_contains_pointer();
 
                                     let fill_color = if is_hovered {
-                                        egui::Color32::from_rgb(60, 60, 60)
+                                        self.tokens.bg_hover
                                     } else {
-                                        egui::Color32::from_rgb(45, 45, 45)
+                                        self.tokens.bg_raised
                                     };
 
                                     let frame = egui::Frame::NONE
@@ -732,7 +730,7 @@ impl UltraLogApp {
                                             // Larger, more prominent grab handle icon
                                             ui.label(egui::RichText::new("☰").size(font_14).color(
                                                 if is_hovered {
-                                                    egui::Color32::WHITE
+                                                    self.tokens.ink
                                                 } else {
                                                     text_color
                                                 },
@@ -742,7 +740,7 @@ impl UltraLogApp {
                                                 egui::RichText::new(display_name)
                                                     .size(font_14)
                                                     .color(if is_hovered {
-                                                        egui::Color32::WHITE
+                                                        self.tokens.ink
                                                     } else {
                                                         text_color
                                                     }),
@@ -786,7 +784,7 @@ impl UltraLogApp {
                             channels_without.len()
                         ))
                         .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                     )
                     .default_open(false)
                     .show(ui, |ui| {

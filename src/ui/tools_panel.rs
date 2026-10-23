@@ -55,7 +55,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new("Run signal processing and statistical analysis on log data.")
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
             ui.add_space(8.0);
 
@@ -67,12 +67,12 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(format!("{} analyzers available", analyzer_count))
                         .size(font_12)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
                 ui.add_space(4.0);
 
                 // Open full analysis panel button
-                let primary_color = egui::Color32::from_rgb(113, 120, 78);
+                let primary_color = self.tokens.cyan;
                 let btn = egui::Frame::NONE
                     .fill(primary_color)
                     .corner_radius(4)
@@ -80,7 +80,7 @@ impl UltraLogApp {
                     .show(ui, |ui| {
                         ui.label(
                             egui::RichText::new("Open Analysis Panel")
-                                .color(egui::Color32::WHITE)
+                                .color(self.tokens.on_cyan)
                                 .size(font_14),
                         );
                     });
@@ -105,14 +105,14 @@ impl UltraLogApp {
                             results.len()
                         ))
                         .size(font_12)
-                        .color(egui::Color32::from_rgb(150, 200, 150)),
+                        .color(self.tokens.success),
                     );
                 }
             } else {
                 ui.label(
                     egui::RichText::new("Load a file to access analysis tools")
                         .size(font_12)
-                        .color(egui::Color32::from_rgb(100, 100, 100))
+                        .color(self.tokens.ink_subtle)
                         .italics(),
                 );
             }
@@ -134,7 +134,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("table_gen.section_help"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
             ui.add_space(8.0);
 
@@ -154,7 +154,7 @@ impl UltraLogApp {
                         ui.label(
                             egui::RichText::new(status)
                                 .size(font_12)
-                                .color(egui::Color32::from_rgb(150, 200, 150)),
+                                .color(self.tokens.success),
                         );
                     }
                 });
@@ -163,7 +163,7 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(t!("table_gen.load_file_hint"))
                         .size(font_12)
-                        .color(egui::Color32::from_rgb(100, 100, 100))
+                        .color(self.tokens.ink_subtle)
                         .italics(),
                 );
             }
@@ -185,7 +185,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new("Create virtual channels from mathematical formulas.")
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
             ui.add_space(8.0);
 
@@ -194,14 +194,14 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(format!("{} templates in library", template_count))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
             ui.add_space(4.0);
 
             // Buttons row
             ui.horizontal(|ui| {
                 // New Channel button
-                let accent_color = egui::Color32::from_rgb(113, 120, 78);
+                let accent_color = self.tokens.cyan;
                 let new_btn = egui::Frame::NONE
                     .fill(accent_color)
                     .corner_radius(4)
@@ -209,7 +209,7 @@ impl UltraLogApp {
                     .show(ui, |ui| {
                         ui.label(
                             egui::RichText::new("+ New")
-                                .color(egui::Color32::WHITE)
+                                .color(self.tokens.on_cyan)
                                 .size(font_12),
                         );
                     });
@@ -224,13 +224,13 @@ impl UltraLogApp {
 
                 // Manage Library button
                 let manage_btn = egui::Frame::NONE
-                    .fill(egui::Color32::from_rgb(60, 60, 60))
+                    .fill(self.tokens.bg_raised)
                     .corner_radius(4)
                     .inner_margin(egui::vec2(10.0, 5.0))
                     .show(ui, |ui| {
                         ui.label(
                             egui::RichText::new("Manage Library")
-                                .color(egui::Color32::LIGHT_GRAY)
+                                .color(self.tokens.ink_muted)
                                 .size(font_12),
                         );
                     });
@@ -256,7 +256,7 @@ impl UltraLogApp {
                         channels.len()
                     ))
                     .size(font_12)
-                    .color(egui::Color32::from_rgb(150, 200, 150)),
+                    .color(self.tokens.success),
                 );
             }
 
@@ -266,7 +266,7 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new("Quick Apply:")
                         .size(font_12)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
 
                 // Show first few templates as quick apply buttons
@@ -283,7 +283,7 @@ impl UltraLogApp {
                         egui::Label::new(
                             egui::RichText::new(format!("  • {}", name))
                                 .size(font_12)
-                                .color(egui::Color32::from_rgb(150, 180, 220)),
+                                .color(self.tokens.cyan),
                         )
                         .sense(egui::Sense::click()),
                     );
@@ -317,7 +317,7 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new("Export visualizations as images or documents.")
                         .size(font_12)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
                 ui.add_space(8.0);
 
@@ -343,19 +343,20 @@ impl UltraLogApp {
                     ui.add_enabled_ui(can_export_png, |ui| {
                         let btn = egui::Frame::NONE
                             .fill(if can_export_png {
-                                egui::Color32::from_rgb(71, 108, 155)
+                                self.tokens.bg_raised
                             } else {
-                                egui::Color32::from_rgb(50, 50, 50)
+                                self.tokens.bg_field
                             })
+                            .stroke(egui::Stroke::new(1.0, self.tokens.line_control))
                             .corner_radius(4)
                             .inner_margin(egui::vec2(12.0, 6.0))
                             .show(ui, |ui| {
                                 ui.label(
                                     egui::RichText::new("PNG")
                                         .color(if can_export_png {
-                                            egui::Color32::WHITE
+                                            self.tokens.ink
                                         } else {
-                                            egui::Color32::GRAY
+                                            self.tokens.ink_disabled
                                         })
                                         .size(font_14),
                                 );
@@ -381,19 +382,20 @@ impl UltraLogApp {
                     ui.add_enabled_ui(can_export_pdf, |ui| {
                         let btn = egui::Frame::NONE
                             .fill(if can_export_pdf {
-                                egui::Color32::from_rgb(155, 71, 71)
+                                self.tokens.bg_raised
                             } else {
-                                egui::Color32::from_rgb(50, 50, 50)
+                                self.tokens.bg_field
                             })
+                            .stroke(egui::Stroke::new(1.0, self.tokens.line_control))
                             .corner_radius(4)
                             .inner_margin(egui::vec2(12.0, 6.0))
                             .show(ui, |ui| {
                                 ui.label(
                                     egui::RichText::new("PDF")
                                         .color(if can_export_pdf {
-                                            egui::Color32::WHITE
+                                            self.tokens.ink
                                         } else {
-                                            egui::Color32::GRAY
+                                            self.tokens.ink_disabled
                                         })
                                         .size(font_14),
                                 );
@@ -422,7 +424,7 @@ impl UltraLogApp {
                     ui.label(
                         egui::RichText::new("Load a file to enable export")
                             .size(font_12)
-                            .color(egui::Color32::from_rgb(100, 100, 100))
+                            .color(self.tokens.ink_subtle)
                             .italics(),
                     );
                 } else if self.active_tool == ActiveTool::LogViewer && !has_channels {
@@ -430,7 +432,7 @@ impl UltraLogApp {
                     ui.label(
                         egui::RichText::new("Select channels to enable chart export")
                             .size(font_12)
-                            .color(egui::Color32::from_rgb(100, 100, 100))
+                            .color(self.tokens.ink_subtle)
                             .italics(),
                     );
                 }

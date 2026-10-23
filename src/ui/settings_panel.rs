@@ -65,7 +65,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.language_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
@@ -120,7 +120,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.color_blind_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
@@ -144,7 +144,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.cursor_tracking_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
 
             if self.cursor_tracking {
@@ -177,7 +177,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.scroll_to_zoom_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
             if self.scroll_to_zoom != old_scroll_to_zoom {
                 self.user_settings.scroll_to_zoom = self.scroll_to_zoom;
@@ -197,7 +197,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.show_grid_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
             if self.show_grid != old_show_grid {
                 self.user_settings.show_grid = self.show_grid;
@@ -248,7 +248,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.field_normalization_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
@@ -259,19 +259,19 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(t!("settings.custom_mappings", count = custom_count))
                         .size(font_12)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
             }
 
             // Edit mappings button
             let btn = egui::Frame::NONE
-                .fill(egui::Color32::from_rgb(60, 60, 60))
+                .fill(self.tokens.bg_raised)
                 .corner_radius(4)
                 .inner_margin(egui::vec2(12.0, 6.0))
                 .show(ui, |ui| {
                     ui.label(
                         egui::RichText::new(t!("settings.edit_custom_mappings"))
-                            .color(egui::Color32::LIGHT_GRAY)
+                            .color(self.tokens.ink_muted)
                             .size(font_14),
                     );
                 });
@@ -301,7 +301,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.units_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
             ui.add_space(8.0);
 
@@ -519,7 +519,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.auto_check_desc"))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
@@ -528,7 +528,7 @@ impl UltraLogApp {
             let is_checking = matches!(self.update_state, UpdateState::Checking);
             ui.add_enabled_ui(!is_checking, |ui| {
                 let btn = egui::Frame::NONE
-                    .fill(egui::Color32::from_rgb(60, 60, 60))
+                    .fill(self.tokens.bg_raised)
                     .corner_radius(4)
                     .inner_margin(egui::vec2(12.0, 6.0))
                     .show(ui, |ui| {
@@ -539,7 +539,7 @@ impl UltraLogApp {
                         };
                         ui.label(
                             egui::RichText::new(text)
-                                .color(egui::Color32::LIGHT_GRAY)
+                                .color(self.tokens.ink_muted)
                                 .size(font_14),
                         );
                     });
@@ -560,7 +560,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.current_version", version = version))
                     .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
 
             // Show update status
@@ -571,7 +571,7 @@ impl UltraLogApp {
                         ui.label(
                             egui::RichText::new(t!("settings.checking"))
                                 .size(font_12)
-                                .color(egui::Color32::GRAY),
+                                .color(self.tokens.ink_subtle),
                         );
                     });
                 }
@@ -583,7 +583,7 @@ impl UltraLogApp {
                             t!("settings.update_available", version = &info.new_version)
                         ))
                         .size(font_12)
-                        .color(egui::Color32::from_rgb(150, 200, 150)),
+                        .color(self.tokens.success),
                     );
 
                     let view_btn = ui.add(
@@ -593,7 +593,7 @@ impl UltraLogApp {
                                 t!("settings.view_details")
                             ))
                             .size(font_12)
-                            .color(egui::Color32::from_rgb(150, 180, 220)),
+                            .color(self.tokens.cyan),
                         )
                         .sense(egui::Sense::click()),
                     );
@@ -610,7 +610,7 @@ impl UltraLogApp {
                     ui.label(
                         egui::RichText::new(format!("⚠ {}", msg))
                             .size(font_12)
-                            .color(egui::Color32::from_rgb(200, 150, 100)),
+                            .color(self.tokens.warning),
                     );
                 }
                 _ => {}
