@@ -896,10 +896,16 @@ impl UltraLogApp {
         }
     }
 
-    /// Find the record index closest to the given time
+    /// Find the record index closest to the given time in the active tab's file
     pub fn find_record_at_time(&self, time: f64) -> Option<usize> {
-        // Use the first file with data for record indexing
-        if let Some(file) = self.files.first() {
+        // The record is stored on the active tab and read against that tab's
+        // file, so it must come from the same time axis. Searching the first
+        // loaded file gave "Record 13101 of 10020" once two logs were open.
+        let file_index = self
+            .active_tab
+            .map(|idx| self.tabs[idx].file_index)
+            .unwrap_or(0);
+        if let Some(file) = self.files.get(file_index) {
             let times = file.log.get_times_as_f64();
             if times.is_empty() {
                 return None;
@@ -2471,6 +2477,45 @@ impl eframe::App for UltraLogApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn file_with_times(name: &str, times: Vec<f64>) -> LoadedFile {
+        use crate::parsers::aim::AimChannel;
+        use crate::parsers::types::Meta;
+        use crate::parsers::{Channel, Log, Value};
+        let log = Log {
+            meta: Meta::Empty,
+            channels: vec![Channel::Aim(AimChannel {
+                name: "RPM".to_string(),
+                unit: String::new(),
+            })],
+            data: times.iter().map(|_| vec![Value::Float(0.0)]).collect(),
+            times,
+        };
+        LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    #[test]
+    fn find_record_at_time_uses_the_active_tabs_file() {
+        let mut app = UltraLogApp::default();
+        // File 0 samples at 100 Hz, file 1 at 10 Hz, so the same time maps to
+        // different record indices in each.
+        app.files.push(file_with_times(
+            "fast.csv",
+            (0..2000).map(|i| i as f64 * 0.01).collect(),
+        ));
+        app.files.push(file_with_times(
+            "slow.csv",
+            (0..200).map(|i| i as f64 * 0.1).collect(),
+        ));
+        app.tabs.push(Tab::new(0, "fast.csv".to_string()));
+        app.tabs.push(Tab::new(1, "slow.csv".to_string()));
+
+        app.active_tab = Some(1);
+        assert_eq!(app.find_record_at_time(10.0), Some(100));
+
+        app.active_tab = Some(0);
+        assert_eq!(app.find_record_at_time(10.0), Some(1000));
+    }
 
     #[test]
     fn me442_custom_channel_log_dispatches_to_motorsport_electronics() {
