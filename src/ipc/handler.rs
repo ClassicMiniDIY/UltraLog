@@ -819,24 +819,25 @@ impl UltraLogApp {
 
         // Find channel indices first (while we only have immutable borrow)
         let file = &self.files[file_idx];
-        let x_idx = file
-            .log
-            .channels
-            .iter()
-            .position(|c| c.name().eq_ignore_ascii_case(x_channel));
-        let y_idx = file
-            .log
-            .channels
-            .iter()
-            .position(|c| c.name().eq_ignore_ascii_case(y_channel));
+        let find = |name: &str| {
+            file.log
+                .channels
+                .iter()
+                .position(|c| c.name().eq_ignore_ascii_case(name))
+        };
+        let Some(x) = find(x_channel) else {
+            return IpcResponse::error(format!("Channel not found: {}", x_channel));
+        };
+        let Some(y) = find(y_channel) else {
+            return IpcResponse::error(format!("Channel not found: {}", y_channel));
+        };
 
-        // Switch to scatter plot view
+        // Scatter state lives on the tab, and the indices belong to this file,
+        // so the file's tab must be the active one before the state is written.
+        self.switch_to_file_tab(file_idx);
         self.set_active_tool(ActiveTool::ScatterPlot);
 
-        // Configure the scatter plot (now we can get mutable borrow)
-        if let Some(state) = self.get_scatter_plot_state_mut()
-            && let (Some(x), Some(y)) = (x_idx, y_idx)
-        {
+        if let Some(state) = self.get_scatter_plot_state_mut() {
             state.left.x_channel = Some(x);
             state.left.y_channel = Some(y);
         }
@@ -1040,5 +1041,68 @@ impl UltraLogApp {
             direction,
             r
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::parsers::aim::AimChannel;
+    use crate::parsers::types::Meta;
+    use crate::parsers::{Channel, EcuType, Log, Value};
+    use crate::state::{LoadedFile, Tab};
+
+    fn file_with_channels(name: &str, channels: &[&str]) -> LoadedFile {
+        let log = Log {
+            meta: Meta::Empty,
+            channels: channels
+                .iter()
+                .map(|c| {
+                    Channel::Aim(AimChannel {
+                        name: c.to_string(),
+                        unit: String::new(),
+                    })
+                })
+                .collect(),
+            times: vec![0.0],
+            data: vec![channels.iter().map(|_| Value::Float(0.0)).collect()],
+        };
+        LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    #[test]
+    fn show_scatter_plot_targets_the_requested_files_tab() {
+        let mut app = UltraLogApp::default();
+        app.files
+            .push(file_with_channels("a.xrk", &["Speed", "RPM", "MAP"]));
+        app.files
+            .push(file_with_channels("b.xrk", &["Dwell", "Cut"]));
+        app.tabs.push(Tab::new(0, "a.xrk".to_string()));
+        app.tabs.push(Tab::new(1, "b.xrk".to_string()));
+        // The other file's tab is active, as after loading a second log.
+        app.active_tab = Some(1);
+
+        let response = app.handle_show_scatter_plot("0", "RPM", "MAP");
+
+        assert!(matches!(response, IpcResponse::Ok(_)));
+        assert_eq!(app.active_tab, Some(0));
+        assert_eq!(app.tabs[0].scatter_plot_state.left.x_channel, Some(1));
+        assert_eq!(app.tabs[0].scatter_plot_state.left.y_channel, Some(2));
+        assert_eq!(app.tabs[1].scatter_plot_state.left.x_channel, None);
+    }
+
+    #[test]
+    fn show_scatter_plot_rejects_unknown_channel() {
+        let mut app = UltraLogApp::default();
+        app.files.push(file_with_channels("a.xrk", &["RPM"]));
+        app.tabs.push(Tab::new(0, "a.xrk".to_string()));
+        app.active_tab = Some(0);
+
+        let response = app.handle_show_scatter_plot("0", "RPM", "Boost");
+
+        assert!(matches!(response, IpcResponse::Error { .. }));
+        assert_eq!(app.tabs[0].scatter_plot_state.left.x_channel, None);
     }
 }
