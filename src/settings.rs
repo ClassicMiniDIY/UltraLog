@@ -38,6 +38,14 @@ pub struct UserSettings {
     /// Use the colorblind-friendly chart palette
     #[serde(default)]
     pub color_blind_mode: bool,
+    /// Ultra intensity, 0..=100: how much neon the chrome wears (35 = Night Drive). Never
+    /// changes data colours or text contrast. The serde default is 35, not 0, so a settings
+    /// file from before 3.0.0 opens at Night Drive rather than Stealth.
+    #[serde(default = "default_ultra_intensity")]
+    pub ultra_intensity: u8,
+    /// High contrast theme: true black grounds, AAA text, intensity effects locked off.
+    #[serde(default)]
+    pub high_contrast: bool,
     /// Normalize ECU-specific channel names to standardized names
     #[serde(default = "default_true")]
     pub field_normalization: bool,
@@ -85,6 +93,10 @@ fn default_version() -> u32 {
     1
 }
 
+fn default_ultra_intensity() -> u8 {
+    crate::ui::theme::DEFAULT_INTENSITY as u8
+}
+
 fn default_show_grid() -> bool {
     true
 }
@@ -116,6 +128,8 @@ impl Default for UserSettings {
             unit_preferences: UnitPreferences::default(),
             font_scale: FontScale::default(),
             color_blind_mode: false,
+            ultra_intensity: default_ultra_intensity(),
+            high_contrast: false,
             field_normalization: default_true(),
             cursor_tracking: default_true(),
             auto_check_updates: default_true(),

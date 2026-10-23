@@ -101,6 +101,10 @@ pub struct UltraLogApp {
     // === Accessibility ===
     /// When true, use colorblind-friendly color palette
     pub(crate) color_blind_mode: bool,
+    /// Ultra intensity, 0..=100 (35 = Night Drive)
+    pub(crate) ultra_intensity: u8,
+    /// High contrast theme; locks the intensity effects off
+    pub(crate) high_contrast: bool,
     // === Theme ===
     /// Live Night Drive tokens, rebuilt by `sync_theme` when a theme setting changes.
     pub(crate) tokens: crate::ui::theme::Tokens,
@@ -244,6 +248,8 @@ impl Default for UltraLogApp {
             last_frame_time: None,
             playback_speed: 1.0,
             color_blind_mode: false,
+            ultra_intensity: crate::ui::theme::DEFAULT_INTENSITY as u8,
+            high_contrast: false,
             tokens: crate::ui::theme::tokens_at(crate::ui::theme::ThemeSettings::default()),
             applied_theme: None,
             theme_generation: 0,
@@ -348,6 +354,8 @@ impl UltraLogApp {
             unit_preferences: user_settings.unit_preferences.clone(),
             font_scale: user_settings.font_scale,
             color_blind_mode: user_settings.color_blind_mode,
+            ultra_intensity: user_settings.ultra_intensity.min(100),
+            high_contrast: user_settings.high_contrast,
             field_normalization: user_settings.field_normalization,
             cursor_tracking: user_settings.cursor_tracking,
             auto_check_updates: user_settings.auto_check_updates,
@@ -423,9 +431,9 @@ impl UltraLogApp {
     /// The theme settings implied by the live preference fields.
     fn theme_settings(&self) -> crate::ui::theme::ThemeSettings {
         crate::ui::theme::ThemeSettings {
-            intensity: crate::ui::theme::DEFAULT_INTENSITY,
+            intensity: f32::from(self.ultra_intensity),
             color_blind: self.color_blind_mode,
-            high_contrast: false,
+            high_contrast: self.high_contrast,
         }
     }
 
@@ -2279,6 +2287,8 @@ impl eframe::App for UltraLogApp {
             unit_preferences: self.unit_preferences.clone(),
             font_scale: self.font_scale,
             color_blind_mode: self.color_blind_mode,
+            ultra_intensity: self.ultra_intensity,
+            high_contrast: self.high_contrast,
             field_normalization: self.field_normalization,
             cursor_tracking: self.cursor_tracking,
             auto_check_updates: self.auto_check_updates,

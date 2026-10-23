@@ -39,6 +39,36 @@ impl Default for ThemeSettings {
 /// The Night Drive anchor on the Ultra intensity slider.
 pub const DEFAULT_INTENSITY: f32 = 35.0;
 
+/// Named stops on the Ultra intensity slider. The names are the brand's level names and are not
+/// translated.
+pub const INTENSITY_STOPS: [(u8, &str); 4] = [
+    (0, "Stealth"),
+    (35, "Night Drive"),
+    (70, "Neon"),
+    (100, "Ultra"),
+];
+
+/// How close (in slider units) a value must come to a named stop to snap onto it.
+pub const INTENSITY_DETENT: u8 = 2;
+
+/// The name of the stop nearest to `value` (ties go to the lower stop).
+pub fn intensity_name(value: u8) -> &'static str {
+    INTENSITY_STOPS
+        .iter()
+        .min_by_key(|(stop, _)| stop.abs_diff(value))
+        .map(|(_, name)| *name)
+        .unwrap_or("Night Drive")
+}
+
+/// `value` snapped onto a named stop when it is within [`INTENSITY_DETENT`] of one.
+pub fn snap_intensity(value: u8) -> u8 {
+    INTENSITY_STOPS
+        .iter()
+        .map(|(stop, _)| *stop)
+        .find(|stop| stop.abs_diff(value) <= INTENSITY_DETENT)
+        .unwrap_or(value)
+}
+
 /// Export themes ignore every app setting.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ExportTheme {
@@ -619,6 +649,19 @@ mod tests {
         assert_eq!(div(&t, 0.5), t.div_2);
         assert_eq!(on_seq(&t, 1.0), t.on_seq_6);
         assert_eq!(on_div(&t, 0.0), t.on_div_0);
+    }
+
+    #[test]
+    fn intensity_names_and_detents() {
+        assert_eq!(intensity_name(0), "Stealth");
+        assert_eq!(intensity_name(35), "Night Drive");
+        assert_eq!(intensity_name(52), "Night Drive");
+        assert_eq!(intensity_name(53), "Neon");
+        assert_eq!(intensity_name(100), "Ultra");
+        assert_eq!(snap_intensity(33), 35);
+        assert_eq!(snap_intensity(72), 70);
+        assert_eq!(snap_intensity(98), 100);
+        assert_eq!(snap_intensity(50), 50);
     }
 
     #[test]
