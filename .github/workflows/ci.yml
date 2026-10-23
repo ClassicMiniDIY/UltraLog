@@ -36,6 +36,20 @@ jobs:
         run: cargo fmt --all -- --check
 
   # ============================================
+  # Design tokens - every guaranteed colour pair, every theme
+  # ============================================
+  design-tokens:
+    name: Design Token Contrast
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check contrast
+        run: python3 -I design/tools/check_contrast.py design/tokens/tokens.json
+
+  # ============================================
   # Lint - Clippy analysis
   # ============================================
   lint:

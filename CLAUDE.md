@@ -146,6 +146,10 @@ src/
     ├── toast.rs                      # Toast notification system
     ├── icons.rs                      # Custom icon drawing utilities
     ├── tab_bar.rs                    # Multi-file tab interface
+    ├── theme/
+    │   ├── mod.rs                    # Night Drive runtime: tokens_at, series/seq/div, egui Visuals, install/current
+    │   ├── tokens.rs                 # GENERATED from design/tokens/tokens.json — never edit by hand
+    │   └── codegen.rs                # tokens.json -> tokens.rs generator (cargo run --example gen_theme)
     ├── tool_switcher.rs              # Switch between the five tools (ActiveTool::ALL)
     ├── scatter_plot.rs               # XY scatter plot visualization
     ├── histogram.rs                  # 2D histogram/heatmap view for channel distributions
@@ -663,6 +667,37 @@ Several `UltraLogApp` fields cache expensive per-file, per-channel computations 
 The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.
 
 **Load-bearing invariant:** network fetches are gated by per-provider permits (`FetchPermits` + `TileProvider::max_concurrent_fetches`). The OSM tile usage policy allows at most **2 simultaneous download connections** (<https://operations.osmfoundation.org/policies/tiles/>), so `OpenStreetMap::max_concurrent_fetches` returns 2. Do not raise it and do not bypass the permit gate — exceeding the policy risks a per-IP block that would hit every UltraLog user at once.
+
+### Theme Contract (src/ui/theme/)
+
+UI work follows the Night Drive design system in `design/` (brand book
+`design/design-system/README.md`, brief `design/HANDOFF-APP.md`, implementation plan
+`docs/plans/2026-10-23-night-drive-design-system.md`). The migration is in progress on
+`release/3.0.0`; hard-coded colours outside `src/ui/theme/` are being swept file by file.
+
+- **Never hard-code a colour, size or radius.** Read `UltraLogApp::tokens` (or
+  `theme::current(ctx)` where there is no app reference, e.g. `DataWidget`s) and the
+  `tokens::{space, radius, stroke, text}` modules.
+- **`tokens.rs` is generated.** Edit `design/tokens/tokens.json`, then run
+  `cargo run --example gen_theme`. The test `committed_tokens_match_json` fails when the two
+  drift. The module is `#[rustfmt::skip]` so the generator's output is what gets committed.
+  Resolution rules (night fallback, `{ref}` in-theme, effects from the shadow tokens) are
+  documented at the top of `codegen.rs`; they match `design/tokens/tokens.ts`.
+- **One install path.** `UltraLogApp::sync_theme` runs every frame from `logic()`, derives
+  `ThemeSettings` from the live preference fields and reinstalls only on a change, so a setting
+  toggled anywhere applies next frame without its own hook. `theme::install` pins
+  `ThemePreference::Dark` (otherwise egui follows the OS appearance and swaps in its light
+  style) and stores the tokens in `ctx.data`.
+- **Data colours ignore intensity.** Series, colour maps, status and cursor follow Color blind
+  mode only (tested by `data_colors_ignore_intensity`). The exception is by design: the diverging
+  midpoint `div_2` is a ground-tinted neutral outside Color blind mode.
+- **Series beyond the palette** change stroke, not colour: `theme::series` returns
+  `SeriesStroke::Dashed` for the second lap and `Dotted` after (laps of 10, or of 8 when
+  `color_blind_like` — Color blind mode, High contrast and exports).
+- **Caches of derived colours** must key on `UltraLogApp::theme_generation`, which increments on
+  every install, or they keep the old palette after a theme change.
+- **CI** runs `python3 design/tools/check_contrast.py design/tokens/tokens.json`. A token change
+  that breaks a pair fails the build: fix the token, never relax the check.
 
 ## Key Features
 

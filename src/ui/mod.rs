@@ -53,6 +53,7 @@ pub mod scatter_plot;
 pub mod tab_bar;
 pub mod table_export;
 pub mod table_generator;
+pub mod theme;
 pub mod timeline;
 pub mod toast;
 pub mod tool_switcher;

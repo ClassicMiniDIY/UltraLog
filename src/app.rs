@@ -101,6 +101,13 @@ pub struct UltraLogApp {
     // === Accessibility ===
     /// When true, use colorblind-friendly color palette
     pub(crate) color_blind_mode: bool,
+    // === Theme ===
+    /// Live Night Drive tokens, rebuilt by `sync_theme` when a theme setting changes.
+    pub(crate) tokens: crate::ui::theme::Tokens,
+    /// Settings the current `tokens` were built from (`None` until the first install).
+    applied_theme: Option<crate::ui::theme::ThemeSettings>,
+    /// Incremented on every theme install; caches of derived colours key on it.
+    pub(crate) theme_generation: u64,
     /// When true, normalize field names to standard names
     pub(crate) field_normalization: bool,
     // === Chart View State ===
@@ -237,6 +244,9 @@ impl Default for UltraLogApp {
             last_frame_time: None,
             playback_speed: 1.0,
             color_blind_mode: false,
+            tokens: crate::ui::theme::tokens_at(crate::ui::theme::ThemeSettings::default()),
+            applied_theme: None,
+            theme_generation: 0,
             field_normalization: true, // Enabled by default for better readability
             initial_view_seconds: 60.0, // Start with 60 second view
             scroll_to_zoom: false,
@@ -323,8 +333,7 @@ impl UltraLogApp {
         // Apply fonts
         cc.egui_ctx.set_fonts(fonts);
 
-        // Apply the dark theme once at startup (the app is dark-only)
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        // The Night Drive theme is installed by `sync_theme`, before the first frame below.
 
         // Load user settings and set locale
         let user_settings = UserSettings::load();
@@ -387,6 +396,7 @@ impl UltraLogApp {
             }
         }
 
+        app.sync_theme(&cc.egui_ctx);
         app
     }
 
@@ -408,6 +418,28 @@ impl UltraLogApp {
     #[inline]
     pub fn scaled_font(&self, base_size: f32) -> f32 {
         (base_size * self.font_scale.multiplier()).round()
+    }
+
+    /// The theme settings implied by the live preference fields.
+    fn theme_settings(&self) -> crate::ui::theme::ThemeSettings {
+        crate::ui::theme::ThemeSettings {
+            intensity: crate::ui::theme::DEFAULT_INTENSITY,
+            color_blind: self.color_blind_mode,
+            high_contrast: false,
+        }
+    }
+
+    /// Rebuild and install the tokens when a theme setting changed. Runs every frame, so a
+    /// setting toggled anywhere takes effect on the next frame without its own hook.
+    pub(crate) fn sync_theme(&mut self, ctx: &egui::Context) {
+        let settings = self.theme_settings();
+        if self.applied_theme == Some(settings) {
+            return;
+        }
+        self.tokens = crate::ui::theme::tokens_at(settings);
+        crate::ui::theme::install(ctx, &self.tokens);
+        self.applied_theme = Some(settings);
+        self.theme_generation = self.theme_generation.wrapping_add(1);
     }
 
     // ========================================================================
@@ -2274,6 +2306,9 @@ impl eframe::App for UltraLogApp {
             return;
         }
 
+        // Rebuild the theme if a theme setting changed since the last frame
+        self.sync_theme(ctx);
+
         // Check for updates on startup (runs once)
         self.check_startup_update();
 
@@ -2326,12 +2361,14 @@ impl eframe::App for UltraLogApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Menu bar at top with padding
-        let menu_frame = egui::Frame::NONE.inner_margin(egui::Margin {
-            left: 10,
-            right: 10,
-            top: 8,
-            bottom: 8,
-        });
+        let menu_frame = egui::Frame::NONE
+            .fill(self.tokens.bg_void)
+            .inner_margin(egui::Margin {
+                left: 10,
+                right: 10,
+                top: 8,
+                bottom: 8,
+            });
 
         egui::Panel::top("menu_bar")
             .frame(menu_frame)
@@ -2340,14 +2377,15 @@ impl eframe::App for UltraLogApp {
             });
 
         // Tool switcher panel (pill tabs)
-        let tool_switcher_frame = egui::Frame::NONE
-            .fill(egui::Color32::from_rgb(35, 35, 35))
-            .inner_margin(egui::Margin {
-                left: 10,
-                right: 10,
-                top: 8,
-                bottom: 8,
-            });
+        let tool_switcher_frame =
+            egui::Frame::NONE
+                .fill(self.tokens.bg_panel)
+                .inner_margin(egui::Margin {
+                    left: 10,
+                    right: 10,
+                    top: 8,
+                    bottom: 8,
+                });
 
         egui::Panel::top("tool_switcher")
             .frame(tool_switcher_frame)
@@ -2355,16 +2393,13 @@ impl eframe::App for UltraLogApp {
                 self.render_tool_switcher(ui);
             });
 
-        // Panel background color
-        let panel_bg = egui::Color32::from_rgb(45, 45, 45);
         let panel_frame = egui::Frame::NONE
-            .fill(panel_bg)
+            .fill(self.tokens.bg_panel)
             .inner_margin(egui::Margin::symmetric(10, 10));
 
         // Activity bar (far left, narrow icon strip)
-        let activity_bar_bg = egui::Color32::from_rgb(35, 35, 35);
         let activity_bar_frame = egui::Frame::NONE
-            .fill(activity_bar_bg)
+            .fill(self.tokens.bg_panel)
             .inner_margin(egui::Margin::symmetric(4, 8));
 
         egui::Panel::left("activity_bar")
@@ -2404,73 +2439,76 @@ impl eframe::App for UltraLogApp {
         }
 
         // Main content area - render based on active tool
-        egui::CentralPanel::default().show(ui, |ui| {
-            match self.active_tool {
-                ActiveTool::LogViewer => {
-                    // Tab bar at top (Chrome-style tabs for log files)
-                    self.render_tab_bar(ui);
+        let central_frame = egui::Frame::central_panel(ui.style()).fill(self.tokens.bg_base);
+        egui::CentralPanel::default()
+            .frame(central_frame)
+            .show(ui, |ui| {
+                match self.active_tool {
+                    ActiveTool::LogViewer => {
+                        // Tab bar at top (Chrome-style tabs for log files)
+                        self.render_tab_bar(ui);
 
-                    // Selected channels below tabs
-                    ui.add_space(10.0);
-                    self.render_selected_channels(ui);
+                        // Selected channels below tabs
+                        ui.add_space(10.0);
+                        self.render_selected_channels(ui);
 
-                    ui.add_space(10.0);
-                    ui.separator();
+                        ui.add_space(10.0);
+                        ui.separator();
 
-                    // Right-side data panel (track map + future widgets).
-                    // - When the user has it expanded -> render the full
-                    //   panel carved out before the chart.
-                    // - When collapsed but there's content available ->
-                    //   render a thin rail with an expand affordance so
-                    //   the panel is discoverable. The rail itself is
-                    //   the only entry point; the previous "Show data
-                    //   panel" checkbox was removed.
-                    if self.data_panel_should_show() {
-                        let avail_w = ui.available_width();
-                        let tab_idx = self
-                            .active_tab
-                            .expect("a visible data panel requires an active tab");
-                        let tab_id = self.tabs[tab_idx].id;
-                        let frac = self.tabs[tab_idx]
-                            .data_panel_state
-                            .split_fraction
-                            .clamp(0.2, 0.7);
-                        let max_panel_w = (avail_w * 0.7).max(260.0);
-                        let panel_w = (avail_w * frac).clamp(260.0, max_panel_w);
-                        let panel =
-                            egui::Panel::right(egui::Id::new(("ultralog_data_panel", tab_id)))
-                                .resizable(true)
-                                .default_size(panel_w)
-                                .min_size(260.0)
-                                .max_size(max_panel_w)
-                                .show(ui, |ui| {
-                                    self.render_data_panel(ui);
-                                });
-                        if avail_w > 0.0 {
-                            self.tabs[tab_idx].data_panel_state.split_fraction =
-                                (panel.response.rect.width() / avail_w).clamp(0.2, 0.7);
+                        // Right-side data panel (track map + future widgets).
+                        // - When the user has it expanded -> render the full
+                        //   panel carved out before the chart.
+                        // - When collapsed but there's content available ->
+                        //   render a thin rail with an expand affordance so
+                        //   the panel is discoverable. The rail itself is
+                        //   the only entry point; the previous "Show data
+                        //   panel" checkbox was removed.
+                        if self.data_panel_should_show() {
+                            let avail_w = ui.available_width();
+                            let tab_idx = self
+                                .active_tab
+                                .expect("a visible data panel requires an active tab");
+                            let tab_id = self.tabs[tab_idx].id;
+                            let frac = self.tabs[tab_idx]
+                                .data_panel_state
+                                .split_fraction
+                                .clamp(0.2, 0.7);
+                            let max_panel_w = (avail_w * 0.7).max(260.0);
+                            let panel_w = (avail_w * frac).clamp(260.0, max_panel_w);
+                            let panel =
+                                egui::Panel::right(egui::Id::new(("ultralog_data_panel", tab_id)))
+                                    .resizable(true)
+                                    .default_size(panel_w)
+                                    .min_size(260.0)
+                                    .max_size(max_panel_w)
+                                    .show(ui, |ui| {
+                                        self.render_data_panel(ui);
+                                    });
+                            if avail_w > 0.0 {
+                                self.tabs[tab_idx].data_panel_state.split_fraction =
+                                    (panel.response.rect.width() / avail_w).clamp(0.2, 0.7);
+                            }
+                        } else if self.data_panel_has_content() {
+                            self.render_data_panel_rail(ui);
                         }
-                    } else if self.data_panel_has_content() {
-                        self.render_data_panel_rail(ui);
-                    }
 
-                    // Chart takes remaining space
-                    self.render_chart(ui);
+                        // Chart takes remaining space
+                        self.render_chart(ui);
+                    }
+                    ActiveTool::ScatterPlot => {
+                        ui.add_space(10.0);
+                        self.render_scatter_plot_view(ui);
+                    }
+                    ActiveTool::Histogram => {
+                        ui.add_space(10.0);
+                        self.render_histogram_view(ui);
+                    }
+                    ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
+                        ui.add_space(10.0);
+                        self.render_table_tool_view(ui);
+                    }
                 }
-                ActiveTool::ScatterPlot => {
-                    ui.add_space(10.0);
-                    self.render_scatter_plot_view(ui);
-                }
-                ActiveTool::Histogram => {
-                    ui.add_space(10.0);
-                    self.render_histogram_view(ui);
-                }
-                ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
-                    ui.add_space(10.0);
-                    self.render_table_tool_view(ui);
-                }
-            }
-        });
+            });
     }
 }
 
