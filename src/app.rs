@@ -112,6 +112,10 @@ pub struct UltraLogApp {
     applied_theme: Option<crate::ui::theme::ThemeSettings>,
     /// Incremented on every theme install; caches of derived colours key on it.
     pub(crate) theme_generation: u64,
+    /// Font scale the installed text styles were built for (`None` until the first install).
+    applied_font_scale: Option<FontScale>,
+    /// Language the installed fonts were built for; only `ja` / `zh-CN` load a system CJK font.
+    applied_font_language: Option<crate::i18n::Language>,
     /// When true, normalize field names to standard names
     pub(crate) field_normalization: bool,
     // === Chart View State ===
@@ -253,6 +257,8 @@ impl Default for UltraLogApp {
             tokens: crate::ui::theme::tokens_at(crate::ui::theme::ThemeSettings::default()),
             applied_theme: None,
             theme_generation: 0,
+            applied_font_scale: None,
+            applied_font_language: None,
             field_normalization: true, // Enabled by default for better readability
             initial_view_seconds: 60.0, // Start with 60 second view
             scroll_to_zoom: false,
@@ -305,41 +311,10 @@ impl Default for UltraLogApp {
 }
 
 impl UltraLogApp {
-    /// Create a new UltraLogApp instance with custom fonts
+    /// Create a new UltraLogApp instance
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Load custom Outfit font
-        let mut fonts = egui::FontDefinitions::default();
-
-        // Load Outfit Regular
-        fonts.font_data.insert(
-            "Outfit-Regular".to_owned(),
-            egui::FontData::from_static(include_bytes!("../assets/Outfit-Regular.ttf")).into(),
-        );
-
-        // Load Outfit Bold
-        fonts.font_data.insert(
-            "Outfit-Bold".to_owned(),
-            egui::FontData::from_static(include_bytes!("../assets/Outfit-Bold.ttf")).into(),
-        );
-
-        // Set Outfit as the primary proportional font
-        fonts
-            .families
-            .entry(egui::FontFamily::Proportional)
-            .or_default()
-            .insert(0, "Outfit-Regular".to_owned());
-
-        // Add bold variant for strong text
-        fonts
-            .families
-            .entry(egui::FontFamily::Name("Bold".into()))
-            .or_default()
-            .insert(0, "Outfit-Bold".to_owned());
-
-        // Apply fonts
-        cc.egui_ctx.set_fonts(fonts);
-
-        // The Night Drive theme is installed by `sync_theme`, before the first frame below.
+        // Fonts and the Night Drive theme are installed by `sync_fonts` / `sync_theme`,
+        // before the first frame below.
 
         // Load user settings and set locale
         let user_settings = UserSettings::load();
@@ -404,6 +379,7 @@ impl UltraLogApp {
             }
         }
 
+        app.sync_fonts(&cc.egui_ctx);
         app.sync_theme(&cc.egui_ctx);
         app
     }
@@ -441,13 +417,24 @@ impl UltraLogApp {
     /// setting toggled anywhere takes effect on the next frame without its own hook.
     pub(crate) fn sync_theme(&mut self, ctx: &egui::Context) {
         let settings = self.theme_settings();
-        if self.applied_theme == Some(settings) {
+        if self.applied_theme == Some(settings) && self.applied_font_scale == Some(self.font_scale)
+        {
             return;
         }
         self.tokens = crate::ui::theme::tokens_at(settings);
-        crate::ui::theme::install(ctx, &self.tokens);
+        crate::ui::theme::install(ctx, &self.tokens, self.font_scale.multiplier());
         self.applied_theme = Some(settings);
+        self.applied_font_scale = Some(self.font_scale);
         self.theme_generation = self.theme_generation.wrapping_add(1);
+    }
+
+    /// Reinstall the font families when the language changes (a CJK locale adds a system font).
+    pub(crate) fn sync_fonts(&mut self, ctx: &egui::Context) {
+        if self.applied_font_language == Some(self.language) {
+            return;
+        }
+        crate::ui::fonts::install(ctx, self.language);
+        self.applied_font_language = Some(self.language);
     }
 
     // ========================================================================
@@ -2316,7 +2303,8 @@ impl eframe::App for UltraLogApp {
             return;
         }
 
-        // Rebuild the theme if a theme setting changed since the last frame
+        // Rebuild fonts and theme if the language, font scale or a theme setting changed
+        self.sync_fonts(ctx);
         self.sync_theme(ctx);
 
         // Check for updates on startup (runs once)

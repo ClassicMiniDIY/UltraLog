@@ -146,6 +146,7 @@ src/
     ├── toast.rs                      # Toast notification system
     ├── icons.rs                      # Custom icon drawing utilities
     ├── tab_bar.rs                    # Multi-file tab interface
+    ├── fonts.rs                      # Font families (per weight), script/CJK fallbacks, the type scale as TextStyles
     ├── theme/
     │   ├── mod.rs                    # Night Drive runtime: tokens_at, series/seq/div, egui Visuals, install/current
     │   ├── tokens.rs                 # GENERATED from design/tokens/tokens.json — never edit by hand
@@ -697,6 +698,18 @@ UI work follows the Night Drive design system in `design/` (brand book
   `color_blind_like` — Color blind mode, High contrast and exports).
 - **Caches of derived colours** must key on `UltraLogApp::theme_generation`, which increments on
   every install, or they keep the old palette after a theme change.
+- **Fonts** (`src/ui/fonts.rs`): egui families have no weight axis, so each weight is its own
+  family (`ui-medium`, `ui-semibold`, `display`, `display-bold-italic`, `display-black-italic`,
+  `mono-medium`; Proportional = Outfit 400, Monospace = JetBrains Mono 400), built from static
+  instances in `assets/fonts/` (`scripts/fonts/build_static_fonts.sh`; egui renders only a
+  variable font's default instance). Every family falls back to egui's defaults (Greek,
+  Cyrillic, emoji — Outfit has none of these), bundled Noto Devanagari/Bengali/Arabic, a 3 KB
+  Noto SC subset holding only the language picker's 简体中文日本語, and for `ja`/`zh-CN` only a
+  system CJK `.ttc` read at runtime (`cjk_candidates`; bundling CJK would add ~10 MB).
+  `UltraLogApp::sync_fonts` reinstalls on a language change. The type scale lives in
+  `Style::text_styles` (installed with the visuals, scaled by `FontScale`); use `TextStyle`s and
+  `fonts::style::*` names rather than `FontId::proportional(scaled_font(n))`.
+  Arabic/Urdu still lack right-to-left layout (an egui limitation).
 - **CI** runs `python3 design/tools/check_contrast.py design/tokens/tokens.json`. A token change
   that breaks a pair fails the build: fix the token, never relax the check.
 

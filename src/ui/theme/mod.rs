@@ -327,11 +327,15 @@ pub fn glow(t: &Tokens, color: Color32) -> Option<Shadow> {
     })
 }
 
-/// Pin the app to the dark theme slot and install `t` as its visuals. Without the pin, egui
-/// follows the OS appearance and would swap in its own light style.
-pub fn install(ctx: &egui::Context, t: &Tokens) {
+/// Pin the app to the dark theme slot and install `t` as its visuals, with the type scale at
+/// `font_scale`. Without the pin, egui follows the OS appearance and would swap in its own light
+/// style.
+pub fn install(ctx: &egui::Context, t: &Tokens, font_scale: f32) {
     ctx.set_theme(egui::ThemePreference::Dark);
-    ctx.set_visuals_of(egui::Theme::Dark, visuals(t));
+    ctx.style_mut_of(egui::Theme::Dark, |style| {
+        style.visuals = visuals(t);
+        style.text_styles = crate::ui::fonts::text_styles(font_scale);
+    });
     ctx.data_mut(|d| d.insert_temp(current_id(), *t));
 }
 
