@@ -2375,15 +2375,9 @@ impl eframe::App for UltraLogApp {
             });
 
         // Tool switcher panel (pill tabs)
-        let tool_switcher_frame =
-            egui::Frame::NONE
-                .fill(self.tokens.bg_panel)
-                .inner_margin(egui::Margin {
-                    left: 10,
-                    right: 10,
-                    top: 8,
-                    bottom: 8,
-                });
+        let tool_switcher_frame = egui::Frame::NONE
+            .fill(self.tokens.bg_panel)
+            .inner_margin(egui::Margin::symmetric(12, 0));
 
         egui::Panel::top("tool_switcher")
             .frame(tool_switcher_frame)
@@ -2396,9 +2390,7 @@ impl eframe::App for UltraLogApp {
             .inner_margin(egui::Margin::symmetric(10, 10));
 
         // Activity bar (far left, narrow icon strip)
-        let activity_bar_frame = egui::Frame::NONE
-            .fill(self.tokens.bg_panel)
-            .inner_margin(egui::Margin::symmetric(4, 8));
+        let activity_bar_frame = egui::Frame::NONE.fill(self.tokens.bg_panel);
 
         egui::Panel::left("activity_bar")
             .exact_size(crate::ui::activity_bar::ACTIVITY_BAR_WIDTH)

@@ -351,14 +351,14 @@ impl ActivePanel {
         }
     }
 
-    /// Get the icon character for this panel (using Unicode symbols)
-    /// Note: Activity bar draws custom icons, this is kept for reference
+    /// The Phosphor icon for this panel (activity rail)
     pub fn icon(&self) -> &'static str {
+        use egui_phosphor::regular as icon;
         match self {
-            ActivePanel::Files => "\u{1F4C1}",          // Folder icon
-            ActivePanel::ToolProperties => "\u{1F3DB}", // Sliders icon
-            ActivePanel::Tools => "\u{1F527}",          // Wrench icon
-            ActivePanel::Settings => "\u{2699}",        // Gear icon
+            ActivePanel::Files => icon::FOLDER_SIMPLE,
+            ActivePanel::ToolProperties => icon::SLIDERS_HORIZONTAL,
+            ActivePanel::Tools => icon::CHART_LINE_UP,
+            ActivePanel::Settings => icon::GEAR_SIX,
         }
     }
 }
