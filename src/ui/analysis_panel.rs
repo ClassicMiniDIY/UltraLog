@@ -75,7 +75,7 @@ impl UltraLogApp {
                         ui.label(
                             egui::RichText::new(t!("analysis.no_file_loaded"))
                                 .color(self.tokens.ink_subtle)
-                                .size(16.0),
+                                .heading(),
                         );
                         ui.add_space(8.0);
                         ui.label(
@@ -229,7 +229,7 @@ impl UltraLogApp {
                                 count = results.len()
                             ))
                             .strong()
-                            .size(15.0),
+                            .heading(),
                         );
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -286,7 +286,7 @@ impl UltraLogApp {
                             filtered_infos.len()
                         ))
                         .strong()
-                        .size(15.0),
+                        .heading(),
                     );
                 });
 
@@ -402,7 +402,7 @@ impl UltraLogApp {
                 // its own full-width row below: inside this row it wrapped
                 // under the right-aligned buttons and the two overlapped.
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(&info.name).strong().size(14.0));
+                    ui.label(egui::RichText::new(&info.name).strong().heading());
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // "Run & Chart" button (primary action)
@@ -443,7 +443,7 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(&info.description)
                         .color(t.ink_subtle)
-                        .size(12.0),
+                        .small(),
                 );
 
                 ui.add_space(6.0);

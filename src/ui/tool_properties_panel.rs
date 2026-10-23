@@ -28,9 +28,6 @@ impl UltraLogApp {
     /// Render Log Viewer properties (channel selection)
     fn render_log_viewer_properties(&mut self, ui: &mut egui::Ui) {
         // Pre-compute scaled font sizes
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-        let _font_16 = self.scaled_font(16.0);
 
         // Get active tab info including stacked mode
         let tab_info = self.active_tab.and_then(|tab_idx| {
@@ -53,7 +50,7 @@ impl UltraLogApp {
             // Stacked Mode Toggle Section - Pill Style
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Plot Mode:").size(font_14).strong());
+                    ui.label(egui::RichText::new("Plot Mode:").heading().strong());
                 });
                 ui.add_space(4.0);
 
@@ -79,7 +76,7 @@ impl UltraLogApp {
                     let single_btn = ui.add(
                         egui::Button::new(
                             egui::RichText::new("Single Plot")
-                                .size(font_14)
+                                .text_style(egui::TextStyle::Body)
                                 .color(single_text_color),
                         )
                         .fill(single_fill)
@@ -118,7 +115,7 @@ impl UltraLogApp {
                     let stacked_btn = ui.add(
                         egui::Button::new(
                             egui::RichText::new("Stacked Plots")
-                                .size(font_14)
+                                .text_style(egui::TextStyle::Body)
                                 .color(stacked_text_color),
                         )
                         .fill(stacked_fill)
@@ -151,12 +148,12 @@ impl UltraLogApp {
                         ui.label(
                             egui::RichText::new("\u{0192}")
                                 .color(self.tokens.on_cyan)
-                                .size(font_14),
+                                .text_style(egui::TextStyle::Body),
                         );
                         ui.label(
                             egui::RichText::new(t!("channels.computed_channels"))
                                 .color(self.tokens.on_cyan)
-                                .size(font_14),
+                                .text_style(egui::TextStyle::Body),
                         );
                     });
                 });
@@ -187,7 +184,7 @@ impl UltraLogApp {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new("\u{1F50D}")
-                                .size(font_14)
+                                .text_style(egui::TextStyle::Body)
                                 .color(self.tokens.ink_subtle),
                         );
                         let response = ui.add(
@@ -214,7 +211,7 @@ impl UltraLogApp {
                     max = MAX_CHANNELS,
                     total = channel_count
                 ))
-                .size(font_12)
+                .small()
                 .color(self.tokens.ink_subtle),
             );
 
@@ -234,19 +231,21 @@ impl UltraLogApp {
             ui.vertical_centered(|ui| {
                 ui.label(
                     egui::RichText::new("\u{1F4CA}")
-                        .size(32.0)
+                        .text_style(crate::ui::fonts::text_style(
+                            crate::ui::fonts::style::HEADLINE,
+                        ))
                         .color(self.tokens.ink_subtle),
                 );
                 ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new(t!("channels.no_file_selected"))
-                        .size(font_14)
+                        .text_style(egui::TextStyle::Body)
                         .color(self.tokens.ink_muted),
                 );
                 ui.add_space(4.0);
                 ui.label(
                     egui::RichText::new(t!("channels.load_file_to_view"))
-                        .size(font_12)
+                        .small()
                         .color(self.tokens.ink_subtle),
                 );
             });
@@ -255,7 +254,6 @@ impl UltraLogApp {
 
     /// Render the channel list in compact form
     fn render_channel_list_compact(&mut self, ui: &mut egui::Ui, file_index: usize, search: &str) {
-        let font_14 = self.scaled_font(14.0);
         let search_lower = search.to_lowercase();
 
         let mut channel_to_add: Option<(usize, usize)> = None;
@@ -323,10 +321,14 @@ impl UltraLogApp {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         let check = if is_selected { "\u{2611}" } else { "\u{2610}" };
-                        ui.label(egui::RichText::new(check).size(font_14).color(text_color));
+                        ui.label(
+                            egui::RichText::new(check)
+                                .text_style(egui::TextStyle::Body)
+                                .color(text_color),
+                        );
                         ui.label(
                             egui::RichText::new(display_name)
-                                .size(font_14)
+                                .text_style(egui::TextStyle::Body)
                                 .color(text_color),
                         );
                     });
@@ -357,7 +359,7 @@ impl UltraLogApp {
                             "\u{1F4CA} {}",
                             t!("channels.with_data", count = channels_with.len())
                         ))
-                        .size(font_14)
+                        .heading()
                         .strong(),
                     )
                     .default_open(true)
@@ -384,7 +386,7 @@ impl UltraLogApp {
                             "\u{1F4ED} {}",
                             t!("channels.empty", count = channels_without.len())
                         ))
-                        .size(font_14)
+                        .text_style(egui::TextStyle::Body)
                         .color(self.tokens.ink_subtle),
                     )
                     .default_open(false)
@@ -414,7 +416,6 @@ impl UltraLogApp {
 
     /// Render stacked plot list with channels organized by plot
     fn render_stacked_plot_list(&mut self, ui: &mut egui::Ui, file_index: usize, search: &str) {
-        let font_14 = self.scaled_font(14.0);
         let search_lower = search.to_lowercase();
 
         let Some(tab_idx) = self.active_tab else {
@@ -446,7 +447,7 @@ impl UltraLogApp {
                     ui.label(
                         egui::RichText::new("+ New Plot")
                             .color(self.tokens.ink)
-                            .size(font_14),
+                            .text_style(egui::TextStyle::Body),
                     );
                 });
             });
@@ -527,7 +528,7 @@ impl UltraLogApp {
                                 // Header label
                                 ui.label(
                                     egui::RichText::new(&header_text)
-                                        .size(font_14)
+                                        .heading()
                                         .strong()
                                         .color(self.tokens.ink),
                                 );
@@ -602,7 +603,7 @@ impl UltraLogApp {
                                         ui.add_space(30.0);
                                         ui.label(
                                             egui::RichText::new("Drag channels here")
-                                                .size(font_14)
+                                                .text_style(egui::TextStyle::Body)
                                                 .color(self.tokens.ink_subtle)
                                                 .italics(),
                                         );
@@ -620,12 +621,12 @@ impl UltraLogApp {
                                                 ui.horizontal(|ui| {
                                                     ui.label(
                                                         egui::RichText::new("✓")
-                                                            .size(font_14)
+                                                            .text_style(egui::TextStyle::Body)
                                                             .color(self.tokens.ink),
                                                     );
                                                     ui.label(
                                                         egui::RichText::new(channel_name)
-                                                            .size(font_14)
+                                                            .text_style(egui::TextStyle::Body)
                                                             .color(self.tokens.ink),
                                                     );
                                                 });
@@ -657,11 +658,7 @@ impl UltraLogApp {
                 ui.add_space(8.0);
 
                 // Available channels section
-                ui.label(
-                    egui::RichText::new("Available Channels")
-                        .size(font_14)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("Available Channels").heading().strong());
                 ui.add_space(4.0);
 
                 // Get all available channels not yet selected
@@ -728,17 +725,19 @@ impl UltraLogApp {
                                     frame.show(ui, |ui| {
                                         ui.horizontal(|ui| {
                                             // Larger, more prominent grab handle icon
-                                            ui.label(egui::RichText::new("☰").size(font_14).color(
-                                                if is_hovered {
-                                                    self.tokens.ink
-                                                } else {
-                                                    text_color
-                                                },
-                                            ));
+                                            ui.label(
+                                                egui::RichText::new("☰")
+                                                    .text_style(egui::TextStyle::Body)
+                                                    .color(if is_hovered {
+                                                        self.tokens.ink
+                                                    } else {
+                                                        text_color
+                                                    }),
+                                            );
                                             ui.add_space(4.0);
                                             ui.label(
                                                 egui::RichText::new(display_name)
-                                                    .size(font_14)
+                                                    .text_style(egui::TextStyle::Body)
                                                     .color(if is_hovered {
                                                         self.tokens.ink
                                                     } else {
@@ -763,7 +762,7 @@ impl UltraLogApp {
                             "\u{1F4CA} Channels with Data ({})",
                             channels_with.len()
                         ))
-                        .size(font_14)
+                        .heading()
                         .strong(),
                     )
                     .default_open(true)
@@ -783,7 +782,7 @@ impl UltraLogApp {
                             "\u{1F4ED} Empty Channels ({})",
                             channels_without.len()
                         ))
-                        .size(font_14)
+                        .text_style(egui::TextStyle::Body)
                         .color(self.tokens.ink_subtle),
                     )
                     .default_open(false)

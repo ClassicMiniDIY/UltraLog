@@ -12,26 +12,11 @@ impl UltraLogApp {
     /// Render the application menu bar
     pub fn render_menu_bar(&mut self, ui: &mut egui::Ui) {
         // Pre-compute scaled font sizes for use in closures
-        let font_14 = self.scaled_font(14.0);
-        let font_15 = self.scaled_font(15.0);
 
         egui::MenuBar::new().ui(ui, |ui| {
-            // Increase font size for menu items
-            ui.style_mut()
-                .text_styles
-                .insert(egui::TextStyle::Button, egui::FontId::proportional(font_15));
-
             // File menu
             ui.menu_button(t!("menu.file"), |ui| {
                 ui.set_min_width(180.0);
-
-                // Increase font size for dropdown items
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 let is_loading = matches!(self.loading_state, LoadingState::Loading(_));
 
@@ -88,10 +73,6 @@ impl UltraLogApp {
 
                 ui.add_enabled_ui(can_export, |ui| {
                     ui.menu_button(t!("menu.export"), |ui| {
-                        ui.style_mut()
-                            .text_styles
-                            .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-
                         if has_table_data {
                             if ui.button(t!("menu.export_table_png")).clicked() {
                                 self.export_table_png();
@@ -124,18 +105,11 @@ impl UltraLogApp {
             ui.menu_button(t!("menu.view"), |ui| {
                 ui.set_min_width(200.0);
 
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
-
                 // Chart grid toggle
                 let old_show_grid = self.show_grid;
                 ui.checkbox(
                     &mut self.show_grid,
-                    egui::RichText::new(t!("menu.show_grid")).size(font_14),
+                    egui::RichText::new(t!("menu.show_grid")).text_style(egui::TextStyle::Body),
                 );
                 if self.show_grid != old_show_grid {
                     self.user_settings.show_grid = self.show_grid;
@@ -149,7 +123,7 @@ impl UltraLogApp {
                 // Tool modes
                 ui.label(
                     egui::RichText::new(t!("menu.tool_mode"))
-                        .size(font_14)
+                        .text_style(egui::TextStyle::Body)
                         .color(self.tokens.ink_subtle),
                 );
 
@@ -176,7 +150,7 @@ impl UltraLogApp {
                 // Panel navigation
                 ui.label(
                     egui::RichText::new(t!("menu.side_panel"))
-                        .size(font_14)
+                        .text_style(egui::TextStyle::Body)
                         .color(self.tokens.ink_subtle),
                 );
 
@@ -221,13 +195,6 @@ impl UltraLogApp {
             // Help menu
             ui.menu_button(t!("menu.help"), |ui| {
                 ui.set_min_width(200.0);
-
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 if ui.button(t!("menu.documentation")).clicked() {
                     let _ = open::that("https://github.com/ClassicMiniDIY/UltraLog/wiki");

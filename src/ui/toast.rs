@@ -34,7 +34,7 @@ impl UltraLogApp {
                                 ui.label(
                                     egui::RichText::new(message)
                                         .color(t.ink)
-                                        .size(self.scaled_font(14.0)),
+                                        .text_style(egui::TextStyle::Body),
                                 );
                             });
                     });
