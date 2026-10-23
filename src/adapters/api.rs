@@ -112,6 +112,23 @@ pub fn fetch_adapter(vendor: &str, id: &str) -> Result<AdapterSpec, ApiError> {
         .map_err(|e| ApiError::ParseError(e.to_string()))
 }
 
+/// Log the fields of a fetched spec that fell back to `Unknown`.
+///
+/// The spec is still used; this is the only trace that the API served a value
+/// this build does not know (see the module doc in `types.rs`).
+fn warn_unknown_fields(kind: &str, vendor: &str, id: &str, fields: &[String]) {
+    if !fields.is_empty() {
+        tracing::warn!(
+            "{} {}/{} has {} unrecognized value(s), read as unknown: {}",
+            kind,
+            vendor,
+            id,
+            fields.len(),
+            fields.join(", ")
+        );
+    }
+}
+
 /// Fetch all adapters with full details
 /// This fetches the list first, then fetches each adapter individually
 pub fn fetch_all_adapters() -> Result<Vec<AdapterSpec>, ApiError> {
@@ -120,7 +137,15 @@ pub fn fetch_all_adapters() -> Result<Vec<AdapterSpec>, ApiError> {
     let mut adapters = Vec::with_capacity(summaries.len());
     for summary in summaries {
         match fetch_adapter(&summary.vendor, &summary.id) {
-            Ok(adapter) => adapters.push(adapter),
+            Ok(adapter) => {
+                warn_unknown_fields(
+                    "adapter",
+                    &summary.vendor,
+                    &summary.id,
+                    &adapter.unknown_fields(),
+                );
+                adapters.push(adapter)
+            }
             Err(e) => {
                 tracing::warn!(
                     "Failed to fetch adapter {}/{}: {}",
@@ -188,7 +213,15 @@ pub fn fetch_all_protocols() -> Result<Vec<ProtocolSpec>, ApiError> {
     let mut protocols = Vec::with_capacity(summaries.len());
     for summary in summaries {
         match fetch_protocol(&summary.vendor, &summary.id) {
-            Ok(protocol) => protocols.push(protocol),
+            Ok(protocol) => {
+                warn_unknown_fields(
+                    "protocol",
+                    &summary.vendor,
+                    &summary.id,
+                    &protocol.unknown_fields(),
+                );
+                protocols.push(protocol)
+            }
             Err(e) => {
                 tracing::warn!(
                     "Failed to fetch protocol {}/{}: {}",

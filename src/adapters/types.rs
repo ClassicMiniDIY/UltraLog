@@ -16,9 +16,13 @@
 //! **Load-bearing:** the API serves enum values that `schema/*.schema.json`
 //! does not list (category `status`, signal data types `bool` and `enum`), so
 //! the schema is not a complete list. Each value enum therefore ends in a
-//! `#[serde(other)] Unknown` variant: an unrecognized value degrades that one
-//! field instead of failing the whole spec. `Unknown` serializes as
+//! `#[serde(other)] Unknown` variant: an unrecognized *string* value degrades
+//! that one field instead of failing the whole spec. A `null`, a number or a
+//! missing field still fails the spec in serde_json (the API and cache tiers);
+//! serde_norway maps `null` and scalars to `Unknown`. `Unknown` serializes as
 //! `"unknown"`, so a cached spec keeps the degraded value, not the original.
+//! Because a misspelled value now parses, `unknown_fields()` is the check:
+//! the API tier logs it, and the embedded-spec tests in `registry.rs` fail on it.
 
 use serde::{Deserialize, Serialize};
 
@@ -52,6 +56,22 @@ pub struct AdapterSpec {
     /// Additional metadata
     #[serde(default)]
     pub metadata: Option<MetadataSpec>,
+}
+
+impl AdapterSpec {
+    /// Paths of fields that fell back to `Unknown`, e.g. `channels[3] (rpm).category`
+    pub fn unknown_fields(&self) -> Vec<String> {
+        let mut fields = Vec::new();
+        for (i, ch) in self.channels.iter().enumerate() {
+            if ch.category == ChannelCategory::Unknown {
+                fields.push(format!("channels[{}] ({}).category", i, ch.id));
+            }
+            if ch.data_type == DataType::Unknown {
+                fields.push(format!("channels[{}] ({}).data_type", i, ch.id));
+            }
+        }
+        fields
+    }
 }
 
 /// Branding assets for the vendor
@@ -309,6 +329,27 @@ pub struct ProtocolSpec {
     pub metadata: Option<MetadataSpec>,
 }
 
+impl ProtocolSpec {
+    /// Paths of fields that fell back to `Unknown`, e.g. `messages[0].signals[2] (Gear).data_type`
+    pub fn unknown_fields(&self) -> Vec<String> {
+        let mut fields = Vec::new();
+        if self.protocol.protocol_type == ProtocolType::Unknown {
+            fields.push("protocol.type".to_string());
+        }
+        for (m, msg) in self.messages.iter().enumerate() {
+            for (s, sig) in msg.signals.iter().enumerate() {
+                if sig.data_type == SignalDataType::Unknown {
+                    fields.push(format!(
+                        "messages[{}].signals[{}] ({}).data_type",
+                        m, s, sig.name
+                    ));
+                }
+            }
+        }
+        fields
+    }
+}
+
 /// Protocol configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProtocolInfo {
@@ -435,7 +476,9 @@ pub enum SignalDataType {
     Double,
     /// Single-bit flag; the raw value is 0 or 1
     Bool,
-    /// Discrete value whose labels come from the signal's `enum_ref`
+    /// Discrete value. The API serves its labels as an inline per-signal
+    /// `values` map, which `SignalSpec` does not model yet (serde drops it);
+    /// older specs point at `ProtocolSpec::enums` through `enum_ref`.
     Enum,
     /// A data type this build does not know
     #[serde(other)]

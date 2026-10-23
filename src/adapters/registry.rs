@@ -610,15 +610,20 @@ mod tests {
     /// That means a broken spec is otherwise invisible, so it is caught here
     /// instead. This is what let `data_type: boolean` sit unnoticed in
     /// megasquirt-tunerstudio.adapter.yaml.
+    ///
+    /// Since the value enums gained a `#[serde(other)] Unknown` fallback, a
+    /// typo such as `category: Fuel` parses instead of failing, so the test
+    /// also fails on any field that landed on `Unknown`.
     #[test]
     fn all_embedded_adapters_parse() {
         let failures: Vec<String> = EMBEDDED_ADAPTERS
             .iter()
             .enumerate()
             .filter_map(|(i, yaml)| {
-                serde_norway::from_str::<AdapterSpec>(yaml)
-                    .err()
-                    .map(|e| format!("adapter[{}] ({}): {}", i, spec_label(yaml), e))
+                spec_problem(
+                    serde_norway::from_str::<AdapterSpec>(yaml).map(|s| s.unknown_fields()),
+                )
+                .map(|e| format!("adapter[{}] ({}): {}", i, spec_label(yaml), e))
             })
             .collect();
         assert!(
@@ -637,9 +642,10 @@ mod tests {
             .iter()
             .enumerate()
             .filter_map(|(i, yaml)| {
-                serde_norway::from_str::<ProtocolSpec>(yaml)
-                    .err()
-                    .map(|e| format!("protocol[{}] ({}): {}", i, spec_label(yaml), e))
+                spec_problem(
+                    serde_norway::from_str::<ProtocolSpec>(yaml).map(|s| s.unknown_fields()),
+                )
+                .map(|e| format!("protocol[{}] ({}): {}", i, spec_label(yaml), e))
             })
             .collect();
         assert!(
@@ -648,6 +654,112 @@ mod tests {
             failures.len(),
             EMBEDDED_PROTOCOLS.len(),
             failures.join("\n  ")
+        );
+    }
+
+    /// A parse error, or the fields that fell back to `Unknown`; `None` if clean.
+    fn spec_problem(parsed: Result<Vec<String>, serde_norway::Error>) -> Option<String> {
+        match parsed {
+            Err(e) => Some(e.to_string()),
+            Ok(unknown) if !unknown.is_empty() => {
+                Some(format!("unrecognized value in {}", unknown.join(", ")))
+            }
+            Ok(_) => None,
+        }
+    }
+
+    /// One unrecognized value must cost one field, not the spec: the other
+    /// channels, and the other fields of the same channel, still load.
+    #[test]
+    fn adapter_spec_survives_one_unknown_value() {
+        // Trimmed from GET /api/adapters/speeduino/speeduino-mlg, with one
+        // category changed to a value no build knows.
+        let json = r##"{
+            "openecualliance": "1.0",
+            "id": "speeduino-mlg",
+            "name": "Speeduino MLG",
+            "version": "1.0.0",
+            "vendor": "speeduino",
+            "fileFormat": { "type": "binary", "extensions": [".mlg"] },
+            "channels": [
+                { "id": "rpm", "name": "Engine RPM", "category": "engine",
+                  "dataType": "float", "unit": "rpm", "sourceNames": ["RPM"] },
+                { "id": "rev_limiter_active", "name": "Rev Limiter Active",
+                  "category": "status", "dataType": "bool", "unit": "",
+                  "sourceNames": ["Rev Limiter"] },
+                { "id": "e85", "name": "Ethanol", "category": "flex_fuel",
+                  "dataType": "float", "unit": "%", "sourceNames": ["Ethanol %"] }
+            ]
+        }"##;
+
+        let spec: AdapterSpec = serde_json::from_str(json).expect("one unknown value");
+        assert_eq!(spec.channels.len(), 3);
+        assert_eq!(
+            spec.channels[0].category,
+            crate::adapters::ChannelCategory::Engine
+        );
+        assert_eq!(
+            spec.channels[1].category,
+            crate::adapters::ChannelCategory::Status
+        );
+        assert_eq!(
+            spec.channels[2].category,
+            crate::adapters::ChannelCategory::Unknown
+        );
+        assert_eq!(spec.channels[2].source_names, vec!["Ethanol %"]);
+        assert_eq!(spec.unknown_fields(), vec!["channels[2] (e85).category"]);
+    }
+
+    /// Protocol side of the same contract, on the BMW signal types the API serves.
+    #[test]
+    fn protocol_spec_survives_one_unknown_value() {
+        let json = r##"{
+            "openecualliance": "1.0",
+            "type": "protocol",
+            "id": "bmw-ms42-dme-broadcast",
+            "name": "BMW MS42 DME Broadcast",
+            "version": "1.0.0",
+            "vendor": "bmw",
+            "protocol": { "type": "can", "baudrate": 500000 },
+            "messages": [{
+                "id": "0x316",
+                "name": "DME1",
+                "length": 8,
+                "signals": [
+                    { "name": "LV_SWI_IGK", "startBit": 0, "length": 1,
+                      "byteOrder": "little_endian", "dataType": "bool" },
+                    { "name": "TQ_STATE", "startBit": 4, "length": 4,
+                      "byteOrder": "little_endian", "dataType": "enum" },
+                    { "name": "N_ENG", "startBit": 16, "length": 16,
+                      "byteOrder": "little_endian", "dataType": "fixed_point" }
+                ]
+            }]
+        }"##;
+
+        let spec: ProtocolSpec = serde_json::from_str(json).expect("one unknown value");
+        let sigs = &spec.messages[0].signals;
+        assert_eq!(sigs.len(), 3);
+        assert_eq!(sigs[0].data_type, crate::adapters::SignalDataType::Bool);
+        assert_eq!(sigs[1].data_type, crate::adapters::SignalDataType::Enum);
+        assert_eq!(sigs[2].data_type, crate::adapters::SignalDataType::Unknown);
+        assert_eq!(sigs[2].start_bit, 16);
+        assert_eq!(
+            spec.unknown_fields(),
+            vec!["messages[0].signals[2] (N_ENG).data_type"]
+        );
+    }
+
+    /// The embedded-spec guard must catch a typo that `serde(other)` now accepts.
+    #[test]
+    fn spec_problem_flags_unknown_fields() {
+        let yaml = "openecualliance: '1.0'\nid: t\nname: T\nversion: 1.0.0\nvendor: t\n\
+                    file_format: {type: csv, extensions: ['.csv']}\n\
+                    channels:\n  - {id: rpm, name: RPM, category: Fuel, data_type: float, unit: rpm, source_names: [RPM]}\n";
+        let problem =
+            spec_problem(serde_norway::from_str::<AdapterSpec>(yaml).map(|s| s.unknown_fields()));
+        assert_eq!(
+            problem.as_deref(),
+            Some("unrecognized value in channels[0] (rpm).category")
         );
     }
 
