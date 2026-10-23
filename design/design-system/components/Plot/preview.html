@@ -1,0 +1,41 @@
+<!-- @dsCard group="Data viz" height=330 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Plot — UltraLog</title></head>
+<body>
+<div style="padding:12px;background:var(--bg-base)"><div class="ul-plot">
+  <svg id="plot" viewBox="0 0 900 300" preserveAspectRatio="none" style="height:300px" aria-label="Time-series plot"></svg>
+  <div class="ul-legend">
+    <span class="cur"></span><span class="n">Cursor</span><span class="v">13:26.000</span>
+    <span class="ul-swatch" style="--c:var(--series-1)"></span><span class="n">RPM</span><span class="v">3488.0</span>
+    <span class="ul-swatch" style="--c:var(--series-2)"></span><span class="n">TPS</span><span class="v">18.10</span>
+    <span class="ul-swatch" style="--c:var(--series-3)"></span><span class="n">MAP</span><span class="v">-36.50</span>
+    <span class="ul-swatch" style="--c:var(--series-4)"></span><span class="n">Ign. Timing</span><span class="v">27.70</span>
+  </div></div></div>
+<script>
+
+(function(){
+  var W=900,H=300,svg=document.getElementById('plot'),ns='http://www.w3.org/2000/svg';
+  function el(t,a){var e=document.createElementNS(ns,t);for(var k in a)e.setAttribute(k,a[k]);svg.appendChild(e);return e;}
+  for(var x=0;x<=W;x+=30)el('line',{x1:x,y1:0,x2:x,y2:H-22,'class':x%150===0?'grid-major':'grid'});
+  for(var y=0;y<=H-22;y+=34)el('line',{x1:0,y1:y,x2:W,y2:y,'class':'grid'});
+  var vx=450,vy=170,gb=H-22;for(var k=-10;k<=10;k++)el('line',{x1:vx+k*12,y1:vy,x2:vx+k*95,y2:gb,'class':'floor'});
+  [170,184,204,234].forEach(function(yy){el('line',{x1:0,y1:yy,x2:W,y2:yy,'class':'floor'});});
+  el('rect',{x:540,y:0,width:150,height:H-22,'class':'sel'});
+  var seed=7;function r(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+  function path(fn){var d='';for(var i=0;i<=W;i+=3){d+=(i?'L':'M')+i+' '+Math.max(14,Math.min(266,fn(i))).toFixed(1);}return d;}
+  var specs=[
+    ['--series-1',function(i){return 230-Math.min(i,600)*0.28+(i>640?60*Math.sin((i-640)/45):0)+r()*4;}],
+    ['--series-2',function(i){return i<180?240:i<300?150:i<620?190:80+r()*30;}],
+    ['--series-3',function(i){return 140+40*Math.sin(i/90)+r()*6;}],
+    ['--series-4',function(i){return 90+30*Math.cos(i/60)+(i>400&&i<460?12*Math.sin(i):0)+r()*3;}]
+  ];
+  var names=['RPM','TPS','MAP','Ign'];
+  specs.forEach(function(s,n){var p=el('path',{d:path(s[1]),'class':'series'});p.style.stroke='var('+s[0]+')';p.style.color='var('+s[0]+')';
+    var ly=Math.max(14,Math.min(266,s[1](W)));var t=el('text',{x:W-6,y:ly-5,'text-anchor':'end','class':'endlabel'});t.style.fill='var('+s[0]+')';t.textContent=names[n];});
+  el('line',{x1:440,y1:0,x2:440,y2:H-22,'class':'cursor'});
+  ['798','800','802','804','806','808','810'].forEach(function(t,k){var e=el('text',{x:k*150+4,y:H-6,'class':'tick'});e.textContent=t;});
+})();
+</script>
+</body>
+</html>

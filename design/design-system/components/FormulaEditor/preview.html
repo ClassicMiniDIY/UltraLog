@@ -1,0 +1,16 @@
+<!-- @dsCard group="Inputs" height=250 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Formula editor — UltraLog</title></head>
+<body>
+<div class="ul-stage ul-stage--col" style="background:var(--bg-raised);gap:10px;max-width:620px">
+  <span class="ul-label">Formula</span>
+  <div class="ul-formula is-focus"><span class="ul-tok-ch">"Manifold Pressure"</span> <span class="ul-tok-op">−</span> <span class="ul-tok-ch">"Manifold Pressure"</span><span class="ul-tok-shift">@-0.1s</span> <span class="ul-tok-op">*</span> <span class="ul-tok-num">10</span> <span class="ul-tok-op">/</span> <span class="ul-tok-fn">abs</span><span class="ul-tok-op">(</span><span class="ul-tok-ch">RPM</span><span class="ul-tok-shift">[-1]</span><span class="ul-tok-op">)</span></div>
+  <div class="ul-chips"><span class="ul-caption" style="margin-right:4px">Insert</span><button class="ul-chip">+</button><button class="ul-chip">−</button><button class="ul-chip">*</button><button class="ul-chip">/</button><button class="ul-chip">( )</button><button class="ul-chip">abs</button><button class="ul-chip">sqrt</button><button class="ul-chip">[-1]</button><button class="ul-chip">@-0.1s</button></div>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <span class="ul-inline-status ul-inline-status--success"><svg class="ul-icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>Formula valid</span>
+    <div class="ul-stats"><span>min <b>-14.69</b></span><span>avg <b>-8.82</b></span><span>max <b>-8.69</b></span></div>
+  </div>
+</div>
+</body>
+</html>

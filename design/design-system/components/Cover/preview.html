@@ -1,0 +1,46 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UltraLog</title>
+<style>
+  html, body { margin:0; height:100%; }
+  body { background:var(--bg-void); color:var(--ink); font-family:var(--font-ui); overflow:hidden; }
+  .cover { position:relative; width:960px; height:288px; overflow:hidden; background:var(--bg-void); }
+  .art { position:absolute; top:0; left:480px; width:480px; height:288px; }
+  .art svg { display:block; width:480px; height:288px; }
+  .gold { fill:var(--gold); } .orange { fill:var(--orange); } .magenta { fill:var(--magenta); }
+  .violet { fill:var(--violet); } .cyan { fill:var(--cyan); }
+  .words { position:absolute; left:var(--space-8); bottom:var(--space-8); max-width:440px; }
+  .name { margin:0; font-family:var(--font-display); font-style:italic; font-weight:800; font-size:88px; line-height:.92; letter-spacing:-.01em; color:var(--ink); }
+  .tag { margin:var(--space-2) 0 0 4px; font-size:14px; line-height:20px; color:var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      the sunset half-disc (r 144) cut into bands: gold 52 tall · orange 32 · magenta 20 · violet 12, then a cyan floor slab 480×40 bleeding off the bottom (the accent) — ≈30% of 960×288
+  arrangement a strip of unequal bands stacked down to a horizon, the way the hero art composes its sun over the grid floor
+  pattern     stripes, from the brand's own striped synthwave sun: ground-coloured gaps widening toward the horizon, space-1 → space-2 → space-3 → space-3
+  scales      gaps space-1 (4), space-2 (8), space-3 (12); floor sits space-3 below the last band; square corners (radius-xs at this scale reads as square)
+-->
+<defs><clipPath id="sun"><circle cx="216" cy="240" r="144"/></clipPath></defs>
+<g clip-path="url(#sun)">
+  <rect class="gold" x="0" y="96" width="480" height="52"/>
+  <rect class="orange" x="0" y="152" width="480" height="32"/>
+  <rect class="magenta" x="0" y="192" width="480" height="20"/>
+  <rect class="violet" x="0" y="224" width="480" height="12"/>
+</g>
+<rect class="cyan" x="0" y="248" width="480" height="40"/>
+</svg>
+</div>
+<div class="words">
+  <h1 class="name">UltraLog</h1>
+  <p class="tag">Unlock your performance data.</p>
+</div>
+</div>
+</body>
+</html>
