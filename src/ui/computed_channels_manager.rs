@@ -15,6 +15,7 @@ use crate::expression::{
 use crate::parsers::Channel;
 use crate::parsers::types::ComputedChannelInfo;
 use crate::state::{CHART_COLORS, SelectedChannel};
+use crate::ui::components;
 
 impl UltraLogApp {
     /// Render the computed channels manager window
@@ -27,7 +28,7 @@ impl UltraLogApp {
         let font_12 = self.scaled_font(12.0);
         let font_14 = self.scaled_font(14.0);
 
-        egui::Window::new(t!("computed.title"))
+        let window_response = components::window(t!("computed.title"))
             // First open is centered; egui's default (0, 0) put the title bar
             // over the menu bar. The user can still drag it, and egui keeps
             // the moved position after that.
@@ -235,6 +236,11 @@ impl UltraLogApp {
             self.render_computed_channels_help(ctx);
         }
 
+        components::finish_window(
+            ctx,
+            window_response.as_ref().map(|r| &r.response),
+            &mut open,
+        );
         if !open {
             self.show_computed_channels_manager = false;
         }
@@ -449,7 +455,7 @@ impl UltraLogApp {
     fn render_computed_channels_help(&mut self, ctx: &egui::Context) {
         let mut open = true;
 
-        egui::Window::new(t!("computed.help_title"))
+        let window_response = components::window(t!("computed.help_title"))
             .open(&mut open)
             .resizable(false)
             .default_width(400.0)
@@ -512,6 +518,11 @@ impl UltraLogApp {
                     });
             });
 
+        components::finish_window(
+            ctx,
+            window_response.as_ref().map(|r| &r.response),
+            &mut open,
+        );
         if !open {
             self.show_computed_channels_help = false;
         }

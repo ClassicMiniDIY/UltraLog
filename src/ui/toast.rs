@@ -3,6 +3,8 @@
 use eframe::egui;
 
 use crate::app::UltraLogApp;
+use crate::state::ToastType;
+use crate::ui::components::Status;
 use crate::ui::theme::tokens::radius;
 
 impl UltraLogApp {
@@ -31,11 +33,20 @@ impl UltraLogApp {
                                 // Set min/max width for proper text wrapping
                                 ui.set_min_width(200.0);
                                 ui.set_max_width(400.0);
-                                ui.label(
-                                    egui::RichText::new(message)
-                                        .color(t.ink)
-                                        .text_style(egui::TextStyle::Body),
-                                );
+                                let status = match toast_type {
+                                    ToastType::Info => Status::Info,
+                                    ToastType::Success => Status::Success,
+                                    ToastType::Warning => Status::Warning,
+                                    ToastType::Error => Status::Danger,
+                                };
+                                ui.horizontal_top(|ui| {
+                                    ui.label(egui::RichText::new(status.icon()).color(accent));
+                                    ui.label(
+                                        egui::RichText::new(message)
+                                            .color(t.ink)
+                                            .text_style(egui::TextStyle::Body),
+                                    );
+                                });
                             });
                     });
             } else {

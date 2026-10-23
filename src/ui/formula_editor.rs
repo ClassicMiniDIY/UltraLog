@@ -11,6 +11,7 @@ use crate::computed::ComputedChannelTemplate;
 use crate::expression::{
     build_channel_bindings, extract_channel_references, generate_preview, validate_formula,
 };
+use crate::ui::components;
 
 impl UltraLogApp {
     /// Render the formula editor dialog
@@ -28,7 +29,7 @@ impl UltraLogApp {
             t!("formula.new_computed_channel")
         };
 
-        egui::Window::new(title)
+        let window_response = components::window(title)
             .open(&mut open)
             .resizable(true)
             .default_width(550.0)
@@ -299,6 +300,11 @@ impl UltraLogApp {
             self.save_formula_editor();
         }
 
+        components::finish_window(
+            ctx,
+            window_response.as_ref().map(|r| &r.response),
+            &mut open,
+        );
         if !open {
             self.formula_editor_state.close();
         }

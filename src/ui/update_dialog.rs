@@ -6,6 +6,7 @@ use eframe::egui;
 use rust_i18n::t;
 
 use crate::app::UltraLogApp;
+use crate::ui::components;
 use crate::updater::{InstallResult, UpdateInfo, UpdateState};
 
 impl UltraLogApp {
@@ -18,7 +19,7 @@ impl UltraLogApp {
         let mut open = true;
         let mut should_close = false;
 
-        egui::Window::new(t!("update.update_available"))
+        let window_response = components::window(t!("update.update_available"))
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
@@ -44,6 +45,11 @@ impl UltraLogApp {
                 _ => {}
             });
 
+        components::finish_window(
+            ctx,
+            window_response.as_ref().map(|r| &r.response),
+            &mut open,
+        );
         if !open || should_close {
             self.show_update_dialog = false;
             // Reset state if user dismissed without updating

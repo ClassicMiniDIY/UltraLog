@@ -336,6 +336,8 @@ pub fn install(ctx: &egui::Context, t: &Tokens, font_scale: f32) {
     ctx.style_mut_of(egui::Theme::Dark, |style| {
         style.visuals = visuals(t);
         style.text_styles = crate::ui::fonts::text_styles(font_scale);
+        // Window body padding is space-4 (Window spec).
+        style.spacing.window_margin = egui::Margin::same(ut::space::SPACE_4 as i8);
     });
     ctx.data_mut(|d| d.insert_temp(current_id(), *t));
 }

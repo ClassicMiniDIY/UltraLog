@@ -55,7 +55,7 @@ impl UltraLogApp {
 
         let mut open = true;
 
-        egui::Window::new(t!("analysis.window_title"))
+        let window_response = components::window(t!("analysis.window_title"))
             // First open is centered; egui's default (0, 0) put the title bar
             // over the menu bar. The user can still drag it, and egui keeps
             // the moved position after that.
@@ -99,6 +99,11 @@ impl UltraLogApp {
                 }
             });
 
+        components::finish_window(
+            ctx,
+            window_response.as_ref().map(|r| &r.response),
+            &mut open,
+        );
         if !open {
             self.show_analysis_panel = false;
         }
