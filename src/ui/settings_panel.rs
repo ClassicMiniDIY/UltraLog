@@ -9,6 +9,7 @@ use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::i18n::Language;
 use crate::state::FontScale;
+use crate::ui::components;
 use crate::ui::theme;
 use crate::units::{
     AccelerationUnit, AfrLambdaUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit,
@@ -123,14 +124,8 @@ impl UltraLogApp {
         let width = ui.available_width();
         let small = egui::TextStyle::Small.resolve(ui.style());
         let slider = ui
-            .scope(|ui| {
-                ui.spacing_mut().slider_width = width;
-                ui.add_enabled(
-                    !locked,
-                    egui::Slider::new(&mut value, 0..=100)
-                        .show_value(false)
-                        .step_by(1.0),
-                )
+            .add_enabled_ui(!locked, |ui| {
+                components::intensity_slider(ui, &mut value, width)
             })
             .inner;
         if slider.changed() {
@@ -216,10 +211,10 @@ impl UltraLogApp {
 
             // Colorblind mode
             let old_color_blind_mode = self.color_blind_mode;
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.color_blind_mode,
-                egui::RichText::new(t!("settings.color_blind_mode"))
-                    .text_style(egui::TextStyle::Body),
+                t!("settings.color_blind_mode"),
             );
             if self.color_blind_mode != old_color_blind_mode {
                 analytics::track_colorblind_mode_toggled(self.color_blind_mode);
@@ -234,10 +229,7 @@ impl UltraLogApp {
 
             // High contrast
             let old_high_contrast = self.high_contrast;
-            ui.checkbox(
-                &mut self.high_contrast,
-                egui::RichText::new(t!("settings.high_contrast")).text_style(egui::TextStyle::Body),
-            );
+            components::checkbox(ui, &mut self.high_contrast, t!("settings.high_contrast"));
             if self.high_contrast != old_high_contrast {
                 analytics::track_high_contrast_toggled(self.high_contrast);
             }
@@ -253,20 +245,24 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new(t!("settings.font_size")).text_style(egui::TextStyle::Body),
             );
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.font_scale, FontScale::Small, "S");
-                ui.selectable_value(&mut self.font_scale, FontScale::Medium, "M");
-                ui.selectable_value(&mut self.font_scale, FontScale::Large, "L");
-                ui.selectable_value(&mut self.font_scale, FontScale::ExtraLarge, "XL");
-            });
+            components::segmented(
+                ui,
+                &mut self.font_scale,
+                &[
+                    (FontScale::Small, "S"),
+                    (FontScale::Medium, "M"),
+                    (FontScale::Large, "L"),
+                    (FontScale::ExtraLarge, "XL"),
+                ],
+            );
 
             ui.add_space(8.0);
 
             // Cursor tracking
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.cursor_tracking,
-                egui::RichText::new(t!("settings.cursor_tracking"))
-                    .text_style(egui::TextStyle::Body),
+                t!("settings.cursor_tracking"),
             );
             ui.label(
                 egui::RichText::new(t!("settings.cursor_tracking_desc"))
@@ -297,11 +293,7 @@ impl UltraLogApp {
 
             // Scroll to zoom
             let old_scroll_to_zoom = self.scroll_to_zoom;
-            ui.checkbox(
-                &mut self.scroll_to_zoom,
-                egui::RichText::new(t!("settings.scroll_to_zoom"))
-                    .text_style(egui::TextStyle::Body),
-            );
+            components::checkbox(ui, &mut self.scroll_to_zoom, t!("settings.scroll_to_zoom"));
             ui.label(
                 egui::RichText::new(t!("settings.scroll_to_zoom_desc"))
                     .small()
@@ -318,10 +310,7 @@ impl UltraLogApp {
 
             // Chart grid
             let old_show_grid = self.show_grid;
-            ui.checkbox(
-                &mut self.show_grid,
-                egui::RichText::new(t!("settings.show_grid")).text_style(egui::TextStyle::Body),
-            );
+            components::checkbox(ui, &mut self.show_grid, t!("settings.show_grid"));
             ui.label(
                 egui::RichText::new(t!("settings.show_grid_desc"))
                     .small()
@@ -366,10 +355,10 @@ impl UltraLogApp {
         )
         .default_open(true)
         .show(ui, |ui| {
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.field_normalization,
-                egui::RichText::new(t!("settings.field_normalization"))
-                    .text_style(egui::TextStyle::Body),
+                t!("settings.field_normalization"),
             );
             ui.label(
                 egui::RichText::new(t!("settings.field_normalization_desc"))
@@ -632,10 +621,10 @@ impl UltraLogApp {
         .default_open(true)
         .show(ui, |ui| {
             // Auto-check preference
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.auto_check_updates,
-                egui::RichText::new(t!("settings.check_on_startup"))
-                    .text_style(egui::TextStyle::Body),
+                t!("settings.check_on_startup"),
             );
             ui.label(
                 egui::RichText::new(t!("settings.auto_check_desc"))

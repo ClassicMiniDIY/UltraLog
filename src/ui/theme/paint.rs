@@ -130,27 +130,87 @@ pub fn keyboard_focus_ring(ctx: &egui::Context, t: &Tokens, high_contrast: bool)
     );
 }
 
-/// The synthwave perspective floor: lines from a vanishing point above `rect` fanning to its
-/// bottom edge, crossed by horizontals that close up toward the horizon. Drawn before the
-/// content (drop zone; plots at Ultra).
-pub fn floor(painter: &Painter, rect: Rect, color: Color32) {
+/// The synthwave perspective floor: a horizon on the top edge of `rect`, lines fanning from a
+/// vanishing point above it to the bottom edge, and horizontals that close up toward the
+/// horizon. Returned as shapes so the caller can place them under its content (drop zone; plots
+/// at Ultra). Everything is clipped to `rect`.
+pub fn floor(rect: Rect, color: Color32) -> Vec<Shape> {
     if color.a() == 0 || !rect.is_positive() {
-        return;
+        return Vec::new();
     }
     let s = Stroke::new(stroke::STROKE_HAIRLINE, color);
-    let horizon = rect.top() + rect.height() * 0.35;
-    let vanish = Pos2::new(rect.center().x, horizon);
-    let painter = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
-    let fan = 14;
+    let horizon = rect.top();
+    let vanish = Pos2::new(rect.center().x, horizon - rect.height() * 0.9);
+    let mut shapes = vec![Shape::line_segment(
+        [
+            Pos2::new(rect.left(), horizon),
+            Pos2::new(rect.right(), horizon),
+        ],
+        s,
+    )];
+    let fan = 12;
     for i in 0..=fan {
-        let x = rect.left() - rect.width() * 0.5 + rect.width() * 2.0 * i as f32 / fan as f32;
-        painter.line_segment([vanish, Pos2::new(x, rect.bottom())], s);
+        let x = rect.left() - rect.width() * 0.75 + rect.width() * 2.5 * i as f32 / fan as f32;
+        let end = Pos2::new(x, rect.bottom());
+        // Start where the ray from the vanishing point crosses the horizon.
+        let k = (horizon - vanish.y) / (end.y - vanish.y);
+        let start = vanish + (end - vanish) * k;
+        if let Some(segment) = clip_x([start, end], rect.left(), rect.right()) {
+            shapes.push(Shape::line_segment(segment, s));
+        }
     }
-    let rows = 8;
+    let rows = 4;
     for i in 1..=rows {
-        // Quadratic spacing: rows bunch toward the horizon like a receding floor.
+        // Quadratic spacing: rows spread out toward the viewer like a receding floor.
         let k = (i as f32 / rows as f32).powi(2);
         let y = horizon + (rect.bottom() - horizon) * k;
-        painter.line_segment([Pos2::new(rect.left(), y), Pos2::new(rect.right(), y)], s);
+        shapes.push(Shape::line_segment(
+            [Pos2::new(rect.left(), y), Pos2::new(rect.right(), y)],
+            s,
+        ));
     }
+    shapes
+}
+
+/// Clip a segment to the vertical band `left..=right`.
+fn clip_x([a, b]: [Pos2; 2], left: f32, right: f32) -> Option<[Pos2; 2]> {
+    let (mut t0, mut t1) = (0.0f32, 1.0f32);
+    let dx = b.x - a.x;
+    for (p, q) in [(-dx, a.x - left), (dx, right - a.x)] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+        } else {
+            let r = q / p;
+            if p < 0.0 {
+                t0 = t0.max(r);
+            } else {
+                t1 = t1.min(r);
+            }
+        }
+    }
+    (t0 <= t1).then(|| [a + (b - a) * t0, a + (b - a) * t1])
+}
+
+/// A dashed outline around `rect` with rounded corners (drop zone, low-confidence badges).
+pub fn dashed_rect(painter: &Painter, rect: Rect, corner_radius: f32, stroke: Stroke, dash: f32) {
+    let r = corner_radius
+        .min(rect.width() / 2.0)
+        .min(rect.height() / 2.0);
+    let corners = [
+        (Pos2::new(rect.right() - r, rect.top() + r), -90.0f32),
+        (Pos2::new(rect.right() - r, rect.bottom() - r), 0.0),
+        (Pos2::new(rect.left() + r, rect.bottom() - r), 90.0),
+        (Pos2::new(rect.left() + r, rect.top() + r), 180.0),
+    ];
+    let mut path = vec![Pos2::new(rect.left() + r, rect.top())];
+    for (center, start) in corners {
+        for step in 0..=6 {
+            let a = (start + 15.0 * step as f32).to_radians();
+            path.push(center + egui::vec2(a.cos(), a.sin()) * r);
+        }
+    }
+    path.push(Pos2::new(rect.left() + r, rect.top()));
+    painter.extend(Shape::dashed_line(&path, stroke, dash, dash * 0.75));
 }

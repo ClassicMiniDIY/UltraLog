@@ -51,87 +51,18 @@ impl UltraLogApp {
             // Stacked Mode Toggle Section - Pill Style
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Plot Mode:").heading().strong());
+                    ui.label(egui::RichText::new("Plot mode").heading().strong());
                 });
                 ui.add_space(4.0);
 
-                ui.horizontal(|ui| {
-                    // Single Plot button
-                    let is_single = !stacked_mode;
-                    let single_fill = if is_single {
-                        self.tokens.bg_active
-                    } else {
-                        self.tokens.bg_raised
-                    };
-                    let single_text_color = if is_single {
-                        self.tokens.ink
-                    } else {
-                        self.tokens.ink_muted
-                    };
-                    let single_stroke = if is_single {
-                        egui::Stroke::new(1.5, self.tokens.cyan)
-                    } else {
-                        egui::Stroke::new(1.0, self.tokens.line_control)
-                    };
-
-                    let single_btn = ui.add(
-                        egui::Button::new(
-                            egui::RichText::new("Single Plot")
-                                .text_style(egui::TextStyle::Body)
-                                .color(single_text_color),
-                        )
-                        .fill(single_fill)
-                        .stroke(single_stroke)
-                        .corner_radius(egui::CornerRadius::same(16))
-                        .min_size(egui::vec2(100.0, 32.0)),
-                    );
-
-                    if single_btn.clicked() && stacked_mode {
-                        self.toggle_stacked_mode();
-                    }
-                    if single_btn.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-
-                    ui.add_space(4.0);
-
-                    // Stacked Plots button
-                    let is_stacked = stacked_mode;
-                    let stacked_fill = if is_stacked {
-                        self.tokens.bg_active
-                    } else {
-                        self.tokens.bg_raised
-                    };
-                    let stacked_text_color = if is_stacked {
-                        self.tokens.ink
-                    } else {
-                        self.tokens.ink_muted
-                    };
-                    let stacked_stroke = if is_stacked {
-                        egui::Stroke::new(1.5, self.tokens.cyan)
-                    } else {
-                        egui::Stroke::new(1.0, self.tokens.line_control)
-                    };
-
-                    let stacked_btn = ui.add(
-                        egui::Button::new(
-                            egui::RichText::new("Stacked Plots")
-                                .text_style(egui::TextStyle::Body)
-                                .color(stacked_text_color),
-                        )
-                        .fill(stacked_fill)
-                        .stroke(stacked_stroke)
-                        .corner_radius(egui::CornerRadius::same(16))
-                        .min_size(egui::vec2(100.0, 32.0)),
-                    );
-
-                    if stacked_btn.clicked() && !stacked_mode {
-                        self.toggle_stacked_mode();
-                    }
-                    if stacked_btn.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                });
+                let mut stacked = stacked_mode;
+                if components::segmented(
+                    ui,
+                    &mut stacked,
+                    &[(false, "Single plot"), (true, "Stacked plots")],
+                ) {
+                    self.toggle_stacked_mode();
+                }
             });
 
             ui.add_space(8.0);

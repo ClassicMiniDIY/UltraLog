@@ -1,11 +1,21 @@
 //! Files panel - file management, loading, and file list.
+//!
+//! The empty state is the DropZone (`design/design-system/components/DropZone/README.md`): a
+//! dashed `line_control` border on `bg_panel` with the perspective floor rising from the bottom
+//! edge, a Saira italic title, one primary "Select a file" and the extensions in mono. While a
+//! file is dragged over the window the border goes solid `cyan` on `cyan_soft`.
 
-use eframe::egui;
+use eframe::egui::{self, Align2, CornerRadius, FontId, Rect, RichText, Stroke, StrokeKind};
 use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::state::{LoadingState, SUPPORTED_EXTENSIONS};
-use crate::ui::icons::draw_upload_icon;
+use crate::ui::components::{self, Kind, icon};
+use crate::ui::fonts::{self, style};
+use crate::ui::theme::{
+    paint,
+    tokens::{radius, space, stroke},
+};
 
 impl UltraLogApp {
     /// Render the files panel content (called from side_panel.rs)
@@ -34,18 +44,18 @@ impl UltraLogApp {
                 self.render_add_file_button(ui);
             });
         } else if !is_loading {
-            // Nice drop zone when no files loaded
             self.render_drop_zone_card(ui);
         }
     }
 
     /// Render the list of loaded files
     fn render_file_list(&mut self, ui: &mut egui::Ui) {
+        let t = self.tokens;
         let mut file_to_remove: Option<usize> = None;
         let mut file_to_switch: Option<usize> = None;
 
         // Collect file info upfront to avoid borrow issues
-        let file_info: Vec<(String, bool, String, usize, usize)> = self
+        let file_info: Vec<(String, bool, &'static str, String, usize, usize)> = self
             .files
             .iter()
             .enumerate()
@@ -53,6 +63,7 @@ impl UltraLogApp {
                 (
                     file.name.clone(),
                     self.selected_file == Some(i),
+                    file.ecu_type.short_code(),
                     file.ecu_type.name().to_string(),
                     file.log.channels.len(),
                     file.log.data.len(),
@@ -61,93 +72,67 @@ impl UltraLogApp {
             .collect();
 
         ui.label(
-            egui::RichText::new(t!("files.loaded_files", count = file_info.len()))
-                .size(self.scaled_font(13.0))
-                .color(egui::Color32::GRAY),
+            RichText::new(t!("files.loaded_files", count = file_info.len()))
+                .text_style(fonts::text_style(style::LABEL))
+                .color(t.ink_muted),
         );
-        ui.add_space(4.0);
+        ui.add_space(space::SPACE_1);
 
-        for (i, (file_name, is_selected, ecu_name, channel_count, data_count)) in
+        for (i, (file_name, is_selected, code, ecu_name, channel_count, data_count)) in
             file_info.iter().enumerate()
         {
-            // File card with selection highlight
-            let card_bg = if *is_selected {
-                egui::Color32::from_rgb(50, 55, 45) // Subtle olive tint for selected
-            } else {
-                egui::Color32::from_rgb(40, 40, 40)
-            };
-
-            let card_border = if *is_selected {
-                egui::Color32::from_rgb(113, 120, 78) // Olive green for selected
-            } else {
-                egui::Color32::from_rgb(55, 55, 55)
-            };
-
+            let border = if *is_selected { t.cyan } else { t.line };
             egui::Frame::NONE
-                .fill(card_bg)
-                .stroke(egui::Stroke::new(1.0, card_border))
-                .corner_radius(6)
-                .inner_margin(egui::Margin::symmetric(10, 8))
+                .fill(if *is_selected {
+                    t.bg_active
+                } else {
+                    t.bg_raised
+                })
+                .stroke(Stroke::new(stroke::STROKE_HAIRLINE, border))
+                .corner_radius(CornerRadius::same(radius::RADIUS_MD))
+                .inner_margin(egui::Margin::symmetric(
+                    space::SPACE_3 as i8,
+                    space::SPACE_2 as i8,
+                ))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        // File name (clickable)
+                        components::ecu_badge(ui, code).on_hover_text(ecu_name.as_str());
                         let response = ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(file_name)
-                                    .size(self.scaled_font(14.0))
-                                    .color(if *is_selected {
-                                        egui::Color32::WHITE
-                                    } else {
-                                        egui::Color32::LIGHT_GRAY
-                                    }),
-                            )
+                            egui::Label::new(RichText::new(file_name).color(if *is_selected {
+                                t.ink
+                            } else {
+                                t.ink_muted
+                            }))
+                            .truncate()
                             .sense(egui::Sense::click()),
                         );
-
                         if response.clicked() {
                             file_to_switch = Some(i);
                         }
-
                         if response.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
 
-                        // Spacer
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            // Delete button
-                            let close_btn = ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("x")
-                                        .size(self.scaled_font(16.0))
-                                        .color(egui::Color32::from_rgb(150, 150, 150)),
-                                )
-                                .sense(egui::Sense::click()),
-                            );
-
-                            if close_btn.clicked() {
+                            if components::icon_button(ui, icon::X, "Remove log").clicked() {
                                 file_to_remove = Some(i);
-                            }
-
-                            if close_btn.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
                         });
                     });
 
-                    // ECU type and data info
                     ui.label(
-                        egui::RichText::new(t!(
+                        RichText::new(t!(
                             "files.file_info",
                             ecu = ecu_name,
                             channels = channel_count,
                             points = data_count
                         ))
-                        .size(self.scaled_font(11.0))
-                        .color(egui::Color32::GRAY),
+                        .text_style(fonts::text_style(style::DATA_SM))
+                        .color(t.ink_subtle),
                     );
                 });
 
-            ui.add_space(4.0);
+            ui.add_space(space::SPACE_1);
         }
 
         // Handle deferred file switching
@@ -162,85 +147,65 @@ impl UltraLogApp {
 
     /// Render the "Add File" button
     fn render_add_file_button(&mut self, ui: &mut egui::Ui) {
-        let primary_color = egui::Color32::from_rgb(113, 120, 78); // Olive green
-
-        let button_response = egui::Frame::NONE
-            .fill(primary_color)
-            .corner_radius(6)
-            .inner_margin(egui::vec2(16.0, 8.0))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("+")
-                            .color(egui::Color32::WHITE)
-                            .size(self.scaled_font(16.0)),
-                    );
-                    ui.label(
-                        egui::RichText::new(t!("files.add_file"))
-                            .color(egui::Color32::WHITE)
-                            .size(self.scaled_font(14.0)),
-                    );
-                });
-            });
-
-        if button_response
-            .response
-            .interact(egui::Sense::click())
-            .clicked()
+        if components::button(ui, Kind::Secondary, Some(icon::PLUS), t!("files.add_file")).clicked()
             && let Some(path) = rfd::FileDialog::new()
                 .add_filter("Log Files", crate::state::SUPPORTED_EXTENSIONS)
                 .pick_file()
         {
             self.start_loading_file(path);
         }
-
-        if button_response.response.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
     }
 
     /// Render the drop zone card for when no files are loaded
     fn render_drop_zone_card(&mut self, ui: &mut egui::Ui) {
-        let primary_color = egui::Color32::from_rgb(113, 120, 78); // Olive green
-        let card_bg = egui::Color32::from_rgb(45, 45, 45);
-        let text_gray = egui::Color32::from_rgb(150, 150, 150);
+        let t = self.tokens;
+        let dragging = ui.ctx().input(|i| !i.raw.hovered_files.is_empty());
 
-        ui.add_space(20.0);
-
-        // Drop zone card
-        egui::Frame::NONE
-            .fill(card_bg)
-            .corner_radius(12)
-            .inner_margin(20.0)
+        ui.add_space(space::SPACE_3);
+        let frame = egui::Frame::NONE.inner_margin(egui::Margin::symmetric(
+            space::SPACE_4 as i8,
+            space::SPACE_6 as i8,
+        ));
+        // Reserve slots so the fill and the floor paint under the content.
+        let fill_slot = ui.painter().add(egui::Shape::Noop);
+        let floor_slot = ui.painter().add(egui::Shape::Noop);
+        let response = frame
             .show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.vertical_centered(|ui| {
-                    // Upload icon
-                    let icon_size = 32.0;
-                    let (icon_rect, _) = ui.allocate_exact_size(
-                        egui::vec2(icon_size, icon_size),
-                        egui::Sense::hover(),
+                    // Upload mark: cyan ring with the upload icon
+                    let size = 44.0;
+                    let (mark, _) =
+                        ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
+                    ui.painter().circle_stroke(
+                        mark.center(),
+                        size / 2.0 - 1.0,
+                        Stroke::new(1.5, t.cyan),
                     );
-                    draw_upload_icon(ui, icon_rect.center(), icon_size, primary_color);
+                    ui.painter().text(
+                        mark.center(),
+                        Align2::CENTER_CENTER,
+                        icon::UPLOAD_SIMPLE,
+                        FontId::proportional(20.0),
+                        t.cyan,
+                    );
 
-                    ui.add_space(12.0);
+                    ui.add_space(space::SPACE_2);
+                    ui.label(
+                        RichText::new(t!("files.drop_file_here"))
+                            .text_style(fonts::text_style(style::TITLE))
+                            .family(egui::FontFamily::Name(fonts::DISPLAY_BOLD_ITALIC.into()))
+                            .color(t.ink),
+                    );
+                    ui.add_space(space::SPACE_2);
 
-                    // Select file button
-                    let button_response = egui::Frame::NONE
-                        .fill(primary_color)
-                        .corner_radius(6)
-                        .inner_margin(egui::vec2(16.0, 8.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                egui::RichText::new(t!("files.select_file"))
-                                    .color(egui::Color32::WHITE)
-                                    .size(self.scaled_font(14.0)),
-                            );
-                        });
-
-                    if button_response
-                        .response
-                        .interact(egui::Sense::click())
-                        .clicked()
+                    if components::button(
+                        ui,
+                        Kind::Primary,
+                        Some(icon::UPLOAD_SIMPLE),
+                        t!("files.select_file"),
+                    )
+                    .clicked()
                         && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Log Files", crate::state::SUPPORTED_EXTENSIONS)
                             .pick_file()
@@ -248,39 +213,55 @@ impl UltraLogApp {
                         self.start_loading_file(path);
                     }
 
-                    if button_response.response.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-
-                    ui.add_space(12.0);
-
-                    ui.label(
-                        egui::RichText::new(t!("files.or"))
-                            .color(text_gray)
-                            .size(self.scaled_font(12.0)),
-                    );
-
-                    ui.add_space(8.0);
-
-                    ui.label(
-                        egui::RichText::new(t!("files.drop_file_here"))
-                            .color(egui::Color32::LIGHT_GRAY)
-                            .size(self.scaled_font(13.0)),
-                    );
-
-                    ui.add_space(12.0);
-
+                    ui.add_space(space::SPACE_3);
                     let extensions_text = SUPPORTED_EXTENSIONS
                         .iter()
                         .map(|ext| ext.to_uppercase())
                         .collect::<Vec<_>>()
-                        .join(" \u{2022} ");
+                        .join(" \u{00B7} ");
                     ui.label(
-                        egui::RichText::new(extensions_text)
-                            .color(text_gray)
-                            .size(self.scaled_font(11.0)),
+                        RichText::new(extensions_text)
+                            .text_style(fonts::text_style(style::DATA_SM))
+                            .color(t.ink_subtle),
                     );
                 });
-            });
+            })
+            .response;
+
+        let rect = response.rect;
+        let corner = CornerRadius::same(radius::RADIUS_LG);
+        ui.painter().set(
+            fill_slot,
+            egui::Shape::rect_filled(
+                rect,
+                corner,
+                if dragging { t.cyan_soft } else { t.bg_panel },
+            ),
+        );
+        let floor = Rect::from_min_max(
+            egui::pos2(rect.left() + 1.0, rect.top() + rect.height() * 0.62),
+            rect.right_bottom() - egui::vec2(1.0, 1.0),
+        );
+        ui.painter().set(
+            floor_slot,
+            egui::Shape::Vec(paint::floor(floor, t.grid_floor)),
+        );
+
+        if dragging {
+            ui.painter().rect_stroke(
+                rect,
+                corner,
+                Stroke::new(stroke::STROKE_INDICATOR, t.cyan),
+                StrokeKind::Inside,
+            );
+        } else {
+            paint::dashed_rect(
+                ui.painter(),
+                rect.shrink(0.5),
+                f32::from(radius::RADIUS_LG),
+                Stroke::new(stroke::STROKE_HAIRLINE, t.line_control),
+                4.0,
+            );
+        }
     }
 }
