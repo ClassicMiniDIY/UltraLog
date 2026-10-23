@@ -139,8 +139,7 @@ src/
     ├── widgets/
     │   ├── mod.rs                    # DataWidget trait + static widget registry
     │   └── track_map.rs              # GPS Track Map widget (polyline, laps, tile backgrounds)
-    ├── sidebar.rs                    # Legacy files panel, superseded by files_panel (kept, not wired into render path)
-    ├── channels.rs                   # Selected-channel cards; legacy channel-picker superseded by tool_properties_panel
+    ├── channels.rs                   # Selected-channel cards
     ├── chart.rs                      # Chart rendering, legends, LTTB algorithm
     ├── timeline.rs                   # Timeline scrubber and playback controls
     ├── menu.rs                       # Menu bar (Units, Tools, Help menus)
@@ -374,17 +373,16 @@ it, so a ragged log yields a pair that is *misaligned*, not merely short — and
 
 ### UI Modules (src/ui/)
 
-UI rendering is split into focused modules that implement methods on `UltraLogApp`. The current layout is a VS Code-style activity bar + side panel; a couple of pre-activity-bar modules remain in the tree but are superseded (noted below):
+UI rendering is split into focused modules that implement methods on `UltraLogApp`. The layout is a VS Code-style activity bar + side panel:
 
 - **`activity_bar.rs`** - Vertical icon strip on the far left for switching between side-panel sections (Files / Tool Properties / Tools / Settings)
 - **`side_panel.rs`** - Container that routes to the panel selected in the activity bar
-- **`files_panel.rs`** - File management, loading, and file list (current files panel — see `sidebar.rs` note below)
+- **`files_panel.rs`** - File management, loading, and file list
 - **`tools_panel.rs`** - Analysis tools, computed channels library, and export options, inline in the side panel
 - **`settings_panel.rs`** - Consolidated settings: display, units, normalization, updates
 - **`tool_properties_panel.rs`** - Dynamic panel showing controls for the active tool: channel selection for Log Viewer, axis/grid/filter controls for Histogram, controls for Scatter Plot
 - **`analysis_panel.rs`** - Window for running `src/analysis` algorithms (filters, statistics, AFR, derived metrics) against the active log, with category tabs
-- **`sidebar.rs`** - Legacy file list/drop-zone panel, superseded by `files_panel.rs` (module still compiles but its render methods are not called from `app.rs`)
-- **`channels.rs`** - Selected-channel cards (`render_selected_channels`, still active) plus a legacy channel-picker list (`render_channel_selection`) superseded by `tool_properties_panel.rs`
+- **`channels.rs`** - Selected-channel cards (`render_selected_channels`); channel picking lives in `tool_properties_panel.rs`
 - **`chart.rs`** - Main chart with egui_plot, min/max legend overlay, LTTB downsampling, normalization
 - **`timeline.rs`** - Bottom panel: playback controls (play/pause/stop), speed selector, timeline scrubber
 - **`menu.rs`** - Top menu bar (File, Edit, View, Help; Units submenu with 8 unit categories)

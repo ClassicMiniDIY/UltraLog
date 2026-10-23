@@ -11,7 +11,6 @@
 //! - `settings_panel` - Consolidated settings (display, units, normalization, updates)
 //!
 //! ## Core UI Components
-//! - `sidebar` - Legacy files panel (being replaced by files_panel)
 //! - `channels` - Legacy channel selection (being replaced by channels_panel)
 //! - `chart` - Main chart rendering and legends
 //! - `timeline` - Timeline scrubber and playback controls
@@ -51,7 +50,6 @@ pub mod icons;
 pub mod menu;
 pub mod normalization_editor;
 pub mod scatter_plot;
-pub mod sidebar;
 pub mod tab_bar;
 pub mod table_export;
 pub mod table_generator;
