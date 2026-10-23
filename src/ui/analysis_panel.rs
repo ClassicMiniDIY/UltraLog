@@ -400,6 +400,7 @@ impl UltraLogApp {
 
         egui::Frame::NONE
             .fill(card_bg)
+            .stroke(egui::Stroke::new(1.0, t.line))
             .corner_radius(6)
             .inner_margin(10.0)
             .outer_margin(egui::Margin::symmetric(0, 2))

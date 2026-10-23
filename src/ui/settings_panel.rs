@@ -11,6 +11,7 @@ use crate::i18n::Language;
 use crate::state::FontScale;
 use crate::ui::components;
 use crate::ui::theme;
+use crate::ui::theme::tokens::space;
 use crate::units::{
     AccelerationUnit, AfrLambdaUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit,
     SpeedUnit, TemperatureUnit, VolumeUnit,
@@ -102,8 +103,11 @@ impl UltraLogApp {
         let t = self.tokens;
         let locked = self.high_contrast;
         let mut value = self.ultra_intensity;
+        // Keep clear of the panel's floating scroll bar so the readout and "Ultra" stay visible.
+        let width = ui.available_width() - ui.spacing().scroll.bar_width - space::SPACE_1;
 
         ui.horizontal(|ui| {
+            ui.set_max_width(width);
             ui.label(
                 egui::RichText::new(t!("settings.ultra_intensity"))
                     .text_style(egui::TextStyle::Body),
@@ -121,7 +125,6 @@ impl UltraLogApp {
             });
         });
 
-        let width = ui.available_width();
         let small = egui::TextStyle::Small.resolve(ui.style());
         let slider = ui
             .add_enabled_ui(!locked, |ui| {

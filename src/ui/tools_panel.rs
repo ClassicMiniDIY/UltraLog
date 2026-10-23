@@ -69,7 +69,7 @@ impl UltraLogApp {
                         ui,
                         Kind::Primary,
                         Some(icon::FLASK),
-                        "Open Analysis Panel",
+                        "Open analysis panel",
                     )
                     .clicked()
                     {
@@ -180,7 +180,7 @@ impl UltraLogApp {
                 if components::button_sm(ui, Kind::Ghost, Some(icon::PLUS), "New").clicked() {
                     self.formula_editor_state.open_new();
                 }
-                if components::button_sm(ui, Kind::Secondary, None, "Manage Library").clicked() {
+                if components::button_sm(ui, Kind::Secondary, None, "Manage library").clicked() {
                     self.show_computed_channels_manager = true;
                 }
             });

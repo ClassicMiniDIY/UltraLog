@@ -348,7 +348,7 @@ impl UltraLogApp {
         let mut plot_to_delete: Option<usize> = None;
 
         // "+ New Plot" button
-        if components::button(ui, Kind::Secondary, Some(icon::PLUS), "New Plot")
+        if components::button(ui, Kind::Secondary, Some(icon::PLUS), "New plot")
             .on_hover_text("Create a new plot area")
             .clicked()
         {

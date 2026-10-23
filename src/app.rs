@@ -2375,8 +2375,15 @@ impl eframe::App for UltraLogApp {
             });
 
         // Tool switcher panel (pill tabs)
+        // High contrast separates surfaces by borders, not by shade.
+        let hc_outline = if self.high_contrast {
+            egui::Stroke::new(1.0, self.tokens.line)
+        } else {
+            egui::Stroke::NONE
+        };
         let tool_switcher_frame = egui::Frame::NONE
             .fill(self.tokens.bg_panel)
+            .stroke(hc_outline)
             .inner_margin(egui::Margin::symmetric(12, 0));
 
         egui::Panel::top("tool_switcher")
@@ -2387,10 +2394,13 @@ impl eframe::App for UltraLogApp {
 
         let panel_frame = egui::Frame::NONE
             .fill(self.tokens.bg_panel)
+            .stroke(hc_outline)
             .inner_margin(egui::Margin::symmetric(10, 10));
 
         // Activity bar (far left, narrow icon strip)
-        let activity_bar_frame = egui::Frame::NONE.fill(self.tokens.bg_panel);
+        let activity_bar_frame = egui::Frame::NONE
+            .fill(self.tokens.bg_panel)
+            .stroke(hc_outline);
 
         egui::Panel::left("activity_bar")
             .exact_size(crate::ui::activity_bar::ACTIVITY_BAR_WIDTH)

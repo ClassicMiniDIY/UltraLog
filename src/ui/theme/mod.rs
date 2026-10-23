@@ -337,6 +337,8 @@ pub fn install(ctx: &egui::Context, t: &Tokens, font_scale: f32) {
         style.visuals = visuals(t);
         style.text_styles = crate::ui::fonts::text_styles(font_scale);
         // Window body padding is space-4 (Window spec).
+        // Motion: quick and mechanical, 120 ms for hover and toggles.
+        style.animation_time = 0.12;
         style.spacing.window_margin = egui::Margin::same(ut::space::SPACE_4 as i8);
     });
     ctx.data_mut(|d| d.insert_temp(current_id(), *t));
