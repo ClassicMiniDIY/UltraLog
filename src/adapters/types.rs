@@ -12,6 +12,13 @@
 //! resolving, because it only logs a warning and filters the failure away.
 //! Enum *values* are snake_case in both sources and need no aliases.
 //! snake_case stays the primary name, so the on-disk cache stays snake_case.
+//!
+//! **Load-bearing:** the API serves enum values that `schema/*.schema.json`
+//! does not list (category `status`, signal data types `bool` and `enum`), so
+//! the schema is not a complete list. Each value enum therefore ends in a
+//! `#[serde(other)] Unknown` variant: an unrecognized value degrades that one
+//! field instead of failing the whole spec. `Unknown` serializes as
+//! `"unknown"`, so a cached spec keeps the degraded value, not the original.
 
 use serde::{Deserialize, Serialize};
 
@@ -172,7 +179,12 @@ pub enum ChannelCategory {
     Traction,
     DriverInput,
     Diagnostics,
+    /// On/off flags: switches, relays, "X active" states
+    Status,
     Custom,
+    /// A category this build does not know
+    #[serde(other)]
+    Unknown,
 }
 
 impl ChannelCategory {
@@ -197,7 +209,9 @@ impl ChannelCategory {
             Self::Traction => "Traction",
             Self::DriverInput => "Driver Input",
             Self::Diagnostics => "Diagnostics",
+            Self::Status => "Status",
             Self::Custom => "Custom",
+            Self::Unknown => "Other",
         }
     }
 }
@@ -215,6 +229,9 @@ pub enum DataType {
     Bool,
     String,
     Enum,
+    /// A data type this build does not know
+    #[serde(other)]
+    Unknown,
 }
 
 /// Adapter metadata
@@ -326,6 +343,9 @@ pub enum ProtocolType {
     Lin,
     #[serde(rename = "k-line")]
     KLine,
+    /// A protocol type this build does not know
+    #[serde(other)]
+    Unknown,
 }
 
 /// CAN message definition
@@ -413,6 +433,13 @@ pub enum SignalDataType {
     Signed,
     Float,
     Double,
+    /// Single-bit flag; the raw value is 0 or 1
+    Bool,
+    /// Discrete value whose labels come from the signal's `enum_ref`
+    Enum,
+    /// A data type this build does not know
+    #[serde(other)]
+    Unknown,
 }
 
 /// Enumeration definition for discrete signal values
@@ -493,6 +520,86 @@ mod tests {
     fn test_channel_category_display_name() {
         assert_eq!(ChannelCategory::Engine.display_name(), "Engine");
         assert_eq!(ChannelCategory::DriverInput.display_name(), "Driver Input");
+        assert_eq!(ChannelCategory::Status.display_name(), "Status");
+        assert_eq!(ChannelCategory::Unknown.display_name(), "Other");
+    }
+
+    fn channel_json(category: &str, data_type: &str) -> String {
+        format!(
+            r#"{{"id": "clutch_switch", "name": "Clutch Switch", "category": "{category}",
+                "dataType": "{data_type}", "unit": "", "sourceNames": ["Clutch Switch"]}}"#
+        )
+    }
+
+    fn signal_json(data_type: &str) -> String {
+        format!(
+            r#"{{"name": "Gear", "startBit": 0, "length": 4, "byteOrder": "little_endian",
+                "dataType": "{data_type}"}}"#
+        )
+    }
+
+    #[test]
+    fn test_channel_category_status() {
+        // Served by the API for speeduino-mlg, romraider-csv and
+        // bmw-ms4x-romraider-csv since 2026-10.
+        let ch: ChannelSpec = serde_json::from_str(&channel_json("status", "bool")).unwrap();
+        assert_eq!(ch.category, ChannelCategory::Status);
+        assert_eq!(ch.data_type, DataType::Bool);
+    }
+
+    #[test]
+    fn test_unknown_channel_values_degrade_one_field() {
+        let ch: ChannelSpec =
+            serde_json::from_str(&channel_json("hybrid_drive", "decimal128")).unwrap();
+        assert_eq!(ch.category, ChannelCategory::Unknown);
+        assert_eq!(ch.data_type, DataType::Unknown);
+        assert_eq!(ch.source_names, vec!["Clutch Switch".to_string()]);
+    }
+
+    #[test]
+    fn test_signal_data_type_bool_and_enum() {
+        // Served by the API for bmw-e8x-e9x-powertrain and
+        // bmw-ms42-dme-broadcast since 2026-10.
+        let sig: SignalSpec = serde_json::from_str(&signal_json("bool")).unwrap();
+        assert_eq!(sig.data_type, SignalDataType::Bool);
+        let sig: SignalSpec = serde_json::from_str(&signal_json("enum")).unwrap();
+        assert_eq!(sig.data_type, SignalDataType::Enum);
+    }
+
+    #[test]
+    fn test_unknown_signal_data_type_degrades_one_field() {
+        let sig: SignalSpec = serde_json::from_str(&signal_json("utf8")).unwrap();
+        assert_eq!(sig.data_type, SignalDataType::Unknown);
+        assert_eq!(sig.start_bit, 0);
+        assert_eq!(sig.length, 4);
+    }
+
+    #[test]
+    fn test_unknown_protocol_type_degrades_one_field() {
+        let info: ProtocolInfo =
+            serde_json::from_str(r#"{"type": "flexray", "baudrate": 500000}"#).unwrap();
+        assert_eq!(info.protocol_type, ProtocolType::Unknown);
+        assert_eq!(info.baudrate, 500000);
+    }
+
+    #[test]
+    fn test_unknown_values_from_yaml() {
+        // The embedded tier parses YAML through serde_norway; `serde(other)`
+        // must hold there too.
+        let yaml = "id: x\nname: X\ncategory: hybrid_drive\ndata_type: status\nunit: ''\nsource_names: [X]\n";
+        let ch: ChannelSpec = serde_norway::from_str(yaml).unwrap();
+        assert_eq!(ch.category, ChannelCategory::Unknown);
+        assert_eq!(ch.data_type, DataType::Unknown);
+    }
+
+    #[test]
+    fn test_unknown_round_trips_through_cache() {
+        // The disk cache re-serializes specs; a degraded value must load again.
+        let ch: ChannelSpec = serde_json::from_str(&channel_json("hybrid_drive", "bool")).unwrap();
+        let cached = serde_json::to_string(&ch).unwrap();
+        assert!(cached.contains(r#""category":"unknown""#));
+        let reloaded: ChannelSpec = serde_json::from_str(&cached).unwrap();
+        assert_eq!(reloaded.category, ChannelCategory::Unknown);
     }
 
     #[test]
