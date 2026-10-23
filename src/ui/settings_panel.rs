@@ -9,7 +9,7 @@ use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::i18n::Language;
 use crate::state::FontScale;
-use crate::ui::components;
+use crate::ui::components::{self, icon};
 use crate::ui::theme;
 use crate::ui::theme::tokens::space;
 use crate::units::{
@@ -56,7 +56,7 @@ impl UltraLogApp {
     /// Render language settings section
     fn render_language_settings(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F310} {}", t!("settings.language")))
+            egui::RichText::new(format!("{} {}", icon::GLOBE, t!("settings.language")))
                 .heading()
                 .strong(),
         )
@@ -202,7 +202,7 @@ impl UltraLogApp {
     /// Render display settings section
     fn render_display_settings(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F5A5} {}", t!("settings.display")))
+            egui::RichText::new(format!("{} {}", icon::MONITOR, t!("settings.display")))
                 .heading()
                 .strong(),
         )
@@ -352,7 +352,7 @@ impl UltraLogApp {
     /// Render field normalization settings
     fn render_normalization_settings(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F4DD} {}", t!("settings.field_names")))
+            egui::RichText::new(format!("{} {}", icon::TEXT_AA, t!("settings.field_names")))
                 .heading()
                 .strong(),
         )
@@ -407,7 +407,7 @@ impl UltraLogApp {
     /// Render unit preferences
     fn render_unit_settings(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F4D0} {}", t!("settings.units")))
+            egui::RichText::new(format!("{} {}", icon::RULER, t!("settings.units")))
                 .heading()
                 .strong(),
         )
@@ -617,9 +617,13 @@ impl UltraLogApp {
     /// Render update settings
     fn render_update_settings(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F504} {}", t!("settings.updates")))
-                .heading()
-                .strong(),
+            egui::RichText::new(format!(
+                "{} {}",
+                icon::ARROWS_CLOCKWISE,
+                t!("settings.updates")
+            ))
+            .heading()
+            .strong(),
         )
         .default_open(true)
         .show(ui, |ui| {
@@ -721,7 +725,7 @@ impl UltraLogApp {
                 }
                 UpdateState::Error(msg) => {
                     ui.label(
-                        egui::RichText::new(format!("⚠ {}", msg))
+                        egui::RichText::new(format!("{} {}", icon::WARNING, msg))
                             .small()
                             .color(self.tokens.warning),
                     );

@@ -94,7 +94,7 @@ impl UltraLogApp {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new("\u{1F50D}")
+                            egui::RichText::new(icon::MAGNIFYING_GLASS)
                                 .text_style(egui::TextStyle::Body)
                                 .color(self.tokens.ink_subtle),
                         );
@@ -141,7 +141,7 @@ impl UltraLogApp {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.label(
-                    egui::RichText::new("\u{1F4CA}")
+                    egui::RichText::new(icon::TRAY)
                         .text_style(crate::ui::fonts::text_style(
                             crate::ui::fonts::style::HEADLINE,
                         ))
@@ -267,7 +267,8 @@ impl UltraLogApp {
                 if !channels_with.is_empty() {
                     egui::CollapsingHeader::new(
                         egui::RichText::new(format!(
-                            "\u{1F4CA} {}",
+                            "{} {}",
+                            icon::WAVEFORM,
                             t!("channels.with_data", count = channels_with.len())
                         ))
                         .heading()
@@ -294,7 +295,8 @@ impl UltraLogApp {
                 if !channels_without.is_empty() {
                     egui::CollapsingHeader::new(
                         egui::RichText::new(format!(
-                            "\u{1F4ED} {}",
+                            "{} {}",
+                            icon::TRAY,
                             t!("channels.empty", count = channels_without.len())
                         ))
                         .text_style(egui::TextStyle::Body)
@@ -510,7 +512,7 @@ impl UltraLogApp {
                                             .show(&mut child_ui, |ui| {
                                                 ui.horizontal(|ui| {
                                                     ui.label(
-                                                        egui::RichText::new("✓")
+                                                        egui::RichText::new(icon::CHECK)
                                                             .text_style(egui::TextStyle::Body)
                                                             .color(self.tokens.ink),
                                                     );
@@ -649,7 +651,8 @@ impl UltraLogApp {
                 if !channels_with.is_empty() {
                     egui::CollapsingHeader::new(
                         egui::RichText::new(format!(
-                            "\u{1F4CA} Channels with Data ({})",
+                            "{} Channels with data ({})",
+                            icon::WAVEFORM,
                             channels_with.len()
                         ))
                         .heading()
@@ -669,7 +672,8 @@ impl UltraLogApp {
                 if !channels_without.is_empty() {
                     egui::CollapsingHeader::new(
                         egui::RichText::new(format!(
-                            "\u{1F4ED} Empty Channels ({})",
+                            "{} Empty channels ({})",
+                            icon::TRAY,
                             channels_without.len()
                         ))
                         .text_style(egui::TextStyle::Body)

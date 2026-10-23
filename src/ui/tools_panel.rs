@@ -84,7 +84,8 @@ impl UltraLogApp {
                         ui.add_space(8.0);
                         ui.label(
                             egui::RichText::new(format!(
-                                "✓ {} analysis results for current file",
+                                "{} {} analysis results for current file",
+                                icon::CHECK,
                                 results.len()
                             ))
                             .small()
@@ -105,7 +106,7 @@ impl UltraLogApp {
     /// Render the table generators section (lambda delay / accel enrichment)
     fn render_tools_table_section(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("📊 {}", t!("table_gen.section_title")))
+            egui::RichText::new(format!("{} {}", icon::TABLE, t!("table_gen.section_title")))
                 .heading()
                 .strong(),
         )
@@ -193,7 +194,8 @@ impl UltraLogApp {
                 ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new(format!(
-                        "✓ {} computed channels on current file",
+                        "{} {} computed channels on current file",
+                        icon::CHECK,
                         channels.len()
                     ))
                     .small()
@@ -249,93 +251,89 @@ impl UltraLogApp {
 
     /// Render the export section
     fn render_tools_export_section(&mut self, ui: &mut egui::Ui) {
-        egui::CollapsingHeader::new(egui::RichText::new("📤 Export").heading().strong())
-            .default_open(true)
-            .show(ui, |ui| {
-                ui.label(
-                    egui::RichText::new("Export visualizations as images or documents.")
-                        .small()
-                        .color(self.tokens.ink_subtle),
-                );
-                ui.add_space(8.0);
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!("{} Export", icon::EXPORT))
+                .heading()
+                .strong(),
+        )
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new("Export visualizations as images or documents.")
+                    .small()
+                    .color(self.tokens.ink_subtle),
+            );
+            ui.add_space(8.0);
 
-                let has_file = self.selected_file.is_some() && !self.files.is_empty();
-                let has_channels = !self.get_selected_channels().is_empty();
-                let has_table = self
-                    .active_tool
-                    .generator_kind()
-                    .is_some_and(|k| self.table_generator.table(k).is_some());
+            let has_file = self.selected_file.is_some() && !self.files.is_empty();
+            let has_channels = !self.get_selected_channels().is_empty();
+            let has_table = self
+                .active_tool
+                .generator_kind()
+                .is_some_and(|k| self.table_generator.table(k).is_some());
 
-                // Determine what can be exported based on active tool
-                let can_export_png = match self.active_tool {
-                    ActiveTool::LogViewer => has_file && has_channels,
-                    ActiveTool::ScatterPlot => has_file,
-                    ActiveTool::Histogram => has_file,
-                    ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => has_table,
-                };
+            // Determine what can be exported based on active tool
+            let can_export_png = match self.active_tool {
+                ActiveTool::LogViewer => has_file && has_channels,
+                ActiveTool::ScatterPlot => has_file,
+                ActiveTool::Histogram => has_file,
+                ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => has_table,
+            };
 
-                let can_export_pdf = can_export_png;
+            let can_export_pdf = can_export_png;
 
-                ui.horizontal(|ui| {
-                    // PNG Export
-                    ui.add_enabled_ui(can_export_png, |ui| {
-                        let png = components::button(
-                            ui,
-                            Kind::Secondary,
-                            Some(icon::DOWNLOAD_SIMPLE),
-                            "PNG",
-                        );
-                        if png.clicked() {
-                            match self.active_tool {
-                                ActiveTool::LogViewer => self.export_chart_png(),
-                                ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
-                                ActiveTool::Histogram => self.export_histogram_png(),
-                                ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
-                                    self.export_table_png()
-                                }
+            ui.horizontal(|ui| {
+                // PNG Export
+                ui.add_enabled_ui(can_export_png, |ui| {
+                    let png =
+                        components::button(ui, Kind::Secondary, Some(icon::DOWNLOAD_SIMPLE), "PNG");
+                    if png.clicked() {
+                        match self.active_tool {
+                            ActiveTool::LogViewer => self.export_chart_png(),
+                            ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
+                            ActiveTool::Histogram => self.export_histogram_png(),
+                            ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
+                                self.export_table_png()
                             }
                         }
-                    });
-
-                    // PDF Export
-                    ui.add_enabled_ui(can_export_pdf, |ui| {
-                        let pdf = components::button(
-                            ui,
-                            Kind::Secondary,
-                            Some(icon::DOWNLOAD_SIMPLE),
-                            "PDF",
-                        );
-                        if pdf.clicked() {
-                            match self.active_tool {
-                                ActiveTool::LogViewer => self.export_chart_pdf(),
-                                ActiveTool::ScatterPlot => self.export_scatter_plot_pdf(),
-                                ActiveTool::Histogram => self.export_histogram_pdf(),
-                                ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
-                                    self.export_table_pdf()
-                                }
-                            }
-                        }
-                    });
+                    }
                 });
 
-                // Show appropriate help text based on tool and state
-                if !has_file {
-                    ui.add_space(4.0);
-                    ui.label(
-                        egui::RichText::new("Load a file to enable export")
-                            .small()
-                            .color(self.tokens.ink_subtle)
-                            .italics(),
-                    );
-                } else if self.active_tool == ActiveTool::LogViewer && !has_channels {
-                    ui.add_space(4.0);
-                    ui.label(
-                        egui::RichText::new("Select channels to enable chart export")
-                            .small()
-                            .color(self.tokens.ink_subtle)
-                            .italics(),
-                    );
-                }
+                // PDF Export
+                ui.add_enabled_ui(can_export_pdf, |ui| {
+                    let pdf =
+                        components::button(ui, Kind::Secondary, Some(icon::DOWNLOAD_SIMPLE), "PDF");
+                    if pdf.clicked() {
+                        match self.active_tool {
+                            ActiveTool::LogViewer => self.export_chart_pdf(),
+                            ActiveTool::ScatterPlot => self.export_scatter_plot_pdf(),
+                            ActiveTool::Histogram => self.export_histogram_pdf(),
+                            ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
+                                self.export_table_pdf()
+                            }
+                        }
+                    }
+                });
             });
+
+            // Show appropriate help text based on tool and state
+            if !has_file {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new("Load a file to enable export")
+                        .small()
+                        .color(self.tokens.ink_subtle)
+                        .italics(),
+                );
+            } else if self.active_tool == ActiveTool::LogViewer && !has_channels {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new("Select channels to enable chart export")
+                        .small()
+                        .color(self.tokens.ink_subtle)
+                        .italics(),
+                );
+            }
+        });
     }
 }
