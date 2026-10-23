@@ -281,8 +281,10 @@ impl Aim {
                 // Channel index is at offset 0 (4 bytes)
                 // Skip various metadata fields
 
-                // Short name starts at offset ~36 (8 bytes null-padded)
-                let short_name_offset = content_start + 30;
+                // Short name is at byte 36 of the record (8 bytes null-padded),
+                // long name at byte 44 (24 bytes). Reading 6 bytes later cut the
+                // front off every name ("Master Clk" -> "Clk").
+                let short_name_offset = content_start + 24;
                 if short_name_offset + 8 > data.len() {
                     break;
                 }
@@ -534,6 +536,21 @@ mod tests {
                 eprintln!("Parse error (expected on some platforms): {}", e);
             }
         }
+    }
+
+    #[test]
+    fn channel_names_are_read_whole() {
+        // The long name starts at byte 44 of each <hCHS> record. Reading from
+        // byte 50 produced "Clk", "Time", "ime" in place of these names.
+        let data = std::fs::read("exampleLogs/aim/BMW_THill 5mi_BY_Race_a_1448.xrk")
+            .expect("AiM fixture is bundled");
+        let channels = Aim::parse_channels(&data).expect("channels parse");
+        let names: Vec<&str> = channels.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(
+            &names[..4],
+            &["Master Clk", "Lap Time", "Predictive Time", "Best Run Diff"]
+        );
+        assert!(names.contains(&"EngFanCurrent"));
     }
 
     #[test]
