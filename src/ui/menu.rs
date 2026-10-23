@@ -150,7 +150,7 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(t!("menu.tool_mode"))
                         .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
 
                 for (i, tool) in ActiveTool::ALL.into_iter().enumerate() {
@@ -177,7 +177,7 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(t!("menu.side_panel"))
                         .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
 
                 if ui
@@ -276,7 +276,7 @@ impl UltraLogApp {
                             "menu.version",
                             version = env!("CARGO_PKG_VERSION")
                         ))
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                     );
                 });
             });

@@ -11,6 +11,8 @@ use crate::analysis::tables::GeneratorKind;
 use crate::colormap::Colormap;
 use crate::laps::{GpsCoordSpec, LapInfo};
 use crate::parsers::{Channel, EcuType, Log};
+use crate::ui::theme::Tokens;
+use eframe::egui::Color32;
 
 // ============================================================================
 // Constants
@@ -176,7 +178,7 @@ pub enum LoadingState {
 }
 
 /// Type of toast notification (determines color)
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum ToastType {
     /// Informational message (blue)
     #[default]
@@ -190,21 +192,24 @@ pub enum ToastType {
 }
 
 impl ToastType {
-    /// Get the background color for this toast type
-    pub fn color(&self) -> [u8; 3] {
+    /// The status colour of this toast type (border and, from Phase 4, its icon).
+    pub fn accent(&self, t: &Tokens) -> Color32 {
         match self {
-            ToastType::Info => [71, 108, 155],    // Blue
-            ToastType::Success => [113, 120, 78], // Olive green
-            ToastType::Warning => [253, 193, 73], // Amber
-            ToastType::Error => [135, 30, 28],    // Dark red
+            ToastType::Info => t.info,
+            ToastType::Success => t.success,
+            ToastType::Warning => t.warning,
+            ToastType::Error => t.danger,
         }
     }
 
-    /// Get the text color for this toast type
-    pub fn text_color(&self) -> [u8; 3] {
+    /// The soft status fill behind the toast text. Info has no soft token of its own; it uses
+    /// `cyan_soft`, the fill behind cyan (Night Drive's info colour).
+    pub fn fill(&self, t: &Tokens) -> Color32 {
         match self {
-            ToastType::Warning => [30, 30, 30], // Dark text for amber background
-            _ => [255, 255, 255],               // White text for other backgrounds
+            ToastType::Info => t.cyan_soft,
+            ToastType::Success => t.success_soft,
+            ToastType::Warning => t.warning_soft,
+            ToastType::Error => t.danger_soft,
         }
     }
 }

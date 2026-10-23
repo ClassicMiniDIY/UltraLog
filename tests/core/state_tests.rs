@@ -17,6 +17,7 @@ use ultralog::state::{
     MAX_CHART_POINTS, SUPPORTED_EXTENSIONS, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
     SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType,
 };
+use ultralog::ui::theme::tokens as ultralog_theme;
 
 // ============================================
 // Constant Tests
@@ -133,36 +134,59 @@ fn test_toast_type_default() {
     assert!(matches!(toast, ToastType::Info));
 }
 
-#[test]
-fn test_toast_type_colors() {
-    let info_color = ToastType::Info.color();
-    let success_color = ToastType::Success.color();
-    let warning_color = ToastType::Warning.color();
-    let error_color = ToastType::Error.color();
+const TOAST_TYPES: [ToastType; 4] = [
+    ToastType::Info,
+    ToastType::Success,
+    ToastType::Warning,
+    ToastType::Error,
+];
 
-    // Each type should have unique color
-    assert_ne!(info_color, success_color);
-    assert_ne!(info_color, warning_color);
-    assert_ne!(info_color, error_color);
-    assert_ne!(success_color, warning_color);
-    assert_ne!(success_color, error_color);
-    assert_ne!(warning_color, error_color);
+fn relative_luminance(c: eframe::egui::Color32) -> f32 {
+    let lin = |v: u8| {
+        let v = v as f32 / 255.0;
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let [r, g, b, _] = c.to_srgba_unmultiplied();
+    0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+fn contrast(a: eframe::egui::Color32, b: eframe::egui::Color32) -> f32 {
+    let (x, y) = (relative_luminance(a), relative_luminance(b));
+    (x.max(y) + 0.05) / (x.min(y) + 0.05)
 }
 
 #[test]
-fn test_toast_type_text_colors() {
-    let info_text = ToastType::Info.text_color();
-    let success_text = ToastType::Success.text_color();
-    let warning_text = ToastType::Warning.text_color();
-    let error_text = ToastType::Error.text_color();
+fn test_toast_type_colors_are_distinct_in_every_app_theme() {
+    for t in [
+        ultralog_theme::NIGHT,
+        ultralog_theme::CVD,
+        ultralog_theme::HC,
+    ] {
+        for (i, a) in TOAST_TYPES.iter().enumerate() {
+            for b in &TOAST_TYPES[i + 1..] {
+                assert_ne!(a.accent(&t), b.accent(&t));
+                assert_ne!(a.fill(&t), b.fill(&t));
+            }
+        }
+    }
+}
 
-    // Warning should have dark text (for amber background)
-    assert_eq!(warning_text, [30, 30, 30]);
-
-    // Others should have white text
-    assert_eq!(info_text, [255, 255, 255]);
-    assert_eq!(success_text, [255, 255, 255]);
-    assert_eq!(error_text, [255, 255, 255]);
+#[test]
+fn test_toast_text_is_readable_on_its_fill() {
+    for t in [
+        ultralog_theme::NIGHT,
+        ultralog_theme::CVD,
+        ultralog_theme::HC,
+    ] {
+        for toast in TOAST_TYPES {
+            let ratio = contrast(t.ink, toast.fill(&t));
+            assert!(ratio >= 4.5, "{toast:?}: {ratio:.2}");
+        }
+    }
 }
 
 #[test]
