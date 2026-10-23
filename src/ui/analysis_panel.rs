@@ -74,13 +74,13 @@ impl UltraLogApp {
                         ui.add_space(40.0);
                         ui.label(
                             egui::RichText::new(t!("analysis.no_file_loaded"))
-                                .color(egui::Color32::GRAY)
+                                .color(self.tokens.ink_subtle)
                                 .size(16.0),
                         );
                         ui.add_space(8.0);
                         ui.label(
                             egui::RichText::new(t!("analysis.load_file_help"))
-                                .color(egui::Color32::GRAY)
+                                .color(self.tokens.ink_subtle)
                                 .small(),
                         );
                         ui.add_space(40.0);
@@ -126,12 +126,12 @@ impl UltraLogApp {
                 let text = if is_selected {
                     text.strong()
                 } else {
-                    text.color(egui::Color32::GRAY)
+                    text.color(self.tokens.ink_muted)
                 };
 
                 let btn = egui::Button::new(text)
                     .fill(if is_selected {
-                        egui::Color32::from_rgb(60, 70, 60)
+                        self.tokens.bg_active
                     } else {
                         egui::Color32::TRANSPARENT
                     })
@@ -294,7 +294,8 @@ impl UltraLogApp {
 
                 if filtered_infos.is_empty() {
                     ui.label(
-                        egui::RichText::new(t!("analysis.no_analyzers")).color(egui::Color32::GRAY),
+                        egui::RichText::new(t!("analysis.no_analyzers"))
+                            .color(self.tokens.ink_subtle),
                     );
                 } else {
                     // Render analyzer cards
@@ -371,6 +372,7 @@ impl UltraLogApp {
         channel_display_names: &[String],
     ) -> Option<(String, AnalyzerAction)> {
         let mut action: Option<AnalyzerAction> = None;
+        let t = crate::ui::theme::current(ui.ctx());
         let mut new_config = info.config.clone();
 
         // Get parameter definitions for this analyzer
@@ -385,9 +387,9 @@ impl UltraLogApp {
         );
 
         let card_bg = if channels_available {
-            egui::Color32::from_rgb(40, 45, 40)
+            t.bg_raised
         } else {
-            egui::Color32::from_rgb(45, 45, 45)
+            t.bg_field
         };
 
         egui::Frame::NONE
@@ -404,8 +406,10 @@ impl UltraLogApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // "Run & Chart" button (primary action)
-                        let run_chart_btn = egui::Button::new(t!("analysis.run_and_chart"))
-                            .fill(egui::Color32::from_rgb(60, 100, 60));
+                        let run_chart_btn = egui::Button::new(
+                            egui::RichText::new(t!("analysis.run_and_chart")).color(t.on_cyan),
+                        )
+                        .fill(t.cyan);
                         let run_chart_response = ui.add_enabled(channels_available, run_chart_btn);
 
                         if run_chart_response.clicked() {
@@ -438,7 +442,7 @@ impl UltraLogApp {
 
                 ui.label(
                     egui::RichText::new(&info.description)
-                        .color(egui::Color32::GRAY)
+                        .color(t.ink_subtle)
                         .size(12.0),
                 );
 
@@ -451,7 +455,7 @@ impl UltraLogApp {
                     ui.horizontal(|ui| {
                         let label_response = ui.label(
                             egui::RichText::new(&param.label)
-                                .color(egui::Color32::GRAY)
+                                .color(t.ink_subtle)
                                 .small(),
                         );
 
@@ -615,9 +619,10 @@ impl UltraLogApp {
         _index: usize,
     ) -> Option<ResultAction> {
         let mut action: Option<ResultAction> = None;
+        let t = crate::ui::theme::current(ui.ctx());
 
         egui::Frame::NONE
-            .fill(egui::Color32::from_rgb(35, 50, 55))
+            .fill(t.bg_raised)
             .corner_radius(6)
             .inner_margin(8.0)
             .outer_margin(egui::Margin::symmetric(0, 2))
@@ -629,7 +634,7 @@ impl UltraLogApp {
                             if !result.unit.is_empty() {
                                 ui.label(
                                     egui::RichText::new(format!("({})", result.unit))
-                                        .color(egui::Color32::GRAY)
+                                        .color(t.ink_subtle)
                                         .small(),
                                 );
                             }
@@ -654,7 +659,7 @@ impl UltraLogApp {
                                     mean,
                                     result.values.len()
                                 ))
-                                .color(egui::Color32::GRAY)
+                                .color(t.ink_subtle)
                                 .small(),
                             );
                         }

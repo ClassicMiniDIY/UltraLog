@@ -52,7 +52,7 @@ impl UltraLogApp {
                 ui.label(egui::RichText::new(t!("normalization.extend_builtin")).strong());
                 ui.label(
                     egui::RichText::new(t!("normalization.extend_description"))
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
                 ui.add_space(8.0);
 
@@ -109,7 +109,7 @@ impl UltraLogApp {
                 ui.label(egui::RichText::new(t!("normalization.create_new")).strong());
                 ui.label(
                     egui::RichText::new(t!("normalization.create_description"))
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                 );
                 ui.add_space(8.0);
 
@@ -150,7 +150,7 @@ impl UltraLogApp {
                         ui.label(egui::RichText::new(t!("normalization.your_mappings")).strong());
                         ui.label(
                             egui::RichText::new(format!("({})", self.custom_normalizations.len()))
-                                .color(egui::Color32::GRAY),
+                                .color(self.tokens.ink_subtle),
                         );
                     });
                     ui.add_space(4.0);
@@ -185,8 +185,7 @@ impl UltraLogApp {
                                     for (source, target) in sorted {
                                         ui.label(source);
                                         ui.label(
-                                            egui::RichText::new(target)
-                                                .color(egui::Color32::LIGHT_BLUE),
+                                            egui::RichText::new(target).color(self.tokens.ink),
                                         );
                                         if ui.small_button(t!("common.remove")).clicked() {
                                             to_remove = Some(source.clone());
@@ -210,7 +209,7 @@ impl UltraLogApp {
                     .show(ui, |ui| {
                         ui.label(
                             egui::RichText::new(t!("normalization.builtin_description"))
-                                .color(egui::Color32::GRAY),
+                                .color(self.tokens.ink_subtle),
                         );
                         ui.add_space(8.0);
 
@@ -223,12 +222,12 @@ impl UltraLogApp {
                                         ui.label(
                                             egui::RichText::new(*normalized)
                                                 .strong()
-                                                .color(egui::Color32::LIGHT_BLUE),
+                                                .color(self.tokens.ink),
                                         );
                                         ui.label("←");
                                         ui.label(
                                             egui::RichText::new(sources.join(", "))
-                                                .color(egui::Color32::GRAY),
+                                                .color(self.tokens.ink_subtle),
                                         );
                                     });
                                     ui.add_space(2.0);
