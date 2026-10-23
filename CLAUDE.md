@@ -147,6 +147,13 @@ src/
     ├── icons.rs                      # Custom icon drawing utilities
     ├── tab_bar.rs                    # Multi-file tab interface
     ├── fonts.rs                      # Font families (per weight), script/CJK fallbacks, the type scale as TextStyles
+    ├── formula_syntax.rs             # Formula tokenizer + LayoutJob colouring (editor, help window)
+    ├── components/
+    │   ├── mod.rs                    # Night Drive components; re-exports Phosphor as `icon`
+    │   ├── button.rs                 # primary / secondary / ghost / danger / sm / icon buttons
+    │   ├── controls.rs               # segmented, checkbox, Ultra intensity slider
+    │   ├── notice.rs                 # Status (icon + word), notice, status and ECU badges
+    │   └── window.rs                 # window(): Saira title; finish_window(): redline + Esc
     ├── theme/
     │   ├── mod.rs                    # Night Drive runtime: tokens_at, series/seq/div, egui Visuals, install/current
     │   ├── tokens.rs                 # GENERATED from design/tokens/tokens.json — never edit by hand
@@ -710,6 +717,18 @@ UI work follows the Night Drive design system in `design/` (brand book
   `Style::text_styles` (installed with the visuals, scaled by `FontScale`); use `TextStyle`s and
   `fonts::style::*` names rather than `FontId::proportional(scaled_font(n))`.
   Arabic/Urdu still lack right-to-left layout (an egui limitation).
+- **Components** (`src/ui/components/`) read `theme::current(ui.ctx())`, so any `Ui` can call
+  them. New floating windows go through `components::window(..)` and must call
+  `components::finish_window` after `.show(..)` (redline, Esc closes the topmost window). Use
+  `components::button(.., Kind::..)` instead of hand-built `Frame` buttons; one primary per view.
+  Status is always icon + word (`components::Status`), never colour alone.
+- **Custom painting** stays in `src/ui/theme/paint.rs`: redline, glow, floor, dashed outline and
+  the one keyboard focus ring (`keyboard_focus_ring`, called once per frame at the end of
+  `ui()`; it shows after Tab/arrow navigation or on a text field, not after a mouse click).
+  Bloom, the plot legend overlay and the major grid join it in Phase 5.
+- **Icons are Phosphor** (`components::icon::*`, regular outline). The `phosphor` font sits right
+  after each brand face in every family, so an icon codepoint works in any label; the filled
+  set (`fonts::PHOSPHOR_FILL`) is only for transport glyphs and the favourite star. No emoji.
 - **CI** runs `python3 design/tools/check_contrast.py design/tokens/tokens.json`. A token change
   that breaks a pair fails the build: fix the token, never relax the check.
 

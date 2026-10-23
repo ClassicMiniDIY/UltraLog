@@ -132,6 +132,13 @@ Gate for the whole plan, checked in Phase 8 and run as a CI grep:
 
 ### Phase 4 — Chrome components
 
+> **Status (2026-10-23): done** — commits `c1b7afb`…`a3cc9a3`, each checked against
+> `design/reference/` in the running app. Left for later phases: the files Phase 5 rewrites
+> (`chart`, `channels`, `histogram`, `scatter_plot`, `table_generator`, `track_map`, `timeline`)
+> still use egui defaults, emoji and hard-coded colours; the generic egui `Slider` keeps its own
+> look with a value field (only Ultra intensity has the custom track); `TextEdit` is the egui
+> widget on `bg_field` with the Visuals border (no 28px height or `radius-sm` override).
+
 In the brief's order, each per `design/design-system/components/<Name>/README.md` and
 `design/reference/<Name>-night.png`:
 
