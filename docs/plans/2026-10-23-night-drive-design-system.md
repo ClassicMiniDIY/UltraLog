@@ -1,7 +1,7 @@
 # Night Drive Design System — Desktop App Implementation Plan
 
 - **Date:** 2026-10-23
-- **Status:** Draft, revised after the skeptical review (2026-10-23) — awaiting approval
+- **Status:** Revised after the skeptical review; decisions resolved 2026-10-23 — awaiting go-ahead for Phase 0.5
 - **Branch:** `origin/release/3.0.0` (the handoff worktree's local branch is `night-drive-3.0.0`,
   because `release/3.0.0` is checked out in another worktree). Ships in 3.0.0 with the six fixes
   already on the branch.
@@ -68,14 +68,14 @@ building and running after each.
 6. **Series:** `CHART_COLORS` / `COLORBLIND_COLORS` are deleted. `get_channel_color` returns
    `theme::series(&tokens, idx, cvd_like) -> (Color32, dashed)` where `cvd_like` = Color blind
    mode, High contrast or export. All call sites listed in Phase 0 switch, including the IPC hex
-   (same wire format, new values) and exports (export tokens). Past 10 channels: Open decision 4.
+   (same wire format, new values) and exports (export tokens). Past 10 channels: Decision 4.
 7. **Persistence:** new `UserSettings` fields `ultra_intensity: u8` with
    `#[serde(default = "default_ultra_intensity")]` returning **35** (a plain default of 0 would
    turn every upgrading user to Stealth), `high_contrast: bool`, `export_theme`,
    `export_format`. `color_blind_mode` keeps its name; `version` stays 1. A test loads a
    2.16-era settings file and asserts intensity 35.
 8. **Custom painters:** the brief allows four (redline, glow, bloom, floor). This plan needs
-   three more — focus ring, plot legend overlay, major grid lines — see Open decision 2.
+   three more — focus ring, plot legend overlay, major grid lines — see Decision 2.
 
 ## Phases
 
@@ -128,7 +128,7 @@ Gate for the whole plan, checked in Phase 8 and run as a CI grep:
 - Register the families; drop the unused `"Bold"` family.
 - Text styles per decision 4; convert the Phase 1b files' call sites. Phase 4/5 files convert in
   their own pass. Numbers in tables, legends, channel cards and the playback bar use Monospace.
-- Non-Latin fallback per Open decision 1, after the brand faces in every family's list.
+- Non-Latin fallback per Decision 1, after the brand faces in every family's list.
 
 ### Phase 4 — Chrome components
 
@@ -150,7 +150,7 @@ In the brief's order, each per `design/design-system/components/<Name>/README.md
 Also in this phase:
 
 - `egui-phosphor = "0.14"`; replace the Unicode glyph labels and the `icons.rs` drawings.
-- Focus ring painter (Open decision 2) on every interactive widget, 5px in High contrast.
+- Focus ring painter (Decision 2) on every interactive widget, 5px in High contrast.
 - High contrast "outlined surfaces": panel and card frames get a `line` stroke when `hc`.
 - Motion: `Style::animation_time` 0.12 s; windows 0.18 s; reduced-motion drops glow transitions.
 
@@ -170,7 +170,7 @@ Also in this phase:
   `get_aaa_text_color` replaced by `on_seq_N`/`on_div_N` on `cell_plate`; hatched `cell_empty`;
   confidence by fill style; selected-cell ring with `bg_void` gap; ColorScale beside every map.
   AFR/λ-vs-target and correction-% measures use `div`.
-- `track_map.rs`: picker per Open decision 5; 3px trace with 1px `bg_void` casing; start/finish
+- `track_map.rs`: picker per Decision 5; 3px trace with 1px `bg_void` casing; start/finish
   `ink` tick; position dot in `plot_cursor` with 2px `bg_void` ring. Remove the
   `track_map.colormap.viridis/turbo` keys in all locales.
 - `timeline.rs`: PlaybackBar — cyan play button, cyan mono readout, thin-space record counter.
@@ -200,7 +200,7 @@ Also in this phase:
 - Regenerate `assets/icons/{mac.png,windows.ico,windows.png,linux.png}` from
   `design/logos/ultralog-app-icon-1024.png` (paths unchanged; `release.yml` and `main.rs` need no
   change).
-- About window: new (Open decision 6). Splash: out of scope (eframe opens fast enough).
+- About window: new (Decision 6). Splash: out of scope (eframe opens fast enough).
 
 ### Phase 8 — Verify and document
 
@@ -225,21 +225,18 @@ Also in this phase:
   theme change; PDF text with `−`/λ round-trips through the embedded font.
 - `table_export.rs` tests updated from Viridis to export-token values.
 
-## Open decisions
+## Decisions (resolved 2026-10-23)
 
-1. **Non-Latin fonts.** (a) bundle Noto Sans Devanagari/Bengali/Arabic (≈0.1-0.4 MB each) and
-   Noto Sans CJK (≈10-16 MB); (b) load a system font per locale at runtime (no binary growth,
-   per-OS paths); (c) leave and track separately. Recommendation: (a) for the small scripts,
-   (b) for CJK. Arabic/Urdu stay without right-to-left layout either way.
-2. **Extra painters.** Focus ring (egui has no gap ring or 5px focus style; focused widgets get
-   `active` visuals), plot legend overlay, and major grid lines. Recommendation: approve all three
-   as small helpers in `paint.rs`.
-3. **Scope of 3.0.0.** All phases in one release, or 3.0.0 = Phases 0.5-3 + 5 (theme, settings,
-   type, data colours) and 3.1 = chrome components, exports, icon.
-4. **Series past 10.** Recommendation: second lap of the 10 colours dashed, third lap dotted, in
-   every theme (cvd keeps its own rule for 9-10).
-5. **Track map picker.** Recommendation: Sequential / Diverging. Alternative: Sequential only.
-6. **About window.** Recommendation: add a small one (lockup, version, links) in Phase 7.
+1. **Non-Latin fonts:** bundle Noto Sans Devanagari, Bengali and Arabic (≈1 MB total); load a
+   system CJK font at runtime per locale (no bundled CJK). Arabic/Urdu stay without right-to-left
+   layout (egui limitation).
+2. **Extra painters:** approved — focus ring (egui has no gap ring or 5px focus style), plot
+   legend overlay, major grid lines, as small helpers in `paint.rs` beside the brief's four.
+3. **Scope:** all phases ship in 3.0.0.
+4. **Series past 10:** channels 11-20 repeat the 10 colours dashed, 21+ dotted, in every theme
+   (cvd keeps its own dashed 9-10 rule within the first 10).
+5. **Track map picker:** Sequential / Diverging (default taken; easy to change).
+6. **About window:** a small new one (lockup, version, links) in Phase 7 (default taken).
 
 ## Out of scope
 
