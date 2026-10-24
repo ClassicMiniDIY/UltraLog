@@ -14,6 +14,8 @@ use eframe::egui::{
 };
 use egui_plot::{Line, LineStyle, PlotBounds, PlotPoint, PlotPoints, PlotTransform, PlotUi, VLine};
 
+use rust_i18n::t;
+
 use crate::ui::fonts::{self, style};
 use crate::ui::theme::{
     SeriesStroke, Tokens,
@@ -182,7 +184,8 @@ pub fn legend_overlay(
             .size()
             .x
     };
-    let mut name_w = measure("Cursor", &name_font);
+    let cursor_label = t!("chart.cursor").to_string();
+    let mut name_w = measure(&cursor_label, &name_font);
     let mut value_w = cursor.as_deref().map_or(0.0, |c| measure(c, &value_font));
     for row in rows {
         name_w = name_w.max(measure(&row.name, &name_font));
@@ -224,7 +227,7 @@ pub fn legend_overlay(
         painter.text(
             pos2(name_x, cy),
             Align2::LEFT_CENTER,
-            "Cursor",
+            &cursor_label,
             name_font.clone(),
             t.ink_muted,
         );

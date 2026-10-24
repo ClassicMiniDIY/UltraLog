@@ -163,6 +163,14 @@ Also in this phase:
 
 ### Phase 5 — Data views
 
+> **Status (2026-10-24): done** — commits `ba1e20c`…`5dc361d` plus the i18n pass, each checked in
+> UltraLogDev against `design/reference/` (Plot night/cvd/ultra, ChannelCard, ChannelList,
+> HeatmapTable, ColorScale, PlaybackBar). Deviations: the major grid comes from egui_plot's own
+> tiered fade on `plot_grid_major` instead of a separate painter; table measures pick the
+> diverging map when their values straddle zero (no per-measure flag); the scatter density keeps
+> its continuous cells without the hatch. The track map colour picker could not be exercised by
+> hand (egui popups ignore synthetic clicks in that panel); a unit test covers the colour path.
+
 - Series per decision 6; dashed 9-10 with `LineStyle::Dashed { length: 6.0 }` (≈6/4); hover/solo
   draws the hovered line at 2px and fades the others to 40 % (custom, since egui_plot's
   `highlight` doubles width).

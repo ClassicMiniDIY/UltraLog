@@ -104,6 +104,9 @@ timeline:
   speed: "গতি:"
   time: "সময়: %{time}"
   record: "রেকর্ড %{current} / %{total}"
+  play: "চালান"
+  pause: "বিরতি"
+  stop: "থামান"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "ন্যূনতম"
   filter_max: "সর্বোচ্চ"
   no_filters: "কোনো সক্রিয় ফিল্টার নেই"
+  scale_hits: "হিট গণনা"
+  scale_average: "গড় মান"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "চার্ট প্রদর্শন করতে চ্যানেল নির্বাচন করুন"
+  cursor: "কার্সর"
+  rich: "রিচ"
+  target: "টার্গেট"
+  lean: "লিন"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -406,6 +415,10 @@ table_gen:
   copy_failed: "ক্লিপবোর্ডে অনুলিপি করতে ব্যর্থ"
   exported: "টেবিল %{path} এ রপ্তানি করা হয়েছে"
   export_failed: "রপ্তানি ব্যর্থ হয়েছে"
+  legend_high: "উচ্চ আত্মবিশ্বাস"
+  legend_medium: "মাঝারি আত্মবিশ্বাস"
+  legend_low: "কম আত্মবিশ্বাস"
+  legend_empty: "কোনো নমুনা নেই"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -443,8 +456,8 @@ track_map:
   color_by: "রঙিন করুন"
   solid: "সোলিড"
   colormap: "রঙ মানচিত্র"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "ক্রমিক"
+  colormap.diverging: "দ্বিমুখী"
   range: "পরিসর"
   range_auto: "স্বয়ংক্রিয়"
   lap: "ল্যাপ"

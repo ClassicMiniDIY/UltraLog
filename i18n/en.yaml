@@ -104,6 +104,9 @@ timeline:
   speed: "Speed:"
   time: "Time: %{time}"
   record: "Record %{current} of %{total}"
+  play: "Play"
+  pause: "Pause"
+  stop: "Stop"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "Min"
   filter_max: "Max"
   no_filters: "No filters active"
+  scale_hits: "Hit count"
+  scale_average: "Average value"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Select channels to display chart"
+  cursor: "Cursor"
+  rich: "rich"
+  target: "target"
+  lean: "lean"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -406,6 +415,10 @@ table_gen:
   copy_failed: "Clipboard copy failed"
   exported: "Table exported to %{path}"
   export_failed: "Export failed"
+  legend_high: "high confidence"
+  legend_medium: "medium"
+  legend_low: "low"
+  legend_empty: "no samples"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:

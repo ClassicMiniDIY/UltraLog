@@ -1636,16 +1636,18 @@ impl UltraLogApp {
             // ColorScale with the real min / max
             ui.vertical(|ui| {
                 let (title, min_label, max_label) = match mode {
-                    HistogramMode::HitCount => {
-                        ("Hit count", "0".to_string(), format!("{:.0}", max_value))
-                    }
+                    HistogramMode::HitCount => (
+                        t!("histogram.scale_hits"),
+                        "0".to_string(),
+                        format!("{:.0}", max_value),
+                    ),
                     HistogramMode::AverageZ => (
-                        "Average value",
+                        t!("histogram.scale_average"),
                         format!("{:.1}", min_value),
                         format!("{:.1}", max_value),
                     ),
                 };
-                heatmap::color_scale(ui, MapKind::Sequential, title, &min_label, &max_label);
+                heatmap::color_scale(ui, MapKind::Sequential, &title, &min_label, &max_label);
             });
 
             ui.add_space(16.0);

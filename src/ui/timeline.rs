@@ -132,7 +132,11 @@ impl UltraLogApp {
             .corner_radius(corner)
             .min_size(button_size);
 
-            let play_tip = if self.is_playing { "Pause" } else { "Play" };
+            let play_tip = if self.is_playing {
+                t!("timeline.pause")
+            } else {
+                t!("timeline.play")
+            };
             if ui.add(play_button).on_hover_text(play_tip).clicked() {
                 self.is_playing = !self.is_playing;
                 if self.is_playing {
@@ -161,7 +165,11 @@ impl UltraLogApp {
             .corner_radius(corner)
             .min_size(button_size);
 
-            if ui.add(stop_button).on_hover_text("Stop").clicked() {
+            if ui
+                .add(stop_button)
+                .on_hover_text(t!("timeline.stop"))
+                .clicked()
+            {
                 self.is_playing = false;
                 self.last_frame_time = None;
                 // Reset cursor to beginning

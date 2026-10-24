@@ -14,6 +14,8 @@ use eframe::egui::{
     vec2,
 };
 
+use rust_i18n::t;
+
 use crate::ui::fonts::{self, style};
 use crate::ui::theme::{
     self, Tokens, paint,
@@ -213,9 +215,9 @@ pub fn color_scale(ui: &mut Ui, kind: MapKind, title: &str, min_label: &str, max
         if kind == MapKind::Diverging {
             let y = rect.bottom() + space::SPACE_1;
             for (x, text, align) in [
-                (rect.left(), "rich", Align2::LEFT_TOP),
-                (rect.center().x, "target", Align2::CENTER_TOP),
-                (rect.right(), "lean", Align2::RIGHT_TOP),
+                (rect.left(), t!("chart.rich"), Align2::LEFT_TOP),
+                (rect.center().x, t!("chart.target"), Align2::CENTER_TOP),
+                (rect.right(), t!("chart.lean"), Align2::RIGHT_TOP),
             ] {
                 ui.painter()
                     .text(pos2(x, y), align, text, mono.clone(), t.ink_subtle);

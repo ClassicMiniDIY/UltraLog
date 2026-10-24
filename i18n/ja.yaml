@@ -104,6 +104,9 @@ timeline:
   speed: "速度:"
   time: "時間: %{time}"
   record: "レコード %{current} / %{total}"
+  play: "再生"
+  pause: "一時停止"
+  stop: "停止"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "最小"
   filter_max: "最大"
   no_filters: "アクティブなフィルターなし"
+  scale_hits: "ヒット数"
+  scale_average: "平均値"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "チャートを表示するにはチャンネルを選択してください"
+  cursor: "カーソル"
+  rich: "リッチ"
+  target: "ターゲット"
+  lean: "リーン"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -406,6 +415,10 @@ table_gen:
   copy_failed: "クリップボードへのコピーが失敗しました"
   exported: "テーブルが%{path}にエクスポートされました"
   export_failed: "エクスポートに失敗しました"
+  legend_high: "高信頼度"
+  legend_medium: "中信頼度"
+  legend_low: "低信頼度"
+  legend_empty: "サンプルなし"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -443,8 +456,8 @@ track_map:
   color_by: "色分け方法"
   solid: "ベタ塗り"
   colormap: "カラーマップ"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "連続"
+  colormap.diverging: "発散"
   range: "範囲"
   range_auto: "自動"
   lap: "ラップ"

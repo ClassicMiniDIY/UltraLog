@@ -1068,10 +1068,10 @@ impl UltraLogApp {
             let mut x = legend.left();
             let label_font = egui::TextStyle::Small.resolve(ui.style());
             for (count, style_, word) in [
-                (12, Some(BadgeStyle::High), "high confidence"),
-                (3, Some(BadgeStyle::Medium), "medium"),
-                (1, Some(BadgeStyle::Low), "low"),
-                (0, None, "no samples"),
+                (12, Some(BadgeStyle::High), t!("table_gen.legend_high")),
+                (3, Some(BadgeStyle::Medium), t!("table_gen.legend_medium")),
+                (1, Some(BadgeStyle::Low), t!("table_gen.legend_low")),
+                (0, None, t!("table_gen.legend_empty")),
             ] {
                 let swatch = egui::Rect::from_min_size(
                     egui::pos2(x, legend.top() + 2.0),
@@ -1083,7 +1083,7 @@ impl UltraLogApp {
                     }
                     None => heatmap::empty_cell(p, swatch, &t),
                 }
-                let g = p.layout_no_wrap(word.to_owned(), label_font.clone(), t.ink_muted);
+                let g = p.layout_no_wrap(word.to_string(), label_font.clone(), t.ink_muted);
                 let w = g.size().x;
                 p.galley(
                     egui::pos2(swatch.right() + 5.0, legend.top() + 2.0),

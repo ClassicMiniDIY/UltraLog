@@ -104,6 +104,9 @@ timeline:
   speed: "Velocita':"
   time: "Tempo: %{time}"
   record: "Record %{current} di %{total}"
+  play: "Riproduci"
+  pause: "Pausa"
+  stop: "Stop"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "Min"
   filter_max: "Max"
   no_filters: "Nessun filtro attivo"
+  scale_hits: "Conteggio Occorrenze"
+  scale_average: "Valore medio"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Seleziona i canali per visualizzare il grafico"
+  cursor: "Cursore"
+  rich: "ricca"
+  target: "target"
+  lean: "magra"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -406,6 +415,10 @@ table_gen:
   copy_failed: "Copia negli appunti non riuscita"
   exported: "Tabella esportata in %{path}"
   export_failed: "Esportazione non riuscita"
+  legend_high: "alta confidenza"
+  legend_medium: "media confidenza"
+  legend_low: "bassa confidenza"
+  legend_empty: "nessun campione"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -443,8 +456,8 @@ track_map:
   color_by: "Colora per"
   solid: "Solid"
   colormap: "Mappa colori"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Sequenziale"
+  colormap.diverging: "Divergente"
   range: "Intervallo"
   range_auto: "Auto"
   lap: "Giro"

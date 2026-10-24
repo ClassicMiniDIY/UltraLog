@@ -105,6 +105,9 @@ timeline:
   speed: "رفتار:"
   time: "وقت: %{time}"
   record: "ریکارڈ %{current} از %{total}"
+  play: "چلائیں"
+  pause: "وقفہ"
+  stop: "روکیں"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -331,10 +334,16 @@ histogram:
   filter_min: "کم سے کم"
   filter_max: "زیادہ سے زیادہ"
   no_filters: "کوئی فلٹر فعال نہیں"
+  scale_hits: "ہٹ کاؤنٹ"
+  scale_average: "اوسط قدر"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "چارٹ دکھانے کے لیے چینلز منتخب کریں"
+  cursor: "کرسر"
+  rich: "رچ"
+  target: "ہدف"
+  lean: "لین"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -407,6 +416,10 @@ table_gen:
   copy_failed: "کلپ بورڈ پر کاپی کرنے میں ناکام"
   exported: "ٹیبل %{path} پر برآمد کیا گیا"
   export_failed: "برآمد ناکام"
+  legend_high: "اعلیٰ اعتماد"
+  legend_medium: "درمیانہ اعتماد"
+  legend_low: "کم اعتماد"
+  legend_empty: "کوئی نمونہ نہیں"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -444,8 +457,8 @@ track_map:
   color_by: "رنگ کریں"
   solid: "ٹھوس"
   colormap: "رنگ نقشہ"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "ترتیبی"
+  colormap.diverging: "دو طرفہ"
   range: "رینج"
   range_auto: "خودکار"
   lap: "چکر"

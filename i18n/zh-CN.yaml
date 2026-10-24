@@ -104,6 +104,9 @@ timeline:
   speed: "速度:"
   time: "时间: %{time}"
   record: "记录 %{current} / %{total}"
+  play: "播放"
+  pause: "暂停"
+  stop: "停止"
 
 # 公式编辑器 (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "最小值"
   filter_max: "最大值"
   no_filters: "没有活动过滤器"
+  scale_hits: "命中次数"
+  scale_average: "平均值"
 
 # 图表 (src/ui/chart.rs)
 chart:
   select_channels: "选择通道以显示图表"
+  cursor: "光标"
+  rich: "浓"
+  target: "目标"
+  lean: "稀"
 
 # 分析面板 (src/ui/analysis_panel.rs)
 analysis:
@@ -407,6 +416,10 @@ table_gen:
   copy_failed: "复制到剪贴板失败"
   exported: "表格导出到%{path}"
   export_failed: "导出失败"
+  legend_high: "高置信度"
+  legend_medium: "中置信度"
+  legend_low: "低置信度"
+  legend_empty: "无样本"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -444,8 +457,8 @@ track_map:
   color_by: "按以下方式着色"
   solid: "实心"
   colormap: "颜色映射"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "顺序"
+  colormap.diverging: "发散"
   range: "范围"
   range_auto: "自动"
   lap: "圈"

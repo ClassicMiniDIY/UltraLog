@@ -104,6 +104,9 @@ timeline:
   speed: "Скорость:"
   time: "Время: %{time}"
   record: "Запись %{current} из %{total}"
+  play: "Воспроизвести"
+  pause: "Пауза"
+  stop: "Стоп"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "Мин"
   filter_max: "Макс"
   no_filters: "Активные фильтры отсутствуют"
+  scale_hits: "Количество попаданий"
+  scale_average: "Среднее значение"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Выберите каналы для отображения графика"
+  cursor: "Курсор"
+  rich: "богатая"
+  target: "цель"
+  lean: "бедная"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -406,6 +415,10 @@ table_gen:
   copy_failed: "Ошибка копирования в буфер обмена"
   exported: "Таблица экспортирована в %{path}"
   export_failed: "Ошибка экспорта"
+  legend_high: "высокая уверенность"
+  legend_medium: "средняя уверенность"
+  legend_low: "низкая уверенность"
+  legend_empty: "нет выборок"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -443,8 +456,8 @@ track_map:
   color_by: "Цвет по"
   solid: "Сплошной"
   colormap: "Палитра"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Последовательная"
+  colormap.diverging: "Расходящаяся"
   range: "Диапазон"
   range_auto: "Авто"
   lap: "Круг"

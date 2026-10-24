@@ -147,6 +147,8 @@ src/
     ├── tab_bar.rs                    # Multi-file tab interface
     ├── fonts.rs                      # Font families (per weight), script/CJK fallbacks, the type scale as TextStyles
     ├── formula_syntax.rs             # Formula tokenizer + LayoutJob colouring (editor, help window)
+    ├── plot_style.rs                 # Chart chrome: series strokes, bloom, Ultra floor, cursor, custom legend, direct labels
+    ├── heatmap.rs                    # Heatmap/table cells: seq/div fill, value plate, hatch, count badges, ring, ColorScale
     ├── components/
     │   ├── mod.rs                    # Night Drive components; re-exports Phosphor as `icon`
     │   ├── button.rs                 # primary / secondary / ghost / danger / sm / icon buttons
@@ -721,6 +723,11 @@ UI work follows the Night Drive design system in `design/` (brand book
   `components::finish_window` after `.show(..)` (redline, Esc closes the topmost window). Use
   `components::button(.., Kind::..)` instead of hand-built `Frame` buttons; one primary per view.
   Status is always icon + word (`components::Status`), never colour alone.
+- **Charts** draw series through `plot_style::draw_series` and the legend through
+  `plot_style::legend_overlay` (egui_plot's built-in `Legend` is off: it cannot show the Cursor row,
+  live mono values or the solo fade). The soloed series is kept per plot in egui temp memory
+  (`plot_style::solo_memory`). Colour slots are unbounded (`state::next_color_index`); past the
+  palette `theme::series` repeats colours dashed, then dotted.
 - **Custom painting** stays in `src/ui/theme/paint.rs`: redline, glow, floor, dashed outline and
   the one keyboard focus ring (`keyboard_focus_ring`, called once per frame at the end of
   `ui()`; it shows after Tab/arrow navigation or on a text field, not after a mouse click).

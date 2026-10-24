@@ -104,6 +104,9 @@ timeline:
   speed: "السرعة:"
   time: "الوقت: %{time}"
   record: "السجل %{current} من %{total}"
+  play: "تشغيل"
+  pause: "إيقاف مؤقت"
+  stop: "إيقاف"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "الحد الأدنى"
   filter_max: "الحد الأقصى"
   no_filters: "لا توجد مرشحات نشطة"
+  scale_hits: "عدد الإصابات"
+  scale_average: "متوسط القيمة"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "حدد القنوات لعرض الرسم البياني"
+  cursor: "المؤشر"
+  rich: "غني"
+  target: "الهدف"
+  lean: "فقير"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -406,6 +415,10 @@ table_gen:
   copy_failed: "فشل نسخ الجدول إلى الحافظة"
   exported: "تم تصدير الجدول إلى %{path}"
   export_failed: "فشل التصدير"
+  legend_high: "ثقة عالية"
+  legend_medium: "ثقة متوسطة"
+  legend_low: "ثقة منخفضة"
+  legend_empty: "لا توجد عينات"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -443,8 +456,8 @@ track_map:
   color_by: "تلوين حسب"
   solid: "صلب"
   colormap: "خريطة الألوان"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "متسلسلة"
+  colormap.diverging: "متباعدة"
   range: "النطاق"
   range_auto: "تلقائي"
   lap: "دورة"

@@ -104,6 +104,9 @@ timeline:
   speed: "Kecepatan:"
   time: "Waktu: %{time}"
   record: "Rekaman %{current} dari %{total}"
+  play: "Putar"
+  pause: "Jeda"
+  stop: "Berhenti"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -330,10 +333,16 @@ histogram:
   filter_min: "Min"
   filter_max: "Maks"
   no_filters: "Tidak ada filter aktif"
+  scale_hits: "Jumlah Hit"
+  scale_average: "Nilai rata-rata"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Pilih kanal untuk menampilkan grafik"
+  cursor: "Kursor"
+  rich: "kaya"
+  target: "target"
+  lean: "miskin"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -406,6 +415,10 @@ table_gen:
   copy_failed: "Gagal menyalin ke clipboard"
   exported: "Tabel diekspor ke %{path}"
   export_failed: "Ekspor gagal"
+  legend_high: "kepercayaan tinggi"
+  legend_medium: "kepercayaan sedang"
+  legend_low: "kepercayaan rendah"
+  legend_empty: "tanpa sampel"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -443,8 +456,8 @@ track_map:
   color_by: "Warna berdasarkan"
   solid: "Padat"
   colormap: "Peta warna"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Berurutan"
+  colormap.diverging: "Divergen"
   range: "Rentang"
   range_auto: "Otomatis"
   lap: "Lap"
