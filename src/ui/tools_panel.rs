@@ -280,40 +280,16 @@ impl UltraLogApp {
                 ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => has_table,
             };
 
-            let can_export_pdf = can_export_png;
-
-            ui.horizontal(|ui| {
-                // PNG Export
-                ui.add_enabled_ui(can_export_png, |ui| {
-                    let png =
-                        components::button(ui, Kind::Secondary, Some(icon::DOWNLOAD_SIMPLE), "PNG");
-                    if png.clicked() {
-                        match self.active_tool {
-                            ActiveTool::LogViewer => self.export_chart_png(),
-                            ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
-                            ActiveTool::Histogram => self.export_histogram_png(),
-                            ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
-                                self.export_table_png()
-                            }
-                        }
-                    }
-                });
-
-                // PDF Export
-                ui.add_enabled_ui(can_export_pdf, |ui| {
-                    let pdf =
-                        components::button(ui, Kind::Secondary, Some(icon::DOWNLOAD_SIMPLE), "PDF");
-                    if pdf.clicked() {
-                        match self.active_tool {
-                            ActiveTool::LogViewer => self.export_chart_pdf(),
-                            ActiveTool::ScatterPlot => self.export_scatter_plot_pdf(),
-                            ActiveTool::Histogram => self.export_histogram_pdf(),
-                            ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => {
-                                self.export_table_pdf()
-                            }
-                        }
-                    }
-                });
+            ui.add_enabled_ui(can_export_png, |ui| {
+                let export = components::button(
+                    ui,
+                    Kind::Secondary,
+                    Some(icon::DOWNLOAD_SIMPLE),
+                    t!("export.open"),
+                );
+                if export.clicked() {
+                    self.show_export_dialog = true;
+                }
             });
 
             // Show appropriate help text based on tool and state

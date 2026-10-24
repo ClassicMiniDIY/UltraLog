@@ -52,7 +52,7 @@ impl UltraLogApp {
 
                 ui.separator();
 
-                // Export submenu - context-aware based on active tool
+                // Export opens the ExportDialog for the active tool
                 let has_chart_data =
                     !self.files.is_empty() && !self.get_selected_channels().is_empty();
                 let has_histogram_data = !self.files.is_empty()
@@ -69,35 +69,16 @@ impl UltraLogApp {
                     .generator_kind()
                     .is_some_and(|k| self.table_generator.table(k).is_some());
 
-                let can_export = has_chart_data || has_histogram_data || has_table_data;
+                let has_scatter_data =
+                    !self.files.is_empty() && self.active_tool == ActiveTool::ScatterPlot;
+                let can_export =
+                    has_chart_data || has_histogram_data || has_scatter_data || has_table_data;
 
                 ui.add_enabled_ui(can_export, |ui| {
-                    ui.menu_button(t!("menu.export"), |ui| {
-                        if has_table_data {
-                            if ui.button(t!("menu.export_table_png")).clicked() {
-                                self.export_table_png();
-                                ui.close();
-                            }
-                            if ui.button(t!("menu.export_table_pdf")).clicked() {
-                                self.export_table_pdf();
-                                ui.close();
-                            }
-                        } else if self.active_tool == ActiveTool::Histogram && has_histogram_data {
-                            if ui.button(t!("menu.export_histogram_pdf")).clicked() {
-                                self.export_histogram_pdf();
-                                ui.close();
-                            }
-                        } else if has_chart_data {
-                            if ui.button(t!("menu.export_png")).clicked() {
-                                self.export_chart_png();
-                                ui.close();
-                            }
-                            if ui.button(t!("menu.export_pdf")).clicked() {
-                                self.export_chart_pdf();
-                                ui.close();
-                            }
-                        }
-                    });
+                    if ui.button(t!("menu.export_ellipsis")).clicked() {
+                        self.show_export_dialog = true;
+                        ui.close();
+                    }
                 });
             });
 

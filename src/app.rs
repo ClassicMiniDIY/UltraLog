@@ -105,6 +105,10 @@ pub struct UltraLogApp {
     pub(crate) ultra_intensity: u8,
     /// High contrast theme; locks the intensity effects off
     pub(crate) high_contrast: bool,
+    // === Export ===
+    /// ExportDialog choices, remembered across sessions.
+    pub(crate) export_choice: crate::ui::export_sheet::ExportChoice,
+    pub(crate) show_export_dialog: bool,
     // === Theme ===
     /// Live Night Drive tokens, rebuilt by `sync_theme` when a theme setting changes.
     pub(crate) tokens: crate::ui::theme::Tokens,
@@ -254,6 +258,8 @@ impl Default for UltraLogApp {
             color_blind_mode: false,
             ultra_intensity: crate::ui::theme::DEFAULT_INTENSITY as u8,
             high_contrast: false,
+            export_choice: Default::default(),
+            show_export_dialog: false,
             tokens: crate::ui::theme::tokens_at(crate::ui::theme::ThemeSettings::default()),
             applied_theme: None,
             theme_generation: 0,
@@ -331,6 +337,7 @@ impl UltraLogApp {
             color_blind_mode: user_settings.color_blind_mode,
             ultra_intensity: user_settings.ultra_intensity.min(100),
             high_contrast: user_settings.high_contrast,
+            export_choice: user_settings.export,
             field_normalization: user_settings.field_normalization,
             cursor_tracking: user_settings.cursor_tracking,
             auto_check_updates: user_settings.auto_check_updates,
@@ -2185,14 +2192,9 @@ impl UltraLogApp {
                 return;
             }
 
-            // ⌘E - export current view as PNG
+            // ⌘E - open the ExportDialog for the current view
             if cmd && i.key_pressed(egui::Key::E) {
-                match self.active_tool {
-                    ActiveTool::LogViewer => self.export_chart_png(),
-                    ActiveTool::ScatterPlot => self.export_scatter_plot_png(),
-                    ActiveTool::Histogram => self.export_histogram_png(),
-                    ActiveTool::LambdaDelay | ActiveTool::AccelEnrich => self.export_table_png(),
-                }
+                self.show_export_dialog = true;
                 return;
             }
 
@@ -2268,6 +2270,7 @@ impl eframe::App for UltraLogApp {
             color_blind_mode: self.color_blind_mode,
             ultra_intensity: self.ultra_intensity,
             high_contrast: self.high_contrast,
+            export: self.export_choice,
             field_normalization: self.field_normalization,
             cursor_tracking: self.cursor_tracking,
             auto_check_updates: self.auto_check_updates,
@@ -2345,6 +2348,7 @@ impl eframe::App for UltraLogApp {
         self.render_normalization_editor(ctx);
         self.render_update_dialog(ctx);
         self.render_computed_channels_manager(ctx);
+        self.render_export_dialog(ctx);
         self.render_formula_editor(ctx);
         self.render_analysis_panel(ctx);
     }

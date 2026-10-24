@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::i18n::Language;
 use crate::state::{FontScale, TileProviderId};
+use crate::ui::export_sheet::ExportChoice;
 use crate::units::UnitPreferences;
 
 /// User settings that persist across sessions
@@ -46,6 +47,9 @@ pub struct UserSettings {
     /// High contrast theme: true black grounds, AAA text, intensity effects locked off.
     #[serde(default)]
     pub high_contrast: bool,
+    /// ExportDialog choices: last format, and last theme per format (PDF, Paper by default).
+    #[serde(default)]
+    pub export: ExportChoice,
     /// Normalize ECU-specific channel names to standardized names
     #[serde(default = "default_true")]
     pub field_normalization: bool,
@@ -130,6 +134,7 @@ impl Default for UserSettings {
             color_blind_mode: false,
             ultra_intensity: default_ultra_intensity(),
             high_contrast: false,
+            export: ExportChoice::default(),
             field_normalization: default_true(),
             cursor_tracking: default_true(),
             auto_check_updates: default_true(),
