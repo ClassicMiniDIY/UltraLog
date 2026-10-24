@@ -164,6 +164,7 @@ src/
     ├── histogram.rs                  # 2D histogram/heatmap view for channel distributions
     ├── export.rs                     # Builds the ExportSheet per tool; file export and Copy image
     ├── export_dialog.rs              # ExportDialog: format, Paper/Graphite, Copy image / Export
+    ├── about_window.rs               # About window (Help menu): lockup on bg_void, version, links
     ├── export_sheet/                 # ExportSheet layout + Canvas back ends (see Export Contract)
     │   ├── mod.rs                    # Sheet / ChartModel / GridModel, draw_sheet, render_png/pdf
     │   ├── canvas.rs                 # Canvas trait (points, top-left origin, baseline text)
@@ -742,6 +743,10 @@ UI work follows the Night Drive design system in `design/` (brand book
 - **Icons are Phosphor** (`components::icon::*`, regular outline). The `phosphor` font sits right
   after each brand face in every family, so an icon codepoint works in any label; the filled
   set (`fonts::PHOSPHOR_FILL`) is only for transport glyphs and the favourite star. No emoji.
+- **Brand assets are generated, not edited.** `assets/icons/*` come from
+  `design/logos/ultralog-app-icon-1024.png` via `scripts/brand/build_app_icons.sh` (macOS keeps
+  Apple's 824 px tile in the 1024 canvas; the paths are fixed because `main.rs`, `build.rs` and
+  `release.yml` read them). `assets/brand/*` lockups come from `scripts/brand/rasterize_lockups.sh`.
 - **CI** runs `python3 design/tools/check_contrast.py design/tokens/tokens.json`. A token change
   that breaks a pair fails the build: fix the token, never relax the check.
 
