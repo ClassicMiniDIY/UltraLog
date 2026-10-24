@@ -24,25 +24,23 @@ use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::colormap::{Colormap, sample};
 use crate::ui::export::{draw_line, push_closed_line, push_filled_rect, push_text};
+use crate::ui::theme::{self, ExportTheme, export_tokens};
 
-/// Colour for a cell's normalized value.
+/// Colour for a cell's normalized value. Exports always use an export theme's colour-blind safe
+/// map (Paper here until the export dialog lands), never the in-app palette.
 fn cell_rgb(t: f64) -> [u8; 3] {
-    let c = sample(Colormap::Viridis, t as f32);
+    let c = sample(
+        &export_tokens(ExportTheme::Paper),
+        Colormap::Sequential,
+        t as f32,
+    );
     [c.r(), c.g(), c.b()]
 }
 
-/// Black or white text for a Viridis background (WCAG relative luminance).
-fn text_on(rgb: [u8; 3]) -> bool {
-    let lin = |c: u8| {
-        let v = c as f64 / 255.0;
-        if v <= 0.03928 {
-            v / 12.92
-        } else {
-            ((v + 0.055) / 1.055).powf(2.4)
-        }
-    };
-    let lum = 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
-    lum > 0.4
+/// Value text colour for a cell at `t` (the nearest stop's `on_seq_N`).
+fn text_rgb(t: f64) -> [u8; 3] {
+    let c = theme::on_seq(&export_tokens(ExportTheme::Paper), t as f32);
+    [c.r(), c.g(), c.b()]
 }
 
 /// `(value, decimals)` per cell after export options; `None` renders blank.
@@ -95,7 +93,7 @@ fn normalize(v: f64, lo: f64, hi: f64) -> f64 {
     }
 }
 
-/// Write the table as a 1920x1080 PNG: Viridis cells, grid lines, no text.
+/// Write the table as a 1920x1080 PNG: colour-map cells, grid lines, no text.
 pub fn render_table_png(
     acc: &TableAccumulator,
     measure_idx: usize,
@@ -191,7 +189,6 @@ pub fn render_table_pdf(
     let cell_h = (chart_top - chart_bottom) / rows as f64;
 
     let black = Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None));
-    let white = Color::Rgb(Rgb::new(1.0, 1.0, 1.0, None));
 
     ops.push(Op::SetFillColor { col: black.clone() });
     push_text(
@@ -271,11 +268,13 @@ pub fn render_table_pdf(
             });
             push_filled_rect(&mut ops, x as f32, y as f32, cell_w as f32, cell_h as f32);
 
-            let fg = if text_on(rgb) {
-                black.clone()
-            } else {
-                white.clone()
-            };
+            let fg_rgb = text_rgb(normalize(*v, lo, hi));
+            let fg = Color::Rgb(Rgb::new(
+                fg_rgb[0] as f32 / 255.0,
+                fg_rgb[1] as f32 / 255.0,
+                fg_rgb[2] as f32 / 255.0,
+                None,
+            ));
             ops.push(Op::SetFillColor { col: fg });
             let text = format!("{v:.decimals$}");
             // Helvetica averages ~0.5em per glyph; centre approximately.
@@ -537,7 +536,7 @@ mod tests {
     fn png_draws_the_highest_row_at_the_top() {
         // Row 0 (MAP 30-50) holds every event's low value; row 1 is empty.
         // On screen the highest Y bin is at the top, so the PNG must put
-        // row 0's Viridis fill in the bottom band and dark grey in the top.
+        // row 0's map fill in the bottom band and dark grey in the top.
         let x = AxisSpec::new("RPM", "rpm", vec![1000.0, 2000.0]);
         let y = AxisSpec::new("MAP", "kPa", vec![30.0, 50.0, 70.0]);
         let measures = vec![MeasureSpec {
@@ -621,8 +620,10 @@ mod tests {
     }
 
     #[test]
-    fn text_colour_flips_on_bright_viridis() {
-        assert!(!text_on(cell_rgb(0.0)));
-        assert!(text_on(cell_rgb(1.0)));
+    fn value_text_reads_on_the_paper_map() {
+        // Paper runs light to dark, so text flips from dark to light along the map.
+        let lum = |c: [u8; 3]| c.iter().map(|v| *v as u32).sum::<u32>();
+        assert!(lum(text_rgb(0.0)) < lum(cell_rgb(0.0)));
+        assert!(lum(text_rgb(1.0)) > lum(cell_rgb(1.0)));
     }
 }

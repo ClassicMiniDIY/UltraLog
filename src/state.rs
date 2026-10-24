@@ -739,6 +739,9 @@ pub struct ColorSignature {
     pub data_address: usize,
     pub data_length: usize,
     pub colormap: Colormap,
+    /// `UltraLogApp::theme_generation` when the colours were built: the cache holds `Color32`s,
+    /// so a theme change (Color blind mode, High contrast) must rebuild it.
+    pub theme_generation: u64,
     pub requested_min: Option<f64>,
     pub requested_max: Option<f64>,
 }

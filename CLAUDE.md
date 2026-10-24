@@ -64,7 +64,7 @@ src/
 ├── units.rs           # Unit preference types and conversions
 ├── normalize.rs       # Field name normalization system
 ├── computed.rs        # Computed channels data types and library
-├── colormap.rs        # Viridis/Turbo colormap LUTs for track coloring
+├── colormap.rs        # Colour-map entry point: theme Sequential / Diverging maps (no rainbow LUTs)
 ├── laps.rs            # GPS coordinate-format normalization, track sanitization, lap detection
 ├── tiles.rs           # Map tile providers, bounded worker pool, disk/texture caches
 ├── expression/
@@ -701,6 +701,7 @@ UI work follows the Night Drive design system in `design/` (brand book
 - **Series beyond the palette** change stroke, not colour: `theme::series` returns
   `SeriesStroke::Dashed` for the second lap and `Dotted` after (laps of 10, or of 8 when
   `color_blind_like` — Color blind mode, High contrast and exports).
+- **Colour maps:** never add a rainbow (jet, Turbo) or a hand-rolled ramp; everything that colours by magnitude goes through `colormap::sample` / `theme::seq` / `theme::div`, cells through `ui::heatmap` (value plate, hatched empty cells, badge fill styles).
 - **Caches of derived colours** must key on `UltraLogApp::theme_generation`, which increments on
   every install, or they keep the old palette after a theme change.
 - **Fonts** (`src/ui/fonts.rs`): egui families have no weight axis, so each weight is its own
@@ -736,7 +737,7 @@ UI work follows the Night Drive design system in `design/` (brand book
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
 - **Table Generators** - Lambda delay and acceleration enrichment tuning tables mined from one or more logs, each a top-level tool beside Histogram, with auto-suggested channel roles, confidence-tiered cells, an event inspector, and CSV/clipboard/PNG/PDF export (`src/analysis/tables/`, `src/ui/table_generator.rs`, `src/ui/table_export.rs`)
-- **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
+- **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (theme Sequential / Diverging map with editable range, 3px with a bg_void casing), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
 - **Unit Preferences** - Users can select display units for temperature, pressure, speed, distance, fuel economy, volume, flow rate, and acceleration
 - **Field Normalization** - Maps ECU-specific channel names to standardized names for cross-ECU comparison

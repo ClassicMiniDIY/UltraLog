@@ -24,9 +24,8 @@ use crate::state::{ActiveTool, ColorSignature, GpsChannelCache, MapView, TrackCa
 use super::DataWidget;
 
 const EARTH_RADIUS_M: f64 = 6_378_137.0;
-const TRACK_STROKE_WIDTH: f32 = 2.0;
+const TRACK_STROKE_WIDTH: f32 = 3.0;
 const FADED_STROKE_WIDTH: f32 = 1.0;
-const TRACK_BG: egui::Color32 = egui::Color32::from_rgb(20, 22, 28);
 const MAX_RENDER_POINTS: usize = 20_000;
 type ColorCacheStatus = (Option<(usize, usize)>, Colormap, Option<(f64, f64)>);
 static TILE_SOURCE: OnceLock<crate::tiles::TileSource> = OnceLock::new();
@@ -406,21 +405,21 @@ fn render_toolbar(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize) {
         ui.label(t!("track_map.colormap"));
         let st = &mut app.tabs[tab_idx].data_panel_state.track_map;
         let cmap_label = match st.colormap {
-            Colormap::Viridis => t!("track_map.colormap.viridis"),
-            Colormap::Turbo => t!("track_map.colormap.turbo"),
+            Colormap::Sequential => t!("track_map.colormap.sequential"),
+            Colormap::Diverging => t!("track_map.colormap.diverging"),
         };
         egui::ComboBox::from_id_salt("track_map_colormap")
             .selected_text(cmap_label)
             .show_ui(ui, |ui| {
                 ui.selectable_value(
                     &mut st.colormap,
-                    Colormap::Viridis,
-                    t!("track_map.colormap.viridis"),
+                    Colormap::Sequential,
+                    t!("track_map.colormap.sequential"),
                 );
                 ui.selectable_value(
                     &mut st.colormap,
-                    Colormap::Turbo,
-                    t!("track_map.colormap.turbo"),
+                    Colormap::Diverging,
+                    t!("track_map.colormap.diverging"),
                 );
             });
 
@@ -630,7 +629,7 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
     let canvas_size = egui::vec2(avail.x, avail.y.max(160.0).max(footer_band_h + 80.0));
     let (rect, _) = ui.allocate_exact_size(canvas_size, egui::Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 4.0, TRACK_BG);
+    painter.rect_filled(rect, 4.0, app.tokens.plot_bg);
 
     let map_rect = egui::Rect::from_min_max(
         rect.min,
@@ -754,35 +753,51 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
     };
 
     let colors_ref = cache.color_cache.as_deref();
-    for pair in points_screen.windows(2) {
-        if pair[0].segment_id.is_none() || pair[0].segment_id != pair[1].segment_id {
-            continue;
+    let t = app.tokens;
+    // Two passes: a 1px bg_void casing under every segment, then the coloured trace, so the
+    // line separates from a satellite background.
+    for casing in [true, false] {
+        for pair in points_screen.windows(2) {
+            if pair[0].segment_id.is_none() || pair[0].segment_id != pair[1].segment_id {
+                continue;
+            }
+            let (Some(a), Some(b)) = (pair[0].position, pair[1].position) else {
+                continue;
+            };
+            let record = pair[1].record;
+            let in_window = record > lap_start && record <= lap_end;
+            let color = match colors_ref {
+                Some(colors) => colors
+                    .get(record.saturating_sub(1))
+                    .copied()
+                    .unwrap_or(t.line_control),
+                None => t.series_3,
+            };
+            let (color, width) = if in_window {
+                (color, TRACK_STROKE_WIDTH)
+            } else {
+                (color.gamma_multiply(0.25), FADED_STROKE_WIDTH)
+            };
+            if casing {
+                if in_window {
+                    map_painter.line_segment([a, b], egui::Stroke::new(width + 2.0, t.bg_void));
+                }
+            } else {
+                map_painter.line_segment([a, b], egui::Stroke::new(width, color));
+            }
         }
-        let (Some(a), Some(b)) = (pair[0].position, pair[1].position) else {
-            continue;
-        };
-        let record = pair[1].record;
-        let in_window = record > lap_start && record <= lap_end;
-        let color = match colors_ref {
-            Some(colors) => colors
-                .get(record.saturating_sub(1))
-                .copied()
-                .unwrap_or(egui::Color32::LIGHT_GRAY),
-            None => egui::Color32::from_rgb(120, 200, 255),
-        };
-        let (color, width) = if in_window {
-            (color, TRACK_STROKE_WIDTH)
-        } else {
-            (color.gamma_multiply(0.25), FADED_STROKE_WIDTH)
-        };
-        map_painter.line_segment([a, b], egui::Stroke::new(width, color));
     }
 
     if let Some(record) = app.tabs[tab_idx].cursor_record
         && let Some(position) = project_record(record)
     {
-        map_painter.circle_stroke(position, 6.0, egui::Stroke::new(2.0, egui::Color32::WHITE));
-        map_painter.circle_filled(position, 4.0, egui::Color32::from_rgb(255, 200, 0));
+        // Current position: a plot_cursor dot with a 2px bg_void ring
+        map_painter.circle(
+            position,
+            4.0,
+            app.tokens.plot_cursor,
+            egui::Stroke::new(2.0, app.tokens.bg_void),
+        );
     }
 
     if response.clicked()
@@ -863,7 +878,7 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
             let t1 = (i + 1) as f32 / steps as f32;
             let x0 = bar_rect.left() + t0 * bar_rect.width();
             let x1 = bar_rect.left() + t1 * bar_rect.width();
-            let color = colormap_sample(colormap, (t0 + t1) * 0.5);
+            let color = colormap_sample(&app.tokens, colormap, (t0 + t1) * 0.5);
             painter.rect_filled(
                 egui::Rect::from_min_max(
                     egui::pos2(x0, bar_rect.top()),
@@ -920,6 +935,7 @@ fn ensure_color_cache(app: &mut UltraLogApp, tab_idx: usize) -> ColorCacheStatus
         data_address,
         data_length,
         colormap,
+        theme_generation: app.theme_generation,
         requested_min,
         requested_max,
     };
@@ -960,7 +976,14 @@ fn ensure_color_cache(app: &mut UltraLogApp, tab_idx: usize) -> ColorCacheStatus
             } else {
                 (minimum - 0.5, maximum + 0.5)
             };
-            let colors = build_color_cache(record_count, colormap, minimum, maximum, values);
+            let colors = build_color_cache(
+                &app.tokens,
+                record_count,
+                colormap,
+                minimum,
+                maximum,
+                values,
+            );
             let colors: std::sync::Arc<[egui::Color32]> = colors.into();
             Some((colors, (minimum, maximum)))
         });
@@ -982,6 +1005,7 @@ fn ensure_color_cache(app: &mut UltraLogApp, tab_idx: usize) -> ColorCacheStatus
 }
 
 fn build_color_cache(
+    tokens: &crate::ui::theme::Tokens,
     record_count: usize,
     colormap: Colormap,
     minimum: f64,
@@ -994,9 +1018,9 @@ fn build_color_cache(
             let value = values.get(index + 1).copied().unwrap_or(f64::NAN);
             if value.is_finite() {
                 let position = ((value - minimum) / span).clamp(0.0, 1.0) as f32;
-                colormap_sample(colormap, position)
+                colormap_sample(tokens, colormap, position)
             } else {
-                egui::Color32::DARK_GRAY
+                tokens.line_control
             }
         })
         .collect()
@@ -1240,7 +1264,7 @@ fn draw_tiles(
             painter.rect_stroke(
                 dst,
                 0.0,
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(40, 50, 60)),
+                egui::Stroke::new(1.0, crate::ui::theme::current(ui.ctx()).line),
                 egui::StrokeKind::Inside,
             );
         }
@@ -1252,6 +1276,23 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+
+    #[test]
+    fn track_colours_follow_the_theme_map_and_mark_missing_values() {
+        use crate::ui::theme::tokens as ut;
+        for t in [ut::NIGHT, ut::CVD] {
+            let values = [0.0, 0.0, 50.0, 100.0, f64::NAN];
+            let colors =
+                build_color_cache(&t, values.len(), Colormap::Sequential, 0.0, 100.0, &values);
+            // Segment i takes the colour of record i + 1.
+            assert_eq!(colors[0], t.seq_0);
+            assert_eq!(colors[2], t.seq_6);
+            assert_eq!(
+                colors[3], t.line_control,
+                "NaN reads as no data, not as a low value"
+            );
+        }
+    }
     use crate::parsers::aim::AimChannel;
     use crate::parsers::types::Meta;
     use crate::parsers::{Channel, EcuType, Log, Value};
