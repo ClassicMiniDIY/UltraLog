@@ -4,20 +4,22 @@ use eframe::egui;
 
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
+use crate::ui::components::{self, icon};
+use crate::ui::fonts::{self, style};
+use crate::ui::plot_style;
+use crate::ui::theme::{
+    SeriesStroke,
+    tokens::{radius, space, stroke},
+};
 
 impl UltraLogApp {
     /// Render selected channel cards
     pub fn render_selected_channels(&mut self, ui: &mut egui::Ui) {
-        // Pre-compute scaled font sizes
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-        let font_16 = self.scaled_font(16.0);
-        let font_18 = self.scaled_font(18.0);
-
+        let t = self.tokens;
         ui.label(
             egui::RichText::new("Selected Channels")
-                .heading()
-                .size(font_18),
+                .text_style(fonts::text_style(style::TITLE))
+                .color(t.ink),
         );
         ui.separator();
 
@@ -29,6 +31,8 @@ impl UltraLogApp {
         // Pre-compute all display data to avoid borrow conflicts in closure
         struct ChannelCardData {
             color: egui::Color32,
+            stroke: SeriesStroke,
+            unit: String,
             display_name: String,
             is_computed: bool,
             min_str: Option<String>,
@@ -42,8 +46,8 @@ impl UltraLogApp {
         let mut channel_cards: Vec<ChannelCardData> = Vec::with_capacity(selected_channels.len());
 
         for selected in &selected_channels {
-            let color = self.get_channel_color(selected.color_index);
-            let color32 = egui::Color32::from_rgb(color[0], color[1], color[2]);
+            let (color32, series_stroke) = self.series_style(selected.color_index);
+            let mut card_unit = String::new();
 
             // Get display name
             let channel_name = selected.channel.name();
@@ -106,15 +110,11 @@ impl UltraLogApp {
                                 self.unit_preferences.convert_value(min_val, source_unit);
                             let (conv_max, _) =
                                 self.unit_preferences.convert_value(max_val, source_unit);
-                            let unit_str = if display_unit.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" {}", display_unit)
-                            };
+                            card_unit = display_unit.to_string();
 
                             (
-                                Some(format!("{:.1}{}", conv_min, unit_str)),
-                                Some(format!("{:.1}{}", conv_max, unit_str)),
+                                Some(format!("{conv_min:.1}")),
+                                Some(format!("{conv_max:.1}")),
                                 Some(min_idx),
                                 Some(max_idx),
                                 times.get(min_idx).copied(),
@@ -130,6 +130,8 @@ impl UltraLogApp {
 
             channel_cards.push(ChannelCardData {
                 color: color32,
+                stroke: series_stroke,
+                unit: card_unit,
                 display_name,
                 is_computed: selected.channel.is_computed(),
                 min_str,
@@ -145,124 +147,119 @@ impl UltraLogApp {
         let mut jump_to: Option<(usize, f64)> = None; // (record, time)
 
         egui::ScrollArea::horizontal().show(ui, |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_top(|ui| {
                 for (i, card) in channel_cards.iter().enumerate() {
-                    egui::Frame::NONE
-                        .fill(egui::Color32::from_rgb(40, 40, 40))
-                        .stroke(egui::Stroke::new(2.0, card.color))
-                        .corner_radius(5)
-                        .inner_margin(10.0)
+                    let frame = egui::Frame::NONE
+                        .fill(t.bg_raised)
+                        .stroke(egui::Stroke::new(stroke::STROKE_HAIRLINE, t.line))
+                        .corner_radius(egui::CornerRadius::same(radius::RADIUS_MD))
+                        .inner_margin(egui::Margin {
+                            left: 12,
+                            right: 6,
+                            top: 10,
+                            bottom: 8,
+                        })
                         .show(ui, |ui| {
-                            // Use horizontal layout with content on left, close button on right
-                            // Align to top so cards with different heights don't stair-step
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                                // Main content column
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        // Show computed channel indicator
-                                        if card.is_computed {
-                                            ui.label(
-                                                egui::RichText::new("ƒ")
-                                                    .color(egui::Color32::from_rgb(150, 200, 255))
-                                                    .strong(),
-                                            )
-                                            .on_hover_text("Computed channel (formula-based)");
-                                        }
-                                        ui.label(
-                                            egui::RichText::new(&card.display_name)
-                                                .strong()
-                                                .color(card.color)
-                                                .size(font_14),
-                                        );
-                                    });
-
-                                    // Show min with jump button
-                                    if let Some(min_str) = &card.min_str {
-                                        ui.horizontal(|ui| {
-                                            ui.label(
-                                                egui::RichText::new("Min:")
-                                                    .color(egui::Color32::GRAY)
-                                                    .size(font_12),
-                                            );
-                                            ui.label(
-                                                egui::RichText::new(min_str)
-                                                    .color(egui::Color32::LIGHT_GRAY)
-                                                    .size(font_14),
-                                            );
-                                            if let (Some(record), Some(time)) =
-                                                (card.min_record, card.min_time)
-                                            {
-                                                let btn = ui
-                                                    .small_button("⏵")
-                                                    .on_hover_text("Jump to minimum");
-                                                if btn.clicked() {
-                                                    jump_to = Some((record, time));
-                                                }
-                                                if btn.hovered() {
-                                                    ui.ctx().set_cursor_icon(
-                                                        egui::CursorIcon::PointingHand,
-                                                    );
-                                                }
-                                            }
-                                        });
-                                    }
-
-                                    // Show max with jump button
-                                    if let Some(max_str) = &card.max_str {
-                                        ui.horizontal(|ui| {
-                                            ui.label(
-                                                egui::RichText::new("Max:")
-                                                    .color(egui::Color32::GRAY)
-                                                    .size(font_12),
-                                            );
-                                            ui.label(
-                                                egui::RichText::new(max_str)
-                                                    .color(egui::Color32::LIGHT_GRAY)
-                                                    .size(font_14),
-                                            );
-                                            if let (Some(record), Some(time)) =
-                                                (card.max_record, card.max_time)
-                                            {
-                                                let btn = ui
-                                                    .small_button("⏵")
-                                                    .on_hover_text("Jump to maximum");
-                                                if btn.clicked() {
-                                                    jump_to = Some((record, time));
-                                                }
-                                                if btn.hovered() {
-                                                    ui.ctx().set_cursor_icon(
-                                                        egui::CursorIcon::PointingHand,
-                                                    );
-                                                }
-                                            }
-                                        });
-                                    }
-                                });
-
-                                // Close button in top right
-                                ui.add_space(8.0);
-                                ui.vertical(|ui| {
-                                    let close_btn = ui.add(
-                                        egui::Button::new(
-                                            egui::RichText::new("x")
-                                                .size(font_12)
-                                                .color(egui::Color32::from_rgb(150, 150, 150)),
-                                        )
-                                        .fill(egui::Color32::TRANSPARENT)
-                                        .stroke(egui::Stroke::NONE)
-                                        .corner_radius(2.0),
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    // Series swatch: the line glyph, dashed when the line is
+                                    let (sw, _) = ui.allocate_exact_size(
+                                        egui::vec2(14.0, 14.0),
+                                        egui::Sense::hover(),
                                     );
-                                    if close_btn.clicked() {
+                                    plot_style::swatch(
+                                        ui.painter(),
+                                        sw.left_center(),
+                                        sw.width(),
+                                        card.color,
+                                        card.stroke,
+                                    );
+                                    if card.is_computed {
+                                        ui.label(
+                                            egui::RichText::new("\u{0192}")
+                                                .family(egui::FontFamily::Name(
+                                                    fonts::DISPLAY_BOLD_ITALIC.into(),
+                                                ))
+                                                .color(t.magenta),
+                                        )
+                                        .on_hover_text("Computed channel (formula-based)");
+                                    }
+                                    ui.label(
+                                        egui::RichText::new(&card.display_name)
+                                            .text_style(egui::TextStyle::Heading)
+                                            .color(t.ink),
+                                    );
+                                    ui.add_space(space::SPACE_4);
+                                    if components::icon_button(ui, icon::X, "Remove channel")
+                                        .clicked()
+                                    {
                                         channel_to_remove = Some(i);
                                     }
-                                    if close_btn.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
                                 });
+
+                                for (label, value, record, time, hint) in [
+                                    (
+                                        "Min",
+                                        &card.min_str,
+                                        card.min_record,
+                                        card.min_time,
+                                        "Jump to minimum",
+                                    ),
+                                    (
+                                        "Max",
+                                        &card.max_str,
+                                        card.max_record,
+                                        card.max_time,
+                                        "Jump to maximum",
+                                    ),
+                                ] {
+                                    let Some(value) = value else { continue };
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            egui::RichText::new(label)
+                                                .text_style(fonts::text_style(style::LABEL))
+                                                .color(t.ink_subtle),
+                                        );
+                                        ui.label(
+                                            egui::RichText::new(value)
+                                                .text_style(egui::TextStyle::Monospace)
+                                                .color(t.ink),
+                                        );
+                                        if !card.unit.is_empty() {
+                                            ui.label(
+                                                egui::RichText::new(&card.unit)
+                                                    .text_style(fonts::text_style(style::DATA_SM))
+                                                    .color(t.ink_subtle),
+                                            );
+                                        }
+                                        if let (Some(record), Some(time)) = (record, time)
+                                            && components::icon_button(ui, icon::CARET_RIGHT, hint)
+                                                .clicked()
+                                        {
+                                            jump_to = Some((record, time));
+                                        }
+                                    });
+                                }
                             });
                         });
 
-                    ui.add_space(5.0);
+                    // 2px series strip along the top edge
+                    let r = frame.response.rect;
+                    ui.painter().rect_filled(
+                        egui::Rect::from_min_size(
+                            r.left_top(),
+                            egui::vec2(r.width(), stroke::STROKE_INDICATOR),
+                        ),
+                        egui::CornerRadius {
+                            nw: radius::RADIUS_MD,
+                            ne: radius::RADIUS_MD,
+                            sw: 0,
+                            se: 0,
+                        },
+                        card.color,
+                    );
+
+                    ui.add_space(space::SPACE_1);
                 }
             });
         });
@@ -286,8 +283,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new("Click channels to add them to the chart")
                     .italics()
-                    .color(egui::Color32::GRAY)
-                    .size(font_16),
+                    .color(t.ink_subtle),
             );
         }
     }

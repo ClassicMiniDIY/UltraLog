@@ -11,6 +11,9 @@ use crate::app::UltraLogApp;
 use crate::normalize::sort_channels_by_priority;
 use crate::state::{ActiveTool, MAX_CHANNELS};
 use crate::ui::components::{self, Kind, icon};
+use crate::ui::fonts::{self, style};
+use crate::ui::plot_style;
+use crate::ui::theme::tokens::{radius, space, stroke};
 
 impl UltraLogApp {
     /// Render the tool properties panel content (called from side_panel.rs)
@@ -209,43 +212,83 @@ impl UltraLogApp {
                 .position(|c| c.file_index == file_index && c.channel_index == channel_index);
             let is_selected = selected_idx.is_some();
 
-            let text_color = if is_empty {
-                self.tokens.ink_disabled
-            } else if is_selected {
-                self.tokens.ink
+            let t = self.tokens;
+            let text_color = if is_empty { t.ink_disabled } else { t.ink };
+            let row_height = 28.0;
+            let (rect, response) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width(), row_height),
+                egui::Sense::click(),
+            );
+            let painter = ui.painter();
+            let corner = egui::CornerRadius::same(radius::RADIUS_MD);
+            if is_selected {
+                painter.rect_filled(rect, corner, t.bg_active);
+            } else if response.hovered() {
+                painter.rect_filled(rect, corner, t.bg_hover);
+            }
+
+            // Checkbox (same look as components::checkbox)
+            let boxr = egui::Rect::from_center_size(
+                egui::pos2(rect.left() + space::SPACE_2 + 8.0, rect.center().y),
+                egui::vec2(16.0, 16.0),
+            );
+            let box_corner = egui::CornerRadius::same(radius::RADIUS_XS + 1);
+            if is_selected {
+                painter.rect_filled(boxr, box_corner, t.cyan);
+                painter.text(
+                    boxr.center(),
+                    egui::Align2::CENTER_CENTER,
+                    icon::CHECK,
+                    egui::FontId::proportional(12.0),
+                    t.on_cyan,
+                );
             } else {
-                self.tokens.ink_muted
-            };
+                painter.rect(
+                    boxr,
+                    box_corner,
+                    t.bg_field,
+                    egui::Stroke::new(stroke::STROKE_HAIRLINE, t.line_control),
+                    egui::StrokeKind::Inside,
+                );
+            }
 
-            let bg_color = if is_selected {
-                self.tokens.bg_active
-            } else {
-                egui::Color32::TRANSPARENT
-            };
+            let body = egui::TextStyle::Body.resolve(ui.style());
+            painter.text(
+                egui::pos2(boxr.right() + space::SPACE_3, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                display_name,
+                body,
+                text_color,
+            );
 
-            let frame = egui::Frame::NONE
-                .fill(bg_color)
-                .corner_radius(3)
-                .inner_margin(egui::Margin::symmetric(6, 3));
-
-            let response = frame
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let check = if is_selected { "\u{2611}" } else { "\u{2610}" };
-                        ui.label(
-                            egui::RichText::new(check)
-                                .text_style(egui::TextStyle::Body)
-                                .color(text_color),
-                        );
-                        ui.label(
-                            egui::RichText::new(display_name)
-                                .text_style(egui::TextStyle::Body)
-                                .color(text_color),
-                        );
-                    });
-                })
-                .response
-                .interact(egui::Sense::click());
+            // Right side: unit in mono, and the series swatch when the channel is on the chart
+            let unit = file.log.channels[channel_index].unit();
+            let display_unit = self.unit_preferences.convert_value(0.0, unit).1;
+            let mut right = rect.right() - space::SPACE_2;
+            if !display_unit.is_empty() {
+                let galley = painter.layout_no_wrap(
+                    display_unit.to_string(),
+                    fonts::text_style(style::DATA_SM).resolve(ui.style()),
+                    t.ink_subtle,
+                );
+                right -= galley.size().x;
+                painter.galley(
+                    egui::pos2(right, rect.center().y - galley.size().y / 2.0),
+                    galley,
+                    t.ink_subtle,
+                );
+                right -= space::SPACE_2;
+            }
+            if let Some(idx) = selected_idx {
+                let (color, kind) = self.series_style(selected_channels[idx].color_index);
+                plot_style::swatch(
+                    painter,
+                    egui::pos2(right - 14.0, rect.center().y),
+                    14.0,
+                    color,
+                    kind,
+                );
+            }
 
             if response.clicked() {
                 if let Some(idx) = selected_idx {
@@ -266,13 +309,12 @@ impl UltraLogApp {
                 // Channels with data
                 if !channels_with.is_empty() {
                     egui::CollapsingHeader::new(
-                        egui::RichText::new(format!(
-                            "{} {}",
-                            icon::WAVEFORM,
-                            t!("channels.with_data", count = channels_with.len())
-                        ))
-                        .heading()
-                        .strong(),
+                        egui::RichText::new(
+                            t!("channels.with_data", count = channels_with.len()).to_uppercase(),
+                        )
+                        .text_style(fonts::text_style(style::OVERLINE))
+                        .extra_letter_spacing(0.9)
+                        .color(self.tokens.ink_muted),
                     )
                     .default_open(true)
                     .show(ui, |ui| {
@@ -294,12 +336,11 @@ impl UltraLogApp {
                 // Empty channels
                 if !channels_without.is_empty() {
                     egui::CollapsingHeader::new(
-                        egui::RichText::new(format!(
-                            "{} {}",
-                            icon::TRAY,
-                            t!("channels.empty", count = channels_without.len())
-                        ))
-                        .text_style(egui::TextStyle::Body)
+                        egui::RichText::new(
+                            t!("channels.empty", count = channels_without.len()).to_uppercase(),
+                        )
+                        .text_style(fonts::text_style(style::OVERLINE))
+                        .extra_letter_spacing(0.9)
                         .color(self.tokens.ink_subtle),
                     )
                     .default_open(false)
