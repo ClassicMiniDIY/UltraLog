@@ -2424,7 +2424,7 @@ impl eframe::App for UltraLogApp {
                 .show(ui, |ui| {
                     ui.add_space(5.0);
                     self.render_record_indicator(ui);
-                    ui.separator();
+                    ui.add_space(crate::ui::theme::tokens::space::SPACE_1);
                     self.render_timeline_scrubber(ui);
                     ui.add_space(5.0);
                 });
