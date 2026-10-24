@@ -6,11 +6,7 @@ menu:
   open_log_file: "लॉग फ़ाइल खोलें..."
   close_tab: "टैब बंद करें"
   export: "निर्यात"
-  export_png: "PNG के रूप में निर्यात करें..."
-  export_pdf: "PDF के रूप में निर्यात करें..."
-  export_histogram_pdf: "हिस्टोग्राम PDF के रूप में निर्यात करें..."
-  export_table_png: "तालिका PNG के रूप में निर्यात करें..."
-  export_table_pdf: "तालिका PDF के रूप में निर्यात करें..."
+  export_ellipsis: "निर्यात..."
   view: "दृश्य"
   show_grid: "ग्रिड दिखाएं"
   tool_mode: "टूल मोड"
@@ -180,9 +176,10 @@ toast:
   export_png_success: "चार्ट PNG के रूप में निर्यात किया गया"
   export_pdf_success: "चार्ट PDF के रूप में निर्यात किया गया"
   export_failed: "निर्यात विफल: %{error}"
+  export_copied: "छवि क्लिपबोर्ड पर कॉपी हुई"
   histogram_exported_png: "हिस्टोग्राम PNG के रूप में निर्यात किया गया"
   histogram_exported_pdf: "हिस्टोग्राम PDF के रूप में निर्यात किया गया"
-  table_exported_png: "तालिका PNG के रूप में निर्यात हुई (केवल सेल; मानों के लिए CSV)"
+  table_exported_png: "तालिका PNG के रूप में निर्यात हुई"
   table_exported_pdf: "तालिका PDF के रूप में निर्यात हुई"
   scatter_exported_png: "स्कैटर प्लॉट PNG के रूप में निर्यात किया गया"
   scatter_exported_pdf: "स्कैटर प्लॉट PDF के रूप में निर्यात किया गया"
@@ -217,6 +214,7 @@ common:
   duplicate: "डुप्लिकेट"
   apply: "लागू करें"
   close: "बंद करें"
+  cancel: "रद्द करें"
   reset: "रीसेट"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -343,6 +341,24 @@ chart:
   rich: "रिच"
   target: "टारगेट"
   lean: "लीन"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "निर्यात..."
+  title_chart: "चार्ट निर्यात करें"
+  title_scatter: "स्कैटर प्लॉट निर्यात करें"
+  title_histogram: "हिस्टोग्राम निर्यात करें"
+  title_table: "तालिका निर्यात करें"
+  format: "प्रारूप"
+  paper: "कागज़"
+  paper_desc: "हल्का। डिफ़ॉल्ट; साफ़ छपता है।"
+  graphite: "ग्रेफ़ाइट"
+  graphite_desc: "गहरा, स्याही बचाने वाला धूसर।"
+  cvd_note: "निर्यात हमेशा रंग-अंधता-सुरक्षित पैलेट का उपयोग करते हैं, ताकि जिनके साथ आप साझा करें वे इन्हें पढ़ सकें।"
+  export_pdf: "PDF निर्यात करें"
+  export_png: "PNG निर्यात करें"
+  copy_image: "छवि कॉपी करें"
+  copy_tooltip: "हेडर या फ़ुटर के बिना चार्ट या तालिका कॉपी करें, ताकि किसी दस्तावेज़ में चिपकाया जा सके"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

@@ -6,11 +6,7 @@ menu:
   open_log_file: "Apri File di Log..."
   close_tab: "Chiudi Scheda"
   export: "Esporta"
-  export_png: "Esporta come PNG..."
-  export_pdf: "Esporta come PDF..."
-  export_histogram_pdf: "Esporta Istogramma come PDF..."
-  export_table_png: "Esporta Tabella come PNG..."
-  export_table_pdf: "Esporta Tabella come PDF..."
+  export_ellipsis: "Esporta..."
   view: "Visualizza"
   show_grid: "Mostra griglia"
   tool_mode: "Modalita' Strumento"
@@ -180,9 +176,10 @@ toast:
   export_png_success: "Grafico esportato come PNG"
   export_pdf_success: "Grafico esportato come PDF"
   export_failed: "Esportazione fallita: %{error}"
+  export_copied: "Immagine copiata negli appunti"
   histogram_exported_png: "Istogramma esportato come PNG"
   histogram_exported_pdf: "Istogramma esportato come PDF"
-  table_exported_png: "Tabella esportata come PNG (solo celle; CSV per i valori)"
+  table_exported_png: "Tabella esportata come PNG"
   table_exported_pdf: "Tabella esportata come PDF"
   scatter_exported_png: "Grafico a dispersione esportato come PNG"
   scatter_exported_pdf: "Grafico a dispersione esportato come PDF"
@@ -217,6 +214,7 @@ common:
   duplicate: "Duplica"
   apply: "Applica"
   close: "Chiudi"
+  cancel: "Annulla"
   reset: "Reimposta"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -343,6 +341,24 @@ chart:
   rich: "ricca"
   target: "target"
   lean: "magra"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "Esporta..."
+  title_chart: "Esporta grafico"
+  title_scatter: "Esporta grafici a dispersione"
+  title_histogram: "Esporta istogramma"
+  title_table: "Esporta tabella"
+  format: "Formato"
+  paper: "Carta"
+  paper_desc: "Chiaro. Predefinito; stampa in modo pulito."
+  graphite: "Grafite"
+  graphite_desc: "Grigio scuro, risparmia inchiostro."
+  cvd_note: "Le esportazioni usano sempre la palette sicura per il daltonismo, così chiunque le riceva può leggerle."
+  export_pdf: "Esporta PDF"
+  export_png: "Esporta PNG"
+  copy_image: "Copia immagine"
+  copy_tooltip: "Copia grafico o tabella senza intestazione né piè di pagina, da incollare in un documento"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

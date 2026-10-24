@@ -7,11 +7,7 @@ menu:
   open_log_file: "لاگ فائل کھولیں..."
   close_tab: "ٹیب بند کریں"
   export: "برآمد"
-  export_png: "PNG کے طور پر برآمد کریں..."
-  export_pdf: "PDF کے طور پر برآمد کریں..."
-  export_histogram_pdf: "ہسٹوگرام PDF کے طور پر برآمد کریں..."
-  export_table_png: "ٹیبل PNG کے طور پر برآمد کریں..."
-  export_table_pdf: "ٹیبل PDF کے طور پر برآمد کریں..."
+  export_ellipsis: "برآمد..."
   view: "منظر"
   show_grid: "گرڈ دکھائیں"
   tool_mode: "ٹول موڈ"
@@ -181,9 +177,10 @@ toast:
   export_png_success: "چارٹ PNG کے طور پر برآمد ہوگیا"
   export_pdf_success: "چارٹ PDF کے طور پر برآمد ہوگیا"
   export_failed: "برآمد ناکام: %{error}"
+  export_copied: "تصویر کلپ بورڈ پر کاپی ہوگئی"
   histogram_exported_png: "ہسٹوگرام PNG کے طور پر برآمد ہوگیا"
   histogram_exported_pdf: "ہسٹوگرام PDF کے طور پر برآمد ہوگیا"
-  table_exported_png: "ٹیبل PNG کے طور پر برآمد ہوا (صرف خلیے؛ اقدار کے لیے CSV)"
+  table_exported_png: "ٹیبل PNG کے طور پر برآمد ہوا"
   table_exported_pdf: "ٹیبل PDF کے طور پر برآمد ہوا"
   scatter_exported_png: "سکیٹر پلاٹ PNG کے طور پر برآمد ہوگیا"
   scatter_exported_pdf: "سکیٹر پلاٹ PDF کے طور پر برآمد ہوگیا"
@@ -218,6 +215,7 @@ common:
   duplicate: "نقل بنائیں"
   apply: "لاگو کریں"
   close: "بند کریں"
+  cancel: "منسوخ"
   reset: "ری سیٹ"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -344,6 +342,24 @@ chart:
   rich: "رچ"
   target: "ہدف"
   lean: "لین"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "برآمد..."
+  title_chart: "چارٹ برآمد کریں"
+  title_scatter: "سکیٹر پلاٹ برآمد کریں"
+  title_histogram: "ہسٹوگرام برآمد کریں"
+  title_table: "ٹیبل برآمد کریں"
+  format: "فارمیٹ"
+  paper: "کاغذ"
+  paper_desc: "ہلکا۔ ڈیفالٹ؛ صاف چھپتا ہے۔"
+  graphite: "گریفائٹ"
+  graphite_desc: "گہرا، سیاہی بچانے والا خاکستری۔"
+  cvd_note: "برآمدات ہمیشہ رنگ-اندھے پن کے لیے محفوظ پیلیٹ استعمال کرتی ہیں، تاکہ جن کے ساتھ آپ شیئر کریں وہ انہیں پڑھ سکیں۔"
+  export_pdf: "PDF برآمد کریں"
+  export_png: "PNG برآمد کریں"
+  copy_image: "تصویر کاپی کریں"
+  copy_tooltip: "ہیڈر یا فوٹر کے بغیر چارٹ یا ٹیبل کاپی کریں، تاکہ دستاویز میں چسپاں کیا جا سکے"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

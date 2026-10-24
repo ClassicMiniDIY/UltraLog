@@ -6,11 +6,7 @@ menu:
   open_log_file: "লগ ফাইল খুলুন..."
   close_tab: "ট্যাব বন্ধ করুন"
   export: "রপ্তানি"
-  export_png: "PNG হিসেবে রপ্তানি..."
-  export_pdf: "PDF হিসেবে রপ্তানি..."
-  export_histogram_pdf: "হিস্টোগ্রাম PDF হিসেবে রপ্তানি..."
-  export_table_png: "টেবিল PNG হিসেবে রপ্তানি..."
-  export_table_pdf: "টেবিল PDF হিসেবে রপ্তানি..."
+  export_ellipsis: "রপ্তানি..."
   view: "দৃশ্য"
   show_grid: "গ্রিড দেখান"
   tool_mode: "টুল মোড"
@@ -180,9 +176,10 @@ toast:
   export_png_success: "চার্ট PNG হিসেবে রপ্তানি হয়েছে"
   export_pdf_success: "চার্ট PDF হিসেবে রপ্তানি হয়েছে"
   export_failed: "রপ্তানি ব্যর্থ: %{error}"
+  export_copied: "ছবি ক্লিপবোর্ডে কপি হয়েছে"
   histogram_exported_png: "হিস্টোগ্রাম PNG হিসেবে রপ্তানি হয়েছে"
   histogram_exported_pdf: "হিস্টোগ্রাম PDF হিসেবে রপ্তানি হয়েছে"
-  table_exported_png: "টেবিল PNG হিসেবে রপ্তানি হয়েছে (শুধু সেল; মানের জন্য CSV)"
+  table_exported_png: "টেবিল PNG হিসেবে রপ্তানি হয়েছে"
   table_exported_pdf: "টেবিল PDF হিসেবে রপ্তানি হয়েছে"
   scatter_exported_png: "স্ক্যাটার প্লট PNG হিসেবে রপ্তানি হয়েছে"
   scatter_exported_pdf: "স্ক্যাটার প্লট PDF হিসেবে রপ্তানি হয়েছে"
@@ -217,6 +214,7 @@ common:
   duplicate: "ডুপ্লিকেট"
   apply: "প্রয়োগ"
   close: "বন্ধ করুন"
+  cancel: "বাতিল"
   reset: "রিসেট"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -343,6 +341,24 @@ chart:
   rich: "রিচ"
   target: "টার্গেট"
   lean: "লিন"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "রপ্তানি..."
+  title_chart: "চার্ট রপ্তানি করুন"
+  title_scatter: "স্ক্যাটার প্লট রপ্তানি করুন"
+  title_histogram: "হিস্টোগ্রাম রপ্তানি করুন"
+  title_table: "টেবিল রপ্তানি করুন"
+  format: "ফরম্যাট"
+  paper: "কাগজ"
+  paper_desc: "হালকা। ডিফল্ট; পরিষ্কারভাবে প্রিন্ট হয়।"
+  graphite: "গ্রাফাইট"
+  graphite_desc: "গাঢ়, কালি-সাশ্রয়ী ধূসর।"
+  cvd_note: "রপ্তানিতে সবসময় রঙ-অন্ধত্ব-সহায়ক রঙ ব্যবহৃত হয়, তাই যাদের সাথে শেয়ার করবেন তারা এগুলো পড়তে পারবেন।"
+  export_pdf: "PDF রপ্তানি"
+  export_png: "PNG রপ্তানি"
+  copy_image: "ছবি কপি করুন"
+  copy_tooltip: "হেডার বা ফুটার ছাড়া চার্ট বা টেবিল কপি করুন, যাতে নথিতে পেস্ট করা যায়"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

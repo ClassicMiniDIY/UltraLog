@@ -6,11 +6,7 @@ menu:
   open_log_file: "打开日志文件..."
   close_tab: "关闭标签页"
   export: "导出"
-  export_png: "导出为 PNG..."
-  export_pdf: "导出为 PDF..."
-  export_histogram_pdf: "导出直方图为 PDF..."
-  export_table_png: "导出表格为 PNG..."
-  export_table_pdf: "导出表格为 PDF..."
+  export_ellipsis: "导出..."
   view: "视图"
   show_grid: "显示网格"
   tool_mode: "工具模式"
@@ -180,9 +176,10 @@ toast:
   export_png_success: "图表已导出为 PNG"
   export_pdf_success: "图表已导出为 PDF"
   export_failed: "导出失败: %{error}"
+  export_copied: "图像已复制到剪贴板"
   histogram_exported_png: "直方图已导出为 PNG"
   histogram_exported_pdf: "直方图已导出为 PDF"
-  table_exported_png: "表格已导出为 PNG（仅单元格；数值请使用 CSV）"
+  table_exported_png: "表格已导出为 PNG"
   table_exported_pdf: "表格已导出为 PDF"
   scatter_exported_png: "散点图已导出为 PNG"
   scatter_exported_pdf: "散点图已导出为 PDF"
@@ -217,6 +214,7 @@ common:
   duplicate: "复制"
   apply: "应用"
   close: "关闭"
+  cancel: "取消"
   reset: "重置"
 
 # 计算通道管理器 (src/ui/computed_channels_manager.rs)
@@ -343,6 +341,24 @@ chart:
   rich: "浓"
   target: "目标"
   lean: "稀"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "导出..."
+  title_chart: "导出图表"
+  title_scatter: "导出散点图"
+  title_histogram: "导出直方图"
+  title_table: "导出表格"
+  format: "格式"
+  paper: "纸张"
+  paper_desc: "浅色。默认；打印清晰。"
+  graphite: "石墨"
+  graphite_desc: "深灰色，节省墨水。"
+  cvd_note: "导出内容始终使用色盲安全配色，分享对象都能看清。"
+  export_pdf: "导出 PDF"
+  export_png: "导出 PNG"
+  copy_image: "复制图像"
+  copy_tooltip: "复制图表或表格（不含页眉页脚），可粘贴到文档中"
 
 # 分析面板 (src/ui/analysis_panel.rs)
 analysis:
