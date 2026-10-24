@@ -26,6 +26,7 @@ menu:
   support_development: "Поддержать разработку"
   check_for_updates: "Проверить обновления"
   checking_for_updates: "Проверка обновлений..."
+  about: "О UltraLog"
   version: "Версия %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "Экспорт в PNG"
   copy_image: "Копировать изображение"
   copy_tooltip: "Копировать график или таблицу без заголовка и подвала, чтобы вставить в документ"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "О UltraLog"
+  tagline: "Высокопроизводительный просмотрщик логов ECU"
+  license: "Открытый исходный код под лицензией %{license}"
+  website: "Веб-сайт"
+  source: "Исходный код"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

@@ -26,6 +26,7 @@ menu:
   support_development: "উন্নয়নে সহায়তা করুন"
   check_for_updates: "আপডেট চেক করুন"
   checking_for_updates: "আপডেট চেক করা হচ্ছে..."
+  about: "UltraLog সম্পর্কে"
   version: "সংস্করণ %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "PNG রপ্তানি"
   copy_image: "ছবি কপি করুন"
   copy_tooltip: "হেডার বা ফুটার ছাড়া চার্ট বা টেবিল কপি করুন, যাতে নথিতে পেস্ট করা যায়"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "UltraLog সম্পর্কে"
+  tagline: "উচ্চ-কার্যক্ষমতার ECU লগ ভিউয়ার"
+  license: "%{license} লাইসেন্সের অধীনে ওপেন সোর্স"
+  website: "ওয়েবসাইট"
+  source: "সোর্স কোড"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

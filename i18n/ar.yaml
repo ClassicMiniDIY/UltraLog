@@ -26,6 +26,7 @@ menu:
   support_development: "دعم التطوير"
   check_for_updates: "التحقق من التحديثات"
   checking_for_updates: "جارٍ التحقق من التحديثات..."
+  about: "حول UltraLog"
   version: "الإصدار %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "تصدير PNG"
   copy_image: "نسخ الصورة"
   copy_tooltip: "انسخ الرسم البياني أو الجدول بدون الرأس أو التذييل، للصقه في مستند"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "حول UltraLog"
+  tagline: "عارض سجلات ECU عالي الأداء"
+  license: "مفتوح المصدر بموجب ترخيص %{license}"
+  website: "الموقع الإلكتروني"
+  source: "الكود المصدري"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

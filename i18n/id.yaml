@@ -26,6 +26,7 @@ menu:
   support_development: "Dukung Pengembangan"
   check_for_updates: "Periksa Pembaruan"
   checking_for_updates: "Memeriksa Pembaruan..."
+  about: "Tentang UltraLog"
   version: "Versi %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "Ekspor PNG"
   copy_image: "Salin gambar"
   copy_tooltip: "Salin grafik atau tabel tanpa header atau footer, untuk ditempel ke dokumen"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "Tentang UltraLog"
+  tagline: "Penampil log ECU berkinerja tinggi"
+  license: "Open source di bawah lisensi %{license}"
+  website: "Situs web"
+  source: "Kode sumber"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

@@ -26,6 +26,7 @@ menu:
   support_development: "Soutenir le developpement"
   check_for_updates: "Rechercher des mises a jour"
   checking_for_updates: "Recherche de mises a jour..."
+  about: "À propos d'UltraLog"
   version: "Version %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "Exporter en PNG"
   copy_image: "Copier l'image"
   copy_tooltip: "Copie le graphique ou le tableau sans en-tête ni pied de page, pour le coller dans un document"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "À propos d'UltraLog"
+  tagline: "Visualiseur de journaux ECU haute performance"
+  license: "Open source sous licence %{license}"
+  website: "Site web"
+  source: "Code source"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

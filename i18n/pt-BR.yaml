@@ -26,6 +26,7 @@ menu:
   support_development: "Apoiar o Desenvolvimento"
   check_for_updates: "Verificar Atualizações"
   checking_for_updates: "Verificando Atualizações..."
+  about: "Sobre o UltraLog"
   version: "Versão %{version}"
 
 # Painel de arquivos (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "Exportar PNG"
   copy_image: "Copiar imagem"
   copy_tooltip: "Copia o gráfico ou a tabela sem cabeçalho e rodapé, para colar em um documento"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "Sobre o UltraLog"
+  tagline: "Visualizador de logs de ECU de alto desempenho"
+  license: "Código aberto sob a licença %{license}"
+  website: "Site"
+  source: "Código-fonte"
 
 # Painel de análise (src/ui/analysis_panel.rs)
 analysis:

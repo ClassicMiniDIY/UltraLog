@@ -26,6 +26,7 @@ menu:
   support_development: "開発を支援"
   check_for_updates: "アップデートを確認"
   checking_for_updates: "アップデートを確認中..."
+  about: "UltraLog について"
   version: "バージョン %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "PNGをエクスポート"
   copy_image: "画像をコピー"
   copy_tooltip: "ヘッダーとフッターを除いてチャートまたはテーブルをコピーし、文書に貼り付けます"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "UltraLog について"
+  tagline: "高性能 ECU ログビューア"
+  license: "%{license} ライセンスのオープンソース"
+  website: "ウェブサイト"
+  source: "ソースコード"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

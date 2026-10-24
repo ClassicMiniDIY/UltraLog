@@ -27,6 +27,7 @@ menu:
   support_development: "ترقی میں مدد کریں"
   check_for_updates: "اپڈیٹس کی جانچ کریں"
   checking_for_updates: "اپڈیٹس کی جانچ ہو رہی ہے..."
+  about: "UltraLog کے بارے میں"
   version: "ورژن %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -360,6 +361,14 @@ export:
   export_png: "PNG برآمد کریں"
   copy_image: "تصویر کاپی کریں"
   copy_tooltip: "ہیڈر یا فوٹر کے بغیر چارٹ یا ٹیبل کاپی کریں، تاکہ دستاویز میں چسپاں کیا جا سکے"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "UltraLog کے بارے میں"
+  tagline: "اعلیٰ کارکردگی والا ECU لاگ ویور"
+  license: "%{license} لائسنس کے تحت اوپن سورس"
+  website: "ویب سائٹ"
+  source: "سورس کوڈ"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:

@@ -26,6 +26,7 @@ menu:
   support_development: "支持开发"
   check_for_updates: "检查更新"
   checking_for_updates: "正在检查更新..."
+  about: "关于 UltraLog"
   version: "版本 %{version}"
 
 # 文件面板 (src/ui/files_panel.rs)
@@ -359,6 +360,14 @@ export:
   export_png: "导出 PNG"
   copy_image: "复制图像"
   copy_tooltip: "复制图表或表格（不含页眉页脚），可粘贴到文档中"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "关于 UltraLog"
+  tagline: "高性能 ECU 日志查看器"
+  license: "基于 %{license} 许可证的开源软件"
+  website: "网站"
+  source: "源代码"
 
 # 分析面板 (src/ui/analysis_panel.rs)
 analysis:
