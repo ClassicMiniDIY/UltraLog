@@ -4616,6 +4616,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_norway",
+ "skrifa",
  "strum",
  "tar",
  "thiserror 2.0.20",
@@ -4624,6 +4625,7 @@ dependencies = [
  "tracing-subscriber",
  "ureq",
  "uuid",
+ "vello_cpu",
  "winresource",
  "zip",
 ]

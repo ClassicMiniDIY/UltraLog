@@ -107,6 +107,16 @@ const SCRIPT_FACES: [(&str, &[u8]); 4] = [
     ),
 ];
 
+/// The bytes of a bundled face by its name in [`BRAND_FACES`] / [`SCRIPT_FACES`] (exports draw
+/// text with the same fonts the UI uses).
+pub fn face_bytes(name: &str) -> Option<&'static [u8]> {
+    BRAND_FACES
+        .iter()
+        .chain(SCRIPT_FACES.iter())
+        .find(|(n, _)| *n == name)
+        .map(|(_, bytes)| *bytes)
+}
+
 const SYSTEM_CJK: &str = "system-cjk";
 
 /// Font definitions for `language`. Only `ja` and `zh-CN` read a CJK font from disk.
