@@ -134,7 +134,7 @@ src/
     ├── tool_properties_panel.rs      # Dynamic panel showing controls for the active tool (channels / histogram / scatter)
     ├── analysis_panel.rs             # Window for running analysis algorithms (src/analysis) on the active log
     ├── table_generator.rs            # Table tools: Tool Properties setup + central heatmap / inspector view
-    ├── table_export.rs               # PNG / PDF export for generated tables (pure renderers + app wrappers)
+    ├── table_export.rs               # ExportSheet model for generated tables (`table_sheet`)
     ├── data_panel.rs                 # Right-side data panel hosting DataWidget panes (rail, header, hide/restore)
     ├── widgets/
     │   ├── mod.rs                    # DataWidget trait + static widget registry
@@ -162,7 +162,14 @@ src/
     ├── tool_switcher.rs              # Switch between the five tools (ActiveTool::ALL)
     ├── scatter_plot.rs               # XY scatter plot visualization
     ├── histogram.rs                  # 2D histogram/heatmap view for channel distributions
-    ├── export.rs                     # PNG and PDF export functionality
+    ├── export.rs                     # Builds the ExportSheet per tool; file export and Copy image
+    ├── export_dialog.rs              # ExportDialog: format, Paper/Graphite, Copy image / Export
+    ├── export_sheet/                 # ExportSheet layout + Canvas back ends (see Export Contract)
+    │   ├── mod.rs                    # Sheet / ChartModel / GridModel, draw_sheet, render_png/pdf
+    │   ├── canvas.rs                 # Canvas trait (points, top-left origin, baseline text)
+    │   ├── text.rs                   # skrifa layout, font fallback, glyph outlines
+    │   ├── png.rs                    # vello_cpu back end (2×), lockup composited after render
+    │   └── pdf.rs                    # printpdf back end, bundled TTFs embedded
     ├── normalization_editor.rs       # Custom field mapping editor
     ├── computed_channels_manager.rs  # Computed channels library UI
     ├── formula_editor.rs             # Formula creation and editing
@@ -317,11 +324,11 @@ low cells are never interpolated and export blank.
   holds the accumulators, mappings and export options for both generators. The tables are
   multi-log by design, so the active tab only decides which file *Run / Add current file* reads;
   switching tabs or tools does not lose a table.
-- **PNG has no text** - the crate has no font rasterizer, so `table_export::render_table_png`
-  draws cells and grid lines only (same as the histogram PNG). `render_table_pdf` draws values,
-  counts and axis labels with built-in Helvetica, whose encoding turns `~` into an arrow, so the
-  confidence markers are `*` (medium) and `?` (low). Both go through `tables::export::cell_value`
-  so PNG, PDF, CSV and clipboard blank the same cells and convert delay units identically.
+- **Exports go through the ExportSheet** - `table_export::table_sheet` builds a `GridModel`
+  (values, count badges whose fill style shows confidence, edge labels) and `ui::export_sheet`
+  draws PNG and PDF from it (see the Export Contract below). Cell values go through
+  `tables::export::cell_value`, so PNG, PDF, CSV and clipboard blank the same cells and convert
+  delay units identically.
 - **Auto-suggestion** (`channel_map::suggest_mapping`) - normalization hit (100) → strong name
   hints (50) → spec category + hint (60) → generic hints (40), then a data-plausibility veto on the
   channel median; `overall|avg|average` names lose 10 points so a single sensor beats an averaged
@@ -404,7 +411,7 @@ UI rendering is split into focused modules that implement methods on `UltraLogAp
 - **`tool_switcher.rs`** - Switch between the five tools in `ActiveTool::ALL` (Log Viewer, Scatter Plot, Histogram, Lambda Delay, Accel Enrichment)
 - **`scatter_plot.rs`** - XY scatter plot for channel correlation analysis
 - **`histogram.rs`** - 2D histogram/heatmap view of channel distributions, with configurable cell coloring (average Z-value or hit count)
-- **`export.rs`** - PNG and PDF export with chart rendering
+- **`export.rs`** / **`export_dialog.rs`** / **`export_sheet/`** - the ExportDialog and the one ExportSheet layout every PNG/PDF export uses (see the Export Contract)
 - **`normalization_editor.rs`** - Dialog for creating custom field name mappings
 - **`computed_channels_manager.rs`** - Window for managing computed channel library
 - **`formula_editor.rs`** - Dialog for creating/editing computed channel formulas
@@ -654,7 +661,7 @@ preferences convert them.
 
 ### Settings Persistence Contract
 
-`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `ultra_intensity`, `high_contrast`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, `custom_normalizations`, and the Track Map preferences (`tile_provider`, `tile_cache_max_mb`, `tiles_enabled`, `tile_opacity`, `tile_grayscale`, `tile_privacy_notice_seen`, `hidden_widgets`).
+`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `ultra_intensity`, `high_contrast`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, `custom_normalizations`, and the Track Map preferences (`tile_provider`, `tile_cache_max_mb`, `tiles_enabled`, `tile_opacity`, `tile_grayscale`, `tile_privacy_notice_seen`, `hidden_widgets`), and `export` (the ExportDialog's last format and theme per format).
 
 - **Load** - `UltraLogApp::new` calls `UserSettings::load()` and copies each field into the corresponding live `UltraLogApp` field (e.g. `app.color_blind_mode = user_settings.color_blind_mode`).
 - **Save** - `UltraLogApp` implements `eframe::App::save`, which eframe calls on its auto-save interval (~30s) and again at shutdown. `save()` rebuilds a `UserSettings` from the current live fields, and only writes to disk if it differs from the last-loaded/saved value.
@@ -738,6 +745,39 @@ UI work follows the Night Drive design system in `design/` (brand book
 - **CI** runs `python3 design/tools/check_contrast.py design/tokens/tokens.json`. A token change
   that breaks a pair fails the build: fix the token, never relax the check.
 
+### Export Contract (src/ui/export.rs, src/ui/export_sheet/)
+
+Every PNG and PDF export is one ExportSheet (`design/design-system/4-exports.md`): sunset
+redline, lockup, title, mono meta (time range, counts), the chart or grids, a legend or
+ColorScale, and the footer (ultralog.co · version · export date).
+
+- **One path.** `UltraLogApp::export_sheet` builds a `Sheet` for the active tool (chart, scatter,
+  histogram, table via `table_export::table_sheet`); `export_to_file` and `copy_export_image` are
+  the only writers. Menu, Tools panel and Cmd+E open the ExportDialog; do not add a direct
+  per-tool export again.
+- **Models, not app state, are drawn.** `draw_sheet` lays out `ChartModel` / `GridModel` once on a
+  `Canvas`; `PngCanvas` (vello_cpu, 960 × 540 pt at 2×) and `PdfCanvas` (printpdf, A4 landscape)
+  implement it. A layout change is made once and both formats follow.
+- **Exports ignore app settings.** Colours come from `export_tokens(ExportTheme)` only, the series
+  palette is always the colour-blind one (`theme::series(.., true)`), and there are no intensity
+  effects. PDF has no cheap alpha, so translucent tokens go through `canvas::flatten`.
+- **PDF text is embedded TTF, PNG text is outlines.** `PdfCanvas` embeds the bundled faces
+  (`fonts::face_bytes`) so text stays selectable and `−`, `λ`, `°`, Cyrillic and Devanagari print;
+  never go back to built-in Helvetica (its encoding mangles anything past Latin-1). PNG text is
+  skrifa glyph outlines filled by vello_cpu. `text::layout` has no shaping or kerning and falls
+  back per character Outfit/Saira → JetBrains Mono → Noto scripts, so Arabic prints unjoined.
+- **The lockup is a pre-rasterized PNG** (`assets/brand/ultralog-lockup{,-paper}.png`,
+  `scripts/brand/rasterize_lockups.sh`, rsvg-convert): there is no SVG renderer at runtime. PNG
+  composites it after the vector render; PDF places it as an image XObject.
+- **The export matches the screen.** The chart exports the visible range
+  (`chart_last_x_bounds[0]`) normalized per channel like the chart; the histogram applies the
+  same custom ranges, sample filters, min-hits blanking and `binning::uniform_bin` as
+  `render_histogram_grid`. Change one and change the other.
+- **Remembered choices** live in `UserSettings::export` (`ExportChoice`: last format, last theme
+  per format), synced in the usual three places.
+- **Visual check:** `EXPORT_SHEET_DUMP=<dir> cargo test --lib dump_ -- --ignored` writes sample
+  chart, scatter and table sheets in both themes.
+
 ## Key Features
 
 - **Multi-ECU Support** - Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, Emerald, MegaSquirt, TunerStudio MSL, MHD Tuning, Motorsport Electronics, RaceChrono, Torque Pro, Woolich Racing Tuned, BlueDriver, DynamicEFI, and Locomotive log formats
@@ -750,7 +790,7 @@ UI work follows the Night Drive design system in `design/` (brand book
 - **Field Normalization** - Maps ECU-specific channel names to standardized names for cross-ECU comparison
 - **Scatter Plot Tool** - XY scatter plot for analyzing channel correlations
 - **Histogram Tool** - 2D heatmap view of channel distributions
-- **Export Options** - Export charts as PNG or PDF
+- **Export Options** - Export the chart, scatter plots, histogram or a tuning table as PNG or PDF on the Paper or Graphite sheet, or copy it as an image for pasting
 - **Colorblind Mode** - Wong's optimized color palette for accessibility
 - **Playback** - Play through log data at 0.25x to 8x speed
 - **Cursor Tracking** - Lock view to follow cursor during playback/scrubbing
@@ -773,7 +813,7 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 - **Arrow Left/Right** - Step cursor one record (Shift = 10 records)
 - **Home/End** - Jump cursor to start/end of log
 - **Escape** - Stop playback
-- **Cmd/Ctrl+E** - Export the current view (chart, scatter plot, or histogram) as PNG
+- **Cmd/Ctrl+E** - Open the ExportDialog for the current view
 - **Space** - Toggle play/pause
 
 ## Key Dependencies
@@ -795,7 +835,8 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
   `serde_yaml` fork, and unlike `serde_yaml_ng` its libyaml backend is maintained too.
   Do not go back to `serde_yml` or `serde_yaml`.
 - **printpdf** (0.12) - PDF generation
-- **image** (0.25) - PNG export
+- **image** (0.25) - PNG encoding
+- **skrifa** (0.44) / **vello_cpu** (0.1) - PNG export text and shapes: skrifa reads glyph outlines from the bundled fonts, vello_cpu fills them as paths (its glyph-atlas `text` feature is off)
 - **memmap2** (0.9) - Memory-mapped file loading for large files
 - **rayon** (1.12) - Parallel iteration for parsing
 - **dirs** (6.0) - Cross-platform app data directory detection for cache and settings
