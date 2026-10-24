@@ -14,7 +14,7 @@ use crate::expression::{
 };
 use crate::parsers::Channel;
 use crate::parsers::types::ComputedChannelInfo;
-use crate::state::{CHART_COLORS, SelectedChannel};
+use crate::state::SelectedChannel;
 use crate::ui::components::{self, Kind, Status, icon};
 use crate::ui::fonts::{self, style};
 use crate::ui::formula_syntax;
@@ -665,15 +665,7 @@ impl UltraLogApp {
             return;
         }
 
-        // Find unused color
-        let used_colors: std::collections::HashSet<usize> = self.tabs[tab_idx]
-            .selected_channels
-            .iter()
-            .map(|c| c.color_index)
-            .collect();
-        let color_index = (0..CHART_COLORS.len())
-            .find(|i| !used_colors.contains(i))
-            .unwrap_or(0);
+        let color_index = crate::state::next_color_index(&self.tabs[tab_idx].selected_channels);
 
         // Create the selected channel with computed channel info
         let channel = Channel::Computed(ComputedChannelInfo {

@@ -13,7 +13,7 @@ use crate::computed::{ComputedChannel, ComputedChannelTemplate};
 use crate::normalize::sort_channels_by_priority;
 use crate::parsers::Channel;
 use crate::parsers::types::ComputedChannelInfo;
-use crate::state::{CHART_COLORS, SelectedChannel};
+use crate::state::SelectedChannel;
 use crate::ui::components::{self, Kind};
 
 /// Info about an analyzer for display (avoids borrow issues)
@@ -748,15 +748,7 @@ impl UltraLogApp {
         let base_channel_count = file.log.channels.len();
         let virtual_channel_index = base_channel_count + computed_channels.len() - 1;
 
-        // Find next available color
-        let used_colors: std::collections::HashSet<usize> = self.tabs[tab_idx]
-            .selected_channels
-            .iter()
-            .map(|c| c.color_index)
-            .collect();
-        let color_index = (0..CHART_COLORS.len())
-            .find(|&i| !used_colors.contains(&i))
-            .unwrap_or(0);
+        let color_index = crate::state::next_color_index(&self.tabs[tab_idx].selected_channels);
 
         // Create the channel enum variant
         let channel = Channel::Computed(ComputedChannelInfo {

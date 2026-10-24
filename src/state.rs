@@ -44,38 +44,17 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "csv", "log", "txt", "msl", "mlg", "llg", "llg5", "xrk", "drk", "lg1", "lg2",
 ];
 
-/// Color palette for chart lines (matches original theme)
-pub const CHART_COLORS: &[[u8; 3]] = &[
-    [113, 120, 78],  // Olive green (primary)
-    [191, 78, 48],   // Rust orange (accent)
-    [71, 108, 155],  // Blue (info)
-    [159, 166, 119], // Sage green (success)
-    [253, 193, 73],  // Amber (warning)
-    [135, 30, 28],   // Dark red (error)
-    [246, 247, 235], // Cream
-    [100, 149, 237], // Cornflower blue
-    [255, 127, 80],  // Coral
-    [144, 238, 144], // Light green
-];
-
-/// Colorblind-friendly palette (based on Wong's optimized palette)
-/// Designed to be distinguishable for deuteranopia, protanopia, and tritanopia
-pub const COLORBLIND_COLORS: &[[u8; 3]] = &[
-    [0, 114, 178],   // Blue
-    [230, 159, 0],   // Orange
-    [0, 158, 115],   // Bluish green
-    [204, 121, 167], // Reddish purple
-    [86, 180, 233],  // Sky blue
-    [213, 94, 0],    // Vermillion
-    [240, 228, 66],  // Yellow
-    [0, 0, 0],       // Black (for contrast on light backgrounds, shows as white on dark)
-    [136, 204, 238], // Light blue
-    [153, 153, 153], // Gray
-];
-
 // ============================================================================
 // Core Types
 // ============================================================================
+
+/// The lowest colour slot that no selected channel uses. Slots are unbounded: past the palette
+/// `theme::series` repeats the colours with a dashed, then dotted stroke, so a stacked view with
+/// many channels never puts two identical lines on screen.
+pub fn next_color_index(selected: &[SelectedChannel]) -> usize {
+    let used: std::collections::HashSet<usize> = selected.iter().map(|c| c.color_index).collect();
+    (0..).find(|i| !used.contains(i)).unwrap_or(0)
+}
 
 /// Source of [`LoadedFile::load_id`] nonces.
 static NEXT_LOAD_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);

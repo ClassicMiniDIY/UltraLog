@@ -16,7 +16,6 @@
 //! - `timeline` - Timeline scrubber and playback controls
 //! - `menu` - Menu bar (File, Edit, View, Help)
 //! - `toast` - Toast notification system
-//! - `icons` - Custom icon drawing utilities
 //! - `export` - Chart export functionality (PNG, PDF)
 //! - `normalization_editor` - Field normalization customization window
 //! - `tool_switcher` - Tool mode selection (Log Viewer, Scatter Plot, Histogram)
@@ -49,9 +48,9 @@ pub mod export;
 pub mod formula_editor;
 pub mod formula_syntax;
 pub mod histogram;
-pub mod icons;
 pub mod menu;
 pub mod normalization_editor;
+pub mod plot_style;
 pub mod scatter_plot;
 pub mod tab_bar;
 pub mod table_export;

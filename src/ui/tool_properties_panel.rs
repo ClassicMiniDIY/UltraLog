@@ -403,11 +403,17 @@ impl UltraLogApp {
                                     self.tokens.ink_muted
                                 };
 
-                                if open {
-                                    crate::ui::icons::draw_triangle_down(ui, center, 12.0, color);
-                                } else {
-                                    crate::ui::icons::draw_triangle_right(ui, center, 12.0, color);
-                                }
+                                ui.painter().text(
+                                    center,
+                                    egui::Align2::CENTER_CENTER,
+                                    if open {
+                                        icon::CARET_DOWN
+                                    } else {
+                                        icon::CARET_RIGHT
+                                    },
+                                    egui::FontId::proportional(14.0),
+                                    color,
+                                );
 
                                 if response.clicked() {
                                     open = !open;

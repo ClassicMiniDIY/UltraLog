@@ -12,10 +12,10 @@ use ultralog::parsers::Channel;
 use ultralog::parsers::haltech::{ChannelType, HaltechChannel};
 use ultralog::parsers::types::{EcuType, Log, Value};
 use ultralog::state::{
-    ActiveTool, CHART_COLORS, COLORBLIND_COLORS, CacheKey, HistogramConfig, HistogramGridSize,
-    HistogramMode, HistogramState, LoadResult, LoadedFile, LoadingState, MAX_CHANNELS,
-    MAX_CHART_POINTS, SUPPORTED_EXTENSIONS, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
-    SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType,
+    ActiveTool, CacheKey, HistogramConfig, HistogramGridSize, HistogramMode, HistogramState,
+    LoadResult, LoadedFile, LoadingState, MAX_CHANNELS, MAX_CHART_POINTS, SUPPORTED_EXTENSIONS,
+    ScatterPlotConfig, ScatterPlotState, SelectedChannel, SelectedHeatmapPoint,
+    SelectedHistogramCell, Tab, ToastType, next_color_index,
 };
 use ultralog::ui::theme::tokens as ultralog_theme;
 
@@ -64,64 +64,34 @@ fn test_supported_extensions_contains_common() {
 // Color Palette Tests
 // ============================================
 
-#[test]
-fn test_chart_colors_not_empty() {
-    assert!(!CHART_COLORS.is_empty(), "Should have chart colors");
-    assert_eq!(CHART_COLORS.len(), 10, "Should have 10 chart colors");
-}
-
-#[test]
-fn test_chart_colors_valid_rgb() {
-    for (i, color) in CHART_COLORS.iter().enumerate() {
-        assert_eq!(color.len(), 3, "Color {} should have 3 components", i);
-        // RGB values are u8, so already in 0-255 range
+fn channel_with_color(color_index: usize) -> SelectedChannel {
+    SelectedChannel {
+        file_index: 0,
+        channel_index: color_index,
+        channel: Channel::Haltech(HaltechChannel {
+            name: format!("ch{color_index}"),
+            id: String::new(),
+            r#type: ChannelType::Raw,
+            display_min: None,
+            display_max: None,
+        }),
+        color_index,
     }
 }
 
 #[test]
-fn test_chart_colors_unique() {
-    let mut unique_colors: Vec<&[u8; 3]> = Vec::new();
-    for color in CHART_COLORS {
-        assert!(
-            !unique_colors.contains(&color),
-            "Chart colors should be unique"
-        );
-        unique_colors.push(color);
-    }
+fn test_next_color_index_fills_the_lowest_gap() {
+    let selected: Vec<_> = [0, 1, 3].into_iter().map(channel_with_color).collect();
+    assert_eq!(next_color_index(&selected), 2);
 }
 
 #[test]
-fn test_colorblind_colors_not_empty() {
-    assert!(
-        !COLORBLIND_COLORS.is_empty(),
-        "Should have colorblind colors"
-    );
-    assert_eq!(
-        COLORBLIND_COLORS.len(),
-        10,
-        "Should have 10 colorblind colors"
-    );
-}
-
-#[test]
-fn test_colorblind_colors_valid_rgb() {
-    for (i, color) in COLORBLIND_COLORS.iter().enumerate() {
-        assert_eq!(
-            color.len(),
-            3,
-            "Colorblind color {} should have 3 components",
-            i
-        );
-    }
-}
-
-#[test]
-fn test_chart_and_colorblind_same_count() {
-    assert_eq!(
-        CHART_COLORS.len(),
-        COLORBLIND_COLORS.len(),
-        "Chart and colorblind palettes should have same count"
-    );
+fn test_next_color_index_continues_past_the_palette() {
+    // Stacked mode allows 60 channels; slots keep counting so the theme can repeat colours
+    // with a dashed or dotted stroke instead of reusing slot 0.
+    let selected: Vec<_> = (0..12).map(channel_with_color).collect();
+    assert_eq!(next_color_index(&selected), 12);
+    assert_eq!(next_color_index(&[]), 0);
 }
 
 // ============================================

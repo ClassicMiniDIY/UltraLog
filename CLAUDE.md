@@ -144,7 +144,6 @@ src/
     ├── timeline.rs                   # Timeline scrubber and playback controls
     ├── menu.rs                       # Menu bar (Units, Tools, Help menus)
     ├── toast.rs                      # Toast notification system
-    ├── icons.rs                      # Custom icon drawing utilities
     ├── tab_bar.rs                    # Multi-file tab interface
     ├── fonts.rs                      # Font families (per weight), script/CJK fallbacks, the type scale as TextStyles
     ├── formula_syntax.rs             # Formula tokenizer + LayoutJob colouring (editor, help window)
@@ -399,7 +398,6 @@ UI rendering is split into focused modules that implement methods on `UltraLogAp
 - **`timeline.rs`** - Bottom panel: playback controls (play/pause/stop), speed selector, timeline scrubber
 - **`menu.rs`** - Top menu bar (File, Edit, View, Help; Units submenu with 8 unit categories)
 - **`toast.rs`** - Toast notification overlay for user feedback
-- **`icons.rs`** - Custom icon drawing (upload icon for drop zone)
 - **`tab_bar.rs`** - Chrome-style tabs for multi-file support
 - **`tool_switcher.rs`** - Switch between the five tools in `ActiveTool::ALL` (Log Viewer, Scatter Plot, Histogram, Lambda Delay, Accel Enrichment)
 - **`scatter_plot.rs`** - XY scatter plot for channel correlation analysis

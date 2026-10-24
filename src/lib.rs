@@ -22,7 +22,6 @@
 //!   - `timeline` - Timeline scrubber and playback controls
 //!   - `menu` - Menu bar (Units, Help)
 //!   - `toast` - Toast notification system
-//!   - `icons` - Custom icon drawing utilities
 
 #[macro_use]
 extern crate rust_i18n;

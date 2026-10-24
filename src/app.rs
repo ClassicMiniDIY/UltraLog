@@ -27,10 +27,10 @@ use crate::parsers::{
 };
 use crate::settings::UserSettings;
 use crate::state::{
-    ActivePanel, ActiveTool, CHART_COLORS, COLORBLIND_COLORS, CacheKey, DownsampleCache, FontScale,
-    LoadResult, LoadedFile, LoadingState, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS,
-    MIN_PLOT_HEIGHT, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
-    SelectedChannel, Tab, TileProviderId, ToastType,
+    ActivePanel, ActiveTool, CacheKey, DownsampleCache, FontScale, LoadResult, LoadedFile,
+    LoadingState, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS, MIN_PLOT_HEIGHT,
+    PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab,
+    TileProviderId, ToastType,
 };
 use crate::ui::table_generator::TableGeneratorState;
 use crate::units::UnitPreferences;
@@ -390,12 +390,21 @@ impl UltraLogApp {
 
     /// Get color for a channel based on color blind mode setting
     pub fn get_channel_color(&self, color_index: usize) -> [u8; 3] {
-        let palette = if self.color_blind_mode {
-            COLORBLIND_COLORS
-        } else {
-            CHART_COLORS
-        };
-        palette[color_index % palette.len()]
+        let [r, g, b, _] = self.series_style(color_index).0.to_array();
+        [r, g, b]
+    }
+
+    /// Colour and stroke of the series in `color_index`. Color blind mode and High contrast use
+    /// the eight Okabe-Ito colours; see `theme::series`.
+    pub fn series_style(
+        &self,
+        color_index: usize,
+    ) -> (egui::Color32, crate::ui::theme::SeriesStroke) {
+        crate::ui::theme::series(
+            &self.tokens,
+            color_index,
+            self.color_blind_mode || self.high_contrast,
+        )
     }
 
     /// Get a scaled font size based on user's font scale preference
@@ -1234,16 +1243,7 @@ impl UltraLogApp {
         let file = &self.files[file_index];
         let channel = file.log.channels[channel_index].clone();
 
-        // Find the first unused color index
-        let used_colors: std::collections::HashSet<usize> = tab
-            .selected_channels
-            .iter()
-            .map(|c| c.color_index)
-            .collect();
-
-        let color_index = (0..CHART_COLORS.len())
-            .find(|i| !used_colors.contains(i))
-            .unwrap_or(0);
+        let color_index = crate::state::next_color_index(&tab.selected_channels);
 
         self.tabs[tab_idx].selected_channels.push(SelectedChannel {
             file_index,
@@ -1485,15 +1485,7 @@ impl UltraLogApp {
         let file = &self.files[file_index];
         let channel = file.log.channels[channel_index].clone();
 
-        let used_colors: std::collections::HashSet<usize> = tab
-            .selected_channels
-            .iter()
-            .map(|c| c.color_index)
-            .collect();
-
-        let color_index = (0..CHART_COLORS.len())
-            .find(|i| !used_colors.contains(i))
-            .unwrap_or(0);
+        let color_index = crate::state::next_color_index(&tab.selected_channels);
 
         let selected_channel = SelectedChannel {
             file_index,
