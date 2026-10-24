@@ -148,7 +148,8 @@ impl Sheet {
     }
 }
 
-fn lockup(theme: ExportTheme) -> &'static RgbaImage {
+/// The pre-rasterized lockup for `theme` (dark grounds: Graphite and the About window).
+pub(crate) fn lockup(theme: ExportTheme) -> &'static RgbaImage {
     static PAPER: OnceLock<RgbaImage> = OnceLock::new();
     static DARK: OnceLock<RgbaImage> = OnceLock::new();
     let (cell, bytes): (&OnceLock<RgbaImage>, &[u8]) = match theme {

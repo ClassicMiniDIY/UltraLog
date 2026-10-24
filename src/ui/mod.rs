@@ -28,6 +28,7 @@
 //! - `formula_editor` - Formula creation and editing
 
 // New activity bar architecture
+pub mod about_window;
 pub mod activity_bar;
 pub mod components;
 pub mod data_panel;

@@ -218,6 +218,11 @@ impl UltraLogApp {
 
                 ui.separator();
 
+                if ui.button(t!("menu.about")).clicked() {
+                    self.show_about = true;
+                    ui.close();
+                }
+
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new(t!(

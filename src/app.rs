@@ -109,6 +109,7 @@ pub struct UltraLogApp {
     /// ExportDialog choices, remembered across sessions.
     pub(crate) export_choice: crate::ui::export_sheet::ExportChoice,
     pub(crate) show_export_dialog: bool,
+    pub(crate) show_about: bool,
     // === Theme ===
     /// Live Night Drive tokens, rebuilt by `sync_theme` when a theme setting changes.
     pub(crate) tokens: crate::ui::theme::Tokens,
@@ -260,6 +261,7 @@ impl Default for UltraLogApp {
             high_contrast: false,
             export_choice: Default::default(),
             show_export_dialog: false,
+            show_about: false,
             tokens: crate::ui::theme::tokens_at(crate::ui::theme::ThemeSettings::default()),
             applied_theme: None,
             theme_generation: 0,
@@ -2349,6 +2351,7 @@ impl eframe::App for UltraLogApp {
         self.render_update_dialog(ctx);
         self.render_computed_channels_manager(ctx);
         self.render_export_dialog(ctx);
+        self.render_about_window(ctx);
         self.render_formula_editor(ctx);
         self.render_analysis_panel(ctx);
     }
