@@ -9,21 +9,10 @@ use rust_i18n::t;
 use crate::app::UltraLogApp;
 use crate::normalize::{normalize_channel_name_with_custom, sort_channels_by_priority};
 use crate::state::{ScatterHistogram, ScatterPlotConfig, SelectedHeatmapPoint};
-
-/// Heat map color gradient from blue (low) to red (high)
-const HEAT_COLORS: &[[u8; 3]] = &[
-    [0, 0, 80],    // Dark blue (0.0)
-    [0, 0, 180],   // Blue
-    [0, 100, 255], // Light blue
-    [0, 200, 255], // Cyan
-    [0, 255, 200], // Cyan-green
-    [0, 255, 100], // Green
-    [100, 255, 0], // Yellow-green
-    [200, 255, 0], // Yellow
-    [255, 200, 0], // Orange
-    [255, 100, 0], // Red-orange
-    [255, 0, 0],   // Red (1.0)
-];
+use crate::ui::components::icon;
+use crate::ui::fonts::{self, style};
+use crate::ui::heatmap::{self, MapKind};
+use crate::ui::theme;
 
 /// Number of bins in each dimension for the heatmap grid (higher = more detail)
 const HEATMAP_BINS: usize = 512;
@@ -35,9 +24,6 @@ const AXIS_LABEL_MARGIN_BOTTOM: f32 = 25.0;
 /// Height reserved for the legend at the bottom
 const LEGEND_HEIGHT: f32 = 35.0;
 
-/// Crosshair color
-const CROSSHAIR_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 255, 0); // Yellow
-
 impl UltraLogApp {
     /// Render the scatter plot view with two side-by-side plots
     pub fn render_scatter_plot_view(&mut self, ui: &mut egui::Ui) {
@@ -46,8 +32,8 @@ impl UltraLogApp {
             ui.centered_and_justified(|ui| {
                 ui.label(
                     egui::RichText::new(t!("scatter.no_file_loaded"))
-                        .size(self.scaled_font(20.0))
-                        .color(egui::Color32::GRAY),
+                        .heading()
+                        .color(self.tokens.ink_subtle),
                 );
             });
             return;
@@ -96,9 +82,9 @@ impl UltraLogApp {
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new(&title)
-                    .size(self.scaled_font(16.0))
+                    .heading()
                     .strong()
-                    .color(egui::Color32::WHITE),
+                    .color(self.tokens.ink),
             );
         });
 
@@ -172,7 +158,7 @@ impl UltraLogApp {
                     egui::Align2::CENTER_CENTER,
                     "Select X and Y axes",
                     egui::FontId::proportional(font_16),
-                    egui::Color32::GRAY,
+                    self.tokens.ink_subtle,
                 );
                 return;
             }
@@ -279,8 +265,9 @@ impl UltraLogApp {
         );
 
         // Fill background with black
+        let t = self.tokens;
         let painter = ui.painter_at(full_rect);
-        painter.rect_filled(plot_rect, 0.0, egui::Color32::BLACK);
+        painter.rect_filled(plot_rect, 0.0, t.plot_bg);
 
         // Calculate cell size based on plot rect (not full rect)
         let cell_width = plot_rect.width() / HEATMAP_BINS as f32;
@@ -299,7 +286,7 @@ impl UltraLogApp {
                     } else {
                         1.0
                     };
-                    let color = Self::get_heat_color(normalized);
+                    let color = theme::seq(&t, normalized as f32);
 
                     // Calculate cell position (Y is inverted - higher values at top)
                     let cell_x = plot_rect.left() + x_bin as f32 * cell_width;
@@ -318,7 +305,7 @@ impl UltraLogApp {
         }
 
         // Draw axes labels
-        let text_color = egui::Color32::from_rgb(200, 200, 200);
+        let text_color = t.plot_axis;
 
         // Y axis labels (left margin, outside plot area)
         let y_labels = 5;
@@ -341,7 +328,7 @@ impl UltraLogApp {
                     egui::pos2(plot_rect.left(), y_pos),
                     egui::pos2(plot_rect.right(), y_pos),
                 ],
-                egui::Stroke::new(0.5, egui::Color32::from_rgb(60, 60, 60)),
+                egui::Stroke::new(0.5, self.tokens.plot_grid),
             );
         }
 
@@ -366,7 +353,7 @@ impl UltraLogApp {
                     egui::pos2(x_pos, plot_rect.top()),
                     egui::pos2(x_pos, plot_rect.bottom()),
                 ],
-                egui::Stroke::new(0.5, egui::Color32::from_rgb(60, 60, 60)),
+                egui::Stroke::new(0.5, self.tokens.plot_grid),
             );
         }
 
@@ -387,7 +374,7 @@ impl UltraLogApp {
                 let sel_y = plot_rect.bottom() - sel_rel_y * plot_rect.height();
 
                 // Draw persistent crosshairs (cyan for selected)
-                let selected_color = egui::Color32::from_rgb(0, 255, 255);
+                let selected_color = t.plot_cursor;
                 painter.line_segment(
                     [
                         egui::pos2(sel_x, plot_rect.top()),
@@ -429,14 +416,14 @@ impl UltraLogApp {
                             egui::pos2(pos.x, plot_rect.top()),
                             egui::pos2(pos.x, plot_rect.bottom()),
                         ],
-                        egui::Stroke::new(1.0, CROSSHAIR_COLOR),
+                        egui::Stroke::new(1.0, t.ink_subtle),
                     );
                     painter.line_segment(
                         [
                             egui::pos2(plot_rect.left(), pos.y),
                             egui::pos2(plot_rect.right(), pos.y),
                         ],
-                        egui::Stroke::new(1.0, CROSSHAIR_COLOR),
+                        egui::Stroke::new(1.0, t.ink_subtle),
                     );
 
                     // Draw tooltip in corner
@@ -445,8 +432,8 @@ impl UltraLogApp {
                         egui::pos2(plot_rect.right() - 10.0, plot_rect.top() + 15.0),
                         egui::Align2::RIGHT_TOP,
                         tooltip_text,
-                        egui::FontId::proportional(font_11),
-                        egui::Color32::WHITE,
+                        egui::FontId::monospace(font_11),
+                        self.tokens.ink,
                     );
 
                     // Handle click to select point
@@ -468,28 +455,6 @@ impl UltraLogApp {
         self.render_heatmap_legend(ui, max_hits, is_left, x_min, x_max, y_min, y_max);
     }
 
-    /// Get a color from the heat map gradient based on normalized value (0-1)
-    fn get_heat_color(normalized: f64) -> egui::Color32 {
-        let t = normalized.clamp(0.0, 1.0);
-        let scaled = t * (HEAT_COLORS.len() - 1) as f64;
-        let idx = scaled.floor() as usize;
-        let frac = scaled - idx as f64;
-
-        if idx >= HEAT_COLORS.len() - 1 {
-            let c = HEAT_COLORS[HEAT_COLORS.len() - 1];
-            return egui::Color32::from_rgb(c[0], c[1], c[2]);
-        }
-
-        let c1 = HEAT_COLORS[idx];
-        let c2 = HEAT_COLORS[idx + 1];
-
-        let r = (c1[0] as f64 + (c2[0] as f64 - c1[0] as f64) * frac) as u8;
-        let g = (c1[1] as f64 + (c2[1] as f64 - c1[1] as f64) * frac) as u8;
-        let b = (c1[2] as f64 + (c2[2] as f64 - c1[2] as f64) * frac) as u8;
-
-        egui::Color32::from_rgb(r, g, b)
-    }
-
     /// Render the heatmap legend with color scale and selected point info
     #[allow(clippy::too_many_arguments)]
     fn render_heatmap_legend(
@@ -507,8 +472,6 @@ impl UltraLogApp {
         };
 
         // Pre-compute scaled font sizes
-        let font_10 = self.scaled_font(10.0);
-        let font_11 = self.scaled_font(11.0);
 
         // First, gather the data we need (immutable borrow)
         let config = if is_left {
@@ -563,44 +526,32 @@ impl UltraLogApp {
 
             // Color scale legend
             egui::Frame::NONE
-                .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
+                .fill(self.tokens.bg_raised)
                 .corner_radius(4)
                 .inner_margin(6.0)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(t!("scatter.hits_label"))
-                                .size(font_11)
-                                .color(egui::Color32::WHITE),
+                                .small()
+                                .color(self.tokens.ink),
                         );
 
                         // Color gradient bar
                         let (rect, _) =
-                            ui.allocate_exact_size(egui::vec2(100.0, 14.0), egui::Sense::hover());
-
-                        let painter = ui.painter();
-                        let steps = 25;
-                        let step_width = rect.width() / steps as f32;
-
-                        for i in 0..steps {
-                            let t = i as f64 / steps as f64;
-                            let color = Self::get_heat_color(t);
-                            let x = rect.left() + i as f32 * step_width;
-                            painter.rect_filled(
-                                egui::Rect::from_min_size(
-                                    egui::pos2(x, rect.top()),
-                                    egui::vec2(step_width + 1.0, rect.height()),
-                                ),
-                                0.0,
-                                color,
-                            );
-                        }
+                            ui.allocate_exact_size(egui::vec2(100.0, 8.0), egui::Sense::hover());
+                        heatmap::gradient_bar(
+                            ui.painter(),
+                            rect,
+                            &self.tokens,
+                            MapKind::Sequential,
+                        );
 
                         ui.add_space(4.0);
                         ui.label(
                             egui::RichText::new(format!("0-{}", max_hits))
-                                .size(font_10)
-                                .color(egui::Color32::WHITE),
+                                .text_style(fonts::text_style(style::DATA_SM))
+                                .color(self.tokens.ink),
                         );
                     });
                 });
@@ -610,20 +561,17 @@ impl UltraLogApp {
             // Selected point legend (similar to log viewer channel display)
             if let Some(ref selected) = selected_point {
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
+                    .fill(self.tokens.bg_raised)
                     .corner_radius(4)
                     .inner_margin(6.0)
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 255)))
+                    .stroke(egui::Stroke::new(1.0, self.tokens.cyan))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             // Cyan indicator dot
                             let (dot_rect, _) = ui
                                 .allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
-                            ui.painter().circle_filled(
-                                dot_rect.center(),
-                                5.0,
-                                egui::Color32::from_rgb(0, 255, 255),
-                            );
+                            ui.painter()
+                                .circle_filled(dot_rect.center(), 5.0, self.tokens.cyan);
 
                             ui.add_space(4.0);
 
@@ -636,8 +584,8 @@ impl UltraLogApp {
                                     selected.y_value,
                                     selected.hits
                                 ))
-                                .size(font_11)
-                                .color(egui::Color32::WHITE),
+                                .small()
+                                .color(self.tokens.ink),
                             );
 
                             ui.add_space(8.0);
@@ -664,9 +612,6 @@ impl UltraLogApp {
     /// Render scatter plot controls in the sidebar - optimized for vertical layout
     /// Shows controls for both left and right plots
     pub(crate) fn render_scatter_plot_controls(&mut self, ui: &mut egui::Ui) {
-        let font_14 = self.scaled_font(14.0);
-        let font_15 = self.scaled_font(15.0);
-
         let Some(tab_idx) = self.active_tab else {
             return;
         };
@@ -690,29 +635,27 @@ impl UltraLogApp {
             .map(|(idx, name, _)| (*idx, name.clone()))
             .collect();
 
-        let font_12 = self.scaled_font(12.0);
-
         // ============================================================================
         // LEFT PLOT SECTION
         // ============================================================================
         let frame_left = egui::Frame::NONE
-            .fill(egui::Color32::from_rgb(40, 40, 40))
+            .fill(self.tokens.bg_raised)
             .corner_radius(6)
             .inner_margin(egui::Margin::same(12));
 
         frame_left.show(ui, |ui| {
-            ui.label(egui::RichText::new("📊 Left Plot").size(font_15).strong());
+            ui.label(
+                egui::RichText::new(format!("{} Left plot", icon::CHART_SCATTER))
+                    .heading()
+                    .strong(),
+            );
             ui.add_space(12.0);
 
             let left_config = &self.tabs[tab_idx].scatter_plot_state.left;
             let mut left_new_x = None;
             let mut left_new_y = None;
 
-            ui.label(
-                egui::RichText::new(t!("scatter.x_axis"))
-                    .size(font_14)
-                    .strong(),
-            );
+            ui.label(egui::RichText::new(t!("scatter.x_axis")).heading().strong());
             egui::ComboBox::from_id_salt("left_x_sidebar")
                 .selected_text(
                     left_config
@@ -735,11 +678,7 @@ impl UltraLogApp {
             ui.add_space(8.0);
 
             // Y Axis
-            ui.label(
-                egui::RichText::new(t!("scatter.y_axis"))
-                    .size(font_14)
-                    .strong(),
-            );
+            ui.label(egui::RichText::new(t!("scatter.y_axis")).heading().strong());
             egui::ComboBox::from_id_salt("left_y_sidebar")
                 .selected_text(
                     left_config
@@ -765,13 +704,13 @@ impl UltraLogApp {
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(format!("{}: ", t!("scatter.z_axis")))
-                        .size(font_12)
-                        .color(egui::Color32::from_rgb(150, 150, 150)),
+                        .small()
+                        .color(self.tokens.ink_subtle),
                 );
                 ui.label(
                     egui::RichText::new(t!("scatter.hits"))
-                        .size(font_12)
-                        .color(egui::Color32::from_rgb(180, 180, 180))
+                        .small()
+                        .color(self.tokens.ink_muted)
                         .italics(),
                 );
             });
@@ -793,23 +732,23 @@ impl UltraLogApp {
         // RIGHT PLOT SECTION
         // ============================================================================
         let frame_right = egui::Frame::NONE
-            .fill(egui::Color32::from_rgb(40, 40, 40))
+            .fill(self.tokens.bg_raised)
             .corner_radius(6)
             .inner_margin(egui::Margin::same(12));
 
         frame_right.show(ui, |ui| {
-            ui.label(egui::RichText::new("📊 Right Plot").size(font_15).strong());
+            ui.label(
+                egui::RichText::new(format!("{} Right plot", icon::CHART_SCATTER))
+                    .heading()
+                    .strong(),
+            );
             ui.add_space(12.0);
 
             let right_config = &self.tabs[tab_idx].scatter_plot_state.right;
             let mut right_new_x = None;
             let mut right_new_y = None;
 
-            ui.label(
-                egui::RichText::new(t!("scatter.x_axis"))
-                    .size(font_14)
-                    .strong(),
-            );
+            ui.label(egui::RichText::new(t!("scatter.x_axis")).heading().strong());
             egui::ComboBox::from_id_salt("right_x_sidebar")
                 .selected_text(
                     right_config
@@ -832,11 +771,7 @@ impl UltraLogApp {
             ui.add_space(8.0);
 
             // Y Axis
-            ui.label(
-                egui::RichText::new(t!("scatter.y_axis"))
-                    .size(font_14)
-                    .strong(),
-            );
+            ui.label(egui::RichText::new(t!("scatter.y_axis")).heading().strong());
             egui::ComboBox::from_id_salt("right_y_sidebar")
                 .selected_text(
                     right_config
@@ -862,13 +797,13 @@ impl UltraLogApp {
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(format!("{}: ", t!("scatter.z_axis")))
-                        .size(font_12)
-                        .color(egui::Color32::from_rgb(150, 150, 150)),
+                        .small()
+                        .color(self.tokens.ink_subtle),
                 );
                 ui.label(
                     egui::RichText::new(t!("scatter.hits"))
-                        .size(font_12)
-                        .color(egui::Color32::from_rgb(180, 180, 180))
+                        .small()
+                        .color(self.tokens.ink_muted)
                         .italics(),
                 );
             });

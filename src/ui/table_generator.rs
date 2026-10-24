@@ -5,7 +5,7 @@
 //! `ActiveTool::AccelEnrich`), split the way Histogram is:
 //!
 //! - **Tool Properties panel** (`render_table_tool_properties`) - channel roles
-//!   (auto-suggested, ⚠ on ambiguity), load axis, axes, parameters, and
+//!   (auto-suggested, a warning icon on ambiguity), load axis, axes, parameters, and
 //!   *Run / Add current file*.
 //! - **Central panel** (`render_table_tool_view`) - Viridis heatmap with value
 //!   text and a count badge coloured by confidence; hover for the cell tooltip;
@@ -30,8 +30,10 @@ use crate::analysis::tables::{
 };
 use crate::analytics;
 use crate::app::UltraLogApp;
-use crate::colormap::{Colormap, sample};
-use crate::ui::histogram::get_aaa_text_color;
+use crate::ui::components::{self, Kind, icon};
+use crate::ui::fonts::{self, style};
+use crate::ui::heatmap::{self, BadgeStyle, MapKind};
+use crate::ui::theme::tokens::space;
 
 /// Per-generator setup that is re-derived per log.
 #[derive(Clone)]
@@ -125,18 +127,13 @@ impl TableGeneratorState {
     }
 }
 
-const CONFIDENCE_COLORS: [(Confidence, egui::Color32); 3] = [
-    (Confidence::Low, egui::Color32::from_rgb(220, 80, 80)),
-    (Confidence::Medium, egui::Color32::from_rgb(230, 170, 50)),
-    (Confidence::High, egui::Color32::from_rgb(100, 200, 100)),
-];
-
-fn confidence_color(c: Confidence) -> egui::Color32 {
-    CONFIDENCE_COLORS
-        .iter()
-        .find(|(k, _)| *k == c)
-        .map(|(_, col)| *col)
-        .unwrap_or(egui::Color32::GRAY)
+/// Confidence as a badge fill style (filled high, outlined medium, dashed low), never a hue.
+fn badge_style(c: Confidence) -> BadgeStyle {
+    match c {
+        Confidence::High => BadgeStyle::High,
+        Confidence::Medium => BadgeStyle::Medium,
+        _ => BadgeStyle::Low,
+    }
 }
 
 fn fmt_value(v: f64, decimals: usize) -> String {
@@ -162,24 +159,24 @@ impl UltraLogApp {
                 if file_index.is_none() {
                     ui.label(
                         egui::RichText::new(t!("analysis.no_file_loaded"))
-                            .color(egui::Color32::GRAY)
-                            .size(16.0),
+                            .color(self.tokens.ink_subtle)
+                            .heading(),
                     );
                     ui.label(
                         egui::RichText::new(t!("analysis.load_file_help"))
-                            .color(egui::Color32::GRAY)
+                            .color(self.tokens.ink_subtle)
                             .small(),
                     );
                 } else {
                     ui.label(
                         egui::RichText::new(self.table_generator.generator(kind).description())
-                            .color(egui::Color32::GRAY)
-                            .size(14.0),
+                            .color(self.tokens.ink_subtle)
+                            .text_style(egui::TextStyle::Body),
                     );
                     ui.add_space(8.0);
                     ui.label(
                         egui::RichText::new(t!("table_gen.configure_hint"))
-                            .color(egui::Color32::GRAY)
+                            .color(self.tokens.ink_subtle)
                             .small(),
                     );
                     if let Some(report) = self.table_generator.last_report.get(&kind) {
@@ -190,21 +187,19 @@ impl UltraLogApp {
                                 report.log_name,
                                 report.summary()
                             ))
-                            .color(egui::Color32::from_rgb(230, 170, 50)),
+                            .color(self.tokens.warning),
                         );
                         for w in &report.warnings {
                             ui.label(
                                 egui::RichText::new(format!("• {w}"))
                                     .small()
-                                    .color(egui::Color32::GRAY),
+                                    .color(self.tokens.ink_subtle),
                             );
                         }
                     }
                     if let Some(err) = self.table_generator.last_error.get(&kind) {
                         ui.add_space(8.0);
-                        ui.label(
-                            egui::RichText::new(err).color(egui::Color32::from_rgb(220, 80, 80)),
-                        );
+                        ui.label(egui::RichText::new(err).color(self.tokens.danger));
                     }
                 }
                 ui.add_space(30.0);
@@ -224,18 +219,16 @@ impl UltraLogApp {
         let Some(kind) = self.active_tool.generator_kind() else {
             return;
         };
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
 
         ui.label(
             egui::RichText::new(self.table_generator.generator(kind).name())
-                .size(font_14)
+                .heading()
                 .strong(),
         );
         ui.label(
             egui::RichText::new(self.table_generator.generator(kind).description())
-                .size(font_12)
-                .color(egui::Color32::GRAY),
+                .small()
+                .color(self.tokens.ink_subtle),
         );
         ui.add_space(8.0);
 
@@ -243,8 +236,8 @@ impl UltraLogApp {
         let Some(fi) = file_index else {
             ui.label(
                 egui::RichText::new(t!("table_gen.load_file_hint"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
             return;
         };
@@ -255,8 +248,8 @@ impl UltraLogApp {
                 "table_gen.setup_header",
                 file = self.files[fi].name.as_str()
             ))
-            .size(font_12)
-            .color(egui::Color32::GRAY),
+            .small()
+            .color(self.tokens.ink_subtle),
         );
         ui.add_space(4.0);
         egui::ScrollArea::vertical()
@@ -396,13 +389,11 @@ impl UltraLogApp {
                         state.ambiguous.retain(|r| *r != spec.role);
                     }
                     if state.ambiguous.contains(&spec.role) {
-                        ui.label(
-                            egui::RichText::new("⚠").color(egui::Color32::from_rgb(230, 170, 50)),
-                        )
-                        .on_hover_text(t!("table_gen.ambiguous_hint"));
+                        ui.label(egui::RichText::new(icon::WARNING).color(self.tokens.warning))
+                            .on_hover_text(t!("table_gen.ambiguous_hint"));
                     } else if spec.required && !state.mapping.is_mapped(spec.role) {
                         ui.label(
-                            egui::RichText::new("!").color(egui::Color32::from_rgb(220, 80, 80)),
+                            egui::RichText::new(icon::WARNING_OCTAGON).color(self.tokens.danger),
                         )
                         .on_hover_text(t!("table_gen.required_hint"));
                     } else {
@@ -448,11 +439,11 @@ impl UltraLogApp {
                 ui.label(if valid {
                     egui::RichText::new(t!("table_gen.bins", n = axis.bins()))
                         .small()
-                        .color(egui::Color32::GRAY)
+                        .color(self.tokens.ink_subtle)
                 } else {
                     egui::RichText::new(t!("table_gen.invalid_axis"))
                         .small()
-                        .color(egui::Color32::from_rgb(220, 80, 80))
+                        .color(self.tokens.danger)
                 });
             });
             let resp = ui.add(
@@ -578,13 +569,12 @@ impl UltraLogApp {
             t!("table_gen.run")
         };
         ui.horizontal(|ui| {
-            let button =
-                egui::Button::new(egui::RichText::new(label.as_ref()).color(egui::Color32::WHITE))
-                    .fill(egui::Color32::from_rgb(113, 120, 78));
-            if ui
-                .add_enabled(missing.is_empty() && axes_ok, button)
-                .clicked()
-            {
+            let run = ui
+                .add_enabled_ui(missing.is_empty() && axes_ok, |ui| {
+                    components::button(ui, Kind::Primary, None, label.as_ref())
+                })
+                .inner;
+            if run.clicked() {
                 self.run_table_generator(kind, file_index);
             }
             if !missing.is_empty() {
@@ -592,12 +582,12 @@ impl UltraLogApp {
                 ui.label(
                     egui::RichText::new(t!("table_gen.missing_roles", roles = names.join(", ")))
                         .small()
-                        .color(egui::Color32::from_rgb(220, 80, 80)),
+                        .color(self.tokens.danger),
                 );
             }
         });
         if let Some(err) = self.table_generator.last_error.get(&kind) {
-            ui.label(egui::RichText::new(err).color(egui::Color32::from_rgb(220, 80, 80)));
+            ui.label(egui::RichText::new(err).color(self.tokens.danger));
         }
 
         // Deferred actions that need `&mut self` outside the borrows above.
@@ -778,7 +768,7 @@ impl UltraLogApp {
                 high = high
             ))
             .small()
-            .color(egui::Color32::GRAY),
+            .color(self.tokens.ink_subtle),
         );
         for r in &reports {
             ui.label(egui::RichText::new(format!("{}: {}", r.log_name, r.summary())).small());
@@ -796,7 +786,7 @@ impl UltraLogApp {
                         ui.label(
                             egui::RichText::new(format!("• {w}"))
                                 .small()
-                                .color(egui::Color32::GRAY),
+                                .color(self.tokens.ink_subtle),
                         );
                     }
                 });
@@ -806,12 +796,10 @@ impl UltraLogApp {
         ui.add_space(4.0);
         let decimals = measures[measure_idx].decimals;
         if accepted == 0 {
-            ui.label(
-                egui::RichText::new(t!("table_gen.no_events"))
-                    .color(egui::Color32::from_rgb(230, 170, 50)),
-            );
+            ui.label(egui::RichText::new(t!("table_gen.no_events")).color(self.tokens.warning));
         } else {
-            self.render_table_heatmap(ui, &grid, decimals);
+            let title = measures[measure_idx].label.to_string();
+            self.render_table_heatmap(ui, &grid, decimals, &title);
         }
 
         // --- Inspector ------------------------------------------------------
@@ -882,7 +870,7 @@ impl UltraLogApp {
                                 ui.label(
                                     egui::RichText::new(&e.note)
                                         .small()
-                                        .color(egui::Color32::GRAY),
+                                        .color(self.tokens.ink_subtle),
                                 );
                                 let loaded = self.files.iter().any(|f| f.load_id == e.log_id);
                                 if ui
@@ -935,6 +923,7 @@ impl UltraLogApp {
         ui: &mut egui::Ui,
         grid: &crate::analysis::tables::TableGrid,
         decimals: usize,
+        title: &str,
     ) {
         let rows = grid.rows();
         let cols = grid.cols();
@@ -951,15 +940,31 @@ impl UltraLogApp {
             label_h + cell_h * rows as f32 + 18.0,
         );
         let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+        let t = self.tokens;
         let painter = ui.painter_at(rect);
-        let font = egui::FontId::proportional((cell_h * 0.42).clamp(9.0, 13.0));
-        let small = egui::FontId::proportional(9.0);
-        let text_color = ui.visuals().text_color();
+        let font = egui::FontId::monospace((cell_h * 0.42).clamp(9.0, 13.0));
+        let small = egui::FontId::monospace(9.0);
+        let badge_font = egui::FontId::monospace(8.0);
+        let text_color = t.plot_axis;
         let (lo, hi) = grid.value_range().unwrap_or((0.0, 1.0));
+        // Signed values around zero (corrections, deviations) use the diverging map centred on
+        // zero; magnitudes (dead time, t63) use the sequential map.
+        let kind = if lo < 0.0 && hi > 0.0 {
+            MapKind::Diverging
+        } else {
+            MapKind::Sequential
+        };
+        let span = lo.abs().max(hi.abs()).max(f64::EPSILON);
         let range = if (hi - lo).abs() < f64::EPSILON {
             1.0
         } else {
             hi - lo
+        };
+        let normalize = |v: f64| -> f32 {
+            match kind {
+                MapKind::Diverging => (0.5 + v / (2.0 * span)) as f32,
+                MapKind::Sequential => ((v - lo) / range) as f32,
+            }
         };
         let origin = rect.min + egui::vec2(label_w, label_h);
         let hover = response.hover_pos();
@@ -979,16 +984,16 @@ impl UltraLogApp {
         painter.text(
             egui::pos2(origin.x + cell_w * cols as f32 * 0.5, rect.max.y - 8.0),
             egui::Align2::CENTER_CENTER,
-            grid.x_axis.header(),
-            small.clone(),
-            text_color,
+            grid.x_axis.header().to_uppercase(),
+            fonts::text_style(style::OVERLINE).resolve(ui.style()),
+            t.ink_muted,
         );
         painter.text(
             egui::pos2(rect.min.x + 2.0, rect.min.y + label_h * 0.5),
             egui::Align2::LEFT_CENTER,
-            grid.y_axis.header(),
-            small.clone(),
-            text_color,
+            grid.y_axis.header().to_uppercase(),
+            fonts::text_style(style::OVERLINE).resolve(ui.style()),
+            t.ink_muted,
         );
 
         // Rows are drawn top-down with the highest Y bin at the top, the way
@@ -1016,54 +1021,78 @@ impl UltraLogApp {
                 {
                     hovered = Some((r, c));
                 }
+                let inner = cell_rect.shrink(1.0);
                 if cell.is_empty() {
-                    painter.rect_filled(
-                        cell_rect.shrink(0.5),
-                        2.0,
-                        egui::Color32::from_rgb(36, 36, 36),
-                    );
+                    heatmap::empty_cell(&painter, inner, &t);
                     continue;
                 }
-                let t = ((cell.median - lo) / range) as f32;
-                let fill = sample(Colormap::Viridis, t);
-                painter.rect_filled(cell_rect.shrink(0.5), 2.0, fill);
-                let fg = get_aaa_text_color(fill);
-                let value_text = fmt_value(cell.median, decimals);
-                let text = if cell.confidence == Confidence::Low {
-                    egui::RichText::new(value_text).italics()
-                } else {
-                    egui::RichText::new(value_text)
-                };
-                painter.text(
-                    cell_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    text.text(),
-                    font.clone(),
-                    fg,
+                heatmap::cell(
+                    &painter,
+                    inner,
+                    &t,
+                    kind,
+                    normalize(cell.median),
+                    Some(&fmt_value(cell.median, decimals)),
+                    &font,
                 );
-                // Count badge, coloured by confidence.
-                let badge = egui::Rect::from_min_size(
-                    cell_rect.right_top() + egui::vec2(-14.0, 1.0),
-                    egui::vec2(13.0, 9.0),
-                );
-                painter.rect_filled(badge, 2.0, confidence_color(cell.confidence));
-                painter.text(
-                    badge.center(),
-                    egui::Align2::CENTER_CENTER,
-                    cell.count.to_string(),
-                    egui::FontId::proportional(7.5),
-                    egui::Color32::BLACK,
+                heatmap::count_badge(
+                    &painter,
+                    inner.right_top() + egui::vec2(-1.0, 1.0),
+                    cell.count,
+                    badge_style(cell.confidence),
+                    &t,
+                    &badge_font,
                 );
                 if self.table_generator.selected_cell == Some((r, c)) {
-                    painter.rect_stroke(
-                        cell_rect.shrink(1.0),
-                        2.0,
-                        egui::Stroke::new(2.0, egui::Color32::WHITE),
-                        egui::StrokeKind::Inside,
-                    );
+                    heatmap::selected_ring(&painter, inner, &t);
                 }
             }
         }
+
+        // ColorScale with the real range, and what the badge styles mean
+        ui.add_space(space::SPACE_2);
+        let (min_label, max_label) = match kind {
+            MapKind::Diverging => (
+                format!("\u{2212}{}", fmt_value(span, decimals)),
+                format!("+{}", fmt_value(span, decimals)),
+            ),
+            MapKind::Sequential => (fmt_value(lo, decimals), fmt_value(hi, decimals)),
+        };
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                heatmap::color_scale(ui, kind, title, &min_label, &max_label);
+            });
+            ui.add_space(space::SPACE_6);
+            let (legend, _) = ui.allocate_exact_size(egui::vec2(330.0, 18.0), egui::Sense::hover());
+            let p = ui.painter();
+            let mut x = legend.left();
+            let label_font = egui::TextStyle::Small.resolve(ui.style());
+            for (count, style_, word) in [
+                (12, Some(BadgeStyle::High), "high confidence"),
+                (3, Some(BadgeStyle::Medium), "medium"),
+                (1, Some(BadgeStyle::Low), "low"),
+                (0, None, "no samples"),
+            ] {
+                let swatch = egui::Rect::from_min_size(
+                    egui::pos2(x, legend.top() + 2.0),
+                    egui::vec2(16.0, 13.0),
+                );
+                match style_ {
+                    Some(st) => {
+                        heatmap::count_badge(p, swatch.right_top(), count, st, &t, &badge_font)
+                    }
+                    None => heatmap::empty_cell(p, swatch, &t),
+                }
+                let g = p.layout_no_wrap(word.to_owned(), label_font.clone(), t.ink_muted);
+                let w = g.size().x;
+                p.galley(
+                    egui::pos2(swatch.right() + 5.0, legend.top() + 2.0),
+                    g,
+                    t.ink_muted,
+                );
+                x = swatch.right() + 5.0 + w + space::SPACE_4;
+            }
+        });
 
         if let Some((r, c)) = hovered {
             if response.clicked() {
