@@ -730,8 +730,10 @@ in `UserSettings`.
 - **Exports** use the tab range (`get_time_range`, not the app-wide `time_range`), slice log B in
   its own time and shift it, dash it via `SeriesModel::log`, tag the legend `A · ` / `B · ` and add
   a meta line with both files and the offset.
-- **Not covered yet:** MCP/IPC has no compare commands; `get_cursor_values` for log B's file reads
-  log A's record.
+- **MCP/IPC:** no compare commands. `get_cursor_values` reads the tab's own file at the cursor
+  record and any other file (log B included) through `record_at`, so log B gets its own record and
+  no values outside its span. `deselect_all_channels` keeps log B. `set_time_range` writes the
+  tab's range directly, so the next compare or offset change replaces it with the data range.
 
 ### Map Tile Fetching Contract (src/tiles.rs)
 

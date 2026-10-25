@@ -467,12 +467,13 @@ impl UltraLogApp {
     }
 
     fn handle_deselect_all_channels(&mut self) -> IpcResponse {
+        // Through the one removal path, so plot areas and the track-map colour slot follow.
+        // The compare choice (log B) stays: it is a log choice, not a channel.
         if let Some(tab_idx) = self.active_tab {
-            self.tabs[tab_idx]
-                .data_panel_state
-                .track_map
-                .clear_color_channel();
-            self.tabs[tab_idx].selected_channels.clear();
+            let tab = &mut self.tabs[tab_idx];
+            for idx in (0..tab.selected_channels.len()).rev() {
+                tab.remove_selected_channel(idx);
+            }
         }
         IpcResponse::ok()
     }
@@ -710,9 +711,22 @@ impl UltraLogApp {
             _ => return IpcResponse::error(format!("Invalid file ID: {}", file_id)),
         };
 
-        let cursor_record = match self.get_cursor_record() {
-            Some(r) => r,
-            None => return IpcResponse::error("No cursor position set"),
+        // The tab's cursor record belongs to the tab's own file (log A). Any other file, log B
+        // included, is looked up at the cursor time (minus log B's offset), and has no values
+        // outside its own span.
+        let Some(cursor_time) = self.get_cursor_time() else {
+            return IpcResponse::error("No cursor position set");
+        };
+        let tab_file = self.active_tab.map(|idx| self.tabs[idx].file_index);
+        let record = if tab_file == Some(file_idx) {
+            self.get_cursor_record()
+        } else {
+            self.record_at(file_idx, cursor_time)
+        };
+        let Some(cursor_record) = record else {
+            return IpcResponse::error(format!(
+                "File {file_id} has no data at the cursor time {cursor_time:.3} s"
+            ));
         };
 
         let file = &self.files[file_idx];
@@ -1068,6 +1082,62 @@ mod tests {
             data: vec![channels.iter().map(|_| Value::Float(0.0)).collect()],
         };
         LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    /// A log with one "RPM" channel at 10 Hz over 0..=`secs` s, value = time.
+    fn timed_file(name: &str, secs: usize) -> LoadedFile {
+        let times: Vec<f64> = (0..=secs * 10).map(|i| i as f64 * 0.1).collect();
+        let log = Log {
+            meta: Meta::Empty,
+            channels: vec![Channel::Aim(AimChannel {
+                name: "RPM".to_string(),
+                unit: String::new(),
+            })],
+            data: times.iter().map(|&t| vec![Value::Float(t)]).collect(),
+            times,
+        };
+        LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    #[test]
+    fn cursor_values_for_log_b_use_its_own_record() {
+        let mut app = UltraLogApp::default();
+        app.files.push(timed_file("a.csv", 10));
+        app.files.push(timed_file("b.csv", 5));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.choose_compare_file(0, Some(1));
+        app.set_compare_offset(0, 2.0);
+        app.handle_set_cursor(4.0);
+
+        let value = |app: &UltraLogApp, file: &str| match app.handle_get_cursor_values(file) {
+            IpcResponse::Ok(Some(ResponseData::CursorValues(v))) => Ok(v[0].value),
+            IpcResponse::Error { message } => Err(message),
+            _ => Err("unexpected".into()),
+        };
+        assert!((value(&app, "0").unwrap() - 4.0).abs() < 1e-9);
+        // Log B at tab time 4.0 is its file time 2.0.
+        assert!((value(&app, "1").unwrap() - 2.0).abs() < 1e-9);
+        // Past log B's end (5 + 2 = 7 s): an error, not log A's record read from B.
+        app.handle_set_cursor(9.0);
+        assert!(value(&app, "1").is_err());
+    }
+
+    #[test]
+    fn deselect_all_clears_plot_areas_and_keeps_log_b() {
+        let mut app = UltraLogApp::default();
+        app.files.push(timed_file("a.csv", 10));
+        app.files.push(timed_file("b.csv", 5));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 0);
+        assert_eq!(app.tabs[0].plot_areas[0].channel_indices, vec![0, 1]);
+
+        app.handle_deselect_all_channels();
+        assert!(app.tabs[0].selected_channels.is_empty());
+        assert!(app.tabs[0].plot_areas[0].channel_indices.is_empty());
+        assert_eq!(app.tabs[0].compare_file(), Some(1));
     }
 
     #[test]
