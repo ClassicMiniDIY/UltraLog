@@ -11,6 +11,8 @@ permissions: {}
 
 jobs:
   dispatch:
+    # Forks have no SITE_DISPATCH_TOKEN; skip instead of failing red.
+    if: github.repository == 'ClassicMiniDIY/UltraLog'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
