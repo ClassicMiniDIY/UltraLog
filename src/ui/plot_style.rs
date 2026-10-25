@@ -25,6 +25,8 @@ use crate::ui::theme::{
 /// One series as the chart draws and lists it.
 pub struct SeriesRow {
     pub name: String,
+    /// "A" / "B" while the tab compares two logs (issue #98); drawn before the name.
+    pub tag: Option<&'static str>,
     /// Value at the cursor, already unit-converted and formatted (mono column).
     pub value: Option<String>,
     pub color: Color32,
@@ -197,14 +199,18 @@ pub fn legend_overlay(
     let cursor_label = t!("chart.cursor").to_string();
     let mut name_w = measure(&cursor_label, &name_font);
     let mut value_w = cursor.as_deref().map_or(0.0, |c| measure(c, &value_font));
+    let mut tag_w: f32 = 0.0;
     for row in rows {
         name_w = name_w.max(measure(&row.name, &name_font));
         if let Some(v) = &row.value {
             value_w = value_w.max(measure(v, &value_font));
         }
+        if let Some(tag) = row.tag {
+            tag_w = tag_w.max(measure(tag, &value_font) + space::SPACE_2);
+        }
     }
     let pad = space::SPACE_2 + 2.0;
-    let width = pad + swatch_w + space::SPACE_2 + name_w + space::SPACE_6 + value_w + pad;
+    let width = pad + swatch_w + space::SPACE_2 + tag_w + name_w + space::SPACE_6 + value_w + pad;
     let inset = space::SPACE_3;
     // The legend is the only cursor readout, so a short plot shows the rows that fit and a
     // "+N" row for the rest instead of dropping the legend.
@@ -283,8 +289,17 @@ pub fn legend_overlay(
             },
             row.stroke,
         );
+        if let Some(tag) = row.tag {
+            painter.text(
+                pos2(name_x, cy),
+                Align2::LEFT_CENTER,
+                tag,
+                value_font.clone(),
+                if dimmed { t.ink_subtle } else { t.ink_muted },
+            );
+        }
         painter.text(
-            pos2(name_x, cy),
+            pos2(name_x + tag_w, cy),
             Align2::LEFT_CENTER,
             &row.name,
             name_font.clone(),
@@ -372,7 +387,11 @@ pub fn direct_labels(
         painter.text(
             pos2(plot_rect.right() - space::SPACE_2, y - gap / 2.0),
             Align2::RIGHT_CENTER,
-            &rows[i].name,
+            // With the tag: in Color blind mode and High contrast a pair shares its colour.
+            match rows[i].tag {
+                Some(tag) => format!("{tag} {}", rows[i].name),
+                None => rows[i].name.clone(),
+            },
             font.clone(),
             rows[i].color,
         );

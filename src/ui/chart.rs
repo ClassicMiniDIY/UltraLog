@@ -99,14 +99,7 @@ impl UltraLogApp {
         let viewport = self.chart_last_x_bounds.get(&0).copied();
         let chart_points: Vec<Option<Vec<[f64; 2]>>> = selected_channels
             .iter()
-            .map(|selected| {
-                self.compute_viewport_points(
-                    selected.file_index,
-                    selected.channel_index,
-                    0,
-                    viewport,
-                )
-            })
+            .map(|selected| self.channel_plot_points(selected, 0, viewport))
             .collect();
 
         let rows = self.series_rows(&selected_channels);
@@ -469,14 +462,7 @@ impl UltraLogApp {
         let viewport = self.chart_last_x_bounds.get(&plot_area_id).copied();
         let chart_points: Vec<Option<Vec<[f64; 2]>>> = channels
             .iter()
-            .map(|selected| {
-                self.compute_viewport_points(
-                    selected.file_index,
-                    selected.channel_index,
-                    plot_area_id,
-                    viewport,
-                )
-            })
+            .map(|selected| self.channel_plot_points(selected, plot_area_id, viewport))
             .collect();
 
         let rows = self.series_rows(channels);
@@ -778,7 +764,7 @@ impl UltraLogApp {
     /// Legend / line rows for `channels`: normalized name, value at the cursor (converted to the
     /// user's units, mono column), and the series colour and stroke.
     fn series_rows(&self, channels: &[SelectedChannel]) -> Vec<SeriesRow> {
-        let record = self.get_cursor_record();
+        let cursor_time = self.get_cursor_time();
         channels
             .iter()
             .map(|selected| {
@@ -791,7 +777,9 @@ impl UltraLogApp {
                 } else {
                     original_name
                 };
-                let value = record
+                // Each log's own record at the cursor, and no value outside its span (R4).
+                let value = cursor_time
+                    .and_then(|t| self.record_at(selected.file_index, t))
                     .and_then(|r| {
                         self.get_value_at_record(selected.file_index, selected.channel_index, r)
                     })
@@ -805,9 +793,10 @@ impl UltraLogApp {
                             format!("{converted:.2} {unit}")
                         }
                     });
-                let (color, stroke) = self.series_style(selected.color_index);
+                let (color, stroke) = self.channel_style(selected);
                 SeriesRow {
                     name,
+                    tag: self.log_tag(selected),
                     value,
                     color,
                     stroke,
@@ -873,19 +862,42 @@ impl UltraLogApp {
     /// against the channel's full-range min/max so heights stay stable when
     /// the user pans or zooms. `viewport` is the previous frame's X bounds;
     /// when `None` (e.g., first frame after load) the full data range is used.
+    /// Chart points for one selected channel on the tab's time axis: log B's viewport is shifted
+    /// back into its own time, and its points forward by the offset; a compare pair shares one
+    /// y range (R1).
+    fn channel_plot_points(
+        &mut self,
+        selected: &SelectedChannel,
+        plot_area_id: usize,
+        viewport: Option<(f64, f64)>,
+    ) -> Option<Vec<[f64; 2]>> {
+        let offset = self
+            .active_tab
+            .map_or(0.0, |idx| self.tabs[idx].time_offset(selected.file_index));
+        let y_range = self.pair_y_range(selected).unwrap_or((0.0, 1.0));
+        self.compute_viewport_points(
+            selected.file_index,
+            selected.channel_index,
+            plot_area_id,
+            viewport.map(|(lo, hi)| (lo - offset, hi - offset)),
+            offset,
+            y_range,
+        )
+    }
+
+    /// Downsampled points of one channel over `viewport` (in the file's own time), scaled to
+    /// 0..1 by `y_range` and moved by `offset` seconds onto the tab's time axis. The cache holds
+    /// the raw file-time points: offset and scale are applied to the copy returned, so a nudge
+    /// smaller than one bucket, or a new pair range, takes effect at once.
     fn compute_viewport_points(
         &mut self,
         file_index: usize,
         channel_index: usize,
         plot_area_id: usize,
         viewport: Option<(f64, f64)>,
+        offset: f64,
+        (min_y, max_y): (f64, f64),
     ) -> Option<Vec<[f64; 2]>> {
-        // Resolve min/max first so the mutable borrow on the cache ends before
-        // we take immutable borrows on the channel data below.
-        let (min_y, max_y) = self
-            .get_channel_min_max(file_index, channel_index)
-            .unwrap_or((0.0, 1.0));
-
         let file = self.files.get(file_index)?;
         let times = file.log.get_times_as_f64();
         let data = self.get_channel_data_ref(file_index, channel_index);
@@ -917,10 +929,27 @@ impl UltraLogApp {
         };
 
         let cache_key = (file_index, channel_index, plot_area_id);
+        let place = |points: &[[f64; 2]]| -> Vec<[f64; 2]> {
+            let range = (max_y - min_y).abs();
+            // Constant channels (range ≈ 0) get parked at the middle of the
+            // overlay strip so they remain visible instead of pinning to the
+            // bottom edge — matches the prior `normalize_points` behavior.
+            points
+                .iter()
+                .map(|p| {
+                    let y = if range < f64::EPSILON {
+                        0.5
+                    } else {
+                        (p[1] - min_y) / range
+                    };
+                    [p[0] + offset, y]
+                })
+                .collect()
+        };
         if let Some((cached_key, points)) = self.downsample_cache.get(&cache_key)
             && *cached_key == view_key
         {
-            return Some(points.clone());
+            return Some(place(points));
         }
 
         let downsampled = match view_key {
@@ -969,21 +998,9 @@ impl UltraLogApp {
             DownsampleViewKey::Full => Self::downsample_lttb(times, data, MAX_CHART_POINTS),
         };
 
-        let range = (max_y - min_y).abs();
-        // Constant channels (range ≈ 0) get parked at the middle of the
-        // overlay strip so they remain visible instead of pinning to the
-        // bottom edge — matches the prior `normalize_points` behavior.
-        let points: Vec<[f64; 2]> = if range < f64::EPSILON {
-            downsampled.into_iter().map(|p| [p[0], 0.5]).collect()
-        } else {
-            downsampled
-                .into_iter()
-                .map(|p| [p[0], (p[1] - min_y) / range])
-                .collect()
-        };
-
+        let points = place(&downsampled);
         self.downsample_cache
-            .insert(cache_key, (view_key, points.clone()));
+            .insert(cache_key, (view_key, downsampled));
         Some(points)
     }
 
@@ -1106,4 +1123,100 @@ fn with_plot_bg<R>(
         add(ui)
     })
     .inner
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use crate::app::UltraLogApp;
+    use crate::parsers::aim::AimChannel;
+    use crate::parsers::types::Meta;
+    use crate::parsers::{Channel, EcuType, Log, Value};
+    use crate::state::{LoadedFile, Tab};
+
+    /// One "Boost" channel at 10 Hz for `secs` seconds, value `f(t)`.
+    fn file(name: &str, secs: usize, f: impl Fn(f64) -> f64) -> LoadedFile {
+        let times: Vec<f64> = (0..=secs * 10).map(|i| i as f64 * 0.1).collect();
+        let log = Log {
+            meta: Meta::Empty,
+            channels: vec![Channel::Aim(AimChannel {
+                name: "Boost".to_string(),
+                unit: String::new(),
+            })],
+            data: times.iter().map(|&t| vec![Value::Float(f(t))]).collect(),
+            times,
+        };
+        LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    /// Tab 0: A = pull peaking at 1.5, B = pull peaking at 1.8, paired on colour slot 0.
+    fn comparing_app() -> UltraLogApp {
+        let mut app = UltraLogApp::default();
+        app.files.push(file("a.csv", 20, |t| 1.5 * (t / 20.0)));
+        app.files.push(file("b.csv", 20, |t| 1.8 * (t / 20.0)));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.update_tab_time_range(0);
+        app.set_compare_file(0, Some(1));
+        app.add_channel(0, 0);
+        app.add_channel(1, 0);
+        let b = &mut app.tabs[0].selected_channels[1];
+        b.color_index = 0; // pair it with A (step 3 does this when pairing)
+        app
+    }
+
+    #[test]
+    fn a_pair_shares_one_y_range() {
+        let mut app = comparing_app();
+        let [a, b] = [0, 1].map(|i| app.tabs[0].selected_channels[i].clone());
+        assert_eq!(app.pair_y_range(&a), Some((0.0, 1.8)));
+        assert_eq!(app.pair_y_range(&b), Some((0.0, 1.8)));
+
+        // A's peak sits below B's on the shared scale.
+        let pa = app.channel_plot_points(&a, 0, None).unwrap();
+        let pb = app.channel_plot_points(&b, 0, None).unwrap();
+        let top = |p: &[[f64; 2]]| p.iter().map(|q| q[1]).fold(f64::MIN, f64::max);
+        assert!((top(&pa) - 1.5 / 1.8).abs() < 1e-9);
+        assert!((top(&pb) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_nudge_smaller_than_a_bucket_moves_log_b() {
+        let mut app = comparing_app();
+        let b = app.tabs[0].selected_channels[1].clone();
+        let viewport = Some((0.0, 20.0));
+        let before = app.channel_plot_points(&b, 0, viewport).unwrap();
+
+        // 0.01 s is far below the bucket width over a 20 s view, so the cache key may not
+        // change; the points must move anyway.
+        app.set_compare_offset(0, 0.01);
+        let after = app.channel_plot_points(&b, 0, viewport).unwrap();
+        assert_eq!(before.len(), after.len());
+        for (p, q) in before.iter().zip(&after) {
+            assert!((q[0] - p[0] - 0.01).abs() < 1e-9);
+            assert_eq!(p[1], q[1]);
+        }
+    }
+
+    #[test]
+    fn legend_values_come_from_each_logs_own_record() {
+        let mut app = comparing_app();
+        app.set_compare_offset(0, -5.0);
+        app.tabs[0].cursor_time = Some(10.0);
+        let channels = app.tabs[0].selected_channels.clone();
+        let rows = app.series_rows(&channels);
+        assert_eq!(rows[0].tag, Some("A"));
+        assert_eq!(rows[1].tag, Some("B"));
+        // A at t = 10: 0.75. B at file time 15: 1.35.
+        assert_eq!(rows[0].value.as_deref(), Some("0.75"));
+        assert_eq!(rows[1].value.as_deref(), Some("1.35"));
+
+        // Past B's end (file time 20 + 5 = 25 > 20): no B value.
+        app.tabs[0].cursor_time = Some(19.0);
+        app.set_compare_offset(0, -5.0);
+        let rows = app.series_rows(&channels);
+        assert!(rows[0].value.is_some());
+        assert_eq!(rows[1].value, None);
+    }
 }

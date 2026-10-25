@@ -191,10 +191,11 @@ as the cache invalidation contract).
    outside the span; union range; `remove_file` with B's index below A's, above A's, and in a
    stacked tab.
 2. **Chart** — shifted viewport with the offset added after the cache, shared pair range (R1),
-   `compare_series`, legend tags and per-log values, direct-label tags, stacked-mode pairing,
-   drag-and-drop guard. Tests: strokes; a sub-bucket nudge moves the points; pair range.
+   `compare_series`, legend tags and per-log values, direct-label tags, drag-and-drop guard
+   (the drop goes through `add_channel_to_plot`, so step 1's guard covers it). Tests: strokes; a sub-bucket nudge moves the points; pair range.
 3. **Channel list and cards** — Compare row (picker, None, Open file… with the tab-id request),
-   A | B switch, auto-pair, Remove pair, "not in B", B card jump, track-map "Color by" filter.
+   A | B switch, auto-pair (a paired B channel joins its partner's plot area in stacked mode),
+   Remove pair, "not in B", B card jump, track-map "Color by" filter.
    File menu entry. Tests: pairing by normalized name and colour sharing; caps; B card jump;
    pending open request; track-map filter.
 4. **Alignment** — offset controls, Align at cursor (both click paths, own Esc), cursor clamp.

@@ -410,6 +410,50 @@ impl UltraLogApp {
         )
     }
 
+    /// Colour and stroke of a selected channel in the active tab: [`Self::series_style`], or
+    /// `theme::compare_series` while the tab compares two logs (log B dashed).
+    pub fn channel_style(
+        &self,
+        selected: &SelectedChannel,
+    ) -> (egui::Color32, crate::ui::theme::SeriesStroke) {
+        match self.active_tab.map(|idx| &self.tabs[idx]) {
+            Some(tab) if tab.compare.is_some() => crate::ui::theme::compare_series(
+                &self.tokens,
+                selected.color_index,
+                self.color_blind_mode || self.high_contrast,
+                tab.log_role(selected) == crate::state::LogRole::B,
+            ),
+            _ => self.series_style(selected.color_index),
+        }
+    }
+
+    /// The A/B tag of a selected channel while the active tab compares two logs.
+    pub fn log_tag(&self, selected: &SelectedChannel) -> Option<&'static str> {
+        let tab = &self.tabs[self.active_tab?];
+        tab.compare.as_ref()?;
+        Some(match tab.log_role(selected) {
+            crate::state::LogRole::A => "A",
+            crate::state::LogRole::B => "B",
+        })
+    }
+
+    /// The y range a channel is scaled to: its own min/max, or the union with its compare
+    /// partner's (rule R1), so a pair is drawn on one scale and a higher peak looks higher.
+    pub fn pair_y_range(&mut self, selected: &SelectedChannel) -> Option<(f64, f64)> {
+        let own = self.get_channel_min_max(selected.file_index, selected.channel_index)?;
+        let partner = self
+            .active_tab
+            .and_then(|idx| self.tabs[idx].partner_of(selected))
+            .map(|p| (p.file_index, p.channel_index));
+        let Some((file, channel)) = partner else {
+            return Some(own);
+        };
+        Some(match self.get_channel_min_max(file, channel) {
+            Some((lo, hi)) => (own.0.min(lo), own.1.max(hi)),
+            None => own,
+        })
+    }
+
     /// Get a scaled font size based on user's font scale preference
     #[inline]
     pub fn scaled_font(&self, base_size: f32) -> f32 {

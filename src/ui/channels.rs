@@ -46,7 +46,7 @@ impl UltraLogApp {
         let mut channel_cards: Vec<ChannelCardData> = Vec::with_capacity(selected_channels.len());
 
         for selected in &selected_channels {
-            let (color32, series_stroke) = self.series_style(selected.color_index);
+            let (color32, series_stroke) = self.channel_style(selected);
             let mut card_unit = String::new();
 
             // Get display name

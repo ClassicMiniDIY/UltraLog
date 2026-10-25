@@ -949,10 +949,22 @@ impl Tab {
     /// The other half of a compare pair: the channel of the other log with the same colour slot.
     pub fn partner(&self, idx: usize) -> Option<usize> {
         let channel = self.selected_channels.get(idx)?;
-        let role = self.log_role(channel);
-        self.selected_channels.iter().position(|other| {
-            other.color_index == channel.color_index && self.log_role(other) != role
-        })
+        self.selected_channels
+            .iter()
+            .position(|other| self.is_partner(channel, other))
+    }
+
+    /// [`Tab::partner`] for a channel given by value (the chart works on copies).
+    pub fn partner_of(&self, channel: &SelectedChannel) -> Option<&SelectedChannel> {
+        self.selected_channels
+            .iter()
+            .find(|other| self.is_partner(channel, other))
+    }
+
+    fn is_partner(&self, a: &SelectedChannel, b: &SelectedChannel) -> bool {
+        self.compare.is_some()
+            && a.color_index == b.color_index
+            && self.log_role(a) != self.log_role(b)
     }
 
     /// How many units the channels at `indices` use against the channel caps: a pair counts as

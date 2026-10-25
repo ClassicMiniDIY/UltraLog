@@ -204,6 +204,25 @@ pub fn series(t: &Tokens, idx: usize, color_blind_like: bool) -> (Color32, Serie
     (s[idx % distinct], stroke)
 }
 
+/// Series colour and stroke while a tab compares two logs (issue #98): the colour of slot `idx`,
+/// solid for log A and dashed for log B, so a pair reads as one colour. The stroke shows the log,
+/// so slots past the palette repeat colours without a stroke change (the one exception to
+/// [`series`]); the A/B tag in the legend and labels still tells them apart.
+pub fn compare_series(
+    t: &Tokens,
+    idx: usize,
+    color_blind_like: bool,
+    log_b: bool,
+) -> (Color32, SeriesStroke) {
+    let (color, _) = series(t, idx, color_blind_like);
+    let stroke = if log_b {
+        SeriesStroke::Dashed
+    } else {
+        SeriesStroke::Solid
+    };
+    (color, stroke)
+}
+
 /// Sequential colour map sample, `v` in 0..=1, interpolated in OKLab between the 7 stops.
 pub fn seq(t: &Tokens, v: f32) -> Color32 {
     let s = [
@@ -608,6 +627,20 @@ mod tests {
                         assert!(r >= min, "intensity {i} cb {cb}: {r:.2}");
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn compare_series_dashes_log_b_in_the_same_colour() {
+        let t = tokens_at(ThemeSettings::default());
+        for cvd in [false, true] {
+            for idx in [0, 3, 9, 12] {
+                let (a, sa) = compare_series(&t, idx, cvd, false);
+                let (b, sb) = compare_series(&t, idx, cvd, true);
+                assert_eq!(a, b);
+                assert_eq!(a, series(&t, idx, cvd).0);
+                assert_eq!((sa, sb), (SeriesStroke::Solid, SeriesStroke::Dashed));
             }
         }
     }

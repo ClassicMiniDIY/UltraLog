@@ -280,7 +280,7 @@ impl UltraLogApp {
                 right -= space::SPACE_2;
             }
             if let Some(idx) = selected_idx {
-                let (color, kind) = self.series_style(selected_channels[idx].color_index);
+                let (color, kind) = self.channel_style(&selected_channels[idx]);
                 plot_style::swatch(
                     painter,
                     egui::pos2(right - 14.0, rect.center().y),
