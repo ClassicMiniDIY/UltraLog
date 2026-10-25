@@ -419,7 +419,7 @@ impl UltraLogApp {
                         .collect();
 
                     let plot_id = plot_area.id;
-                    let has_capacity = plot_area.has_capacity();
+                    let has_capacity = self.tabs[tab_idx].plot_has_capacity(plot_id);
 
                     ui.push_id(format!("plot_{}", plot_id), |ui| {
                         // Custom header with delete button

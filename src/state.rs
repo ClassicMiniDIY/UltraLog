@@ -651,11 +651,6 @@ impl PlotArea {
     pub fn channel_count(&self) -> usize {
         self.channel_indices.len()
     }
-
-    /// Check if this plot area can accept more channels
-    pub fn has_capacity(&self) -> bool {
-        self.channel_indices.len() < MAX_CHANNELS_PER_PLOT
-    }
 }
 
 // ============================================================================
@@ -883,6 +878,8 @@ pub struct Tab {
     pub jump_to_time: Option<f64>,
     /// Plot areas for stacked mode (ordered top to bottom)
     pub plot_areas: Vec<PlotArea>,
+    /// The second log this tab compares against (issue #98), if any.
+    pub compare: Option<CompareState>,
     /// Whether stacked plot mode is enabled
     pub stacked_mode: bool,
     /// Next available plot area ID (for unique identification)
@@ -915,9 +912,197 @@ impl Tab {
             data_panel_state: DataPanelState::default(),
             jump_to_time: None,
             plot_areas: vec![default_plot],
+            compare: None,
             stacked_mode: false,
             next_plot_area_id: 1,
         }
+    }
+
+    /// Whether channels from `file_index` may be selected in this tab: the tab's own file
+    /// (log A) or its comparison file (log B).
+    pub fn accepts_file(&self, file_index: usize) -> bool {
+        file_index == self.file_index || self.compare_file() == Some(file_index)
+    }
+
+    /// The comparison file (log B), if the tab compares two logs.
+    pub fn compare_file(&self) -> Option<usize> {
+        self.compare.as_ref().map(|c| c.file_index)
+    }
+
+    /// Seconds added to log B's times to place them on the tab's time axis (0 for log A).
+    pub fn time_offset(&self, file_index: usize) -> f64 {
+        match &self.compare {
+            Some(c) if c.file_index == file_index => c.offset_s,
+            _ => 0.0,
+        }
+    }
+
+    /// Which log a selected channel comes from.
+    pub fn log_role(&self, channel: &SelectedChannel) -> LogRole {
+        if self.compare_file() == Some(channel.file_index) {
+            LogRole::B
+        } else {
+            LogRole::A
+        }
+    }
+
+    /// The other half of a compare pair: the channel of the other log with the same colour slot.
+    pub fn partner(&self, idx: usize) -> Option<usize> {
+        let channel = self.selected_channels.get(idx)?;
+        let role = self.log_role(channel);
+        self.selected_channels.iter().position(|other| {
+            other.color_index == channel.color_index && self.log_role(other) != role
+        })
+    }
+
+    /// How many units the channels at `indices` use against the channel caps: a pair counts as
+    /// one (rule R2 in `docs/plans/2026-10-25-log-compare.md`), so a B channel whose partner is
+    /// also in `indices` is free.
+    pub fn channel_units(&self, indices: &[usize]) -> usize {
+        indices
+            .iter()
+            .filter(|&&idx| {
+                let Some(channel) = self.selected_channels.get(idx) else {
+                    return false;
+                };
+                self.log_role(channel) == LogRole::A
+                    || self.partner(idx).is_none_or(|p| !indices.contains(&p))
+            })
+            .count()
+    }
+
+    /// Units used by all selected channels.
+    pub fn total_channel_units(&self) -> usize {
+        let all: Vec<usize> = (0..self.selected_channels.len()).collect();
+        self.channel_units(&all)
+    }
+
+    /// Whether the plot area with `plot_id` can take another unit.
+    pub fn plot_has_capacity(&self, plot_id: usize) -> bool {
+        self.plot_areas
+            .iter()
+            .find(|p| p.id == plot_id)
+            .is_some_and(|p| self.channel_units(&p.channel_indices) < MAX_CHANNELS_PER_PLOT)
+    }
+
+    /// Remove the selected channel at `idx`, keeping plot areas and the track map's colour slot
+    /// pointing at the right channels. The one removal path for any tab.
+    pub fn remove_selected_channel(&mut self, idx: usize) {
+        if idx >= self.selected_channels.len() {
+            return;
+        }
+        for plot in &mut self.plot_areas {
+            plot.channel_indices.retain(|&i| i != idx);
+            for i in &mut plot.channel_indices {
+                if *i > idx {
+                    *i -= 1;
+                }
+            }
+        }
+        self.data_panel_state
+            .track_map
+            .remove_color_channel_slot(idx);
+        self.selected_channels.remove(idx);
+    }
+
+    /// Remove every selected channel from `file_index`, highest index first.
+    pub fn remove_channels_of_file(&mut self, file_index: usize) {
+        for idx in (0..self.selected_channels.len()).rev() {
+            if self.selected_channels[idx].file_index == file_index {
+                self.remove_selected_channel(idx);
+            }
+        }
+    }
+
+    /// Update this tab after file `index` was removed from the app's file list: drop its
+    /// channels, stop comparing against it, and shift every file index above it down by one.
+    /// Runs on every tab, whatever its own file, because log B can be any file.
+    pub fn remap_after_file_removed(&mut self, index: usize) {
+        self.remove_channels_of_file(index);
+        if self.compare_file() == Some(index) {
+            self.compare = None;
+        }
+        if self.file_index > index {
+            self.file_index -= 1;
+        }
+        if let Some(compare) = self.compare.as_mut()
+            && compare.file_index > index
+        {
+            compare.file_index -= 1;
+        }
+        for channel in &mut self.selected_channels {
+            if channel.file_index > index {
+                channel.file_index -= 1;
+            }
+        }
+    }
+}
+
+/// Which log a selected channel comes from while its tab compares two logs (issue #98).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LogRole {
+    /// The tab's own file.
+    A,
+    /// The comparison file.
+    B,
+}
+
+/// A tab's comparison log (issue #98, `docs/plans/2026-10-25-log-compare.md`). Tab time is log
+/// A's time; log B's sample at file time `t` sits at `t + offset_s`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompareState {
+    /// The comparison file (log B).
+    pub file_index: usize,
+    /// Seconds added to log B's times to place them on the tab's time axis.
+    pub offset_s: f64,
+    /// True while "Align at cursor" waits for the click on log B's matching point.
+    pub picking_alignment: bool,
+}
+
+impl CompareState {
+    pub fn new(file_index: usize) -> Self {
+        Self {
+            file_index,
+            offset_s: 0.0,
+            picking_alignment: false,
+        }
+    }
+}
+
+/// The record at file time `t`: the last sample at or before `t`, or `None` outside the log's
+/// span (rule R4), so a log never reports a value where it has no data.
+pub fn record_at(times: &[f64], t: f64) -> Option<usize> {
+    let (&first, &last) = (times.first()?, times.last()?);
+    if !(first..=last).contains(&t) {
+        return None;
+    }
+    Some(times.partition_point(|&x| x <= t).saturating_sub(1))
+}
+
+/// The record nearest to `t` (clamped to the log's ends). The cursor record of log A.
+pub fn nearest_record(times: &[f64], t: f64) -> Option<usize> {
+    if times.is_empty() {
+        return None;
+    }
+    let i = times.partition_point(|&x| x < t).min(times.len() - 1);
+    if i > 0 && (times[i] - t).abs() > (times[i - 1] - t).abs() {
+        Some(i - 1)
+    } else {
+        Some(i)
+    }
+}
+
+/// The tab time range: log A's range joined with log B's range shifted by `offset_s`.
+pub fn union_range(
+    a: Option<(f64, f64)>,
+    b: Option<(f64, f64)>,
+    offset_s: f64,
+) -> Option<(f64, f64)> {
+    let b = b.map(|(b0, b1)| (b0 + offset_s, b1 + offset_s));
+    match (a, b) {
+        (Some((a0, a1)), Some((b0, b1))) => Some((a0.min(b0), a1.max(b1))),
+        (a, None) => a,
+        (None, b) => b,
     }
 }
 
@@ -925,7 +1110,160 @@ static NEXT_TAB_ID: AtomicU64 = AtomicU64::new(1);
 
 #[cfg(test)]
 mod tests {
-    use super::{Tab, TrackMapState};
+    use super::{
+        CompareState, LogRole, PlotArea, SelectedChannel, Tab, TrackMapState, nearest_record,
+        record_at, union_range,
+    };
+    use crate::parsers::Channel;
+    use crate::parsers::aim::AimChannel;
+
+    fn channel(file_index: usize, channel_index: usize, color_index: usize) -> SelectedChannel {
+        SelectedChannel {
+            file_index,
+            channel_index,
+            channel: Channel::Aim(AimChannel {
+                name: format!("ch{channel_index}"),
+                unit: String::new(),
+            }),
+            color_index,
+        }
+    }
+
+    /// Tab on file 0 comparing against file 1: A0 (slot 0), B0 (slot 0, its pair), A1 (slot 1),
+    /// B-only (slot 2).
+    fn comparing_tab() -> Tab {
+        let mut tab = Tab::new(0, "a".to_string());
+        tab.compare = Some(CompareState::new(1));
+        tab.selected_channels = vec![
+            channel(0, 0, 0),
+            channel(1, 0, 0),
+            channel(0, 1, 1),
+            channel(1, 5, 2),
+        ];
+        tab.plot_areas[0].channel_indices = vec![0, 1, 2, 3];
+        tab
+    }
+
+    #[test]
+    fn record_at_is_none_outside_the_span() {
+        let times = [1.0, 2.0, 3.0];
+        assert_eq!(record_at(&times, 0.99), None);
+        assert_eq!(record_at(&times, 1.0), Some(0));
+        assert_eq!(record_at(&times, 2.5), Some(1));
+        assert_eq!(record_at(&times, 3.0), Some(2));
+        assert_eq!(record_at(&times, 3.01), None);
+        assert_eq!(record_at(&[], 1.0), None);
+    }
+
+    #[test]
+    fn nearest_record_clamps_to_the_ends() {
+        let times = [1.0, 2.0, 3.0];
+        assert_eq!(nearest_record(&times, -5.0), Some(0));
+        assert_eq!(nearest_record(&times, 1.4), Some(0));
+        assert_eq!(nearest_record(&times, 1.6), Some(1));
+        assert_eq!(nearest_record(&times, 9.0), Some(2));
+        assert_eq!(nearest_record(&[], 1.0), None);
+    }
+
+    #[test]
+    fn union_range_shifts_log_b() {
+        assert_eq!(
+            union_range(Some((0.0, 10.0)), Some((0.0, 8.0)), -3.0),
+            Some((-3.0, 10.0))
+        );
+        assert_eq!(
+            union_range(Some((0.0, 10.0)), Some((0.0, 8.0)), 5.0),
+            Some((0.0, 13.0))
+        );
+        assert_eq!(union_range(Some((0.0, 1.0)), None, 5.0), Some((0.0, 1.0)));
+        assert_eq!(union_range(None, Some((0.0, 1.0)), 2.0), Some((2.0, 3.0)));
+    }
+
+    #[test]
+    fn log_roles_partners_and_offset() {
+        let mut tab = comparing_tab();
+        tab.compare.as_mut().unwrap().offset_s = 1.5;
+        assert_eq!(tab.log_role(&tab.selected_channels[0]), LogRole::A);
+        assert_eq!(tab.log_role(&tab.selected_channels[1]), LogRole::B);
+        assert_eq!(tab.partner(0), Some(1));
+        assert_eq!(tab.partner(1), Some(0));
+        assert_eq!(tab.partner(2), None);
+        assert_eq!(tab.partner(3), None);
+        assert_eq!(tab.time_offset(1), 1.5);
+        assert_eq!(tab.time_offset(0), 0.0);
+        assert!(tab.accepts_file(0) && tab.accepts_file(1) && !tab.accepts_file(2));
+    }
+
+    #[test]
+    fn a_pair_counts_as_one_unit() {
+        let tab = comparing_tab();
+        // A0+B0 pair = 1, A1 = 1, B-only = 1.
+        assert_eq!(tab.total_channel_units(), 3);
+        // A B channel whose partner is in another plot counts on its own.
+        assert_eq!(tab.channel_units(&[1, 3]), 2);
+
+        // Ten pairs fill a plot; the eleventh unit does not fit.
+        let mut full = Tab::new(0, "a".to_string());
+        full.compare = Some(CompareState::new(1));
+        for slot in 0..10 {
+            full.selected_channels.push(channel(0, slot, slot));
+            full.selected_channels.push(channel(1, slot, slot));
+        }
+        full.plot_areas[0].channel_indices = (0..20).collect();
+        assert_eq!(full.total_channel_units(), 10);
+        assert!(!full.plot_has_capacity(0));
+        full.remove_selected_channel(19);
+        assert!(!full.plot_has_capacity(0), "B removed: still 10 A units");
+        full.remove_selected_channel(18);
+        assert!(full.plot_has_capacity(0));
+    }
+
+    #[test]
+    fn removing_a_channel_shifts_plot_areas_in_any_tab() {
+        let mut tab = comparing_tab();
+        tab.stacked_mode = true;
+        tab.plot_areas = vec![PlotArea::new(0, "P1".into()), PlotArea::new(1, "P2".into())];
+        tab.plot_areas[0].channel_indices = vec![0, 1];
+        tab.plot_areas[1].channel_indices = vec![2, 3];
+        tab.data_panel_state.track_map.color_channel = Some(3);
+
+        tab.remove_channels_of_file(1);
+
+        assert_eq!(tab.selected_channels.len(), 2);
+        assert_eq!(tab.plot_areas[0].channel_indices, vec![0]);
+        assert_eq!(tab.plot_areas[1].channel_indices, vec![1]);
+        assert_eq!(tab.data_panel_state.track_map.color_channel, None);
+    }
+
+    #[test]
+    fn remap_after_file_removed_handles_b_below_and_above_a() {
+        // B (file 0) below A (file 2); remove file 1, which neither uses.
+        let mut tab = Tab::new(2, "a".to_string());
+        tab.compare = Some(CompareState::new(0));
+        tab.selected_channels = vec![channel(2, 0, 0), channel(0, 0, 0)];
+        tab.plot_areas[0].channel_indices = vec![0, 1];
+        tab.remap_after_file_removed(1);
+        assert_eq!(tab.file_index, 1);
+        assert_eq!(tab.compare_file(), Some(0));
+        assert_eq!(tab.selected_channels[0].file_index, 1);
+        assert_eq!(tab.selected_channels[1].file_index, 0);
+
+        // B (file 3) above A (file 0); remove file 1: only B shifts.
+        let mut tab = Tab::new(0, "a".to_string());
+        tab.compare = Some(CompareState::new(3));
+        tab.selected_channels = vec![channel(0, 0, 0), channel(3, 0, 0)];
+        tab.plot_areas[0].channel_indices = vec![0, 1];
+        tab.remap_after_file_removed(1);
+        assert_eq!(tab.file_index, 0);
+        assert_eq!(tab.compare_file(), Some(2));
+        assert_eq!(tab.selected_channels[1].file_index, 2);
+
+        // Removing log B itself drops its channels and stops comparing.
+        tab.remap_after_file_removed(2);
+        assert!(tab.compare.is_none());
+        assert_eq!(tab.selected_channels.len(), 1);
+        assert_eq!(tab.plot_areas[0].channel_indices, vec![0]);
+    }
 
     #[test]
     fn track_map_color_slot_follows_channel_removals() {

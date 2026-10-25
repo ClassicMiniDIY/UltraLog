@@ -380,6 +380,8 @@ impl UltraLogApp {
                         .filter_map(|&idx| self.tabs[tab_idx].selected_channels.get(idx).cloned())
                         .collect();
 
+                    let plot_has_capacity = self.tabs[tab_idx].plot_has_capacity(plot_area.id);
+
                     if plot_channels.is_empty() {
                         // Empty plot area with drop zone
                         let (rect, response) = ui.allocate_exact_size(
@@ -389,7 +391,7 @@ impl UltraLogApp {
 
                         // Check for dropped channel
                         if let Some(payload) = response.dnd_release_payload::<(usize, usize)>()
-                            && plot_area.has_capacity()
+                            && plot_has_capacity
                         {
                             let (dropped_file_idx, dropped_channel_idx) = *payload;
                             self.add_channel_to_plot(
@@ -402,7 +404,7 @@ impl UltraLogApp {
                         // Highlight if hovering with drag payload
                         let is_drop_target =
                             response.dnd_hover_payload::<(usize, usize)>().is_some();
-                        let stroke_color = if is_drop_target && plot_area.has_capacity() {
+                        let stroke_color = if is_drop_target && plot_has_capacity {
                             self.tokens.cyan
                         } else {
                             self.tokens.line_control
@@ -418,13 +420,11 @@ impl UltraLogApp {
                         ui.put(
                             rect,
                             egui::Label::new(
-                                egui::RichText::new(
-                                    if is_drop_target && plot_area.has_capacity() {
-                                        "Drop channel here"
-                                    } else {
-                                        "No channels in this plot"
-                                    },
-                                )
+                                egui::RichText::new(if is_drop_target && plot_has_capacity {
+                                    "Drop channel here"
+                                } else {
+                                    "No channels in this plot"
+                                })
                                 .italics()
                                 .color(if is_drop_target {
                                     self.tokens.ink

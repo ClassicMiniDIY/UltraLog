@@ -944,31 +944,82 @@ impl UltraLogApp {
             .active_tab
             .map(|idx| self.tabs[idx].file_index)
             .unwrap_or(0);
-        if let Some(file) = self.files.get(file_index) {
-            let times = file.log.get_times_as_f64();
-            if times.is_empty() {
-                return None;
+        let file = self.files.get(file_index)?;
+        crate::state::nearest_record(file.log.get_times_as_f64(), time)
+    }
+
+    /// The record of `file_index` at tab time `tab_time` in the active tab: the last sample at
+    /// or before it, after removing log B's offset, or `None` outside that log's span (R4).
+    pub fn record_at(&self, file_index: usize, tab_time: f64) -> Option<usize> {
+        let offset = self
+            .active_tab
+            .map_or(0.0, |idx| self.tabs[idx].time_offset(file_index));
+        let file = self.files.get(file_index)?;
+        crate::state::record_at(file.log.get_times_as_f64(), tab_time - offset)
+    }
+
+    /// The time span of one file, in its own time.
+    fn file_time_range(&self, file_index: usize) -> Option<(f64, f64)> {
+        let times = self.files.get(file_index)?.log.get_times_as_f64();
+        Some((*times.first()?, *times.last()?))
+    }
+
+    /// Recompute a tab's time range: log A's span joined with log B's shifted span. Clamps the
+    /// tab cursor into the new range. Call after any change to the compare file or offset.
+    pub fn update_tab_time_range(&mut self, tab_idx: usize) {
+        let Some(tab) = self.tabs.get(tab_idx) else {
+            return;
+        };
+        let a = self.file_time_range(tab.file_index);
+        let b = tab.compare_file().and_then(|f| self.file_time_range(f));
+        let offset = tab.compare.as_ref().map_or(0.0, |c| c.offset_s);
+        let range = crate::state::union_range(a, b, offset);
+        let a_file = tab.file_index;
+
+        let tab = &mut self.tabs[tab_idx];
+        tab.time_range = range;
+        if let (Some((t0, t1)), Some(cursor)) = (range, tab.cursor_time) {
+            let clamped = cursor.clamp(t0, t1);
+            if clamped != cursor {
+                tab.cursor_time = Some(clamped);
+                tab.cursor_record = self
+                    .files
+                    .get(a_file)
+                    .and_then(|f| crate::state::nearest_record(f.log.get_times_as_f64(), clamped));
             }
-            // Binary search for closest time
-            let mut low = 0;
-            let mut high = times.len() - 1;
-            while low < high {
-                let mid = (low + high) / 2;
-                if times[mid] < time {
-                    low = mid + 1;
-                } else {
-                    high = mid;
-                }
-            }
-            // Check if low or low-1 is closer
-            if low > 0 && (times[low] - time).abs() > (times[low - 1] - time).abs() {
-                Some(low - 1)
-            } else {
-                Some(low)
-            }
-        } else {
-            None
         }
+    }
+
+    /// Start, change or stop comparing the tab with another file (log B). The old log B's
+    /// channels leave the tab first; the offset starts at 0.
+    pub fn set_compare_file(&mut self, tab_idx: usize, file_index: Option<usize>) {
+        let Some(tab) = self.tabs.get_mut(tab_idx) else {
+            return;
+        };
+        // The tab's own file or a file that does not exist cannot be log B: ignore the request.
+        if file_index.is_some_and(|f| f == tab.file_index || f >= self.files.len()) {
+            return;
+        }
+        if tab.compare_file() == file_index {
+            return;
+        }
+        if let Some(old) = tab.compare_file() {
+            tab.remove_channels_of_file(old);
+        }
+        tab.compare = file_index.map(crate::state::CompareState::new);
+        self.update_tab_time_range(tab_idx);
+    }
+
+    /// Set log B's time offset for a tab and recompute its range.
+    pub fn set_compare_offset(&mut self, tab_idx: usize, offset_s: f64) {
+        let Some(compare) = self.tabs.get_mut(tab_idx).and_then(|t| t.compare.as_mut()) else {
+            return;
+        };
+        if !offset_s.is_finite() {
+            return;
+        }
+        compare.offset_s = offset_s;
+        self.update_tab_time_range(tab_idx);
     }
 
     /// Get value at a specific record index for a channel (handles computed channels)
@@ -1172,20 +1223,16 @@ impl UltraLogApp {
             }
             self.analysis_results = new_analysis_results;
 
-            // Update file indices for remaining tabs and their channels
+            // Every tab, whatever its own file: log B can be any file, so a tab whose own file
+            // comes before `index` can still hold channels of a file after it.
             for tab in &mut self.tabs {
-                if tab.file_index > index {
-                    tab.file_index -= 1;
-                    // Update file indices in selected channels
-                    for channel in &mut tab.selected_channels {
-                        if channel.file_index > index {
-                            channel.file_index -= 1;
-                        }
-                    }
-                }
+                tab.remap_after_file_removed(index);
             }
 
             self.files.remove(index);
+            for tab_idx in 0..self.tabs.len() {
+                self.update_tab_time_range(tab_idx);
+            }
 
             // Reconcile selected_file from the active tab (close_tab may have set it
             // using pre-removal file indices, so re-derive from the active tab).
@@ -1209,8 +1256,8 @@ impl UltraLogApp {
 
         let tab = &self.tabs[tab_idx];
 
-        // Only allow adding channels from the tab's file
-        if file_index != tab.file_index {
+        // Only the tab's file (log A) or its comparison file (log B)
+        if !tab.accepts_file(file_index) {
             self.show_toast_warning(&t!("toast.channel_from_active_tab"));
             return;
         }
@@ -1218,17 +1265,21 @@ impl UltraLogApp {
         // Check if stacked mode is enabled
         if tab.stacked_mode {
             // In stacked mode, add to first plot with capacity
-            let plot_with_capacity = tab.plot_areas.iter().find(|p| p.has_capacity());
-            if let Some(plot) = plot_with_capacity {
-                self.add_channel_to_plot(file_index, channel_index, plot.id);
+            let plot_with_capacity = tab
+                .plot_areas
+                .iter()
+                .find(|p| tab.plot_has_capacity(p.id))
+                .map(|p| p.id);
+            if let Some(plot_id) = plot_with_capacity {
+                self.add_channel_to_plot(file_index, channel_index, plot_id);
             } else {
                 self.show_toast_warning("All plots are full. Create a new plot area.");
             }
             return;
         }
 
-        // Single-plot mode logic (original)
-        if tab.selected_channels.len() >= MAX_CHANNELS {
+        // Single-plot mode logic (original). A compare pair counts as one channel (R2).
+        if tab.total_channel_units() >= MAX_CHANNELS {
             self.show_toast_warning(&t!("toast.max_channels"));
             return;
         }
@@ -1441,14 +1492,14 @@ impl UltraLogApp {
 
         let tab = &self.tabs[tab_idx];
 
-        // Validate file index matches tab
-        if file_index != tab.file_index {
+        // Only the tab's file (log A) or its comparison file (log B)
+        if !tab.accepts_file(file_index) {
             self.show_toast_warning(&t!("toast.channel_from_active_tab"));
             return;
         }
 
-        // Check total channel limit
-        if tab.selected_channels.len() >= MAX_TOTAL_CHANNELS {
+        // Check total channel limit (a compare pair counts as one, R2)
+        if tab.total_channel_units() >= MAX_TOTAL_CHANNELS {
             self.show_toast_warning(&format!(
                 "Maximum {} total channels reached",
                 MAX_TOTAL_CHANNELS
@@ -1466,7 +1517,7 @@ impl UltraLogApp {
         let plot = &tab.plot_areas[plot_idx.unwrap()];
 
         // Check plot area capacity
-        if !plot.has_capacity() {
+        if !tab.plot_has_capacity(plot_area_id) {
             self.show_toast_warning(&format!(
                 "Plot '{}' is full (max {} channels)",
                 plot.name, MAX_CHANNELS_PER_PLOT
@@ -1515,30 +1566,7 @@ impl UltraLogApp {
             return;
         };
 
-        let tab = &mut self.tabs[tab_idx];
-
-        if channel_idx >= tab.selected_channels.len() {
-            return;
-        }
-
-        // Remove from all plot areas' channel indices
-        for plot in &mut tab.plot_areas {
-            plot.channel_indices.retain(|&idx| idx != channel_idx);
-
-            // Shift down indices greater than the removed one
-            for idx in &mut plot.channel_indices {
-                if *idx > channel_idx {
-                    *idx -= 1;
-                }
-            }
-        }
-
-        tab.data_panel_state
-            .track_map
-            .remove_color_channel_slot(channel_idx);
-
-        // Remove from selected_channels
-        tab.selected_channels.remove(channel_idx);
+        self.tabs[tab_idx].remove_selected_channel(channel_idx);
     }
 
     /// Move a channel from one plot area to another
@@ -1570,7 +1598,7 @@ impl UltraLogApp {
         }
 
         // Check target plot capacity
-        if !tab.plot_areas[target_idx].has_capacity() {
+        if !tab.plot_has_capacity(target_plot_id) {
             self.show_toast_warning("Target plot is full");
             return;
         }
@@ -2549,6 +2577,131 @@ mod tests {
 
         app.active_tab = Some(0);
         assert_eq!(app.find_record_at_time(10.0), Some(1000));
+    }
+
+    /// Files 0..3 at 10 Hz: 0..=10 s, 0..=8 s, 0..=5 s. Tab 0 shows file 0.
+    fn app_with_three_files() -> UltraLogApp {
+        let mut app = UltraLogApp::default();
+        for (name, end) in [("a.csv", 100), ("b.csv", 80), ("c.csv", 50)] {
+            app.files.push(file_with_times(
+                name,
+                (0..=end).map(|i| i as f64 * 0.1).collect(),
+            ));
+        }
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.update_tab_time_range(0);
+        app
+    }
+
+    #[test]
+    fn compare_offset_moves_log_b_on_the_tab_axis() {
+        let mut app = app_with_three_files();
+        app.set_compare_file(0, Some(1));
+        app.set_compare_offset(0, -3.0);
+
+        assert_eq!(app.tabs[0].time_range, Some((-3.0, 10.0)));
+        // Tab time 2.0 is file time 5.0 in log B.
+        assert_eq!(app.record_at(1, 2.0), Some(50));
+        // Before log A starts and after log B ends there is no value (R4).
+        assert_eq!(app.record_at(0, -1.0), None);
+        assert_eq!(app.record_at(1, 5.5), None);
+        assert_eq!(app.record_at(0, 5.5), Some(55));
+    }
+
+    #[test]
+    fn compare_offset_clamps_the_cursor() {
+        let mut app = app_with_three_files();
+        app.set_compare_file(0, Some(1));
+        app.set_compare_offset(0, 6.0); // range 0..14
+        app.tabs[0].cursor_time = Some(13.0);
+        app.set_compare_offset(0, 0.0); // range 0..10
+        assert_eq!(app.tabs[0].cursor_time, Some(10.0));
+        assert_eq!(app.tabs[0].cursor_record, Some(100));
+    }
+
+    #[test]
+    fn add_channel_accepts_log_b_only() {
+        let mut app = app_with_three_files();
+        app.add_channel(1, 0);
+        assert!(app.tabs[0].selected_channels.is_empty(), "no compare yet");
+
+        app.set_compare_file(0, Some(1));
+        app.add_channel(0, 0);
+        app.add_channel(1, 0);
+        app.add_channel(2, 0);
+        let files: Vec<usize> = app.tabs[0]
+            .selected_channels
+            .iter()
+            .map(|c| c.file_index)
+            .collect();
+        assert_eq!(files, vec![0, 1]);
+        assert_eq!(app.tabs[0].plot_areas[0].channel_indices, vec![0, 1]);
+    }
+
+    #[test]
+    fn changing_log_b_drops_the_old_b_channels() {
+        let mut app = app_with_three_files();
+        app.set_compare_file(0, Some(1));
+        app.add_channel(0, 0);
+        app.add_channel(1, 0);
+        app.set_compare_offset(0, 2.0);
+
+        app.set_compare_file(0, Some(2));
+        assert_eq!(app.tabs[0].selected_channels.len(), 1);
+        assert_eq!(app.tabs[0].compare.as_ref().unwrap().offset_s, 0.0);
+        assert_eq!(app.tabs[0].time_range, Some((0.0, 10.0)));
+
+        // The tab's own file cannot be log B.
+        app.set_compare_file(0, Some(0));
+        assert_eq!(app.tabs[0].compare_file(), Some(2));
+        app.set_compare_file(0, None);
+        assert!(app.tabs[0].compare.is_none());
+    }
+
+    #[test]
+    fn remove_file_remaps_log_b_in_other_tabs() {
+        // Tab 0: A = file 0, B = file 2. Tab 1: A = file 2, B = file 0.
+        let mut app = app_with_three_files();
+        app.tabs.push(Tab::new(1, "b.csv".to_string()));
+        app.tabs.push(Tab::new(2, "c.csv".to_string()));
+        app.set_compare_file(0, Some(2));
+        app.add_channel(0, 0);
+        app.add_channel(2, 0);
+        app.active_tab = Some(2);
+        app.set_compare_file(2, Some(0));
+        app.add_channel(2, 0);
+        app.add_channel(0, 0);
+
+        // Remove file 1: tab 1 closes, both B links shift without losing channels.
+        app.remove_file(1);
+        assert_eq!(app.tabs.len(), 2);
+        let (t0, t1) = (&app.tabs[0], &app.tabs[1]);
+        assert_eq!((t0.file_index, t0.compare_file()), (0, Some(1)));
+        assert_eq!((t1.file_index, t1.compare_file()), (1, Some(0)));
+        assert_eq!(
+            t0.selected_channels
+                .iter()
+                .map(|c| c.file_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        assert_eq!(
+            t1.selected_channels
+                .iter()
+                .map(|c| c.file_index)
+                .collect::<Vec<_>>(),
+            vec![1, 0]
+        );
+
+        // Remove file 0: its tab closes, and the other tab stops comparing against it.
+        app.remove_file(0);
+        assert_eq!(app.tabs.len(), 1);
+        let t = &app.tabs[0];
+        assert_eq!((t.file_index, t.compare_file()), (0, None));
+        assert_eq!(t.selected_channels.len(), 1);
+        assert_eq!(t.plot_areas[0].channel_indices, vec![0]);
+        assert_eq!(t.time_range, Some((0.0, 5.0)));
     }
 
     #[test]
