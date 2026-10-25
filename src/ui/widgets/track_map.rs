@@ -794,7 +794,14 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
         }
     }
 
-    if let Some(record) = app.tabs[tab_idx].cursor_record
+    // Hidden while the cursor is outside log A's span (a compare tab's range can be wider),
+    // instead of pinning the dot to the track's end.
+    let tab = &app.tabs[tab_idx];
+    let in_span = tab
+        .cursor_time
+        .is_none_or(|t| app.record_at(tab.file_index, t).is_some());
+    if in_span
+        && let Some(record) = tab.cursor_record
         && let Some(position) = project_record(record)
     {
         // Current position: a plot_cursor dot with a 2px bg_void ring

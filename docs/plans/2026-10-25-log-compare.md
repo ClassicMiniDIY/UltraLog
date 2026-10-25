@@ -1,6 +1,6 @@
 # Log compare (issue #98)
 
-Status: steps 1-6 implemented on `release/3.0.0` (2026-10-25); step 7 (IPC gaps, verify, review) next. Ships in **3.0.0**.
+Status: implemented on `release/3.0.0` (2026-10-25), including the step-7 Opus review fixes. Ships in **3.0.0**.
 
 Issue #98 asks to overlay a second log in the same tab, with each channel showing which log it
 comes from. Typical use: two WOT pulls before and after a tune change, or the same pull on two
@@ -23,7 +23,7 @@ Derived from the plan review (2026-10-25, Opus), not asked:
 | R1 | A pair shares **one y range**: the union of A's and B's min/max, on screen and in the export. | The chart scales every channel to its own 0..1. Without this, a 1.5 bar pull and a 1.8 bar pull draw at the same height and the comparison shows nothing. |
 | R2 | A pair counts as **one** against `MAX_CHANNELS` (10) and `MAX_CHANNELS_PER_PLOT`; a B-only channel counts as one. | Pairing would otherwise halve the capacity to 5. Caps are checked for the pair as a unit before adding. |
 | R3 | **Computed channels are not paired and not in the B list** in 3.0.0. | A formula exists in B only if it was applied to B's file, and `remove_computed_channel` shifts indices without fixing other tabs. |
-| R4 | A legend value is **None outside its log's span**, the same rule for A and B. | `find_record_at_time` returns the nearest record, so an edge value would read as live in the union range. |
+| R4 | A legend value is **None outside its log's span**, the same rule for A and B (nearest sample inside the span, as the cursor record). | `find_record_at_time` returns the nearest record, so an edge value would read as live in the union range. |
 
 ## What exists today
 

@@ -711,19 +711,12 @@ impl UltraLogApp {
             _ => return IpcResponse::error(format!("Invalid file ID: {}", file_id)),
         };
 
-        // The tab's cursor record belongs to the tab's own file (log A). Any other file, log B
-        // included, is looked up at the cursor time (minus log B's offset), and has no values
-        // outside its own span.
+        // Every file is looked up at the cursor time (log B minus its offset), with no values
+        // outside its own span (R4): the same rule as the chart legend.
         let Some(cursor_time) = self.get_cursor_time() else {
             return IpcResponse::error("No cursor position set");
         };
-        let tab_file = self.active_tab.map(|idx| self.tabs[idx].file_index);
-        let record = if tab_file == Some(file_idx) {
-            self.get_cursor_record()
-        } else {
-            self.record_at(file_idx, cursor_time)
-        };
-        let Some(cursor_record) = record else {
+        let Some(cursor_record) = self.record_at(file_idx, cursor_time) else {
             return IpcResponse::error(format!(
                 "File {file_id} has no data at the cursor time {cursor_time:.3} s"
             ));

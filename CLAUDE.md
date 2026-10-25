@@ -703,8 +703,12 @@ in `UserSettings`.
 
 - **One time axis.** Tab time is log A's time. Log B's sample at file time `t` is drawn at
   `t + offset_s` (`Tab::time_offset`). Values at the cursor come from `UltraLogApp::record_at`
-  (last sample at or before, **`None` outside that log's span**, R4), never from the tab's
-  `cursor_record`, which is a record of log A only. `Tab::time_range` is the union of A and
+  (nearest sample, the same rule as the cursor record and the track-map dot, and **`None` outside
+  that log's span**, R4) for every file, in the legend and in IPC `get_cursor_values`. The tab's
+  `cursor_record` is a record of log A only; arrow keys step it with `state::arrow_step`, which
+  enters log A from the near edge when the cursor is outside A's span. The track-map dot hides
+  outside A's span. Align at cursor stores the cursor time when it starts (`align_target`), and
+  a pick is cancelled on a tab or tool switch. `Tab::time_range` is the union of A and
   shifted B (`update_tab_time_range`, which also clamps the cursor); call it after any compare or
   offset change (`set_compare_file`, `set_compare_offset` do).
 - **Pairs are colour slots.** A pair is an A and a B channel with the same `color_index`

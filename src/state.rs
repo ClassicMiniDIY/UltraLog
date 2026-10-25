@@ -1069,6 +1069,9 @@ pub struct CompareState {
     pub offset_s: f64,
     /// True while "Align at cursor" waits for the click on log B's matching point.
     pub picking_alignment: bool,
+    /// The cursor time when "Align at cursor" started: the log-A event B is lined up with. Kept
+    /// apart from the live cursor, which playback or track-map hover can move before the click.
+    pub align_target: Option<f64>,
     /// The channel list shows log B's channels (the A | B switch).
     pub list_b: bool,
 }
@@ -1079,19 +1082,39 @@ impl CompareState {
             file_index,
             offset_s: 0.0,
             picking_alignment: false,
+            align_target: None,
             list_b: false,
         }
     }
 }
 
-/// The record at file time `t`: the last sample at or before `t`, or `None` outside the log's
-/// span (rule R4), so a log never reports a value where it has no data.
+/// The record at file time `t`: the nearest sample, the same rule as the tab cursor record, the
+/// record counter and the track-map dot; or `None` outside the log's span (rule R4), so a log
+/// never reports a value where it has no data.
 pub fn record_at(times: &[f64], t: f64) -> Option<usize> {
     let (&first, &last) = (times.first()?, times.last()?);
     if !(first..=last).contains(&t) {
         return None;
     }
-    Some(times.partition_point(|&x| x <= t).saturating_sub(1))
+    nearest_record(times, t)
+}
+
+/// The log-A record an arrow key moves the cursor to, `step` records from `current`. Outside log
+/// A's span (the tab range can be wider while comparing) the first step enters the span on the
+/// near edge and a step away from it does nothing, so the cursor never jumps the wrong way.
+pub fn arrow_step(
+    times: &[f64],
+    cursor_time: Option<f64>,
+    current: usize,
+    step: isize,
+) -> Option<usize> {
+    let (&first, &last) = (times.first()?, times.last()?);
+    let last_idx = times.len() - 1;
+    match cursor_time {
+        Some(t) if t < first => (step > 0).then_some(0),
+        Some(t) if t > last => (step < 0).then_some(last_idx),
+        _ => Some(current.saturating_add_signed(step).min(last_idx)),
+    }
 }
 
 /// The record nearest to `t` (clamped to the log's ends). The cursor record of log A.
@@ -1126,8 +1149,8 @@ static NEXT_TAB_ID: AtomicU64 = AtomicU64::new(1);
 #[cfg(test)]
 mod tests {
     use super::{
-        CompareState, LogRole, PlotArea, SelectedChannel, Tab, TrackMapState, nearest_record,
-        record_at, union_range,
+        CompareState, LogRole, PlotArea, SelectedChannel, Tab, TrackMapState, arrow_step,
+        nearest_record, record_at, union_range,
     };
     use crate::parsers::Channel;
     use crate::parsers::aim::AimChannel;
@@ -1164,10 +1187,26 @@ mod tests {
         let times = [1.0, 2.0, 3.0];
         assert_eq!(record_at(&times, 0.99), None);
         assert_eq!(record_at(&times, 1.0), Some(0));
-        assert_eq!(record_at(&times, 2.5), Some(1));
+        assert_eq!(record_at(&times, 2.4), Some(1));
+        assert_eq!(record_at(&times, 2.6), Some(2));
         assert_eq!(record_at(&times, 3.0), Some(2));
         assert_eq!(record_at(&times, 3.01), None);
         assert_eq!(record_at(&[], 1.0), None);
+    }
+
+    #[test]
+    fn arrow_steps_enter_log_a_from_the_near_edge() {
+        let times = [0.0, 1.0, 2.0];
+        // Inside the span: plain steps, clamped.
+        assert_eq!(arrow_step(&times, Some(1.0), 1, -1), Some(0));
+        assert_eq!(arrow_step(&times, Some(1.0), 1, 10), Some(2));
+        assert_eq!(arrow_step(&times, Some(1.0), 1, -10), Some(0));
+        // Before log A (cursor at -2 with a negative log B offset): Right enters, Left stays.
+        assert_eq!(arrow_step(&times, Some(-2.0), 0, 1), Some(0));
+        assert_eq!(arrow_step(&times, Some(-2.0), 0, -1), None);
+        // After log A: Left enters at the last record, Right stays.
+        assert_eq!(arrow_step(&times, Some(5.0), 2, -1), Some(2));
+        assert_eq!(arrow_step(&times, Some(5.0), 2, 1), None);
     }
 
     #[test]

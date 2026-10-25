@@ -1068,22 +1068,24 @@ impl UltraLogApp {
 
     /// Start, change or stop comparing the tab with another file (log B). The old log B's
     /// channels leave the tab first; the offset starts at 0.
-    pub fn set_compare_file(&mut self, tab_idx: usize, file_index: Option<usize>) {
+    /// Returns whether log B changed.
+    pub fn set_compare_file(&mut self, tab_idx: usize, file_index: Option<usize>) -> bool {
         let Some(tab) = self.tabs.get_mut(tab_idx) else {
-            return;
+            return false;
         };
         // The tab's own file or a file that does not exist cannot be log B: ignore the request.
         if file_index.is_some_and(|f| f == tab.file_index || f >= self.files.len()) {
-            return;
+            return false;
         }
         if tab.compare_file() == file_index {
-            return;
+            return false;
         }
         if let Some(old) = tab.compare_file() {
             tab.remove_channels_of_file(old);
         }
         tab.compare = file_index.map(crate::state::CompareState::new);
         self.update_tab_time_range(tab_idx);
+        true
     }
 
     /// Start "Align at cursor": the next chart click marks log B's point that matches the
@@ -1092,18 +1094,40 @@ impl UltraLogApp {
         let Some(tab) = self.tabs.get_mut(tab_idx) else {
             return;
         };
-        if tab.cursor_time.is_none() {
+        let Some(target) = tab.cursor_time else {
             return;
-        }
-        if let Some(compare) = tab.compare.as_mut() {
-            compare.picking_alignment = true;
-        }
+        };
+        let Some(compare) = tab.compare.as_mut() else {
+            return;
+        };
+        compare.picking_alignment = true;
+        compare.align_target = Some(target);
+        // Playback would move the cursor away from the event before the second click.
+        self.is_playing = false;
+        self.last_frame_time = None;
     }
 
     /// Leave "Align at cursor" without changing the offset.
     pub fn cancel_alignment(&mut self, tab_idx: usize) {
         if let Some(compare) = self.tabs.get_mut(tab_idx).and_then(|t| t.compare.as_mut()) {
             compare.picking_alignment = false;
+            compare.align_target = None;
+        }
+    }
+
+    /// Leave "Align at cursor" on every tab but the active one, so a tab or tool switch never
+    /// leaves a pending pick that turns the next chart click into an offset change.
+    fn cancel_alignment_elsewhere(&mut self) {
+        let active = self.active_tab;
+        let on_chart = self.active_tool == ActiveTool::LogViewer;
+        for (idx, tab) in self.tabs.iter_mut().enumerate() {
+            if let Some(compare) = tab.compare.as_mut()
+                && compare.picking_alignment
+                && (Some(idx) != active || !on_chart)
+            {
+                compare.picking_alignment = false;
+                compare.align_target = None;
+            }
         }
     }
 
@@ -1113,10 +1137,13 @@ impl UltraLogApp {
         let Some(tab) = self.tabs.get(tab_idx) else {
             return;
         };
-        let (Some(compare), Some(cursor)) = (tab.compare.as_ref(), tab.cursor_time) else {
+        let Some(compare) = tab.compare.as_ref() else {
             return;
         };
-        let offset = compare.offset_s + (cursor - clicked);
+        let Some(target) = compare.align_target.or(tab.cursor_time) else {
+            return;
+        };
+        let offset = compare.offset_s + (target - clicked);
         self.cancel_alignment(tab_idx);
         self.set_compare_offset(tab_idx, offset);
     }
@@ -1380,13 +1407,17 @@ impl UltraLogApp {
             return;
         }
 
+        // A log-B channel that joins an unpaired log-A channel costs nothing (R2), and goes
+        // into its partner's plot area whatever plot is chosen here.
+        let free = self.joins_a_pair(tab_idx, file_index, channel_index);
+
         // Check if stacked mode is enabled
         if tab.stacked_mode {
             // In stacked mode, add to first plot with capacity
             let plot_with_capacity = tab
                 .plot_areas
                 .iter()
-                .find(|p| tab.plot_has_capacity(p.id))
+                .find(|p| free || tab.plot_has_capacity(p.id))
                 .map(|p| p.id);
             if let Some(plot_id) = plot_with_capacity {
                 self.add_channel_to_plot(file_index, channel_index, plot_id);
@@ -1397,7 +1428,7 @@ impl UltraLogApp {
         }
 
         // Single-plot mode logic (original). A compare pair counts as one channel (R2).
-        if tab.total_channel_units() >= MAX_CHANNELS {
+        if !free && tab.total_channel_units() >= MAX_CHANNELS {
             self.show_toast_warning(&t!("toast.max_channels"));
             return;
         }
@@ -1597,8 +1628,11 @@ impl UltraLogApp {
             return;
         }
 
+        // A log-B channel joining an unpaired log-A channel costs nothing (R2).
+        let free = self.joins_a_pair(tab_idx, file_index, channel_index);
+
         // Check total channel limit (a compare pair counts as one, R2)
-        if tab.total_channel_units() >= MAX_TOTAL_CHANNELS {
+        if !free && tab.total_channel_units() >= MAX_TOTAL_CHANNELS {
             self.show_toast_warning(&format!(
                 "Maximum {} total channels reached",
                 MAX_TOTAL_CHANNELS
@@ -1616,7 +1650,7 @@ impl UltraLogApp {
         let plot = &tab.plot_areas[plot_idx.unwrap()];
 
         // Check plot area capacity
-        if !tab.plot_has_capacity(plot_area_id) {
+        if !free && !tab.plot_has_capacity(plot_area_id) {
             self.show_toast_warning(&format!(
                 "Plot '{}' is full (max {} channels)",
                 plot.name, MAX_CHANNELS_PER_PLOT
@@ -1678,6 +1712,20 @@ impl UltraLogApp {
 
         // Track channel selection for analytics
         analytics::track_channel_selected(self.tabs[tab_idx].selected_channels.len());
+    }
+
+    /// Whether adding log channel `channel_index` of `file_index` completes a pair (a log-B
+    /// channel matching a selected, unpaired log-A channel): it then costs no channel unit.
+    fn joins_a_pair(&self, tab_idx: usize, file_index: usize, channel_index: usize) -> bool {
+        self.tabs[tab_idx].compare_file() == Some(file_index)
+            && self
+                .files
+                .get(file_index)
+                .and_then(|f| f.log.channels.get(channel_index))
+                .is_some_and(|c| {
+                    self.unpaired_match(tab_idx, LogRole::A, &c.name())
+                        .is_some()
+                })
     }
 
     /// The name two logs' channels are matched on: the normalized display name (when field
@@ -1814,9 +1862,10 @@ impl UltraLogApp {
     }
 
     /// Choose log B for a tab from the Compare row and pair the channels already selected.
+    /// Choosing the current log B again changes nothing, so a B half the user removed stays
+    /// removed.
     pub fn choose_compare_file(&mut self, tab_idx: usize, file_index: Option<usize>) {
-        self.set_compare_file(tab_idx, file_index);
-        if file_index.is_some() {
+        if self.set_compare_file(tab_idx, file_index) && file_index.is_some() {
             self.pair_selected_channels(tab_idx);
         }
     }
@@ -1887,19 +1936,21 @@ impl UltraLogApp {
             return; // Already in target plot
         }
 
-        // Check target plot capacity
-        if !tab.plot_has_capacity(target_plot_id) {
+        // A compare pair moves as one unit (R2): moving one half moves its partner too, and
+        // joining a partner already in the target plot costs nothing.
+        let partner = tab.partner(channel_idx);
+        let joins_partner =
+            partner.is_some_and(|p| tab.plot_areas[target_idx].channel_indices.contains(&p));
+        if !joins_partner && !tab.plot_has_capacity(target_plot_id) {
             self.show_toast_warning("Target plot is full");
             return;
         }
 
-        // Remove from current plot
-        tab.plot_areas[current_idx]
-            .channel_indices
-            .retain(|&idx| idx != channel_idx);
-
-        // Add to target plot
-        tab.plot_areas[target_idx].channel_indices.push(channel_idx);
+        let moving: Vec<usize> = std::iter::once(channel_idx).chain(partner).collect();
+        for plot in &mut tab.plot_areas {
+            plot.channel_indices.retain(|idx| !moving.contains(idx));
+        }
+        tab.plot_areas[target_idx].channel_indices.extend(moving);
     }
 
     /// Adjust plot heights after resize drag
@@ -1975,6 +2026,7 @@ impl UltraLogApp {
         }
         self.active_tool = tool;
         self.table_generator.clear_selection();
+        self.cancel_alignment_elsewhere();
         analytics::track_tool_switched(tool.name());
     }
 
@@ -2447,10 +2499,11 @@ impl UltraLogApp {
                     let file_index = self.tabs[tab_idx].file_index;
                     if file_index < self.files.len() {
                         let times = self.files[file_index].log.get_times_as_f64();
-                        if !times.is_empty() {
-                            let current = self.get_cursor_record().unwrap_or(0);
-                            let step = if shift { 10 } else { 1 };
-                            let new_record = current.saturating_sub(step);
+                        let current = self.get_cursor_record().unwrap_or(0);
+                        let step = if shift { -10 } else { -1 };
+                        if let Some(new_record) =
+                            crate::state::arrow_step(times, self.get_cursor_time(), current, step)
+                        {
                             self.set_cursor_time(Some(times[new_record]));
                             self.set_cursor_record(Some(new_record));
                         }
@@ -2466,10 +2519,11 @@ impl UltraLogApp {
                     let file_index = self.tabs[tab_idx].file_index;
                     if file_index < self.files.len() {
                         let times = self.files[file_index].log.get_times_as_f64();
-                        if !times.is_empty() {
-                            let current = self.get_cursor_record().unwrap_or(0);
-                            let step = if shift { 10 } else { 1 };
-                            let new_record = (current + step).min(times.len() - 1);
+                        let current = self.get_cursor_record().unwrap_or(0);
+                        let step = if shift { 10 } else { 1 };
+                        if let Some(new_record) =
+                            crate::state::arrow_step(times, self.get_cursor_time(), current, step)
+                        {
                             self.set_cursor_time(Some(times[new_record]));
                             self.set_cursor_record(Some(new_record));
                         }
@@ -2611,6 +2665,8 @@ impl eframe::App for UltraLogApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
+
+        self.cancel_alignment_elsewhere();
 
         // Rebuild fonts and theme if the language, font scale or a theme setting changed
         self.sync_fonts(ctx);
@@ -3198,6 +3254,90 @@ mod tests {
         app.set_compare_offset(0, f64::NAN);
         app.set_compare_offset(0, f64::INFINITY);
         assert_eq!(app.tabs[0].compare.as_ref().unwrap().offset_s, 2.0);
+    }
+
+    #[test]
+    fn align_uses_the_cursor_from_when_it_started() {
+        let mut app = app_with_three_files();
+        app.set_compare_file(0, Some(1));
+        app.tabs[0].cursor_time = Some(4.0);
+        app.is_playing = true;
+        app.start_alignment(0);
+        assert!(!app.is_playing, "starting a pick stops playback");
+        // The live cursor moves (track-map hover) before the click on log B.
+        app.tabs[0].cursor_time = Some(6.0);
+        app.finish_alignment(0, 6.5);
+        let offset = app.tabs[0].compare.as_ref().unwrap().offset_s;
+        assert!(
+            (offset + 2.5).abs() < 1e-9,
+            "lined up with 4.0, not 6.0: {offset}"
+        );
+    }
+
+    #[test]
+    fn a_tool_or_tab_switch_cancels_a_pending_pick() {
+        let mut app = app_with_three_files();
+        app.set_compare_file(0, Some(1));
+        app.tabs[0].cursor_time = Some(4.0);
+        app.start_alignment(0);
+        app.set_active_tool(ActiveTool::ScatterPlot);
+        assert!(!app.tabs[0].compare.as_ref().unwrap().picking_alignment);
+
+        app.set_active_tool(ActiveTool::LogViewer);
+        app.start_alignment(0);
+        app.tabs.push(Tab::new(2, "c.csv".to_string()));
+        app.active_tab = Some(1);
+        app.cancel_alignment_elsewhere();
+        assert!(!app.tabs[0].compare.as_ref().unwrap().picking_alignment);
+    }
+
+    #[test]
+    fn choosing_the_same_log_b_again_keeps_a_removed_half_removed() {
+        let mut app = pairing_app();
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 1); // Boost pair
+        app.remove_channel(1); // drop B's Boost
+        app.choose_compare_file(0, Some(1));
+        assert_eq!(picked(&app), vec![(0, 1, 0)]);
+    }
+
+    #[test]
+    fn re_adding_a_b_half_at_the_cap_is_free() {
+        let names: Vec<String> = (0..10).map(|i| format!("ch{i}")).collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        let mut app = UltraLogApp::default();
+        app.files.push(file_with_channels("a.csv", &names));
+        app.files.push(file_with_channels("b.csv", &names));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.choose_compare_file(0, Some(1));
+        for i in 0..10 {
+            app.add_channel(0, i);
+        }
+        assert_eq!(app.tabs[0].total_channel_units(), 10);
+        // Drop B's ch3, then check it again in the B list: it rejoins its pair at no cost.
+        let b3 = app.tabs[0]
+            .selected_channels
+            .iter()
+            .position(|c| c.file_index == 1 && c.channel_index == 3)
+            .unwrap();
+        app.remove_channel(b3);
+        app.add_channel(1, 3);
+        assert_eq!(app.tabs[0].selected_channels.len(), 20);
+        assert_eq!(app.tabs[0].total_channel_units(), 10);
+    }
+
+    #[test]
+    fn moving_one_half_moves_the_pair() {
+        let mut app = pairing_app();
+        app.toggle_stacked_mode();
+        app.create_plot_area("P2".to_string());
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 1); // Boost pair in plot 1
+        let p2 = app.tabs[0].plot_areas[1].id;
+        app.move_channel_to_plot(0, p2);
+        assert!(app.tabs[0].plot_areas[0].channel_indices.is_empty());
+        assert_eq!(app.tabs[0].plot_areas[1].channel_indices, vec![0, 1]);
     }
 
     #[test]

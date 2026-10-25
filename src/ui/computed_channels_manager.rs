@@ -663,7 +663,7 @@ impl UltraLogApp {
         }
 
         // Check max channels
-        if self.tabs[tab_idx].selected_channels.len() >= 10 {
+        if self.tabs[tab_idx].total_channel_units() >= crate::state::MAX_CHANNELS {
             self.show_toast_warning(&t!("toast.max_channels_reached"));
             return;
         }
