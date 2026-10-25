@@ -1184,8 +1184,7 @@ fn draw_tiles(
 ) {
     let src = tile_source(ui.ctx(), disk_cache_max_mb);
 
-    let alpha = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
-    let tint = egui::Color32::from_white_alpha(alpha);
+    let tint = crate::ui::theme::image_tint(opacity);
 
     // Inverse: world_px = canvas_center + (world - center_world) * view_zoom + pan.
     let view_scale = f64::from(view_zoom);
@@ -1418,7 +1417,7 @@ mod tests {
                 ui,
                 TileProviderId::EsriWorldImagery,
                 egui::TextStyle::Body.resolve(ui.style()),
-                egui::Color32::WHITE,
+                ui.visuals().text_color(),
                 max_width,
             );
             row_count = galley.rows.len();

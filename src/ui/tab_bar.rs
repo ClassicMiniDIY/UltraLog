@@ -209,7 +209,7 @@ impl UltraLogApp {
 fn truncate_middle(ui: &egui::Ui, name: &str, font: &FontId, max_width: f32) -> String {
     let width = |s: &str| {
         ui.painter()
-            .layout_no_wrap(s.to_owned(), font.clone(), egui::Color32::WHITE)
+            .layout_no_wrap(s.to_owned(), font.clone(), ui.visuals().text_color())
             .size()
             .x
     };

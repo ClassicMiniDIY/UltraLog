@@ -397,12 +397,6 @@ impl UltraLogApp {
     // Color and Unit Helpers
     // ========================================================================
 
-    /// Get color for a channel based on color blind mode setting
-    pub fn get_channel_color(&self, color_index: usize) -> [u8; 3] {
-        let [r, g, b, _] = self.series_style(color_index).0.to_array();
-        [r, g, b]
-    }
-
     /// Colour and stroke of the series in `color_index`. Color blind mode and High contrast use
     /// the eight Okabe-Ito colours; see `theme::series`.
     pub fn series_style(

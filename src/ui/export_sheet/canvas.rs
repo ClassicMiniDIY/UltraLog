@@ -77,17 +77,4 @@ pub trait Canvas {
     }
 }
 
-/// `color` composited over `background` (PDF has no cheap alpha; export colours are flattened).
-pub fn flatten(color: Color32, background: Color32) -> Color32 {
-    let a = color.a() as f32 / 255.0;
-    if a >= 1.0 {
-        return color;
-    }
-    let [r, g, b, _] = color.to_srgba_unmultiplied();
-    let mix = |c: u8, bg: u8| (c as f32 * a + bg as f32 * (1.0 - a)).round() as u8;
-    Color32::from_rgb(
-        mix(r, background.r()),
-        mix(g, background.g()),
-        mix(b, background.b()),
-    )
-}
+pub use crate::ui::theme::flatten;

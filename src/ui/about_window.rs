@@ -64,7 +64,7 @@ impl UltraLogApp {
                     tex.id(),
                     egui::Rect::from_center_size(band.center(), vec2(height * w / h, height)),
                     egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                    egui::Color32::WHITE,
+                    theme::image_tint(1.0),
                 );
 
                 ui.add_space(space::SPACE_2);

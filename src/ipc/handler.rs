@@ -121,15 +121,13 @@ impl UltraLogApp {
         let selected_channels: Vec<SelectedChannelInfo> = self
             .get_selected_channels()
             .iter()
-            .map(|c| SelectedChannelInfo {
-                file_id: c.file_index.to_string(),
-                channel_name: c.channel.name(),
-                color: format!(
-                    "#{:02x}{:02x}{:02x}",
-                    self.get_channel_color(c.color_index)[0],
-                    self.get_channel_color(c.color_index)[1],
-                    self.get_channel_color(c.color_index)[2]
-                ),
+            .map(|c| {
+                let [r, g, b, _] = self.series_style(c.color_index).0.to_array();
+                SelectedChannelInfo {
+                    file_id: c.file_index.to_string(),
+                    channel_name: c.channel.name(),
+                    color: format!("#{r:02x}{g:02x}{b:02x}"),
+                }
             })
             .collect();
 

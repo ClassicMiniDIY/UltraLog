@@ -230,7 +230,7 @@ fn draw_sheet(c: &mut dyn Canvas, sheet: &Sheet, theme: ExportTheme, page: Rect,
     let t = export_tokens(theme);
     // Graphite PDFs keep a white margin so a printer never floods the sheet edge to edge.
     let area = if pdf && theme == ExportTheme::Graphite {
-        c.fill_rect(page, Color32::WHITE);
+        c.fill_rect(page, export_tokens(ExportTheme::Paper).bg_base);
         page.shrink(18.0)
     } else {
         page

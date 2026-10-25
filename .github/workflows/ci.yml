@@ -49,6 +49,19 @@ jobs:
       - name: Check contrast
         run: python3 -I design/tools/check_contrast.py design/tokens/tokens.json
 
+      - name: Colour gate
+        # Colours come from the theme tokens only. Exceptions: Color32::TRANSPARENT, the export
+        # back ends converting token colours to PDF/PNG types, and a byte triple in the Link parser.
+        run: |
+          hits=$(grep -rnE 'Color32::|Rgba\(|Rgb::new|\[u8; 3\]' src/ \
+            | grep -v '^src/ui/theme/' \
+            | grep -v 'Color32::TRANSPARENT' \
+            | grep -vE '^src/ui/export_sheet/(pdf|png)\.rs:' \
+            | grep -v '^src/parsers/link.rs:' || true)
+          if [ -n "$hits" ]; then
+            echo "Hard-coded colours outside src/ui/theme/:"; echo "$hits"; exit 1
+          fi
+
   # ============================================
   # Lint - Clippy analysis
   # ============================================
