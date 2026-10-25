@@ -5,7 +5,7 @@
 //!
 //! ```ignore
 //! let mut open = self.show_thing;
-//! let response = components::window(t!("thing.title")).open(&mut open).show(ctx, |ui| { … });
+//! let response = components::window(t!("thing.title")).open(&mut open).show(ctx, |ui| { /* … */ });
 //! components::finish_window(ctx, response.as_ref().map(|r| &r.response), &mut open);
 //! self.show_thing = open;
 //! ```

@@ -107,7 +107,7 @@ const SCRIPT_FACES: [(&str, &[u8]); 4] = [
     ),
 ];
 
-/// The bytes of a bundled face by its name in [`BRAND_FACES`] / [`SCRIPT_FACES`] (exports draw
+/// The bytes of a bundled face by its name in `BRAND_FACES` / `SCRIPT_FACES` (exports draw
 /// text with the same fonts the UI uses).
 pub fn face_bytes(name: &str) -> Option<&'static [u8]> {
     BRAND_FACES
