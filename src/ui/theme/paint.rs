@@ -85,9 +85,8 @@ const KEYBOARD_FOCUS: &str = "ultralog_keyboard_focus";
 /// Paint the focus ring around whichever widget has keyboard focus, on a foreground layer so
 /// every control gets the same ring without its own code. Call once per frame, after the UI.
 ///
-/// egui also focuses a button that was clicked with the mouse; the ring shows only after the
-/// keyboard moved focus (Tab, arrows) or on a text field, and hides again on the next pointer
-/// press.
+/// The ring shows only after the keyboard moved focus (Tab, arrows) or on a text field, and
+/// hides again on the next pointer press, so a click never leaves a ring behind.
 pub fn keyboard_focus_ring(ctx: &egui::Context, t: &Tokens, high_contrast: bool) {
     let id = egui::Id::new(KEYBOARD_FOCUS);
     let (tabbed, pressed) = ctx.input(|i| {

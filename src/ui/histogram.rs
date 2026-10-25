@@ -1234,6 +1234,14 @@ impl UltraLogApp {
         };
         let cell_font = egui::FontId::monospace(self.scaled_font(base_font_size));
 
+        // Small cells: one empty-ground fill for the whole grid instead of a shape per empty
+        // cell (a sparse 256² grid would otherwise add ~65k shapes every frame).
+        let small_cells =
+            cell_width < heatmap::MIN_HATCH_CELL || cell_height < heatmap::MIN_HATCH_CELL;
+        if small_cells {
+            painter.rect_filled(plot_rect, 0.0, t.cell_empty);
+        }
+
         // Draw grid cells with values
         for y_bin in 0..grid_rows {
             for x_bin in 0..grid_cols {
@@ -1251,7 +1259,9 @@ impl UltraLogApp {
                 let value = cell_values[y_bin][x_bin]
                     .filter(|_| !(min_hits_filter > 0 && hits < min_hits_filter));
                 let Some(value) = value else {
-                    heatmap::empty_cell(&painter, rect, &t);
+                    if !small_cells {
+                        heatmap::empty_cell(&painter, rect, &t);
+                    }
                     continue;
                 };
                 let normalized = if mode == HistogramMode::HitCount && max_value > 1.0 {
@@ -1647,7 +1657,14 @@ impl UltraLogApp {
                         format!("{:.1}", max_value),
                     ),
                 };
-                heatmap::color_scale(ui, MapKind::Sequential, &title, &min_label, &max_label);
+                heatmap::color_scale(
+                    ui,
+                    MapKind::Sequential,
+                    &title,
+                    &min_label,
+                    &max_label,
+                    false,
+                );
             });
 
             ui.add_space(16.0);

@@ -91,11 +91,24 @@ pub fn table_sheet(
         measure.unit.to_string()
     };
 
+    // Same map choice as the on-screen table (`render_table_tool_view`): values on both sides of
+    // zero use the diverging map centred on zero, magnitudes the sequential map.
+    let kind = if lo < 0.0 && hi > 0.0 {
+        MapKind::Diverging
+    } else {
+        MapKind::Sequential
+    };
+    let span = lo.abs().max(hi.abs()).max(f64::EPSILON);
     let norm = cells
         .iter()
         .map(|row| {
             row.iter()
-                .map(|v| v.map(|(v, _)| normalize(v, lo, hi) as f32))
+                .map(|v| {
+                    v.map(|(v, _)| match kind {
+                        MapKind::Diverging => (0.5 + v / (2.0 * span)).clamp(0.0, 1.0) as f32,
+                        MapKind::Sequential => normalize(v, lo, hi) as f32,
+                    })
+                })
                 .collect()
         })
         .collect();
@@ -135,7 +148,21 @@ pub fn table_sheet(
     if opts.exclude_low {
         coverage.push_str(" \u{00B7} low blank");
     }
-    let decimals = measure.decimals;
+    // The scale uses the cells' decimals, which follow the delay unit (cycles have 2).
+    let decimals = cells
+        .iter()
+        .flatten()
+        .flatten()
+        .map(|&(_, d)| d)
+        .next()
+        .unwrap_or(measure.decimals);
+    let (scale_min, scale_max) = match kind {
+        MapKind::Diverging => (
+            format!("\u{2212}{span:.decimals$}"),
+            format!("+{span:.decimals$}"),
+        ),
+        MapKind::Sequential => (format!("{lo:.decimals$}"), format!("{hi:.decimals$}")),
+    };
     let scale_title = if unit.is_empty() {
         measure.label.to_string()
     } else {
@@ -153,10 +180,11 @@ pub fn table_sheet(
             norm,
             labels,
             counts: Some(counts),
-            kind: MapKind::Sequential,
+            kind,
             scale_title,
-            scale_min: format!("{lo:.decimals$}"),
-            scale_max: format!("{hi:.decimals$}"),
+            scale_min,
+            scale_max,
+            rich_lean: measure.lean_is_positive(),
             dense: false,
         }]),
     })

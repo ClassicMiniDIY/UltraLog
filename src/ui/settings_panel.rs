@@ -131,7 +131,9 @@ impl UltraLogApp {
                 components::intensity_slider(ui, &mut value, width)
             })
             .inner;
-        if slider.changed() {
+        // Snap to a named stop only for pointer input: an arrow-key step of 1 is inside the
+        // detent and would snap straight back, so the keyboard could never leave a stop.
+        if slider.changed() && (slider.dragged() || slider.clicked()) {
             value = theme::snap_intensity(value);
         }
 

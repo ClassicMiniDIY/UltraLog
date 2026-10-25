@@ -422,7 +422,8 @@ impl EcuType {
             EcuType::Link => "LNK",
             EcuType::Locomotive => "LOC",
             EcuType::RomRaider => "ROM",
-            EcuType::Speeduino => "RUS",
+            // Speeduino and rusEFI share the MLG format and this variant: name the format.
+            EcuType::Speeduino => "MLG",
             EcuType::TorquePro => "TRQ",
             EcuType::Woolich => "WRT",
             EcuType::Unknown => "LOG",

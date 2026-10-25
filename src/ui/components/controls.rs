@@ -153,6 +153,16 @@ pub fn intensity_slider(ui: &mut Ui, value: &mut u8, width: f32) -> Response {
             *value = (k * 100.0).round() as u8;
         }
         if response.has_focus() {
+            // Keep Left/Right for the slider; otherwise egui also moves focus with them.
+            ui.memory_mut(|m| {
+                m.set_focus_lock_filter(
+                    response.id,
+                    egui::EventFilter {
+                        horizontal_arrows: true,
+                        ..Default::default()
+                    },
+                )
+            });
             let (left, right) = ui.input(|i| {
                 (
                     i.key_pressed(egui::Key::ArrowLeft),

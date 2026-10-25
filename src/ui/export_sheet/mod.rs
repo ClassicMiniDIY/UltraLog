@@ -78,6 +78,8 @@ pub struct GridModel {
     pub scale_title: String,
     pub scale_min: String,
     pub scale_max: String,
+    /// A diverging scale of a lambda deviation: label its ends rich · target · lean.
+    pub rich_lean: bool,
     /// A density map with many small cells (scatter plots): no cell gaps, labels or hatching,
     /// and empty cells show the plot ground.
     pub dense: bool,
@@ -292,8 +294,13 @@ fn draw_sheet(c: &mut dyn Canvas, sheet: &Sheet, theme: ExportTheme, page: Rect,
         HAlign::Right,
     );
 
-    // Body, then its legend or ColorScale
-    let legend_h = 24.0;
+    // Body, then its legend or ColorScale. A chart legend wraps onto as many lines as it needs.
+    let legend = match &sheet.body {
+        Body::Chart(chart) => legend_layout(chart, content.width()),
+        Body::Grids(_) => Vec::new(),
+    };
+    let legend_lines = legend.iter().map(|e| e.line + 1).max().unwrap_or(1);
+    let legend_h = 24.0 + LEGEND_LINE * (legend_lines - 1) as f32;
     let body = Rect::from_min_max(
         pos2(content.left(), title_base + 18.0),
         pos2(content.right(), content.bottom() - 18.0 - legend_h),
@@ -301,7 +308,9 @@ fn draw_sheet(c: &mut dyn Canvas, sheet: &Sheet, theme: ExportTheme, page: Rect,
     draw_body(c, &sheet.body, &t, body);
     let legend_y = body.bottom() + 16.0;
     match &sheet.body {
-        Body::Chart(chart) => draw_series_legend(c, chart, &t, pos2(body.left(), legend_y)),
+        Body::Chart(chart) => {
+            draw_series_legend(c, chart, &legend, &t, pos2(body.left(), legend_y))
+        }
         Body::Grids(grids) => {
             if let Some(g) = grids.first() {
                 draw_color_scale(c, g, &t, pos2(body.left(), legend_y));
@@ -364,8 +373,11 @@ fn draw_chart(c: &mut dyn Canvas, chart: &ChartModel, t: &Tokens, rect: Rect) {
 
     // Grid and time ticks
     let step = nice_step(span, 8.0);
-    let mut tick = (chart.t0 / step).ceil() * step;
-    while tick <= chart.t1 + 1e-9 {
+    // Ticks from an integer index, not `tick += step`, so float error never accumulates.
+    let first = (chart.t0 / step - 1e-9).ceil() as i64;
+    let last = (chart.t1 / step + 1e-9).floor() as i64;
+    for k in first..=last {
+        let tick = k as f64 * step;
         let x = x_of(tick);
         c.polyline(
             &[pos2(x, plot.top()), pos2(x, plot.bottom())],
@@ -381,7 +393,6 @@ fn draw_chart(c: &mut dyn Canvas, chart: &ChartModel, t: &Tokens, rect: Rect) {
             t.plot_axis,
             HAlign::Center,
         );
-        tick += step;
     }
     for i in 1..4 {
         let y = plot.top() + plot.height() * i as f32 / 4.0;
@@ -405,41 +416,96 @@ fn draw_chart(c: &mut dyn Canvas, chart: &ChartModel, t: &Tokens, rect: Rect) {
     c.stroke_rect(plot, 0.6, flatten(t.plot_grid_major, t.plot_bg));
 }
 
-fn format_tick(seconds: f64, step: f64) -> String {
-    if seconds >= 60.0 {
-        let m = (seconds / 60.0).floor();
-        let s = seconds - m * 60.0;
-        if step >= 1.0 {
-            format!("{}:{:02.0}", m, s)
-        } else {
-            format!("{}:{:06.3}", m, s)
-        }
-    } else if step >= 1.0 {
-        format!("{seconds:.0}")
+/// Decimals that resolve `step` (0.5 → 1, 0.05 → 2, 0.002 → 3).
+fn tick_decimals(step: f64) -> usize {
+    if step >= 1.0 {
+        0
     } else {
-        format!("{seconds:.1}")
+        ((-step.log10()).ceil().max(0.0) as usize).min(6)
     }
 }
 
-fn draw_series_legend(c: &mut dyn Canvas, chart: &ChartModel, t: &Tokens, origin: Pos2) {
-    let mut x = origin.x;
-    for s in &chart.series {
-        let (color, dash) = series_style(t, s.color_index);
-        let y = origin.y;
+/// A time tick: seconds under a minute, else `m:ss` with the step's decimals. The value is
+/// rounded to those decimals *before* minutes are split off, so 119.9999 reads 2:00, not 1:60.
+fn format_tick(seconds: f64, step: f64) -> String {
+    let d = tick_decimals(step);
+    let scale = 10f64.powi(d as i32);
+    let rounded = (seconds * scale).round() / scale;
+    if rounded >= 60.0 {
+        let m = (rounded / 60.0).floor();
+        let s = rounded - m * 60.0;
+        let width = if d == 0 { 2 } else { d + 3 };
+        format!("{}:{:0width$.d$}", m, s)
+    } else {
+        format!("{rounded:.d$}")
+    }
+}
+
+/// Line height of a wrapped series legend.
+const LEGEND_LINE: f32 = 13.0;
+/// Swatch plus gap before a legend label, and the gap after it.
+const LEGEND_SWATCH: f32 = 16.0;
+const LEGEND_GAP: f32 = 16.0;
+
+/// One series legend entry: which series, which line, and its x offset from the legend start.
+struct LegendEntry {
+    series: usize,
+    line: usize,
+    x: f32,
+    label: String,
+}
+
+/// Lay the series legend out left to right, wrapping at `width`.
+fn legend_layout(chart: &ChartModel, width: f32) -> Vec<LegendEntry> {
+    let mut entries = Vec::with_capacity(chart.series.len());
+    let (mut line, mut x) = (0, 0.0);
+    for (series, s) in chart.series.iter().enumerate() {
+        let label = if s.unit.is_empty() {
+            s.name.clone()
+        } else {
+            format!("{} ({})", s.name, s.unit)
+        };
+        let w = LEGEND_SWATCH + text::width(&label, Face::Ui, 8.5);
+        if x > 0.0 && x + w > width {
+            line += 1;
+            x = 0.0;
+        }
+        entries.push(LegendEntry {
+            series,
+            line,
+            x,
+            label,
+        });
+        x += w + LEGEND_GAP;
+    }
+    entries
+}
+
+fn draw_series_legend(
+    c: &mut dyn Canvas,
+    chart: &ChartModel,
+    entries: &[LegendEntry],
+    t: &Tokens,
+    origin: Pos2,
+) {
+    for e in entries {
+        let (color, dash) = series_style(t, chart.series[e.series].color_index);
+        let x = origin.x + e.x;
+        let y = origin.y + LEGEND_LINE * e.line as f32;
         c.polyline(
             &[pos2(x, y - 3.0), pos2(x + 12.0, y - 3.0)],
             1.6,
             color,
             dash,
         );
-        x += 16.0;
-        let label = if s.unit.is_empty() {
-            s.name.clone()
-        } else {
-            format!("{} ({})", s.name, s.unit)
-        };
-        c.text(pos2(x, y), &label, Face::Ui, 8.5, t.ink_muted, HAlign::Left);
-        x += text::width(&label, Face::Ui, 8.5) + 16.0;
+        c.text(
+            pos2(x + LEGEND_SWATCH, y),
+            &e.label,
+            Face::Ui,
+            8.5,
+            t.ink_muted,
+            HAlign::Left,
+        );
     }
 }
 
@@ -675,7 +741,7 @@ fn draw_color_scale(c: &mut dyn Canvas, g: &GridModel, t: &Tokens, origin: Pos2)
         t.ink_muted,
         HAlign::Left,
     );
-    if kind == MapKind::Diverging {
+    if kind == MapKind::Diverging && g.rich_lean {
         let y = origin.y + 8.0;
         c.text(
             pos2(bar.left(), y),
@@ -776,6 +842,33 @@ mod tests {
             )
             .unwrap();
         }
+        // Twelve long channel names (legend wrap) and a Japanese title (system CJK face).
+        let mut wide = chart_sheet();
+        wide.title = "ログ 2025-03-06 回転数 Журнал".into();
+        if let Body::Chart(chart) = &mut wide.body {
+            chart.series = (0..12)
+                .map(|i| SeriesModel {
+                    name: format!("Manifold Pressure {i}"),
+                    unit: "kPa".into(),
+                    color_index: i,
+                    points: (0..200)
+                        .map(|k| {
+                            let x = k as f64 / 10.0;
+                            [x, 0.5 + 0.4 * (x * 0.3 + i as f64).sin()]
+                        })
+                        .collect(),
+                })
+                .collect();
+        }
+        render_png(&wide, ExportTheme::Paper)
+            .save(format!("{dir}/chart-wide-paper.png"))
+            .unwrap();
+        std::fs::write(
+            format!("{dir}/chart-wide-paper.pdf"),
+            render_pdf(&wide, ExportTheme::Paper),
+        )
+        .unwrap();
+
         // A dense scatter density map pair.
         let blob = |cx: f32, cy: f32| -> Vec<Vec<Option<f32>>> {
             (0..96)
@@ -807,6 +900,7 @@ mod tests {
             scale_title: "Hits".into(),
             scale_min: "1".into(),
             scale_max: "4120".into(),
+            rich_lean: false,
             dense: true,
         };
         let sheet = Sheet {
@@ -820,6 +914,49 @@ mod tests {
         render_png(&sheet, ExportTheme::Paper)
             .save(format!("{dir}/scatter-paper.png"))
             .unwrap();
+    }
+
+    #[test]
+    fn tick_labels_round_before_splitting_minutes() {
+        assert_eq!(format_tick(119.99999, 0.1), "2:00.0");
+        assert_eq!(format_tick(59.95, 0.05), "59.95");
+        assert_eq!(format_tick(125.0, 5.0), "2:05");
+        assert_eq!(format_tick(0.15, 0.05), "0.15");
+        // Ticks at 0.05 apart never repeat a label.
+        let labels: Vec<String> = (0..10)
+            .map(|k| format_tick(k as f64 * 0.05, 0.05))
+            .collect();
+        let mut unique = labels.clone();
+        unique.dedup();
+        assert_eq!(labels, unique);
+    }
+
+    #[test]
+    fn legend_wraps_inside_the_sheet() {
+        let series = (0..12)
+            .map(|i| SeriesModel {
+                name: format!("Manifold Pressure {i}"),
+                unit: "kPa".into(),
+                color_index: i,
+                points: Vec::new(),
+            })
+            .collect();
+        let chart = ChartModel {
+            series,
+            t0: 0.0,
+            t1: 1.0,
+        };
+        let width = 900.0;
+        let entries = legend_layout(&chart, width);
+        assert_eq!(entries.len(), 12);
+        assert!(
+            entries.iter().any(|e| e.line > 0),
+            "12 long names need a second line"
+        );
+        for e in &entries {
+            let w = LEGEND_SWATCH + text::width(&e.label, Face::Ui, 8.5);
+            assert!(e.x + w <= width + 0.5, "{} ends past the sheet", e.label);
+        }
     }
 
     #[test]

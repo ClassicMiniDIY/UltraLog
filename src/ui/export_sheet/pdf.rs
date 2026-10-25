@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use ::image::RgbaImage;
 use eframe::egui::{Color32, Pos2, Rect};
 use printpdf::{
-    Color, FontId, Line, LineDashPattern, LinePoint, Op, PaintMode, ParsedFont, PdfDocument,
-    PdfFontHandle, PdfPage, PdfSaveOptions, Point, Polygon, PolygonRing, Pt, RawImage,
-    RawImageData, RawImageFormat, Rgb, TextItem, WindingOrder, XObjectTransform,
+    Color, FontId, Line, LineCapStyle, LineDashPattern, LineJoinStyle, LinePoint, Op, PaintMode,
+    ParsedFont, PdfDocument, PdfFontHandle, PdfPage, PdfSaveOptions, Point, Polygon, PolygonRing,
+    Pt, RawImage, RawImageData, RawImageFormat, Rgb, TextItem, WindingOrder, XObjectTransform,
 };
 
 use super::canvas::{Canvas, Face, HAlign};
@@ -36,7 +36,16 @@ impl PdfCanvas {
     pub fn new(title: &str, width: f32, height: f32) -> Self {
         Self {
             doc: PdfDocument::new(title),
-            ops: Vec::new(),
+            // Round joins and caps, like the PNG back end (kurbo's default): PDF's default
+            // miter join makes narrow spikes look taller than the data.
+            ops: vec![
+                Op::SetLineJoinStyle {
+                    join: LineJoinStyle::Round,
+                },
+                Op::SetLineCapStyle {
+                    cap: LineCapStyle::Round,
+                },
+            ],
             width,
             height,
             fonts: HashMap::new(),
@@ -50,12 +59,12 @@ impl PdfCanvas {
         }
     }
 
-    fn font(&mut self, name: &'static str, bytes: &'static [u8]) -> Option<FontId> {
+    fn font(&mut self, name: &'static str, bytes: &'static [u8], index: u32) -> Option<FontId> {
         if let Some(id) = self.fonts.get(name) {
             return Some(id.clone());
         }
         let mut warnings = Vec::new();
-        let parsed = ParsedFont::from_bytes(bytes, 0, &mut warnings)?;
+        let parsed = ParsedFont::from_bytes(bytes, index as usize, &mut warnings)?;
         let id = self.doc.add_font(&parsed);
         self.fonts.insert(name, id.clone());
         Some(id)
@@ -137,7 +146,7 @@ impl Canvas for PdfCanvas {
         };
         self.ops.push(Op::SetFillColor { col: rgb(color) });
         for run in runs {
-            let Some(font) = self.font(run.font_name, run.font) else {
+            let Some(font) = self.font(run.font_name, run.font, run.index) else {
                 continue;
             };
             let origin = self.point(Pos2::new(x + run.x, pos.y));

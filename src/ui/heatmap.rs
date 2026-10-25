@@ -76,8 +76,14 @@ pub fn value_label(
     t: &Tokens,
     color: Color32,
 ) {
-    let galley = painter.layout_no_wrap(label.to_owned(), font.clone(), color);
-    if t.cell_plate.a() > 0 {
+    // On a plate the text is `ink`; the galley carries its colour, so pick it before layout.
+    let plated = t.cell_plate.a() > 0;
+    let galley = painter.layout_no_wrap(
+        label.to_owned(),
+        font.clone(),
+        if plated { t.ink } else { color },
+    );
+    if plated {
         let plate = Rect::from_center_size(center, galley.size() + vec2(6.0, 2.0));
         painter.rect_filled(plate, CornerRadius::same(radius::RADIUS_XS), t.cell_plate);
         painter.galley(center - galley.size() / 2.0, galley, t.ink);
@@ -86,9 +92,16 @@ pub fn value_label(
     }
 }
 
-/// An empty cell: `cell_empty` with a 45° hatch.
+/// Cells smaller than this (either side) skip the hatch: it cannot be read at that size, and a
+/// dense sparse grid (256² histogram) would otherwise add a clipped painter and lines per cell.
+pub const MIN_HATCH_CELL: f32 = 12.0;
+
+/// An empty cell: `cell_empty` with a 45° hatch (plain fill below [`MIN_HATCH_CELL`]).
 pub fn empty_cell(painter: &Painter, rect: Rect, t: &Tokens) {
     painter.rect_filled(rect, CornerRadius::same(radius::RADIUS_XS), t.cell_empty);
+    if rect.width() < MIN_HATCH_CELL || rect.height() < MIN_HATCH_CELL {
+        return;
+    }
     let p = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
     let s = Stroke::new(stroke::STROKE_HAIRLINE, t.line_subtle);
     let step = 6.0;
@@ -189,8 +202,16 @@ pub fn selected_ring(painter: &Painter, rect: Rect, t: &Tokens) {
 }
 
 /// The ColorScale beside every map: an overline title, the real min / max in mono, and the
-/// gradient. The diverging scale labels its ends and middle (rich · target · lean).
-pub fn color_scale(ui: &mut Ui, kind: MapKind, title: &str, min_label: &str, max_label: &str) {
+/// gradient. A diverging scale of a lambda deviation (`rich_lean`) labels its ends and middle
+/// (rich · target · lean); other signed values keep the plain ± ends.
+pub fn color_scale(
+    ui: &mut Ui,
+    kind: MapKind,
+    title: &str,
+    min_label: &str,
+    max_label: &str,
+    rich_lean: bool,
+) {
     let t = theme::current(ui.ctx());
     ui.label(
         egui::RichText::new(title.to_uppercase())
@@ -212,7 +233,7 @@ pub fn color_scale(ui: &mut Ui, kind: MapKind, title: &str, min_label: &str, max
                 .font(mono.clone())
                 .color(t.ink_muted),
         );
-        if kind == MapKind::Diverging {
+        if kind == MapKind::Diverging && rich_lean {
             let y = rect.bottom() + space::SPACE_1;
             for (x, text, align) in [
                 (rect.left(), t!("chart.rich"), Align2::LEFT_TOP),
@@ -224,7 +245,7 @@ pub fn color_scale(ui: &mut Ui, kind: MapKind, title: &str, min_label: &str, max
             }
         }
     });
-    if kind == MapKind::Diverging {
+    if kind == MapKind::Diverging && rich_lean {
         ui.add_space(mono.size);
     }
 }

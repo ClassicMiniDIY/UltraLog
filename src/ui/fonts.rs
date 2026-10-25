@@ -320,6 +320,22 @@ fn cjk_candidates(language: Language) -> &'static [(&'static str, u32)] {
     }
 }
 
+/// A system CJK face for exports, whatever the UI language: Japanese candidates, then Chinese.
+/// Read once and kept for the process (exports need `'static` bytes). `(bytes, face index)`.
+pub fn export_cjk_face() -> Option<(&'static [u8], u32)> {
+    static FACE: std::sync::OnceLock<Option<(&'static [u8], u32)>> = std::sync::OnceLock::new();
+    *FACE.get_or_init(|| {
+        cjk_candidates(Language::Japanese)
+            .iter()
+            .chain(cjk_candidates(Language::ChineseSimplified))
+            .find_map(|(path, index)| {
+                let bytes = std::fs::read(path).ok()?;
+                let bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
+                Some((bytes, *index))
+            })
+    })
+}
+
 fn system_cjk_font(language: Language) -> Option<FontData> {
     for (path, index) in cjk_candidates(language) {
         match std::fs::read(path) {

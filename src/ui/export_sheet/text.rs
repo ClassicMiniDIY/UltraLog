@@ -1,7 +1,9 @@
 //! Text layout for exports: glyph lookup, advances and outlines from the bundled fonts with
 //! skrifa. Layout is plain left-to-right with per-glyph advances (no kerning or shaping), which
 //! suits the labels, numbers and names an export prints. A character missing from the chosen
-//! face falls back to JetBrains Mono (Greek, Cyrillic) and the Noto script faces.
+//! face falls back to JetBrains Mono (Greek, Cyrillic), the Noto script faces, then a system CJK
+//! face (`fonts::export_cjk_face`). A character no face has prints as `?`, never as `.notdef`:
+//! printpdf's `.notdef` width differs from skrifa's and shifted the text after it.
 
 use skrifa::instance::{LocationRef, Size};
 use skrifa::outline::{DrawSettings, OutlinePen};
@@ -18,42 +20,61 @@ const FALLBACKS: [&str; 4] = [
     "NotoSansArabic",
 ];
 
+/// The system CJK face's key in `Run::font_name`.
+pub const SYSTEM_CJK: &str = "system-cjk";
+
 /// Glyphs that share one font, starting at `x` (points from the text start).
 pub struct Run {
     pub font_name: &'static str,
     pub font: &'static [u8],
+    /// Face index inside `font` (non-zero only for a `.ttc` collection).
+    pub index: u32,
     pub text: String,
     pub glyphs: Vec<(GlyphId, f32)>,
     pub x: f32,
 }
 
-fn font_ref(bytes: &'static [u8]) -> Option<FontRef<'static>> {
-    FontRef::new(bytes).ok()
+fn font_ref(bytes: &'static [u8], index: u32) -> Option<FontRef<'static>> {
+    FontRef::from_index(bytes, index).ok()
 }
+
+type ChainFace = (&'static str, &'static [u8], u32, FontRef<'static>);
 
 /// Lay out `text` at `size` points: runs by font, and the total advance width.
 pub fn layout(text: &str, face: Face, size: f32) -> (Vec<Run>, f32) {
-    let chain: Vec<(&'static str, &'static [u8], FontRef<'static>)> =
-        std::iter::once(face.font_name())
-            .chain(FALLBACKS)
-            .filter_map(|name| {
-                let bytes = fonts::face_bytes(name)?;
-                Some((name, bytes, font_ref(bytes)?))
-            })
-            .collect();
+    let mut chain: Vec<ChainFace> = std::iter::once(face.font_name())
+        .chain(FALLBACKS)
+        .filter_map(|name| {
+            let bytes = fonts::face_bytes(name)?;
+            Some((name, bytes, 0, font_ref(bytes, 0)?))
+        })
+        .collect();
+    let needs_cjk = text.chars().any(|ch| {
+        !chain
+            .iter()
+            .any(|(_, _, _, font)| font.charmap().map(ch).is_some())
+    });
+    if needs_cjk
+        && let Some((bytes, index)) = fonts::export_cjk_face()
+        && let Some(font) = font_ref(bytes, index)
+    {
+        chain.push((SYSTEM_CJK, bytes, index, font));
+    }
     let mut runs: Vec<Run> = Vec::new();
     let mut x = 0.0f32;
     for ch in text.chars() {
-        let pick = chain
-            .iter()
-            .find_map(|(name, bytes, font)| {
-                font.charmap().map(ch).map(|g| (*name, *bytes, font, g))
-            })
-            .or_else(|| {
-                // Nothing has it: draw the primary face's .notdef so the gap stays visible.
-                chain.first().map(|(n, b, f)| (*n, *b, f, GlyphId::new(0)))
-            });
-        let Some((name, bytes, font, gid)) = pick else {
+        let found = chain.iter().find_map(|(name, bytes, index, font)| {
+            font.charmap()
+                .map(ch)
+                .map(|g| (*name, *bytes, *index, font, g, ch))
+        });
+        // Nothing has it: a `?` from the primary face keeps the gap visible and the widths true.
+        let pick = found.or_else(|| {
+            chain
+                .first()
+                .and_then(|(n, b, i, f)| f.charmap().map('?').map(|g| (*n, *b, *i, f, g, '?')))
+        });
+        let Some((name, bytes, index, font, gid, ch)) = pick else {
             continue;
         };
         let advance = font
@@ -68,6 +89,7 @@ pub fn layout(text: &str, face: Face, size: f32) -> (Vec<Run>, f32) {
             _ => runs.push(Run {
                 font_name: name,
                 font: bytes,
+                index,
                 text: ch.to_string(),
                 glyphs: vec![(gid, 0.0)],
                 x,
@@ -118,7 +140,7 @@ impl OutlinePen for PathPen<'_> {
 /// left) at `(x, y)`.
 pub fn outlines(runs: &[Run], size: f32, x: f32, y: f32, path: &mut BezPath) {
     for run in runs {
-        let Some(font) = font_ref(run.font) else {
+        let Some(font) = font_ref(run.font, run.index) else {
             continue;
         };
         let outlines = font.outline_glyphs();
@@ -152,6 +174,24 @@ mod tests {
         // Outfit has no Cyrillic: those letters come from the mono fallback.
         let (runs, _) = layout("Ab Жд", Face::Ui, 10.0);
         assert!(runs.iter().any(|r| r.font_name == "JetBrainsMono-Regular"));
+    }
+
+    #[test]
+    fn cjk_uses_the_system_face_when_there_is_one() {
+        let (runs, _) = layout("ログ 回転数", Face::Ui, 10.0);
+        if fonts::export_cjk_face().is_some() {
+            assert!(runs.iter().any(|r| r.font_name == SYSTEM_CJK));
+            assert!(runs.iter().all(|r| !r.text.contains('?')));
+        }
+    }
+
+    #[test]
+    fn a_character_no_face_has_prints_as_a_question_mark() {
+        // U+E000 is a private-use code point: no bundled or system face maps it.
+        let (runs, w) = layout("A\u{E000}B", Face::Ui, 10.0);
+        let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+        assert_eq!(text, "A?B");
+        assert!(w > 0.0);
     }
 
     #[test]

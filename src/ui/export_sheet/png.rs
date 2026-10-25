@@ -64,12 +64,20 @@ impl PngCanvas {
     }
 }
 
-/// Alpha-blend `src` (scaled with nearest-neighbour sampling) into `dst` over `rect` (points).
+/// Alpha-blend `src` into `dst` over `rect` (points), resampled with a Catmull-Rom filter so
+/// the lockup's thin strokes survive the downscale.
 fn composite(dst: &mut RgbaImage, src: &RgbaImage, rect: Rect, scale: f32) {
     let x0 = (rect.left() * scale).round() as i64;
     let y0 = (rect.top() * scale).round() as i64;
     let w = (rect.width() * scale).round().max(1.0) as i64;
     let h = (rect.height() * scale).round().max(1.0) as i64;
+    let resized = ::image::imageops::resize(
+        src,
+        w as u32,
+        h as u32,
+        ::image::imageops::FilterType::CatmullRom,
+    );
+    let src = &resized;
     for dy in 0..h {
         for dx in 0..w {
             let (x, y) = (x0 + dx, y0 + dy);

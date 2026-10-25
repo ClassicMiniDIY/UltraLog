@@ -827,7 +827,8 @@ impl UltraLogApp {
             );
         } else {
             let title = measures[measure_idx].label.to_string();
-            self.render_table_heatmap(ui, &grid, decimals, &title);
+            let rich_lean = measures[measure_idx].lean_is_positive();
+            self.render_table_heatmap(ui, &grid, decimals, &title, rich_lean);
         }
 
         // --- Inspector ------------------------------------------------------
@@ -952,6 +953,7 @@ impl UltraLogApp {
         grid: &crate::analysis::tables::TableGrid,
         decimals: usize,
         title: &str,
+        rich_lean: bool,
     ) {
         let rows = grid.rows();
         let cols = grid.cols();
@@ -1088,7 +1090,7 @@ impl UltraLogApp {
         };
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                heatmap::color_scale(ui, kind, title, &min_label, &max_label);
+                heatmap::color_scale(ui, kind, title, &min_label, &max_label, rich_lean);
             });
             ui.add_space(space::SPACE_6);
             let (legend, _) = ui.allocate_exact_size(egui::vec2(330.0, 18.0), egui::Sense::hover());

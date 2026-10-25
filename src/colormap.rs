@@ -34,9 +34,45 @@ pub fn sample(tokens: &Tokens, map: Colormap, t: f32) -> Color32 {
     }
 }
 
+/// `map` pre-sampled at 256 steps, for loops that colour many values (scatter bins, track
+/// points): an OKLab sample costs a few `cbrt`/`powf` calls, a lookup costs an index. Build one
+/// per frame or per cache rebuild from the live tokens; never keep it across a theme change.
+pub struct ColormapLut([Color32; 256]);
+
+impl ColormapLut {
+    pub fn new(tokens: &Tokens, map: Colormap) -> Self {
+        Self(std::array::from_fn(|i| {
+            sample(tokens, map, i as f32 / 255.0)
+        }))
+    }
+
+    /// The colour at `t`, with the same clamping as [`sample`] (non-finite reads as 0).
+    pub fn get(&self, t: f32) -> Color32 {
+        let t = if t.is_finite() {
+            t.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        self.0[(t * 255.0).round() as usize]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lut_matches_sample_at_its_steps_and_ends() {
+        let t = ut::NIGHT;
+        for map in [Colormap::Sequential, Colormap::Diverging] {
+            let lut = ColormapLut::new(&t, map);
+            assert_eq!(lut.get(0.0), sample(&t, map, 0.0));
+            assert_eq!(lut.get(1.0), sample(&t, map, 1.0));
+            assert_eq!(lut.get(128.0 / 255.0), sample(&t, map, 128.0 / 255.0));
+            assert_eq!(lut.get(f32::NAN), sample(&t, map, f32::NAN));
+            assert_eq!(lut.get(-2.0), sample(&t, map, 0.0));
+        }
+    }
     use crate::ui::theme::tokens as ut;
 
     #[test]

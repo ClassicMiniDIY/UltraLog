@@ -162,6 +162,16 @@ fn clip_x(a: [f64; 2], b: [f64; 2], x0: f64, x1: f64) -> Option<[[f64; 2]; 2]> {
     (t0 < t1).then(|| [at(t0), at(t1)])
 }
 
+/// How many of `series` legend rows to show in `max_rows`, and how many go into a "+N" row.
+fn legend_fit(max_rows: usize, series: usize, cursor_rows: usize) -> (usize, usize) {
+    let shown = if series + cursor_rows <= max_rows {
+        series
+    } else {
+        max_rows.saturating_sub(cursor_rows + 1)
+    };
+    (shown, series - shown)
+}
+
 /// Paint the floating legend over `plot_rect` and return the row the pointer is on, if any
 /// (used to solo that series next frame). `cursor` is the formatted cursor time.
 pub fn legend_overlay(
@@ -195,9 +205,20 @@ pub fn legend_overlay(
     }
     let pad = space::SPACE_2 + 2.0;
     let width = pad + swatch_w + space::SPACE_2 + name_w + space::SPACE_6 + value_w + pad;
-    let count = rows.len() + usize::from(cursor.is_some());
-    let height = pad * 2.0 + row_h * count as f32 - space::SPACE_2;
     let inset = space::SPACE_3;
+    // The legend is the only cursor readout, so a short plot shows the rows that fit and a
+    // "+N" row for the rest instead of dropping the legend.
+    let cursor_rows = usize::from(cursor.is_some());
+    let max_rows = ((plot_rect.height() - 2.0 * inset - 2.0 * pad + space::SPACE_2) / row_h)
+        .floor()
+        .max(0.0) as usize;
+    let (shown, hidden) = legend_fit(max_rows, rows.len(), cursor_rows);
+    let count = cursor_rows + shown + usize::from(hidden > 0);
+    if count > max_rows {
+        // Not even the cursor row and a "+N" row fit.
+        return None;
+    }
+    let height = pad * 2.0 + row_h * count as f32 - space::SPACE_2;
     let origin = if style.cvd_like {
         plot_rect.left_top() + vec2(inset, inset)
     } else {
@@ -242,7 +263,7 @@ pub fn legend_overlay(
     }
 
     let mut hovered = None;
-    for (i, row) in rows.iter().enumerate() {
+    for (i, row) in rows.iter().enumerate().take(shown) {
         let row_rect =
             Rect::from_min_size(pos2(rect.left(), y - space::SPACE_1), vec2(width, row_h));
         let response = ui.interact(row_rect, id.with(("legend_row", i)), Sense::hover());
@@ -279,6 +300,15 @@ pub fn legend_overlay(
             );
         }
         y += row_h;
+    }
+    if hidden > 0 {
+        painter.text(
+            pos2(name_x, y + row_h / 2.0 - space::SPACE_1),
+            Align2::LEFT_CENTER,
+            format!("+{hidden}"),
+            value_font.clone(),
+            t.ink_subtle,
+        );
     }
     hovered
 }
@@ -357,5 +387,22 @@ pub fn solo_memory(ctx: &egui::Context, id: Id, update: Option<Option<usize>>) -
         value
     } else {
         ctx.data(|d| d.get_temp::<Option<usize>>(key)).flatten()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::legend_fit;
+
+    #[test]
+    fn legend_keeps_the_rows_that_fit_and_counts_the_rest() {
+        // Everything fits: cursor row + 4 series in 6 rows.
+        assert_eq!(legend_fit(6, 4, 1), (4, 0));
+        // 10 series + cursor in 6 rows: cursor, 4 series, "+6".
+        assert_eq!(legend_fit(6, 10, 1), (4, 6));
+        // Room for the cursor and the "+N" row only.
+        assert_eq!(legend_fit(2, 3, 1), (0, 3));
+        // No room at all.
+        assert_eq!(legend_fit(0, 3, 1), (0, 3));
     }
 }

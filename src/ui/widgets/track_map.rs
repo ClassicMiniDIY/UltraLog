@@ -1013,12 +1013,14 @@ fn build_color_cache(
     values: &[f64],
 ) -> Vec<egui::Color32> {
     let span = (maximum - minimum).max(f64::EPSILON);
+    // One lookup per record: a 200k-record log rebuilds this on every theme change.
+    let lut = crate::colormap::ColormapLut::new(tokens, colormap);
     (0..record_count.saturating_sub(1))
         .map(|index| {
             let value = values.get(index + 1).copied().unwrap_or(f64::NAN);
             if value.is_finite() {
                 let position = ((value - minimum) / span).clamp(0.0, 1.0) as f32;
-                colormap_sample(tokens, colormap, position)
+                lut.get(position)
             } else {
                 tokens.line_control
             }

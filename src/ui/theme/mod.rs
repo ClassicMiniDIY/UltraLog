@@ -462,7 +462,6 @@ fn lerp_fx(a: Effects, b: Effects, k: f32) -> Effects {
     }
 }
 
-/// Interpolate two colours in OKLab (unmultiplied), alpha linearly.
 /// The tint that draws an image as it is, at `opacity` (0..=1). Egui multiplies an image by its
 /// tint, so white is "no tint"; this keeps that literal inside the theme module.
 pub fn image_tint(opacity: f32) -> Color32 {
@@ -485,6 +484,7 @@ pub fn flatten(color: Color32, background: Color32) -> Color32 {
     )
 }
 
+/// Interpolate two colours in OKLab (unmultiplied), alpha linearly.
 pub fn lerp_oklab(a: Color32, b: Color32, k: f32) -> Color32 {
     if a == b {
         return a;

@@ -780,7 +780,13 @@ ColorScale, and the footer (ultralog.co · version · export date).
   (`fonts::face_bytes`) so text stays selectable and `−`, `λ`, `°`, Cyrillic and Devanagari print;
   never go back to built-in Helvetica (its encoding mangles anything past Latin-1). PNG text is
   skrifa glyph outlines filled by vello_cpu. `text::layout` has no shaping or kerning and falls
-  back per character Outfit/Saira → JetBrains Mono → Noto scripts, so Arabic prints unjoined.
+  back per character Outfit/Saira → JetBrains Mono → Noto scripts → a system CJK face
+  (`fonts::export_cjk_face`, any UI language), so Arabic prints unjoined. A character no face has
+  prints as `?`, never `.notdef`: printpdf's `.notdef` width differs from skrifa's and shifted the
+  text after it.
+- **Exported scales match the screen.** The table export picks the diverging map for values on
+  both sides of zero exactly as `render_table_tool_view` does, and only lambda-deviation measures
+  (`MeasureSpec::lean_is_positive`) get the rich · target · lean labels; PW step does not.
 - **The lockup is a pre-rasterized PNG** (`assets/brand/ultralog-lockup{,-paper}.png`,
   `scripts/brand/rasterize_lockups.sh`, rsvg-convert): there is no SVG renderer at runtime. PNG
   composites it after the vector render; PDF places it as an image XObject.

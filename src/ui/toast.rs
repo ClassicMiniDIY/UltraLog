@@ -7,11 +7,17 @@ use crate::state::ToastType;
 use crate::ui::components::Status;
 use crate::ui::theme::tokens::radius;
 
+/// How long a toast stays on screen.
+const TOAST_DURATION: std::time::Duration = std::time::Duration::from_secs(3);
+
 impl UltraLogApp {
     /// Render toast notifications in the bottom right corner
     pub fn render_toast(&mut self, ctx: &egui::Context) {
         if let Some((message, time, toast_type)) = &self.toast_message {
-            if time.elapsed().as_secs() < 3 {
+            let shown_for = time.elapsed();
+            if shown_for < TOAST_DURATION {
+                // Wake up to take the toast down even if nothing else repaints.
+                ctx.request_repaint_after(TOAST_DURATION - shown_for);
                 let margin = 20.0;
 
                 let t = self.tokens;
@@ -21,7 +27,10 @@ impl UltraLogApp {
 
                 egui::Area::new(egui::Id::new("toast"))
                     .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-margin, -margin))
-                    .order(egui::Order::Foreground)
+                    // Above windows and not interactable, so a toast never takes Esc or clicks
+                    // from the window under it.
+                    .order(egui::Order::Tooltip)
+                    .interactable(false)
                     .show(ctx, |ui| {
                         egui::Frame::NONE
                             .fill(fill)

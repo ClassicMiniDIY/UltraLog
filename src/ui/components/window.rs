@@ -38,8 +38,14 @@ pub fn finish_window(ctx: &egui::Context, response: Option<&egui::Response>, ope
         f32::from(radius::RADIUS_LG) * 0.6,
     );
 
-    let topmost =
-        ctx.memory(|m| m.areas().top_layer_id(response.layer_id.order)) == Some(response.layer_id);
+    // Topmost among *visible* layers of this order: egui keeps hidden layers (a toast that
+    // faded, a closed popup or window) in its order list, so `top_layer_id` alone would leave
+    // Esc dead after any of them had been shown.
+    let topmost = ctx.memory(|m| {
+        m.layer_ids()
+            .filter(|l| l.order == response.layer_id.order && m.areas().is_visible(l))
+            .last()
+    }) == Some(response.layer_id);
     if *open && topmost && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         *open = false;
     }

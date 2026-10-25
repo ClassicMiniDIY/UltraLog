@@ -562,7 +562,7 @@ impl UltraLogApp {
 
         let file_idx = self.tabs[tab_idx].file_index;
         if file_idx >= self.files.len() {
-            self.show_toast_error(&t!("toast.no_active_file"));
+            self.show_toast_error(&t!("toast.no_file_selected"));
             return;
         }
         let file = &self.files[file_idx];

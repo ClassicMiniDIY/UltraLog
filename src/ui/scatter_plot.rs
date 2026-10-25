@@ -12,7 +12,6 @@ use crate::state::{ScatterHistogram, ScatterPlotConfig, SelectedHeatmapPoint};
 use crate::ui::components::icon;
 use crate::ui::fonts::{self, style};
 use crate::ui::heatmap::{self, MapKind};
-use crate::ui::theme;
 
 /// Number of bins in each dimension for the heatmap grid (higher = more detail)
 const HEATMAP_BINS: usize = 512;
@@ -273,7 +272,8 @@ impl UltraLogApp {
         let cell_width = plot_rect.width() / HEATMAP_BINS as f32;
         let cell_height = plot_rect.height() / HEATMAP_BINS as f32;
 
-        // Draw heatmap cells
+        // Draw heatmap cells (colours from a LUT: up to 512² bins every frame)
+        let lut = crate::colormap::ColormapLut::new(&t, crate::colormap::Colormap::Sequential);
         #[allow(clippy::needless_range_loop)]
         for y_bin in 0..HEATMAP_BINS {
             #[allow(clippy::needless_range_loop)]
@@ -286,7 +286,7 @@ impl UltraLogApp {
                     } else {
                         1.0
                     };
-                    let color = theme::seq(&t, normalized as f32);
+                    let color = lut.get(normalized as f32);
 
                     // Calculate cell position (Y is inverted - higher values at top)
                     let cell_x = plot_rect.left() + x_bin as f32 * cell_width;

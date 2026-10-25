@@ -86,6 +86,50 @@ fn finite_bounds(values: &[f64]) -> Option<(f64, f64)> {
     (lo <= hi).then_some((lo, hi))
 }
 
+/// A value on the chart's 0..=1 scale for a channel spanning `lo..=hi`. A constant channel
+/// sits at mid-height, as `chart.rs` draws it, not on the bottom border.
+fn normalize_like_chart(v: f64, lo: f64, hi: f64) -> f64 {
+    if (hi - lo).abs() < f64::EPSILON {
+        0.5
+    } else {
+        ((v - lo) / (hi - lo)).clamp(0.0, 1.0)
+    }
+}
+
+/// `points` (sorted by time) cut to `t0..=t1`: an edge point outside the range is moved to
+/// the boundary along its segment, so the edge segment keeps its true slope.
+fn clip_to_range(points: &[[f64; 2]], t0: f64, t1: f64) -> Vec<[f64; 2]> {
+    let lerp = |a: [f64; 2], b: [f64; 2], t: f64| {
+        let k = if b[0] > a[0] {
+            (t - a[0]) / (b[0] - a[0])
+        } else {
+            0.0
+        };
+        [t, a[1] + (b[1] - a[1]) * k]
+    };
+    let mut out = Vec::with_capacity(points.len());
+    for (i, &p) in points.iter().enumerate() {
+        if (t0..=t1).contains(&p[0]) {
+            if p[0] > t0
+                && out.is_empty()
+                && let Some(&prev) = i.checked_sub(1).and_then(|j| points.get(j))
+            {
+                out.push(lerp(prev, p, t0));
+            }
+            out.push(p);
+        } else if p[0] > t1 {
+            if let Some(&prev) = i.checked_sub(1).and_then(|j| points.get(j))
+                && prev[0] <= t1
+                && prev[0] >= t0
+            {
+                out.push(lerp(prev, p, t1));
+            }
+            break;
+        }
+    }
+    out
+}
+
 fn nonzero(range: f64) -> f64 {
     if range.abs() < f64::EPSILON {
         1.0
@@ -249,15 +293,17 @@ impl UltraLogApp {
             let Some((lo, hi)) = finite_bounds(data) else {
                 continue;
             };
-            let range = nonzero(hi - lo);
             let a = times.partition_point(|&t| t < t0).saturating_sub(1);
             let b = (times.partition_point(|&t| t <= t1) + 1).min(times.len());
-            let points =
+            let raw: Vec<[f64; 2]> =
                 crate::app::UltraLogApp::downsample_lttb(&times[a..b], &data[a..b], CHART_POINTS)
                     .into_iter()
                     .filter(|p| p[1].is_finite())
-                    .map(|p| [p[0].clamp(t0, t1), ((p[1] - lo) / range).clamp(0.0, 1.0)])
                     .collect();
+            let points = clip_to_range(&raw, t0, t1)
+                .into_iter()
+                .map(|[t, v]| [t, normalize_like_chart(v, lo, hi)])
+                .collect();
             let unit = self
                 .unit_preferences
                 .convert_value(0.0, selected.channel.unit())
@@ -367,26 +413,31 @@ impl UltraLogApp {
             samples += 1;
         }
 
+        // Like `render_histogram_grid`: the colour range spans every cell with hits, and cells
+        // under the minimum-hits filter are blanked afterwards (they still widen the range).
         let min_hits = config.min_hits_filter;
         let mut values = vec![vec![None::<f64>; cols]; rows];
         let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
         for r in 0..rows {
             for c in 0..cols {
                 let h = hits[r][c];
-                if h == 0 || (min_hits > 0 && h < min_hits) {
+                if h == 0 {
                     continue;
                 }
                 let v = match mode {
                     HistogramMode::HitCount => h as f64,
                     HistogramMode::AverageZ => z_sums[r][c] / h as f64,
                 };
-                values[r][c] = Some(v);
                 lo = lo.min(v);
                 hi = hi.max(v);
+                if !(min_hits > 0 && h < min_hits) {
+                    values[r][c] = Some(v);
+                }
             }
         }
         if !lo.is_finite() {
-            return Err("No data available".into());
+            // No sample landed in the grid: export it empty, as the tool shows it.
+            (lo, hi) = (0.0, 1.0);
         }
         let value_range = nonzero(hi - lo);
         let norm = values
@@ -458,6 +509,7 @@ impl UltraLogApp {
                 scale_title,
                 scale_min,
                 scale_max,
+                rich_lean: false,
                 dense: false,
             }]),
         })
@@ -539,6 +591,7 @@ impl UltraLogApp {
             scale_title: t!("histogram.scale_hits").to_string(),
             scale_min: "1".into(),
             scale_max: max.to_string(),
+            rich_lean: false,
             dense: true,
         })
     }
@@ -553,6 +606,23 @@ mod tests {
         assert_eq!(group_thousands(223_559), "223\u{2009}559");
         assert_eq!(group_thousands(1_000_000), "1\u{2009}000\u{2009}000");
         assert_eq!(group_thousands(999), "999");
+    }
+
+    #[test]
+    fn constant_channel_sits_mid_height() {
+        assert_eq!(normalize_like_chart(5.0, 5.0, 5.0), 0.5);
+        assert_eq!(normalize_like_chart(7.5, 5.0, 10.0), 0.5);
+    }
+
+    #[test]
+    fn edge_points_move_along_their_segment() {
+        let pts = [[0.0, 0.0], [10.0, 10.0], [20.0, 0.0], [30.0, 10.0]];
+        let clipped = clip_to_range(&pts, 5.0, 25.0);
+        assert_eq!(clipped.first(), Some(&[5.0, 5.0]));
+        assert_eq!(clipped.last(), Some(&[25.0, 5.0]));
+        assert_eq!(clipped.len(), 4);
+        // Fully inside: unchanged.
+        assert_eq!(clip_to_range(&pts, 0.0, 30.0), pts.to_vec());
     }
 
     #[test]
