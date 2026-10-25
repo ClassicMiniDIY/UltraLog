@@ -20,8 +20,23 @@ UltraLog is an **independent, open-source** desktop application designed for aut
 - **Fast** - Handles massive log files without lag using LTTB downsampling
 - **Universal** - Supports multiple ECU formats in one unified interface for cross-platform data analysis
 - **Cross-platform** - Runs natively on Windows, macOS, and Linux
-- **Accessible** - Colorblind-friendly palette and clear visualization
+- **Accessible** - Color blind mode, High contrast, keyboard focus and status icons on every message
 - **Open** - AGPL-3.0 licensed with documented format specifications for community benefit
+
+---
+
+## Screenshots
+
+![Log Viewer in Night Drive](docs/screenshots/chart-night.png)
+*Log Viewer in Night Drive, the default look: a Haltech pull with RPM, MAP, TPS and ignition timing.*
+
+| Ultra | Color blind mode |
+| --- | --- |
+| ![The same chart at Ultra intensity](docs/screenshots/chart-ultra.png) | ![The same chart in Color blind mode](docs/screenshots/chart-cvd.png) |
+
+| Lambda Delay table | Export dialog |
+| --- | --- |
+| ![Lambda Delay table with confidence badges](docs/screenshots/lambda-delay.png) | ![Export dialog with Paper and Graphite sheets](docs/screenshots/export-dialog.png) |
 
 ---
 
@@ -60,8 +75,11 @@ Configurable units for 8 measurement categories:
 - **AFR/Lambda** - Air-Fuel Ratio, Lambda
 
 ### Export Options
-- **PNG Export** - Save chart views as PNG images
-- **PDF Export** - Generate PDF reports of your visualizations
+- **Export dialog** - PDF or PNG on a light **Paper** or dark **Graphite** sheet, remembered per format (`Ctrl/Cmd + E`)
+- **One sheet for every tool** - lockup, title, time range and record counts, the chart or table, its legend or colour scale, and a footer with version and date
+- **PDF with real text** - A4 landscape, fonts embedded, so `−`, `λ`, `°` and non-Latin channel names print and stay selectable; PNG is 1920×1080
+- **Copy image** - the chart or table alone, ready to paste into a document
+- **Always colour-blind safe** - exports use the colour-blind safe palette whatever your app settings are
 
 ### Computed Channels
 - **Formula-based virtual channels** - Create custom channels from mathematical expressions
@@ -77,7 +95,7 @@ Configurable units for 8 measurement categories:
 
 ### Additional Tools
 - **Scatter Plot** - XY scatter visualization for channel correlation analysis
-- **Histogram** - 2D heatmap visualization with configurable grid sizes (10x10 to 25x25) for analyzing channel distributions
+- **Histogram** - 2D heatmap visualization with configurable grid sizes for analyzing channel distributions, coloured with the theme's colour-blind safe maps
 - **MCP Server** - Built-in Model Context Protocol server lets Claude Desktop (or any MCP client) control UltraLog — load files, select channels, get stats, create computed channels, and run analysis via `http://localhost:52453/mcp`
 - **Table Generators** - Mine logged events into tuning tables. Each is a tool tab beside Histogram (⌘4 / ⌘5), with setup in the Tool Properties panel and CSV, clipboard, PNG and PDF export:
   - **Lambda Delay Table** - time from injector pulse-width steps to the wideband response, binned by RPM × load, for closed-loop O2 delay tables (ms, engine cycles or ignition events)
@@ -91,10 +109,16 @@ Configurable units for 8 measurement categories:
 - **Normalization Editor** - Create custom field name mappings for cross-ECU comparison
 - **Field Normalization** - Maps ECU-specific channel names to standard names (e.g., "Act_AFR" → "AFR")
 
+### Night Drive Look
+- **Ultra intensity** - one slider from **Stealth** (quiet greys) through **Night Drive** (default) and **Neon** to **Ultra** (glow, gradients and a grid floor under the chart). It never changes data colours or text contrast
+- **Built for data** - one cyan accent, a sunset redline, mono numbers, and heatmaps on perceptual colour maps (no rainbow)
+
 ### Accessibility
-- **Colorblind mode** - Wong's optimized color palette designed for deuteranopia, protanopia, and tritanopia
+- **Color blind mode** - Okabe-Ito series colours, cividis and blue/orange heatmap maps, dashed and labelled lines, a white cursor and stronger text contrast
+- **High contrast** - black grounds, white text and outlined controls, with the neon effects off
+- **Keyboard focus** - a visible focus ring after Tab or arrow navigation; every status message shows an icon and words, never colour alone
 - **Font scaling** - Four font sizes (S, M, L, XL) for improved readability
-- **Custom font** - Clear, readable Outfit typeface
+- **Fonts** - Outfit for the interface, Saira for titles, JetBrains Mono for numbers, Noto for Devanagari, Bengali and Arabic
 - **Toast notifications** - Non-intrusive feedback for user actions
 - **Multilingual support** - 15 languages including English, Spanish, German, French, Italian, Portuguese, Chinese, Japanese, Hindi, Arabic, Bengali, Russian, Urdu, and Indonesian
 
@@ -316,7 +340,7 @@ cargo build --release
 5. **Customize your view** -
    - Change units via the **Units** menu
    - Enable **Cursor Tracking** to keep the cursor centered
-   - Enable **Colorblind Mode** for accessible colors
+   - Set the look in **Settings → Display**: Ultra intensity, **Color blind mode**, **High contrast**
 
 ---
 
@@ -480,17 +504,18 @@ Boost rate of change (kPa/second)
 - Edit or delete templates from the Computed Channels window
 - Templates can be reused across different log files
 
-### Exporting Charts
+### Exporting
 
-**PNG Export:**
-1. File menu → Export → PNG
-2. Choose save location
-3. Current chart view is saved as a PNG image
+1. Open the **Export** dialog: File → Export..., the **Export...** button in the Tools panel, or `Ctrl/Cmd + E`
+2. Choose **PDF** or **PNG**
+3. Choose the sheet: **Paper** (light, prints cleanly) or **Graphite** (dark grey). UltraLog remembers the theme for each format
+4. Click **Export PDF** / **Export PNG** and choose where to save, or **Copy image** to put the chart or table on the clipboard
 
-**PDF Export:**
-1. File menu → Export → PDF
-2. Choose save location
-3. Chart is exported as a PDF document
+What each tool exports:
+- **Log Viewer** - the visible time range of the chart, every selected channel with its unit in the legend
+- **Scatter Plots** - both density plots side by side
+- **Histogram** - the grid as the tool shows it (custom ranges, sample filters and minimum hits applied)
+- **Lambda Delay / Accel Enrichment** - the table with values, count badges and edge labels
 
 ### Scatter Plot Tool
 
@@ -522,7 +547,7 @@ The histogram tool creates 2D heatmap visualizations for analyzing channel distr
 7. Toggle between "Hit Count" and "Average Z-Value" modes
 
 **Features:**
-- Heat gradient from blue (low) to red (high)
+- Cells on the theme's sequential colour map (cividis in Color blind mode); empty cells are hatched
 - Cell statistics on hover/click
 - Cursor position tracking during playback
 - Analyze data distributions and correlations
@@ -547,16 +572,19 @@ The Analysis Tools panel provides built-in signal processing and statistical ana
 
 ### Accessibility Features
 
-**Colorblind Mode:**
-- Enable via Settings panel → Display → Colorblind Mode
-- Uses Wong's optimized 8-color palette
-- Designed to be distinguishable for deuteranopia, protanopia, and tritanopia
+**Color blind mode:**
+- Enable via Settings panel → Display → **Color blind mode**
+- Series use the 8 Okabe-Ito colours; heatmaps use cividis and a blue/orange diverging map
+- Lines past the palette repeat dashed, then dotted, and the chart labels each line at its end
+- The cursor turns white so it never matches a series
 
-**Standard color palette:**
-Blue, Orange, Green, Red, Purple, Brown, Pink, Gray, Yellow, Cyan
+**High contrast:**
+- Enable via Settings panel → Display → **High contrast**
+- Black grounds, white text, outlined controls; turns off glow, gradients and the grid floor
 
-**Colorblind palette:**
-Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
+**Ultra intensity:**
+- Settings panel → Display → **Ultra intensity**, 0-100 with stops at Stealth, Night Drive (default), Neon and Ultra
+- Changes only the chrome; data colours and text contrast stay the same
 
 **Font Scaling:**
 - Access via Settings panel → Display → Font Size
@@ -578,7 +606,7 @@ Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
 | ---------- | -------------- |
 | Open file  | `Ctrl/Cmd + O` |
 | Close tab  | `Ctrl/Cmd + W` |
-| Export PNG | `Ctrl/Cmd + E` |
+| Export     | `Ctrl/Cmd + E` |
 | Play/Pause | `Space`        |
 | Stop       | `Escape`       |
 
@@ -594,6 +622,8 @@ Black, Orange, Sky Blue, Bluish Green, Yellow, Blue, Vermillion, Reddish Purple
 | File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.17                                                                  |
 | Image Processing | [image](https://github.com/image-rs/image) 0.25                                                                |
 | PDF Generation   | [printpdf](https://github.com/fschutt/printpdf) 0.12                                                            |
+| Export rendering | [vello_cpu](https://github.com/linebender/vello) 0.1 / [skrifa](https://github.com/googlefonts/fontations) 0.44 |
+| Icons            | [Phosphor](https://phosphoricons.com) via egui-phosphor 0.14                                                   |
 | Serialization    | serde / serde_json 1.0                                                                                         |
 | Error Handling   | thiserror 2.0 / anyhow 1.0                                                                                     |
 | Logging          | tracing / tracing-subscriber 0.3                                                                               |
@@ -801,5 +831,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Acknowledgments
 
 - [egui](https://github.com/emilk/egui) - The immediate mode GUI library that makes this possible
-- Wong's colorblind-safe palette for accessibility research
+- Masataka Okabe and Kei Ito's colour-blind safe palette, and the cividis colour map (Nuñez, Anderton and Renslow)
+- [Phosphor Icons](https://phosphoricons.com), [Outfit](https://fonts.google.com/specimen/Outfit), [Saira](https://fonts.google.com/specimen/Saira), [JetBrains Mono](https://www.jetbrains.com/lp/mono/) and Noto
 - The automotive tuning community for feedback and feature requests
