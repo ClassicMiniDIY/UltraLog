@@ -50,3 +50,84 @@ pub fn finish_window(ctx: &egui::Context, response: Option<&egui::Response>, ope
         *open = false;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn escape() -> egui::Event {
+        egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// One frame showing the windows that are open; updates `open`, returns the library rect.
+    fn frame(ctx: &egui::Context, open: &mut [bool; 2], events: Vec<egui::Event>) -> egui::Rect {
+        let mut library = egui::Rect::NOTHING;
+        let input = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            for (i, name) in ["Library", "Editor"].into_iter().enumerate() {
+                if open[i] {
+                    let mut o = true;
+                    let r = window(name)
+                        .order(egui::Order::Foreground)
+                        .show(ui.ctx(), |ui| ui.label(name));
+                    finish_window(ui.ctx(), r.as_ref().map(|r| &r.response), &mut o);
+                    if i == 0
+                        && let Some(r) = &r
+                    {
+                        library = r.response.rect;
+                    }
+                    open[i] = o;
+                }
+            }
+        });
+        output.textures_delta.clear();
+        library
+    }
+
+    #[test]
+    fn esc_closes_the_newest_window_first() {
+        let ctx = egui::Context::default();
+        // The window title uses the app's display family and theme text styles.
+        crate::ui::fonts::install(&ctx, crate::i18n::Language::English);
+        let tokens = crate::ui::theme::tokens_at(crate::ui::theme::ThemeSettings::default());
+        crate::ui::theme::install(&ctx, &tokens, 1.0);
+        let mut open = [true, false];
+        let mut rect = egui::Rect::NOTHING;
+        for _ in 0..3 {
+            rect = frame(&ctx, &mut open, vec![]);
+        }
+        // The editor opens from a click inside the library (press, then release opens it): the
+        // newer window is on top, and Esc closes it before the library.
+        let at = rect.center();
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(
+            &ctx,
+            &mut open,
+            vec![egui::Event::PointerMoved(at), button(true)],
+        );
+        open[1] = true;
+        frame(&ctx, &mut open, vec![button(false)]);
+        for _ in 0..3 {
+            frame(&ctx, &mut open, vec![]);
+        }
+        frame(&ctx, &mut open, vec![escape()]);
+        assert_eq!(open, [true, false], "first Esc closes the editor");
+        frame(&ctx, &mut open, vec![]);
+        frame(&ctx, &mut open, vec![escape()]);
+        assert_eq!(open, [false, false], "second Esc closes the library");
+    }
+}

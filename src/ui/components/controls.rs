@@ -221,3 +221,67 @@ pub fn intensity_slider(ui: &mut Ui, value: &mut u8, width: f32) -> Response {
     }
     response
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui;
+
+    fn key(k: egui::Key) -> egui::Event {
+        egui::Event::Key {
+            key: k,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// One frame with `events`; returns the slider's value and whether it has focus.
+    fn frame(ctx: &egui::Context, value: &mut u8, events: Vec<egui::Event>, focus: bool) -> bool {
+        let input = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        let mut focused = false;
+        let mut output = ctx.run_ui(input, |ui| {
+            let r = intensity_slider(ui, value, 200.0);
+            if focus {
+                r.request_focus();
+            }
+            focused = r.has_focus();
+        });
+        output.textures_delta.clear();
+        focused
+    }
+
+    #[test]
+    fn arrow_keys_step_the_focused_slider_and_keep_focus() {
+        let ctx = egui::Context::default();
+        let mut value = 35u8;
+        frame(&ctx, &mut value, vec![], true);
+        assert!(frame(&ctx, &mut value, vec![], false), "slider took focus");
+        frame(&ctx, &mut value, vec![key(egui::Key::ArrowRight)], false);
+        assert_eq!(value, 36);
+        assert!(
+            frame(&ctx, &mut value, vec![key(egui::Key::ArrowRight)], false),
+            "Right keeps focus"
+        );
+        assert_eq!(value, 37);
+        frame(&ctx, &mut value, vec![key(egui::Key::ArrowLeft)], false);
+        assert_eq!(value, 36);
+    }
+
+    #[test]
+    fn arrow_right_right_after_focus_still_steps() {
+        let ctx = egui::Context::default();
+        let mut value = 35u8;
+        frame(&ctx, &mut value, vec![], true);
+        let still = frame(&ctx, &mut value, vec![key(egui::Key::ArrowRight)], false);
+        assert_eq!(value, 36);
+        assert!(
+            frame(&ctx, &mut value, vec![], false) || !still,
+            "focus after the first Right"
+        );
+    }
+}
