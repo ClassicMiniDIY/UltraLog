@@ -15,6 +15,16 @@ The wiki is managed as a separate Git repository (standard GitHub wiki setup). W
 - User-facing wiki pages (User-Guide.md, Supported-ECU-Formats.md, etc.) go in the wiki repo
 - The wiki repo is typically located adjacent to the main repo (e.g., `../UltraLog.wiki/`)
 
+**Website (ultralog.co):** a separate repo, `ClassicMiniDIY/ultralog-site` (Nuxt 4, a static
+Cloudflare Worker), usually at `../ultralog-site/`. GitHub Pages and `docs/index.html` are retired.
+The site builds from this repo's GitHub releases and from the wiki, so a release needs no site
+edit: the last step of `release.yml` sends a `repository_dispatch` (`app-release`) to the site
+repo, and `.github/workflows/site-dispatch.yml` does the same when a release is edited, published
+or deleted by hand. Both use the `SITE_DISPATCH_TOKEN` secret (a fine-grained PAT with Contents
+write on `ultralog-site` only). That is needed because a release created with `GITHUB_TOKEN`
+starts no other workflow, so `release: published` never fires for releases from `release.yml`.
+Wiki edits go live with the site's next build (daily, or on any dispatch).
+
 ## Project Overview
 
 UltraLog is a high-performance ECU (Engine Control Unit) log viewer written in pure Rust. It parses log files from automotive ECUs (Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, etc.) and displays channel data as interactive time-series graphs with support for computed/virtual channels derived from mathematical formulas.

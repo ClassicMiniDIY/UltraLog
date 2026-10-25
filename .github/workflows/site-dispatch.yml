@@ -1,0 +1,20 @@
+name: Rebuild ultralog.co
+
+# release.yml dispatches the site rebuild for the releases it creates. This covers what happens
+# afterwards with a personal token, which does start workflows: notes written with
+# `gh release edit`, a release published or deleted by hand.
+on:
+  release:
+    types: [published, edited, deleted]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch app-release to ClassicMiniDIY/ultralog-site
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: gh api repos/ClassicMiniDIY/ultralog-site/dispatches -f event_type=app-release
