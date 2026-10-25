@@ -4,7 +4,9 @@
 # Updates the version in all locations:
 #   - Cargo.toml
 #   - README.md (version badge)
-#   - docs/index.html (version badge)
+#
+# ultralog.co (ClassicMiniDIY/ultralog-site) takes its version from the GitHub release and
+# rebuilds when release.yml publishes one, so there is no site file to bump here.
 #
 # Usage: ./scripts/bump-version.sh <new-version>
 # Example: ./scripts/bump-version.sh 1.7.0
@@ -41,7 +43,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CARGO_TOML="$PROJECT_ROOT/Cargo.toml"
 README="$PROJECT_ROOT/README.md"
-DOCS_INDEX="$PROJECT_ROOT/docs/index.html"
 
 # Check if Cargo.toml exists
 if [ ! -f "$CARGO_TOML" ]; then
@@ -90,16 +91,6 @@ else
     echo -e "  ${YELLOW}Skipped (file not found)${NC}"
 fi
 
-# Update docs/index.html version badge
-if [ -f "$DOCS_INDEX" ]; then
-    echo "Updating docs/index.html..."
-    sed -i.bak "s/>v$CURRENT_VERSION</>v$NEW_VERSION</g" "$DOCS_INDEX"
-    rm -f "$DOCS_INDEX.bak"
-    echo -e "  ${GREEN}Done${NC}"
-else
-    echo -e "  ${YELLOW}Skipped (file not found)${NC}"
-fi
-
 # Update Cargo.lock by running cargo check
 echo "Updating Cargo.lock..."
 cd "$PROJECT_ROOT"
@@ -112,7 +103,6 @@ echo ""
 echo "Files updated:"
 echo "  - Cargo.toml"
 echo "  - README.md"
-echo "  - docs/index.html"
 echo "  - Cargo.lock"
 echo ""
 echo "Next steps:"

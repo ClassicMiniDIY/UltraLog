@@ -442,3 +442,13 @@ jobs:
             Users must explicitly opt-in to view pre-releases.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Rebuild ultralog.co (ClassicMiniDIY/ultralog-site) now that the release and its assets
+      # exist. A `release: published` workflow cannot do this: GitHub does not start workflows
+      # from events caused by GITHUB_TOKEN, which created this release. The site's daily scheduled
+      # build is the backstop, so a failed dispatch (an expired token) does not fail the release.
+      - name: Rebuild ultralog.co
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: gh api repos/ClassicMiniDIY/ultralog-site/dispatches -f event_type=app-release
