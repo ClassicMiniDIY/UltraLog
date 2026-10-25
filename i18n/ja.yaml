@@ -50,6 +50,28 @@ channels:
   with_data: "データあり (%{count})"
   empty: "空 (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "比較"
+  none: "なし"
+  open_file: "ファイルを開く…"
+  compare_with: "比較対象…"
+  hint: "チャンネルは名前でペアになります。ログ B は破線です。"
+  no_other_files: "比較する 2 つ目のログを読み込んでください。"
+  log_a: "ログ A"
+  log_b: "ログ B"
+  not_in_b: "B にない"
+  remove_pair: "ペアを削除"
+  offset: "ログ B のオフセット"
+  offset_hint: "ログ B の時刻に加える秒数。ドラッグまたは値を入力します。"
+  reset: "リセット"
+  align: "カーソルで揃える"
+  align_hint: "ログ A のイベントにカーソルを置き、これをクリックしてから、ログ B の同じイベントをクリックします。"
+  align_no_cursor: "先にチャートをクリックしてカーソルを置いてください。"
+  align_pick: "ログ B の対応する点をクリックしてください。"
+  align_pick_rest: "Esc でキャンセル。"
+  align_cancel: "キャンセル"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "言語"

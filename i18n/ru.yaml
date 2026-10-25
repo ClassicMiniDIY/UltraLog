@@ -50,6 +50,28 @@ channels:
   with_data: "С данными (%{count})"
   empty: "Пустые (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Сравнение"
+  none: "Нет"
+  open_file: "Открыть файл…"
+  compare_with: "Сравнить с…"
+  hint: "Каналы сопоставляются по имени. Лог B — пунктир."
+  no_other_files: "Загрузите второй лог, чтобы сравнить его с этим."
+  log_a: "Лог A"
+  log_b: "Лог B"
+  not_in_b: "нет в B"
+  remove_pair: "Удалить пару"
+  offset: "Смещение лога B"
+  offset_hint: "Секунды, добавляемые ко времени лога B. Перетащите или введите значение."
+  reset: "Сбросить"
+  align: "Выровнять по курсору"
+  align_hint: "Поставьте курсор на событие в логе A, нажмите здесь, затем щёлкните то же событие в логе B."
+  align_no_cursor: "Сначала щёлкните по графику, чтобы поставить курсор."
+  align_pick: "Щёлкните соответствующую точку лога B."
+  align_pick_rest: "Esc — отмена."
+  align_cancel: "Отмена"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Язык"

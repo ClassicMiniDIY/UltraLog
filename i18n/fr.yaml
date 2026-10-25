@@ -50,6 +50,28 @@ channels:
   with_data: "Avec donnees (%{count})"
   empty: "Vides (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Comparer"
+  none: "Aucun"
+  open_file: "Ouvrir un fichier…"
+  compare_with: "Comparer avec…"
+  hint: "Les canaux sont appariés par nom. Le journal B est en pointillés."
+  no_other_files: "Chargez un second journal pour le comparer à celui-ci."
+  log_a: "Journal A"
+  log_b: "Journal B"
+  not_in_b: "absent de B"
+  remove_pair: "Retirer la paire"
+  offset: "Décalage du journal B"
+  offset_hint: "Secondes ajoutées aux temps du journal B. Faites glisser ou saisissez une valeur."
+  reset: "Réinitialiser"
+  align: "Aligner sur le curseur"
+  align_hint: "Placez le curseur sur un événement du journal A, cliquez ici, puis cliquez sur le même événement dans le journal B."
+  align_no_cursor: "Cliquez d'abord sur le graphique pour placer le curseur."
+  align_pick: "Cliquez sur le point correspondant du journal B."
+  align_pick_rest: "Échap annule."
+  align_cancel: "Annuler"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Langue"

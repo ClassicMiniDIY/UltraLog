@@ -694,6 +694,45 @@ increments on every theme install. The Track Map's coloured-polyline cache store
 (`theme_generation` in `state.rs`) and rebuilds when it differs, so a change of intensity, Color
 blind mode or High contrast never leaves the old palette on screen.
 
+### Log Compare Contract (issue #98)
+
+A tab can overlay a second log: `Tab::compare: Option<CompareState>` names log **B** (the tab's own
+file is log **A**), log B's time offset, the Align-at-cursor pick flag and the A | B list switch.
+Design: `docs/plans/2026-10-25-log-compare.md` (decisions D1-D5, rules R1-R4). Session-only; not
+in `UserSettings`.
+
+- **One time axis.** Tab time is log A's time. Log B's sample at file time `t` is drawn at
+  `t + offset_s` (`Tab::time_offset`). Values at the cursor come from `UltraLogApp::record_at`
+  (last sample at or before, **`None` outside that log's span**, R4), never from the tab's
+  `cursor_record`, which is a record of log A only. `Tab::time_range` is the union of A and
+  shifted B (`update_tab_time_range`, which also clamps the cursor); call it after any compare or
+  offset change (`set_compare_file`, `set_compare_offset` do).
+- **Pairs are colour slots.** A pair is an A and a B channel with the same `color_index`
+  (`Tab::partner` / `partner_of`). `insert_channel` pairs by `pair_key` (normalized display name,
+  case-insensitive); computed channels are never paired (R3). A pair counts as **one** against
+  `MAX_CHANNELS` / `MAX_CHANNELS_PER_PLOT` / `MAX_TOTAL_CHANNELS` (`Tab::channel_units`,
+  `plot_has_capacity`, R2).
+- **A pair shares one y range** (R1): `UltraLogApp::pair_y_range` on screen and the same union
+  in `chart_sheet`. Otherwise every channel is scaled to its own 0..1 and two pulls with different
+  peaks look identical.
+- **The downsample cache holds raw file-time points.** `compute_viewport_points` applies the
+  offset and the y scale to the copy it returns, so a nudge smaller than one LTTB bucket (or a new
+  pair range) shows at once. Never store shifted or normalized points in `downsample_cache`.
+- **Every file-index consumer must accept log B or refuse it on purpose.** The add guards use
+  `Tab::accepts_file`; the track map's "Color by" and `color_source` take log A only (B's values
+  do not line up with the track's records); scatter, histogram and table generators read log A.
+  A Min/Max jump on a B card goes through `cursor_for_file_sample`.
+- **Removal is index-shifting, in every tab.** `remove_file` calls `Tab::remap_after_file_removed`
+  on **all** tabs (log B can be any file, before or after the tab's own), and every removal of a
+  selected channel goes through `Tab::remove_selected_channel`, which also shifts
+  `plot_areas.channel_indices` and the track-map colour slot. A stale index renders another file's
+  channel with no error (same class as the cache invalidation contract).
+- **Exports** use the tab range (`get_time_range`, not the app-wide `time_range`), slice log B in
+  its own time and shift it, dash it via `SeriesModel::log`, tag the legend `A · ` / `B · ` and add
+  a meta line with both files and the offset.
+- **Not covered yet:** MCP/IPC has no compare commands; `get_cursor_values` for log B's file reads
+  log A's record.
+
 ### Map Tile Fetching Contract (src/tiles.rs)
 
 The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.
@@ -725,7 +764,11 @@ the tokens, and the CI colour gate keeps it that way.
   midpoint `div_2` is a ground-tinted neutral outside Color blind mode.
 - **Series beyond the palette** change stroke, not colour: `theme::series` returns
   `SeriesStroke::Dashed` for the second lap and `Dotted` after (laps of 10, or of 8 when
-  `color_blind_like` — Color blind mode, High contrast and exports).
+  `color_blind_like` — Color blind mode, High contrast and exports). **One exception:** while a
+  tab compares two logs, `theme::compare_series` uses the stroke for the log (A solid, B dashed),
+  so slots past the palette repeat colours without a stroke change; the A/B tag in the legend,
+  direct labels and cards tells them apart. Draw selected channels through
+  `UltraLogApp::channel_style`, never `series_style`, so compare mode is respected.
 - **Colour maps:** never add a rainbow (jet, Turbo) or a hand-rolled ramp; everything that colours by magnitude goes through `colormap::sample` / `theme::seq` / `theme::div`, cells through `ui::heatmap` (value plate, hatched empty cells, badge fill styles).
 - **Caches of derived colours** must key on `UltraLogApp::theme_generation`, which increments on
   every install, or they keep the old palette after a theme change.
@@ -822,6 +865,7 @@ ColorScale, and the footer (ultralog.co · version · export date).
 - **Scatter Plot Tool** - XY scatter plot for analyzing channel correlations
 - **Histogram Tool** - 2D heatmap view of channel distributions
 - **Export Options** - Export the chart, scatter plots, histogram or a tuning table as PNG or PDF on the Paper or Graphite sheet, or copy it as an image for pasting
+- **Log Compare** - Overlay a second log in the same tab (issue #98): channels pair by name, log B is dashed in its pair's colour on a shared scale, with a time offset, Align at cursor, A/B tags and compare-aware exports (see the Log Compare Contract)
 - **Night Drive design system** - one dark theme with an Ultra intensity slider (Stealth · Night Drive · Ultra), Color blind mode (Okabe-Ito series, cividis and blue/orange maps) and High contrast; tokens generated from `design/tokens/tokens.json` (see the Theme Contract)
 - **About window** - Help → About UltraLog: version, licence, links, Check for Updates
 - **Playback** - Play through log data at 0.25x to 8x speed

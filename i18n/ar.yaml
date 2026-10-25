@@ -50,6 +50,28 @@ channels:
   with_data: "تحتوي بيانات (%{count})"
   empty: "فارغة (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "مقارنة"
+  none: "لا شيء"
+  open_file: "فتح ملف…"
+  compare_with: "مقارنة مع…"
+  hint: "تُقرن القنوات بالاسم. السجل B متقطع."
+  no_other_files: "حمّل سجلاً ثانياً لمقارنته بهذا السجل."
+  log_a: "السجل A"
+  log_b: "السجل B"
+  not_in_b: "غير موجود في B"
+  remove_pair: "إزالة الزوج"
+  offset: "إزاحة السجل B"
+  offset_hint: "ثوانٍ تُضاف إلى أوقات السجل B. اسحب أو اكتب قيمة."
+  reset: "إعادة تعيين"
+  align: "محاذاة عند المؤشر"
+  align_hint: "ضع المؤشر على حدث في السجل A، انقر هنا، ثم انقر على الحدث نفسه في السجل B."
+  align_no_cursor: "انقر على الرسم البياني لوضع المؤشر أولاً."
+  align_pick: "انقر على النقطة المطابقة في السجل B."
+  align_pick_rest: "Esc للإلغاء."
+  align_cancel: "إلغاء"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "اللغة"

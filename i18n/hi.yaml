@@ -50,6 +50,28 @@ channels:
   with_data: "डेटा सहित (%{count})"
   empty: "खाली (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "तुलना"
+  none: "कोई नहीं"
+  open_file: "फ़ाइल खोलें…"
+  compare_with: "इससे तुलना करें…"
+  hint: "चैनल नाम से जोड़े जाते हैं। लॉग B डैश वाली रेखा है।"
+  no_other_files: "इससे तुलना के लिए दूसरा लॉग लोड करें।"
+  log_a: "लॉग A"
+  log_b: "लॉग B"
+  not_in_b: "B में नहीं"
+  remove_pair: "जोड़ी हटाएँ"
+  offset: "लॉग B ऑफ़सेट"
+  offset_hint: "लॉग B के समय में जोड़े जाने वाले सेकंड। खींचें या मान लिखें।"
+  reset: "रीसेट"
+  align: "कर्सर पर संरेखित करें"
+  align_hint: "कर्सर को लॉग A की किसी घटना पर रखें, यहाँ क्लिक करें, फिर लॉग B में वही घटना क्लिक करें।"
+  align_no_cursor: "पहले कर्सर रखने के लिए चार्ट पर क्लिक करें।"
+  align_pick: "लॉग B का मेल खाता बिंदु क्लिक करें।"
+  align_pick_rest: "Esc रद्द करता है।"
+  align_cancel: "रद्द करें"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "भाषा"

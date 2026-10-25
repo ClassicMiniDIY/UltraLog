@@ -51,6 +51,28 @@ channels:
   with_data: "ڈیٹا والے (%{count})"
   empty: "خالی (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "موازنہ"
+  none: "کوئی نہیں"
+  open_file: "فائل کھولیں…"
+  compare_with: "اس سے موازنہ کریں…"
+  hint: "چینل نام سے جوڑے جاتے ہیں۔ لاگ B ڈیش والی لکیر ہے۔"
+  no_other_files: "اس سے موازنہ کے لیے دوسرا لاگ لوڈ کریں۔"
+  log_a: "لاگ A"
+  log_b: "لاگ B"
+  not_in_b: "B میں نہیں"
+  remove_pair: "جوڑا ہٹائیں"
+  offset: "لاگ B آفسیٹ"
+  offset_hint: "لاگ B کے اوقات میں شامل کیے جانے والے سیکنڈ۔ گھسیٹیں یا قدر لکھیں۔"
+  reset: "ری سیٹ"
+  align: "کرسر پر سیدھ کریں"
+  align_hint: "کرسر کو لاگ A کے کسی واقعے پر رکھیں، یہاں کلک کریں، پھر لاگ B میں وہی واقعہ کلک کریں۔"
+  align_no_cursor: "پہلے کرسر رکھنے کے لیے چارٹ پر کلک کریں۔"
+  align_pick: "لاگ B کا مماثل نقطہ کلک کریں۔"
+  align_pick_rest: "Esc منسوخ کرتا ہے۔"
+  align_cancel: "منسوخ کریں"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "زبان"

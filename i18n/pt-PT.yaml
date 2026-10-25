@@ -50,6 +50,28 @@ channels:
   with_data: "Com Dados (%{count})"
   empty: "Vazios (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Comparar"
+  none: "Nenhum"
+  open_file: "Abrir ficheiro…"
+  compare_with: "Comparar com…"
+  hint: "Os canais são emparelhados pelo nome. O registo B é tracejado."
+  no_other_files: "Carregue um segundo registo para o comparar com este."
+  log_a: "Registo A"
+  log_b: "Registo B"
+  not_in_b: "não está em B"
+  remove_pair: "Remover par"
+  offset: "Desvio do registo B"
+  offset_hint: "Segundos somados aos tempos do registo B. Arraste ou escreva um valor."
+  reset: "Repor"
+  align: "Alinhar no cursor"
+  align_hint: "Coloque o cursor num evento do registo A, clique aqui e depois clique no mesmo evento do registo B."
+  align_no_cursor: "Clique no gráfico para colocar o cursor primeiro."
+  align_pick: "Clique no ponto correspondente do registo B."
+  align_pick_rest: "Esc cancela."
+  align_cancel: "Cancelar"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Idioma"

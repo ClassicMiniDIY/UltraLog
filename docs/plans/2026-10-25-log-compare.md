@@ -1,6 +1,6 @@
 # Log compare (issue #98)
 
-Status: design + implementation plan, 2026-10-25. Ships in **3.0.0** on `release/3.0.0`.
+Status: steps 1-6 implemented on `release/3.0.0` (2026-10-25); step 7 (IPC gaps, verify, review) next. Ships in **3.0.0**.
 
 Issue #98 asks to overlay a second log in the same tab, with each channel showing which log it
 comes from. Typical use: two WOT pulls before and after a tune change, or the same pull on two

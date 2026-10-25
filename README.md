@@ -61,6 +61,7 @@ UltraLog is an **independent, open-source** desktop application designed for aut
 - **Drag and drop** - Simply drop files onto the window to load them
 - **Per-tab state** - Each tab maintains its own channel selections and view settings
 - **Duplicate detection** - Prevents loading the same file twice
+- **Log compare** - Overlay a second log in the same tab: channels pair by name, log B is dashed in the same colour on a shared scale, with a time offset and **Align at cursor** to line up two pulls
 
 ### Unit Conversion
 Configurable units for 8 measurement categories:
@@ -395,6 +396,18 @@ UltraLog automatically detects the ECU format based on file contents:
 - Scroll to zoom in/out on the time axis
 - Click and drag to pan the view
 - Double-click to reset zoom
+
+### Comparing Two Logs
+
+Overlay a second log on the current tab, for example the same pull before and after a tune change:
+
+1. Load both logs and open the tab of the first one (log **A**)
+2. In the Channels panel, choose the second log under **Compare** (or **File → Compare with…**). **Open file…** loads a log that is not open yet
+3. Pick channels as usual. Each channel brings its match from log **B** along, paired by name (with field normalization on, `Engine Speed` pairs with `RPM`). Log B is drawn dashed in the same colour, and a pair shares one scale so the higher peak looks higher
+4. Use the **Log A | Log B** switch to add a channel that only log B has. A card marked "not in B" has no match
+5. Line the logs up with **Log B offset** (drag, type, or −1 / −0.1 / +0.1 / +1 s), or with **Align at cursor**: put the cursor on an event in log A, click **Align at cursor**, then click the same event in log B. Esc cancels
+
+The legend, the direct labels and the channel cards tag every series **A** or **B**. Legend values come from each log at the cursor and stay blank where a log has no data. Exports draw log B dashed, tag the legend and name both files and the offset.
 
 ### Timeline and Playback
 

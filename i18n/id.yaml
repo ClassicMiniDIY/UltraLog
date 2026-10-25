@@ -50,6 +50,28 @@ channels:
   with_data: "Dengan Data (%{count})"
   empty: "Kosong (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Bandingkan"
+  none: "Tidak ada"
+  open_file: "Buka file…"
+  compare_with: "Bandingkan dengan…"
+  hint: "Kanal dipasangkan berdasarkan nama. Log B bergaris putus-putus."
+  no_other_files: "Muat log kedua untuk membandingkannya dengan log ini."
+  log_a: "Log A"
+  log_b: "Log B"
+  not_in_b: "tidak ada di B"
+  remove_pair: "Hapus pasangan"
+  offset: "Offset log B"
+  offset_hint: "Detik yang ditambahkan ke waktu log B. Seret atau ketik nilai."
+  reset: "Atur ulang"
+  align: "Sejajarkan di kursor"
+  align_hint: "Letakkan kursor pada peristiwa di log A, klik ini, lalu klik peristiwa yang sama di log B."
+  align_no_cursor: "Klik grafik untuk menempatkan kursor terlebih dahulu."
+  align_pick: "Klik titik yang cocok di log B."
+  align_pick_rest: "Esc membatalkan."
+  align_cancel: "Batal"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Bahasa"

@@ -50,6 +50,28 @@ channels:
   with_data: "ডেটাসহ (%{count})"
   empty: "খালি (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "তুলনা"
+  none: "কোনোটি নয়"
+  open_file: "ফাইল খুলুন…"
+  compare_with: "এর সাথে তুলনা করুন…"
+  hint: "চ্যানেল নাম দিয়ে জোড়া হয়। লগ B ড্যাশ রেখা।"
+  no_other_files: "এটির সাথে তুলনা করতে দ্বিতীয় একটি লগ লোড করুন।"
+  log_a: "লগ A"
+  log_b: "লগ B"
+  not_in_b: "B-তে নেই"
+  remove_pair: "জোড়া সরান"
+  offset: "লগ B অফসেট"
+  offset_hint: "লগ B-এর সময়ে যোগ করা সেকেন্ড। টেনে আনুন বা মান লিখুন।"
+  reset: "রিসেট"
+  align: "কার্সারে সারিবদ্ধ করুন"
+  align_hint: "লগ A-এর একটি ঘটনায় কার্সার রাখুন, এখানে ক্লিক করুন, তারপর লগ B-তে একই ঘটনায় ক্লিক করুন।"
+  align_no_cursor: "প্রথমে কার্সার রাখতে চার্টে ক্লিক করুন।"
+  align_pick: "লগ B-এর মিলে যাওয়া বিন্দুতে ক্লিক করুন।"
+  align_pick_rest: "Esc বাতিল করে।"
+  align_cancel: "বাতিল"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "ভাষা"

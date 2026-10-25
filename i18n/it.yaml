@@ -50,6 +50,28 @@ channels:
   with_data: "Con Dati (%{count})"
   empty: "Vuoti (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Confronta"
+  none: "Nessuno"
+  open_file: "Apri file…"
+  compare_with: "Confronta con…"
+  hint: "I canali si abbinano per nome. Il log B è tratteggiato."
+  no_other_files: "Carica un secondo log per confrontarlo con questo."
+  log_a: "Log A"
+  log_b: "Log B"
+  not_in_b: "non in B"
+  remove_pair: "Rimuovi coppia"
+  offset: "Offset log B"
+  offset_hint: "Secondi aggiunti ai tempi del log B. Trascina o digita un valore."
+  reset: "Ripristina"
+  align: "Allinea al cursore"
+  align_hint: "Metti il cursore su un evento nel log A, fai clic qui, poi fai clic sullo stesso evento nel log B."
+  align_no_cursor: "Fai prima clic sul grafico per posizionare il cursore."
+  align_pick: "Fai clic sul punto corrispondente del log B."
+  align_pick_rest: "Esc annulla."
+  align_cancel: "Annulla"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Lingua"
