@@ -590,7 +590,12 @@ impl UltraLogApp {
                         .iter()
                         .filter_map(|&idx| {
                             selected_channels.get(idx).map(|ch| {
-                                let name = ch.channel.name();
+                                // "A · " / "B · " while comparing: both halves of a pair
+                                // have the same name.
+                                let name = match self.log_tag(ch) {
+                                    Some(tag) => format!("{tag} \u{00B7} {}", ch.channel.name()),
+                                    None => ch.channel.name(),
+                                };
                                 (idx, name)
                             })
                         })
@@ -598,13 +603,14 @@ impl UltraLogApp {
 
                     let plot_id = plot_area.id;
                     let has_capacity = self.tabs[tab_idx].plot_has_capacity(plot_id);
+                    // A compare pair counts as one channel (R2).
+                    let plot_units = self.tabs[tab_idx].channel_units(&plot_area.channel_indices);
 
                     ui.push_id(format!("plot_{}", plot_id), |ui| {
                         // Custom header with delete button
                         let header_response = ui
                             .horizontal(|ui| {
-                                let header_text =
-                                    format!("{} ({}/10)", plot_area.name, plot_channels.len());
+                                let header_text = format!("{} ({plot_units}/10)", plot_area.name);
 
                                 // Collapsing state
                                 let id = ui.id().with(plot_id);
