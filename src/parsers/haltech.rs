@@ -11,6 +11,7 @@ static TIMESTAMP_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\d{1,2}:\d{2}:\d{2}").expect("Invalid timestamp regex"));
 
 use super::types::{Channel, Log, Meta, Parseable, Value};
+use crate::analysis::tables::events::is_invalid_sample;
 
 /// Haltech channel types - comprehensive list from actual log files
 #[derive(AsRefStr, Clone, Debug, EnumString, Serialize, Default)]
@@ -388,6 +389,14 @@ impl Parseable for Haltech {
                     .map(|(idx, v)| {
                         let v = v.trim();
                         let raw_value: f64 = v.parse().ok()?;
+                        // NSP writes an i32 sentinel family (-2147483617, ...)
+                        // for "no reading". Scaled by the channel conversion it
+                        // becomes a plausible-looking huge number (lambda / 1000
+                        // gave a -31,568,009 AFR minimum), so treat it like a
+                        // blank field and let the last known value fill it.
+                        if is_invalid_sample(raw_value) {
+                            return None;
+                        }
 
                         // Apply conversion based on channel type if available
                         let converted = if let Some(Channel::Haltech(ch)) = channels.get(idx) {
@@ -546,6 +555,29 @@ Log : 20250718 02:15:46
         // Check units
         assert_eq!(log.channels[0].unit(), "RPM");
         assert_eq!(log.channels[1].unit(), "kPa");
+    }
+
+    #[test]
+    fn no_reading_sentinel_carries_last_value() {
+        // NSP writes -2147483617 when the wideband has no reading. Scaled as
+        // lambda it showed up as a -2,147,483.6 λ minimum on the channel card.
+        let sample = r#"%DataLog%
+DataLogVersion : 1.1
+Software : Haltech NSP
+Channel : Wideband O2 Overall
+ID : 1
+Type : AFR
+DisplayMaxMin : 2000,0
+Log : 20250718 02:15:46
+14:15:46.000,-2147483617
+14:15:46.020,980
+14:15:46.040,-2147483637
+14:15:46.060,1010
+"#;
+        let log = Haltech.parse(sample).unwrap();
+        let lambda: Vec<f64> = log.data.iter().map(|row| row[0].as_f64()).collect();
+        // Before the first reading the column reads 0.0, then holds 0.98.
+        assert_eq!(lambda, vec![0.0, 0.98, 0.98, 1.01]);
     }
 
     #[test]

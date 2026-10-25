@@ -1,6 +1,6 @@
 [package]
 name = "ultralog"
-version = "2.16.2"
+version = "3.0.0"
 edition = "2024"
 # egui/eframe 0.36 is the binding constraint on the minimum supported Rust
 # version; edition 2024 itself only needs 1.85.
@@ -32,6 +32,8 @@ eframe = { version = "0.36.1", default-features = false, features = [
     "wayland",
 ] }
 egui_plot = "0.37.0"
+# Phosphor icons (regular outline; fill for transport and the favourite star)
+egui-phosphor = { version = "0.14", features = ["fill"] }
 egui_extras = { version = "0.36.1", features = ["image"] }
 
 # Serialization
@@ -68,6 +70,10 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 
 # PDF generation for chart export
 printpdf = "0.12"
+# Export rasterizing: glyph outlines (skrifa) filled as paths by vello_cpu for PNG text.
+# Same versions epaint already builds; vello_cpu without its glyph-atlas "text" feature.
+skrifa = "0.44"
+vello_cpu = { version = "0.1", default-features = false, features = ["std", "u8_pipeline"] }
 
 # Error handling
 thiserror = "2.0.20"

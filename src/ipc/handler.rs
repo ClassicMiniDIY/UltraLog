@@ -121,15 +121,13 @@ impl UltraLogApp {
         let selected_channels: Vec<SelectedChannelInfo> = self
             .get_selected_channels()
             .iter()
-            .map(|c| SelectedChannelInfo {
-                file_id: c.file_index.to_string(),
-                channel_name: c.channel.name(),
-                color: format!(
-                    "#{:02x}{:02x}{:02x}",
-                    self.get_channel_color(c.color_index)[0],
-                    self.get_channel_color(c.color_index)[1],
-                    self.get_channel_color(c.color_index)[2]
-                ),
+            .map(|c| {
+                let [r, g, b, _] = self.series_style(c.color_index).0.to_array();
+                SelectedChannelInfo {
+                    file_id: c.file_index.to_string(),
+                    channel_name: c.channel.name(),
+                    color: format!("#{r:02x}{g:02x}{b:02x}"),
+                }
             })
             .collect();
 
@@ -469,12 +467,13 @@ impl UltraLogApp {
     }
 
     fn handle_deselect_all_channels(&mut self) -> IpcResponse {
+        // Through the one removal path, so plot areas and the track-map colour slot follow.
+        // The compare choice (log B) stays: it is a log choice, not a channel.
         if let Some(tab_idx) = self.active_tab {
-            self.tabs[tab_idx]
-                .data_panel_state
-                .track_map
-                .clear_color_channel();
-            self.tabs[tab_idx].selected_channels.clear();
+            let tab = &mut self.tabs[tab_idx];
+            for idx in (0..tab.selected_channels.len()).rev() {
+                tab.remove_selected_channel(idx);
+            }
         }
         IpcResponse::ok()
     }
@@ -712,9 +711,15 @@ impl UltraLogApp {
             _ => return IpcResponse::error(format!("Invalid file ID: {}", file_id)),
         };
 
-        let cursor_record = match self.get_cursor_record() {
-            Some(r) => r,
-            None => return IpcResponse::error("No cursor position set"),
+        // Every file is looked up at the cursor time (log B minus its offset), with no values
+        // outside its own span (R4): the same rule as the chart legend.
+        let Some(cursor_time) = self.get_cursor_time() else {
+            return IpcResponse::error("No cursor position set");
+        };
+        let Some(cursor_record) = self.record_at(file_idx, cursor_time) else {
+            return IpcResponse::error(format!(
+                "File {file_id} has no data at the cursor time {cursor_time:.3} s"
+            ));
         };
 
         let file = &self.files[file_idx];
@@ -819,24 +824,25 @@ impl UltraLogApp {
 
         // Find channel indices first (while we only have immutable borrow)
         let file = &self.files[file_idx];
-        let x_idx = file
-            .log
-            .channels
-            .iter()
-            .position(|c| c.name().eq_ignore_ascii_case(x_channel));
-        let y_idx = file
-            .log
-            .channels
-            .iter()
-            .position(|c| c.name().eq_ignore_ascii_case(y_channel));
+        let find = |name: &str| {
+            file.log
+                .channels
+                .iter()
+                .position(|c| c.name().eq_ignore_ascii_case(name))
+        };
+        let Some(x) = find(x_channel) else {
+            return IpcResponse::error(format!("Channel not found: {}", x_channel));
+        };
+        let Some(y) = find(y_channel) else {
+            return IpcResponse::error(format!("Channel not found: {}", y_channel));
+        };
 
-        // Switch to scatter plot view
+        // Scatter state lives on the tab, and the indices belong to this file,
+        // so the file's tab must be the active one before the state is written.
+        self.switch_to_file_tab(file_idx);
         self.set_active_tool(ActiveTool::ScatterPlot);
 
-        // Configure the scatter plot (now we can get mutable borrow)
-        if let Some(state) = self.get_scatter_plot_state_mut()
-            && let (Some(x), Some(y)) = (x_idx, y_idx)
-        {
+        if let Some(state) = self.get_scatter_plot_state_mut() {
             state.left.x_channel = Some(x);
             state.left.y_channel = Some(y);
         }
@@ -1040,5 +1046,124 @@ impl UltraLogApp {
             direction,
             r
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::parsers::aim::AimChannel;
+    use crate::parsers::types::Meta;
+    use crate::parsers::{Channel, EcuType, Log, Value};
+    use crate::state::{LoadedFile, Tab};
+
+    fn file_with_channels(name: &str, channels: &[&str]) -> LoadedFile {
+        let log = Log {
+            meta: Meta::Empty,
+            channels: channels
+                .iter()
+                .map(|c| {
+                    Channel::Aim(AimChannel {
+                        name: c.to_string(),
+                        unit: String::new(),
+                    })
+                })
+                .collect(),
+            times: vec![0.0],
+            data: vec![channels.iter().map(|_| Value::Float(0.0)).collect()],
+        };
+        LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    /// A log with one "RPM" channel at 10 Hz over 0..=`secs` s, value = time.
+    fn timed_file(name: &str, secs: usize) -> LoadedFile {
+        let times: Vec<f64> = (0..=secs * 10).map(|i| i as f64 * 0.1).collect();
+        let log = Log {
+            meta: Meta::Empty,
+            channels: vec![Channel::Aim(AimChannel {
+                name: "RPM".to_string(),
+                unit: String::new(),
+            })],
+            data: times.iter().map(|&t| vec![Value::Float(t)]).collect(),
+            times,
+        };
+        LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    #[test]
+    fn cursor_values_for_log_b_use_its_own_record() {
+        let mut app = UltraLogApp::default();
+        app.files.push(timed_file("a.csv", 10));
+        app.files.push(timed_file("b.csv", 5));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.choose_compare_file(0, Some(1));
+        app.set_compare_offset(0, 2.0);
+        app.handle_set_cursor(4.0);
+
+        let value = |app: &UltraLogApp, file: &str| match app.handle_get_cursor_values(file) {
+            IpcResponse::Ok(Some(ResponseData::CursorValues(v))) => Ok(v[0].value),
+            IpcResponse::Error { message } => Err(message),
+            _ => Err("unexpected".into()),
+        };
+        assert!((value(&app, "0").unwrap() - 4.0).abs() < 1e-9);
+        // Log B at tab time 4.0 is its file time 2.0.
+        assert!((value(&app, "1").unwrap() - 2.0).abs() < 1e-9);
+        // Past log B's end (5 + 2 = 7 s): an error, not log A's record read from B.
+        app.handle_set_cursor(9.0);
+        assert!(value(&app, "1").is_err());
+    }
+
+    #[test]
+    fn deselect_all_clears_plot_areas_and_keeps_log_b() {
+        let mut app = UltraLogApp::default();
+        app.files.push(timed_file("a.csv", 10));
+        app.files.push(timed_file("b.csv", 5));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 0);
+        assert_eq!(app.tabs[0].plot_areas[0].channel_indices, vec![0, 1]);
+
+        app.handle_deselect_all_channels();
+        assert!(app.tabs[0].selected_channels.is_empty());
+        assert!(app.tabs[0].plot_areas[0].channel_indices.is_empty());
+        assert_eq!(app.tabs[0].compare_file(), Some(1));
+    }
+
+    #[test]
+    fn show_scatter_plot_targets_the_requested_files_tab() {
+        let mut app = UltraLogApp::default();
+        app.files
+            .push(file_with_channels("a.xrk", &["Speed", "RPM", "MAP"]));
+        app.files
+            .push(file_with_channels("b.xrk", &["Dwell", "Cut"]));
+        app.tabs.push(Tab::new(0, "a.xrk".to_string()));
+        app.tabs.push(Tab::new(1, "b.xrk".to_string()));
+        // The other file's tab is active, as after loading a second log.
+        app.active_tab = Some(1);
+
+        let response = app.handle_show_scatter_plot("0", "RPM", "MAP");
+
+        assert!(matches!(response, IpcResponse::Ok(_)));
+        assert_eq!(app.active_tab, Some(0));
+        assert_eq!(app.tabs[0].scatter_plot_state.left.x_channel, Some(1));
+        assert_eq!(app.tabs[0].scatter_plot_state.left.y_channel, Some(2));
+        assert_eq!(app.tabs[1].scatter_plot_state.left.x_channel, None);
+    }
+
+    #[test]
+    fn show_scatter_plot_rejects_unknown_channel() {
+        let mut app = UltraLogApp::default();
+        app.files.push(file_with_channels("a.xrk", &["RPM"]));
+        app.tabs.push(Tab::new(0, "a.xrk".to_string()));
+        app.active_tab = Some(0);
+
+        let response = app.handle_show_scatter_plot("0", "RPM", "Boost");
+
+        assert!(matches!(response, IpcResponse::Error { .. }));
+        assert_eq!(app.tabs[0].scatter_plot_state.left.x_channel, None);
     }
 }

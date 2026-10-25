@@ -6,11 +6,7 @@ menu:
   open_log_file: "فتح ملف السجل..."
   close_tab: "إغلاق علامة التبويب"
   export: "تصدير"
-  export_png: "تصدير كـ PNG..."
-  export_pdf: "تصدير كـ PDF..."
-  export_histogram_pdf: "تصدير المدرج التكراري كـ PDF..."
-  export_table_png: "تصدير الجدول كـ PNG..."
-  export_table_pdf: "تصدير الجدول كـ PDF..."
+  export_ellipsis: "تصدير..."
   view: "عرض"
   show_grid: "إظهار الشبكة"
   tool_mode: "وضع الأداة"
@@ -30,6 +26,7 @@ menu:
   support_development: "دعم التطوير"
   check_for_updates: "التحقق من التحديثات"
   checking_for_updates: "جارٍ التحقق من التحديثات..."
+  about: "حول UltraLog"
   version: "الإصدار %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -53,13 +50,40 @@ channels:
   with_data: "تحتوي بيانات (%{count})"
   empty: "فارغة (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "مقارنة"
+  none: "لا شيء"
+  open_file: "فتح ملف…"
+  compare_with: "مقارنة مع…"
+  hint: "تُقرن القنوات بالاسم. السجل B متقطع."
+  no_other_files: "حمّل سجلاً ثانياً لمقارنته بهذا السجل."
+  log_a: "السجل A"
+  log_b: "السجل B"
+  not_in_b: "غير موجود في B"
+  remove_pair: "إزالة الزوج"
+  offset: "إزاحة السجل B"
+  offset_hint: "ثوانٍ تُضاف إلى أوقات السجل B. اسحب أو اكتب قيمة."
+  reset: "إعادة تعيين"
+  align: "محاذاة عند المؤشر"
+  align_hint: "ضع المؤشر على حدث في السجل A، انقر هنا، ثم انقر على الحدث نفسه في السجل B."
+  align_no_cursor: "انقر على الرسم البياني لوضع المؤشر أولاً."
+  align_pick: "انقر على النقطة المطابقة في السجل B."
+  align_pick_rest: "Esc للإلغاء."
+  align_cancel: "إلغاء"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "اللغة"
   language_desc: "اختر لغة العرض"
   display: "العرض"
+  ultra_intensity: "شدة Ultra"
+  ultra_intensity_desc: "مقدار تأثير النيون في مظهر التطبيق. لا يغيّر ألوان البيانات أو تباين النص أبدًا."
+  ultra_intensity_locked: "مقفل عند تفعيل التباين العالي: بلا توهج أو تدرجات أو شبكة خلفية."
   color_blind_mode: "وضع عمى الألوان"
-  color_blind_desc: "استخدام لوحة ألوان سهلة الوصول (لوحة Wong)"
+  color_blind_desc: "ألوان بيانات آمنة لعمى الألوان، وخطوط متقطعة ومُسمّاة، وتباين نص أقوى."
+  high_contrast: "تباين عالٍ"
+  high_contrast_desc: "خلفيات سوداء ونص أبيض وعناصر تحكم بإطارات. يوقف تأثيرات النيون."
   font_size: "حجم الخط:"
   cursor_tracking: "تتبع المؤشر"
   cursor_tracking_desc: "إبقاء المؤشر في المنتصف أثناء التمرير"
@@ -99,6 +123,9 @@ timeline:
   speed: "السرعة:"
   time: "الوقت: %{time}"
   record: "السجل %{current} من %{total}"
+  play: "تشغيل"
+  pause: "إيقاف مؤقت"
+  stop: "إيقاف"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +199,10 @@ toast:
   export_png_success: "تم تصدير الرسم البياني كـ PNG"
   export_pdf_success: "تم تصدير الرسم البياني كـ PDF"
   export_failed: "فشل التصدير: %{error}"
+  export_copied: "تم نسخ الصورة إلى الحافظة"
   histogram_exported_png: "تم تصدير المدرج التكراري كـ PNG"
   histogram_exported_pdf: "تم تصدير المدرج التكراري كـ PDF"
-  table_exported_png: "تم تصدير الجدول كـ PNG (الخلايا فقط؛ استخدم CSV للقيم)"
+  table_exported_png: "تم تصدير الجدول كـ PNG"
   table_exported_pdf: "تم تصدير الجدول كـ PDF"
   scatter_exported_png: "تم تصدير المخطط المبعثر كـ PNG"
   scatter_exported_pdf: "تم تصدير المخطط المبعثر كـ PDF"
@@ -209,6 +237,7 @@ common:
   duplicate: "تكرار"
   apply: "تطبيق"
   close: "إغلاق"
+  cancel: "إلغاء"
   reset: "إعادة تعيين"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -325,10 +354,42 @@ histogram:
   filter_min: "الحد الأدنى"
   filter_max: "الحد الأقصى"
   no_filters: "لا توجد مرشحات نشطة"
+  scale_hits: "عدد الإصابات"
+  scale_average: "متوسط القيمة"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "حدد القنوات لعرض الرسم البياني"
+  cursor: "المؤشر"
+  rich: "غني"
+  target: "الهدف"
+  lean: "فقير"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "تصدير..."
+  title_chart: "تصدير الرسم البياني"
+  title_scatter: "تصدير مخططات التشتت"
+  title_histogram: "تصدير المدرج التكراري"
+  title_table: "تصدير الجدول"
+  format: "التنسيق"
+  paper: "ورقة"
+  paper_desc: "فاتح. الافتراضي؛ يُطبع بوضوح."
+  graphite: "جرافيت"
+  graphite_desc: "داكن، رمادي موفر للحبر."
+  cvd_note: "تستخدم التصديرات دائماً لوحة ألوان آمنة لعمى الألوان، ليتمكن من يشاركهم معك من قراءتها."
+  export_pdf: "تصدير PDF"
+  export_png: "تصدير PNG"
+  copy_image: "نسخ الصورة"
+  copy_tooltip: "انسخ الرسم البياني أو الجدول بدون الرأس أو التذييل، للصقه في مستند"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "حول UltraLog"
+  tagline: "عارض سجلات ECU عالي الأداء"
+  license: "مفتوح المصدر بموجب ترخيص %{license}"
+  website: "الموقع الإلكتروني"
+  source: "الكود المصدري"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -401,6 +462,10 @@ table_gen:
   copy_failed: "فشل نسخ الجدول إلى الحافظة"
   exported: "تم تصدير الجدول إلى %{path}"
   export_failed: "فشل التصدير"
+  legend_high: "ثقة عالية"
+  legend_medium: "ثقة متوسطة"
+  legend_low: "ثقة منخفضة"
+  legend_empty: "لا توجد عينات"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -438,8 +503,8 @@ track_map:
   color_by: "تلوين حسب"
   solid: "صلب"
   colormap: "خريطة الألوان"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "متسلسلة"
+  colormap.diverging: "متباعدة"
   range: "النطاق"
   range_auto: "تلقائي"
   lap: "دورة"

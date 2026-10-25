@@ -6,11 +6,7 @@ menu:
   open_log_file: "लॉग फ़ाइल खोलें..."
   close_tab: "टैब बंद करें"
   export: "निर्यात"
-  export_png: "PNG के रूप में निर्यात करें..."
-  export_pdf: "PDF के रूप में निर्यात करें..."
-  export_histogram_pdf: "हिस्टोग्राम PDF के रूप में निर्यात करें..."
-  export_table_png: "तालिका PNG के रूप में निर्यात करें..."
-  export_table_pdf: "तालिका PDF के रूप में निर्यात करें..."
+  export_ellipsis: "निर्यात..."
   view: "दृश्य"
   show_grid: "ग्रिड दिखाएं"
   tool_mode: "टूल मोड"
@@ -30,6 +26,7 @@ menu:
   support_development: "विकास में सहयोग करें"
   check_for_updates: "अपडेट की जाँच करें"
   checking_for_updates: "अपडेट की जाँच हो रही है..."
+  about: "UltraLog के बारे में"
   version: "संस्करण %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -53,13 +50,40 @@ channels:
   with_data: "डेटा सहित (%{count})"
   empty: "खाली (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "तुलना"
+  none: "कोई नहीं"
+  open_file: "फ़ाइल खोलें…"
+  compare_with: "इससे तुलना करें…"
+  hint: "चैनल नाम से जोड़े जाते हैं। लॉग B डैश वाली रेखा है।"
+  no_other_files: "इससे तुलना के लिए दूसरा लॉग लोड करें।"
+  log_a: "लॉग A"
+  log_b: "लॉग B"
+  not_in_b: "B में नहीं"
+  remove_pair: "जोड़ी हटाएँ"
+  offset: "लॉग B ऑफ़सेट"
+  offset_hint: "लॉग B के समय में जोड़े जाने वाले सेकंड। खींचें या मान लिखें।"
+  reset: "रीसेट"
+  align: "कर्सर पर संरेखित करें"
+  align_hint: "कर्सर को लॉग A की किसी घटना पर रखें, यहाँ क्लिक करें, फिर लॉग B में वही घटना क्लिक करें।"
+  align_no_cursor: "पहले कर्सर रखने के लिए चार्ट पर क्लिक करें।"
+  align_pick: "लॉग B का मेल खाता बिंदु क्लिक करें।"
+  align_pick_rest: "Esc रद्द करता है।"
+  align_cancel: "रद्द करें"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "भाषा"
   language_desc: "प्रदर्शन भाषा चुनें"
   display: "प्रदर्शन"
+  ultra_intensity: "Ultra तीव्रता"
+  ultra_intensity_desc: "ऐप पर कितनी नियॉन चमक दिखे। आपके डेटा के रंग या टेक्स्ट का कंट्रास्ट कभी नहीं बदलता।"
+  ultra_intensity_locked: "हाई कंट्रास्ट चालू होने पर यह बंद रहता है: कोई ग्लो, ग्रेडिएंट या ग्रिड फ़्लोर नहीं।"
   color_blind_mode: "कलर ब्लाइंड मोड"
-  color_blind_desc: "सुलभ रंग पैलेट का उपयोग करें (Wong's पैलेट)"
+  color_blind_desc: "कलर-ब्लाइंड के लिए सुरक्षित डेटा रंग, डैश और लेबल वाली लाइनें, और मज़बूत टेक्स्ट कंट्रास्ट।"
+  high_contrast: "हाई कंट्रास्ट"
+  high_contrast_desc: "काली पृष्ठभूमि, सफ़ेद टेक्स्ट और बॉर्डर वाले कंट्रोल। नियॉन प्रभाव बंद कर देता है।"
   font_size: "फ़ॉन्ट आकार:"
   cursor_tracking: "कर्सर ट्रैकिंग"
   cursor_tracking_desc: "स्क्रबिंग के दौरान कर्सर को केंद्रित रखें"
@@ -99,6 +123,9 @@ timeline:
   speed: "गति:"
   time: "समय: %{time}"
   record: "रिकॉर्ड %{current} में से %{total}"
+  play: "चलाएं"
+  pause: "विराम"
+  stop: "रोकें"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +199,10 @@ toast:
   export_png_success: "चार्ट PNG के रूप में निर्यात किया गया"
   export_pdf_success: "चार्ट PDF के रूप में निर्यात किया गया"
   export_failed: "निर्यात विफल: %{error}"
+  export_copied: "छवि क्लिपबोर्ड पर कॉपी हुई"
   histogram_exported_png: "हिस्टोग्राम PNG के रूप में निर्यात किया गया"
   histogram_exported_pdf: "हिस्टोग्राम PDF के रूप में निर्यात किया गया"
-  table_exported_png: "तालिका PNG के रूप में निर्यात हुई (केवल सेल; मानों के लिए CSV)"
+  table_exported_png: "तालिका PNG के रूप में निर्यात हुई"
   table_exported_pdf: "तालिका PDF के रूप में निर्यात हुई"
   scatter_exported_png: "स्कैटर प्लॉट PNG के रूप में निर्यात किया गया"
   scatter_exported_pdf: "स्कैटर प्लॉट PDF के रूप में निर्यात किया गया"
@@ -209,6 +237,7 @@ common:
   duplicate: "डुप्लिकेट"
   apply: "लागू करें"
   close: "बंद करें"
+  cancel: "रद्द करें"
   reset: "रीसेट"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -325,10 +354,42 @@ histogram:
   filter_min: "न्यूनतम"
   filter_max: "अधिकतम"
   no_filters: "कोई सक्रिय फ़िल्टर नहीं"
+  scale_hits: "हिट गणना"
+  scale_average: "औसत मान"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "चार्ट प्रदर्शित करने के लिए चैनल चुनें"
+  cursor: "कर्सर"
+  rich: "रिच"
+  target: "टारगेट"
+  lean: "लीन"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "निर्यात..."
+  title_chart: "चार्ट निर्यात करें"
+  title_scatter: "स्कैटर प्लॉट निर्यात करें"
+  title_histogram: "हिस्टोग्राम निर्यात करें"
+  title_table: "तालिका निर्यात करें"
+  format: "प्रारूप"
+  paper: "कागज़"
+  paper_desc: "हल्का। डिफ़ॉल्ट; साफ़ छपता है।"
+  graphite: "ग्रेफ़ाइट"
+  graphite_desc: "गहरा, स्याही बचाने वाला धूसर।"
+  cvd_note: "निर्यात हमेशा रंग-अंधता-सुरक्षित पैलेट का उपयोग करते हैं, ताकि जिनके साथ आप साझा करें वे इन्हें पढ़ सकें।"
+  export_pdf: "PDF निर्यात करें"
+  export_png: "PNG निर्यात करें"
+  copy_image: "छवि कॉपी करें"
+  copy_tooltip: "हेडर या फ़ुटर के बिना चार्ट या तालिका कॉपी करें, ताकि किसी दस्तावेज़ में चिपकाया जा सके"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "UltraLog के बारे में"
+  tagline: "उच्च-प्रदर्शन ECU लॉग व्यूअर"
+  license: "%{license} लाइसेंस के तहत ओपन सोर्स"
+  website: "वेबसाइट"
+  source: "स्रोत कोड"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -401,6 +462,10 @@ table_gen:
   copy_failed: "क्लिपबोर्ड पर कॉपी करने में विफल"
   exported: "तालिका %{path} को निर्यात की गई"
   export_failed: "निर्यात विफल हुआ"
+  legend_high: "उच्च आत्मविश्वास"
+  legend_medium: "मध्यम आत्मविश्वास"
+  legend_low: "कम आत्मविश्वास"
+  legend_empty: "कोई नमूना नहीं"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -438,8 +503,8 @@ track_map:
   color_by: "रंग चुनें"
   solid: "ठोस"
   colormap: "रंग मानचित्र"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "अनुक्रमिक"
+  colormap.diverging: "अपसारी"
   range: "रेंज"
   range_auto: "स्वतः"
   lap: "लैप"

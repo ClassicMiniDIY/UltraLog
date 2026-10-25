@@ -1,1633 +1,720 @@
-//! Chart export functionality (PNG, PDF).
+//! Export: build an ExportSheet (`ui/export_sheet`) from the active tool's state and write it
+//! as PNG or PDF, or copy the chart or table as an image for pasting.
+//!
+//! Every tool exports through [`UltraLogApp::export_sheet`], so the chart, scatter plots,
+//! histogram and tuning tables share one layout, the export themes and one file path.
 
-use printpdf::*;
+use std::path::Path;
+
 use rust_i18n::t;
 
-// Use fully qualified path to disambiguate from printpdf's image module
-use ::image::{Rgba, RgbaImage};
-
+use crate::analysis::tables::binning::uniform_bin;
 use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
-use crate::state::HistogramMode;
+use crate::state::{ActiveTool, HistogramMode, ScatterPlotConfig};
+use crate::ui::export_sheet::{
+    self, Body, ChartModel, ExportFormat, GridModel, SeriesModel, Sheet,
+};
+use crate::ui::heatmap::MapKind;
+use crate::ui::theme::ExportTheme;
 
-/// Helper to push text ops into a Vec<Op>
-pub(crate) fn push_text(
-    ops: &mut Vec<Op>,
-    text: &str,
-    size: f32,
-    x: Mm,
-    y: Mm,
-    font: &PdfFontHandle,
-) {
-    ops.push(Op::StartTextSection);
-    ops.push(Op::SetFont {
-        font: font.clone(),
-        size: Pt(size),
-    });
-    ops.push(Op::SetTextCursor {
-        pos: Point::new(x, y),
-    });
-    ops.push(Op::ShowText {
-        items: vec![TextItem::Text(text.to_string())],
-    });
-    ops.push(Op::EndTextSection);
+/// Points per series on an exported chart (LTTB keeps peaks and dropouts).
+const CHART_POINTS: usize = 1500;
+/// Bins per axis on an exported scatter density map.
+const SCATTER_BINS: usize = 96;
+
+pub(crate) type ExportResult<T> = Result<T, Box<dyn std::error::Error>>;
+
+/// Write `sheet` to `path` in `format`.
+pub fn write_sheet(
+    sheet: &Sheet,
+    format: ExportFormat,
+    theme: ExportTheme,
+    path: &Path,
+) -> ExportResult<()> {
+    match format {
+        ExportFormat::Png => export_sheet::render_png(sheet, theme).save(path)?,
+        ExportFormat::Pdf => std::fs::write(path, export_sheet::render_pdf(sheet, theme))?,
+    }
+    Ok(())
 }
 
-/// Helper to push a filled rectangle (polygon) into ops
-pub(crate) fn push_filled_rect(ops: &mut Vec<Op>, x: f32, y: f32, w: f32, h: f32) {
-    let rect = Polygon {
-        rings: vec![PolygonRing {
-            points: vec![
-                LinePoint {
-                    p: Point::new(Mm(x), Mm(y)),
-                    bezier: false,
-                },
-                LinePoint {
-                    p: Point::new(Mm(x + w), Mm(y)),
-                    bezier: false,
-                },
-                LinePoint {
-                    p: Point::new(Mm(x + w), Mm(y + h)),
-                    bezier: false,
-                },
-                LinePoint {
-                    p: Point::new(Mm(x), Mm(y + h)),
-                    bezier: false,
-                },
-            ],
-        }],
-        mode: PaintMode::Fill,
-        winding_order: WindingOrder::NonZero,
-    };
-    ops.push(Op::DrawPolygon { polygon: rect });
+/// Decimals that keep about three significant digits across `range`.
+fn decimals_for(range: f64) -> usize {
+    if range >= 100.0 {
+        0
+    } else if range >= 10.0 {
+        1
+    } else {
+        2
+    }
 }
 
-/// Helper to push a closed line (border) into ops
-pub(crate) fn push_closed_line(ops: &mut Vec<Op>, points: &[(f32, f32)]) {
-    let line = Line {
-        points: points
-            .iter()
-            .map(|&(x, y)| LinePoint {
-                p: Point::new(Mm(x), Mm(y)),
-                bezier: false,
-            })
-            .collect(),
-        is_closed: true,
-    };
-    ops.push(Op::DrawLine { line });
+/// `count + 1` evenly spaced axis labels from `min` to `min + range`.
+pub(crate) fn even_ticks(min: f64, range: f64, count: usize) -> Vec<(f32, String)> {
+    let d = decimals_for(range);
+    (0..=count)
+        .map(|i| {
+            let k = i as f64 / count as f64;
+            (k as f32, format!("{:.d$}", min + k * range))
+        })
+        .collect()
 }
 
-/// Helper to push an open line into ops
-fn push_open_line(ops: &mut Vec<Op>, points: &[(f32, f32)]) {
-    let line = Line {
-        points: points
-            .iter()
-            .map(|&(x, y)| LinePoint {
-                p: Point::new(Mm(x), Mm(y)),
-                bezier: false,
-            })
-            .collect(),
-        is_closed: false,
+/// `n` with thin-space thousands separators (`223 559`).
+pub(crate) fn group_thousands(n: usize) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push('\u{2009}');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Finite min and max of `values`, or `None` when there are none.
+fn finite_bounds(values: &[f64]) -> Option<(f64, f64)> {
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    for &v in values.iter().filter(|v| v.is_finite()) {
+        lo = lo.min(v);
+        hi = hi.max(v);
+    }
+    (lo <= hi).then_some((lo, hi))
+}
+
+/// A value on the chart's 0..=1 scale for a channel spanning `lo..=hi`. A constant channel
+/// sits at mid-height, as `chart.rs` draws it, not on the bottom border.
+fn normalize_like_chart(v: f64, lo: f64, hi: f64) -> f64 {
+    if (hi - lo).abs() < f64::EPSILON {
+        0.5
+    } else {
+        ((v - lo) / (hi - lo)).clamp(0.0, 1.0)
+    }
+}
+
+/// `points` (sorted by time) cut to `t0..=t1`: an edge point outside the range is moved to
+/// the boundary along its segment, so the edge segment keeps its true slope.
+fn clip_to_range(points: &[[f64; 2]], t0: f64, t1: f64) -> Vec<[f64; 2]> {
+    let lerp = |a: [f64; 2], b: [f64; 2], t: f64| {
+        let k = if b[0] > a[0] {
+            (t - a[0]) / (b[0] - a[0])
+        } else {
+            0.0
+        };
+        [t, a[1] + (b[1] - a[1]) * k]
     };
-    ops.push(Op::DrawLine { line });
+    let mut out = Vec::with_capacity(points.len());
+    for (i, &p) in points.iter().enumerate() {
+        if (t0..=t1).contains(&p[0]) {
+            if p[0] > t0
+                && out.is_empty()
+                && let Some(&prev) = i.checked_sub(1).and_then(|j| points.get(j))
+            {
+                out.push(lerp(prev, p, t0));
+            }
+            out.push(p);
+        } else if p[0] > t1 {
+            if let Some(&prev) = i.checked_sub(1).and_then(|j| points.get(j))
+                && prev[0] <= t1
+                && prev[0] >= t0
+            {
+                out.push(lerp(prev, p, t1));
+            }
+            break;
+        }
+    }
+    out
+}
+
+fn nonzero(range: f64) -> f64 {
+    if range.abs() < f64::EPSILON {
+        1.0
+    } else {
+        range
+    }
 }
 
 impl UltraLogApp {
-    /// Export the current chart view as PNG
-    pub fn export_chart_png(&mut self) {
-        // Show save dialog
+    /// The display name of a channel (normalized when field normalization is on).
+    fn export_channel_name(&self, file_idx: usize, channel_idx: usize) -> String {
+        let name = self.get_channel_name(file_idx, channel_idx);
+        if self.field_normalization {
+            normalize_channel_name_with_custom(&name, Some(&self.custom_normalizations))
+        } else {
+            name
+        }
+    }
+
+    fn active_file_index(&self) -> Option<usize> {
+        self.active_tab
+            .and_then(|i| self.tabs.get(i))
+            .map(|tab| tab.file_index)
+            .filter(|&i| i < self.files.len())
+    }
+
+    /// The file-name stem and analytics id for the active tool's export.
+    fn export_slug(&self) -> String {
+        match self.active_tool {
+            ActiveTool::LogViewer => "chart".into(),
+            ActiveTool::ScatterPlot => "scatter_plot".into(),
+            ActiveTool::Histogram => "histogram".into(),
+            _ => self
+                .active_tool
+                .generator_kind()
+                .map_or("table".into(), |k| k.id().to_string()),
+        }
+    }
+
+    /// Build the ExportSheet for the active tool.
+    pub fn export_sheet(&self) -> ExportResult<Sheet> {
+        match self.active_tool {
+            ActiveTool::LogViewer => self.chart_sheet(),
+            ActiveTool::ScatterPlot => self.scatter_sheet(),
+            ActiveTool::Histogram => self.histogram_sheet(),
+            _ => {
+                let kind = self
+                    .active_tool
+                    .generator_kind()
+                    .ok_or("Nothing to export")?;
+                let acc = self
+                    .table_generator
+                    .table(kind)
+                    .ok_or_else(|| t!("table_gen.no_events").to_string())?;
+                crate::ui::table_export::table_sheet(
+                    acc,
+                    self.table_generator.measure_index(kind),
+                    &self.table_generator.export,
+                    self.active_tool.name(),
+                )
+            }
+        }
+    }
+
+    /// Export the active tool to a file the user picks.
+    pub fn export_to_file(&mut self, format: ExportFormat, theme: ExportTheme) {
+        let sheet = match self.export_sheet() {
+            Ok(sheet) => sheet,
+            Err(e) => {
+                self.show_toast_error(&t!("toast.export_failed", error = e.to_string()));
+                return;
+            }
+        };
+        let slug = self.export_slug();
+        let ext = format.extension();
+        let filter = match format {
+            ExportFormat::Pdf => "PDF Document",
+            ExportFormat::Png => "PNG Image",
+        };
+        let success = match (self.active_tool, format) {
+            (ActiveTool::LogViewer, ExportFormat::Pdf) => t!("toast.export_pdf_success"),
+            (ActiveTool::LogViewer, ExportFormat::Png) => t!("toast.export_png_success"),
+            (ActiveTool::ScatterPlot, ExportFormat::Pdf) => t!("toast.scatter_exported_pdf"),
+            (ActiveTool::ScatterPlot, ExportFormat::Png) => t!("toast.scatter_exported_png"),
+            (ActiveTool::Histogram, ExportFormat::Pdf) => t!("toast.histogram_exported_pdf"),
+            (ActiveTool::Histogram, ExportFormat::Png) => t!("toast.histogram_exported_png"),
+            (_, ExportFormat::Pdf) => t!("toast.table_exported_pdf"),
+            (_, ExportFormat::Png) => t!("toast.table_exported_png"),
+        };
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("PNG Image", &["png"])
-            .set_file_name("ultralog_chart.png")
+            .add_filter(filter, &[ext])
+            .set_file_name(format!("ultralog_{slug}.{ext}"))
             .save_file()
         else {
             return;
         };
-
-        // Create a simple chart representation as image
-        match self.render_chart_to_png(&path) {
-            Ok(_) => {
-                analytics::track_export("png");
-                self.show_toast_success(&t!("toast.export_png_success"));
-            }
-            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
-        }
-    }
-
-    /// Export the current chart view as PDF
-    pub fn export_chart_pdf(&mut self) {
-        // Show save dialog
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("PDF Document", &["pdf"])
-            .set_file_name("ultralog_chart.pdf")
-            .save_file()
-        else {
-            return;
-        };
-
-        match self.render_chart_to_pdf(&path) {
-            Ok(_) => {
-                analytics::track_export("pdf");
-                self.show_toast_success(&t!("toast.export_pdf_success"));
-            }
-            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
-        }
-    }
-
-    /// Render chart data to PNG file
-    fn render_chart_to_png(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let width = 1920u32;
-        let height = 1080u32;
-
-        // Create image buffer
-        let mut imgbuf = RgbaImage::new(width, height);
-
-        // Fill with dark background
-        for pixel in imgbuf.pixels_mut() {
-            *pixel = Rgba([30, 30, 30, 255]);
-        }
-
-        // Draw chart area background
-        let chart_left = 80u32;
-        let chart_right = width - 40;
-        let chart_top = 60u32;
-        let chart_bottom = height - 80;
-
-        for y in chart_top..chart_bottom {
-            for x in chart_left..chart_right {
-                imgbuf.put_pixel(x, y, Rgba([40, 40, 40, 255]));
-            }
-        }
-
-        // Get time range
-        let Some((min_time, max_time)) = self.time_range else {
-            return Err("No time range available".into());
-        };
-
-        let time_span = max_time - min_time;
-        if time_span <= 0.0 {
-            return Err("Invalid time range".into());
-        }
-
-        let chart_width = (chart_right - chart_left) as f64;
-        let chart_height = (chart_bottom - chart_top) as f64;
-
-        // Draw each channel
-        for selected in self.get_selected_channels() {
-            let color = self.get_channel_color(selected.color_index);
-            let pixel_color = Rgba([color[0], color[1], color[2], 255]);
-
-            // Get channel data
-            if selected.file_index >= self.files.len() {
-                continue;
-            }
-            let file = &self.files[selected.file_index];
-            let times = file.log.get_times_as_f64();
-            let data = self.get_channel_data(selected.file_index, selected.channel_index);
-
-            if data.is_empty() {
-                continue;
-            }
-
-            // Find min/max for normalization
-            let mut data_min = f64::INFINITY;
-            let mut data_max = f64::NEG_INFINITY;
-            for &val in &data {
-                data_min = data_min.min(val);
-                data_max = data_max.max(val);
-            }
-
-            let data_range = if (data_max - data_min).abs() < 0.0001 {
-                1.0
-            } else {
-                data_max - data_min
-            };
-
-            // Draw data points as lines
-            let mut prev_x: Option<u32> = None;
-            let mut prev_y: Option<u32> = None;
-
-            for (&time, &value) in times.iter().zip(data.iter()) {
-                // Skip points outside time range
-                if time < min_time || time > max_time {
-                    continue;
-                }
-
-                let x_ratio = (time - min_time) / time_span;
-                let y_ratio = (value - data_min) / data_range;
-
-                let x = chart_left + (x_ratio * chart_width) as u32;
-                let y = chart_bottom - (y_ratio * chart_height) as u32;
-
-                // Draw line from previous point
-                if let (Some(px), Some(py)) = (prev_x, prev_y) {
-                    draw_line(&mut imgbuf, px, py, x, y, pixel_color);
-                }
-
-                prev_x = Some(x);
-                prev_y = Some(y);
-            }
-        }
-
-        // Save the image
-        imgbuf.save(path)?;
-
-        Ok(())
-    }
-
-    /// Render chart data to PDF file
-    fn render_chart_to_pdf(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut ops: Vec<Op> = Vec::new();
-
-        let font_bold = PdfFontHandle::Builtin(BuiltinFont::HelveticaBold);
-        let font_regular = PdfFontHandle::Builtin(BuiltinFont::Helvetica);
-
-        // Get time range
-        let Some((min_time, max_time)) = self.time_range else {
-            return Err("No time range available".into());
-        };
-
-        let time_span = max_time - min_time;
-        if time_span <= 0.0 {
-            return Err("Invalid time range".into());
-        }
-
-        // Chart dimensions in mm (A4 landscape with margins)
-        let margin: f64 = 20.0;
-        let chart_left: f64 = margin;
-        let chart_right: f64 = 297.0 - margin;
-        let chart_bottom: f64 = margin + 20.0; // Leave room for time labels
-        let chart_top: f64 = 210.0 - margin - 30.0; // Leave room for title
-
-        let chart_width: f64 = chart_right - chart_left;
-        let chart_height: f64 = chart_top - chart_bottom;
-
-        // Draw title
-        push_text(
-            &mut ops,
-            "UltraLog Chart Export",
-            16.0,
-            Mm(margin as f32),
-            Mm(200.0),
-            &font_bold,
-        );
-
-        // Draw subtitle with file info
-        if let Some(file) = self.files.first() {
-            let subtitle = format!(
-                "{} | {} channels selected | Time: {:.1}s - {:.1}s",
-                file.name,
-                self.get_selected_channels().len(),
-                min_time,
-                max_time
-            );
-            push_text(
-                &mut ops,
-                &subtitle,
-                10.0,
-                Mm(margin as f32),
-                Mm(192.0),
-                &font_regular,
-            );
-        }
-
-        // Draw chart border
-        let border_color = Color::Rgb(Rgb::new(0.3, 0.3, 0.3, None));
-        ops.push(Op::SetOutlineColor { col: border_color });
-        ops.push(Op::SetOutlineThickness { pt: Pt(0.5) });
-
-        push_closed_line(
-            &mut ops,
-            &[
-                (chart_left as f32, chart_bottom as f32),
-                (chart_right as f32, chart_bottom as f32),
-                (chart_right as f32, chart_top as f32),
-                (chart_left as f32, chart_top as f32),
-            ],
-        );
-
-        // Draw each channel
-        for selected in self.get_selected_channels() {
-            let color_rgb = self.get_channel_color(selected.color_index);
-            let line_color = Color::Rgb(Rgb::new(
-                color_rgb[0] as f32 / 255.0,
-                color_rgb[1] as f32 / 255.0,
-                color_rgb[2] as f32 / 255.0,
-                None,
-            ));
-
-            ops.push(Op::SetOutlineColor { col: line_color });
-            ops.push(Op::SetOutlineThickness { pt: Pt(0.75) });
-
-            // Get channel data
-            if selected.file_index >= self.files.len() {
-                continue;
-            }
-            let file = &self.files[selected.file_index];
-            let times = file.log.get_times_as_f64();
-            let data = self.get_channel_data(selected.file_index, selected.channel_index);
-
-            if data.is_empty() {
-                continue;
-            }
-
-            // Find min/max for normalization
-            let mut data_min = f64::INFINITY;
-            let mut data_max = f64::NEG_INFINITY;
-            for &val in &data {
-                data_min = data_min.min(val);
-                data_max = data_max.max(val);
-            }
-
-            let data_range = if (data_max - data_min).abs() < 0.0001 {
-                1.0
-            } else {
-                data_max - data_min
-            };
-
-            // Build line points (downsample for PDF)
-            let mut points: Vec<LinePoint> = Vec::new();
-            let step = (times.len() / 500).max(1); // Max ~500 points per channel
-
-            for (i, (&time, &value)) in times.iter().zip(data.iter()).enumerate() {
-                if i % step != 0 {
-                    continue;
-                }
-
-                if time < min_time || time > max_time {
-                    continue;
-                }
-
-                let x_ratio = (time - min_time) / time_span;
-                let y_ratio = (value - data_min) / data_range;
-
-                let x = chart_left + x_ratio * chart_width;
-                let y = chart_bottom + y_ratio * chart_height;
-
-                points.push(LinePoint {
-                    p: Point::new(Mm(x as f32), Mm(y as f32)),
-                    bezier: false,
-                });
-            }
-
-            if points.len() >= 2 {
-                let line = Line {
-                    points,
-                    is_closed: false,
+        match write_sheet(&sheet, format, theme, &path) {
+            Ok(()) => {
+                // The chart keeps its pre-3.0 event names ("png" / "pdf").
+                let event = if slug == "chart" {
+                    ext.to_string()
+                } else {
+                    format!("{slug}_{ext}")
                 };
-                ops.push(Op::DrawLine { line });
+                analytics::track_export(&event);
+                self.show_toast_success(&success);
             }
+            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
+    }
 
-        // Draw legend
-        let legend_y = chart_bottom - 12.0;
-        let mut legend_x = chart_left;
-
-        for selected in self.get_selected_channels() {
-            let color_rgb = self.get_channel_color(selected.color_index);
-            let text_color = Color::Rgb(Rgb::new(
-                color_rgb[0] as f32 / 255.0,
-                color_rgb[1] as f32 / 255.0,
-                color_rgb[2] as f32 / 255.0,
-                None,
-            ));
-
-            // Get display name (normalized or original based on setting)
-            let channel_name = selected.channel.name();
-            let display_name = if self.field_normalization {
-                normalize_channel_name_with_custom(&channel_name, Some(&self.custom_normalizations))
-            } else {
-                channel_name
+    /// Copy the chart or table alone (no header or footer) as an image for pasting.
+    pub fn copy_export_image(&mut self, theme: ExportTheme) {
+        let result = self.export_sheet().and_then(|sheet| {
+            let img = export_sheet::render_png_body(&sheet, theme);
+            let data = arboard::ImageData {
+                width: img.width() as usize,
+                height: img.height() as usize,
+                bytes: std::borrow::Cow::Owned(img.into_raw()),
             };
-
-            ops.push(Op::SetFillColor { col: text_color });
-            push_text(
-                &mut ops,
-                &display_name,
-                8.0,
-                Mm(legend_x as f32),
-                Mm(legend_y as f32),
-                &font_regular,
-            );
-
-            legend_x += 40.0;
-            if legend_x > chart_right - 40.0 {
-                break; // Don't overflow
-            }
-        }
-
-        // Build page and save PDF
-        let page = PdfPage::new(Mm(297.0), Mm(210.0), ops);
-        let mut doc = PdfDocument::new("UltraLog Chart Export");
-        doc.with_pages(vec![page]);
-        let mut warnings = Vec::new();
-        let pdf_bytes = doc.save(&PdfSaveOptions::default(), &mut warnings);
-        std::fs::write(path, pdf_bytes)?;
-
-        Ok(())
-    }
-
-    /// Export the current histogram view as PNG
-    pub fn export_histogram_png(&mut self) {
-        // Show save dialog
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("PNG Image", &["png"])
-            .set_file_name("ultralog_histogram.png")
-            .save_file()
-        else {
-            return;
-        };
-
-        match self.render_histogram_to_png(&path) {
-            Ok(_) => {
-                analytics::track_export("histogram_png");
-                self.show_toast_success(&t!("toast.histogram_exported_png"));
+            arboard::Clipboard::new()?.set_image(data)?;
+            Ok(())
+        });
+        match result {
+            Ok(()) => {
+                analytics::track_export(&format!("{}_clipboard", self.export_slug()));
+                self.show_toast_success(&t!("toast.export_copied"));
             }
             Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
         }
     }
 
-    /// Export the current scatter plot view as PNG
-    pub fn export_scatter_plot_png(&mut self) {
-        // Show save dialog
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("PNG Image", &["png"])
-            .set_file_name("ultralog_scatter_plot.png")
-            .save_file()
-        else {
-            return;
-        };
-
-        match self.render_scatter_plot_to_png(&path) {
-            Ok(_) => {
-                analytics::track_export("scatter_plot_png");
-                self.show_toast_success(&t!("toast.scatter_exported_png"));
-            }
-            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
+    /// The Log Viewer chart over the visible time range.
+    fn chart_sheet(&self) -> ExportResult<Sheet> {
+        let channels = self.get_selected_channels();
+        if channels.is_empty() {
+            return Err("No channels selected".into());
         }
+        // The tab range: log A joined with the shifted log B, as on screen.
+        let (full0, full1) = self.get_time_range().ok_or("No time range available")?;
+        let tab = self.active_tab.map(|i| &self.tabs[i]);
+        let (t0, t1) = self
+            .chart_last_x_bounds
+            .get(&0)
+            .map(|&(a, b)| (a.max(full0), b.min(full1)))
+            .filter(|(a, b)| b > a)
+            .unwrap_or((full0, full1));
+        if t1 <= t0 {
+            return Err("Invalid time range".into());
+        }
+
+        let mut series = Vec::new();
+        for selected in channels {
+            let Some(file) = self.files.get(selected.file_index) else {
+                continue;
+            };
+            let times = file.log.get_times_as_f64();
+            let data = self.get_channel_data_ref(selected.file_index, selected.channel_index);
+            if times.is_empty() || times.len() != data.len() {
+                continue;
+            }
+            // Normalized to the whole channel, like the chart; a compare pair shares one range
+            // (R1).
+            let Some(mut bounds) = finite_bounds(data) else {
+                continue;
+            };
+            if let Some(partner) = tab.and_then(|t| t.partner_of(selected))
+                && let Some((plo, phi)) = finite_bounds(
+                    self.get_channel_data_ref(partner.file_index, partner.channel_index),
+                )
+            {
+                bounds = (bounds.0.min(plo), bounds.1.max(phi));
+            }
+            let (lo, hi) = bounds;
+            // Log B is sliced in its own time, then moved onto the tab axis.
+            let offset = tab.map_or(0.0, |t| t.time_offset(selected.file_index));
+            let (s0, s1) = (t0 - offset, t1 - offset);
+            let a = times.partition_point(|&t| t < s0).saturating_sub(1);
+            let b = (times.partition_point(|&t| t <= s1) + 1).min(times.len());
+            if a >= b {
+                continue;
+            }
+            let raw: Vec<[f64; 2]> =
+                crate::app::UltraLogApp::downsample_lttb(&times[a..b], &data[a..b], CHART_POINTS)
+                    .into_iter()
+                    .filter(|p| p[1].is_finite())
+                    .map(|[t, v]| [t + offset, v])
+                    .collect();
+            let points = clip_to_range(&raw, t0, t1)
+                .into_iter()
+                .map(|[t, v]| [t, normalize_like_chart(v, lo, hi)])
+                .collect();
+            let unit = self
+                .unit_preferences
+                .convert_value(0.0, selected.channel.unit())
+                .1
+                .to_string();
+            series.push(SeriesModel {
+                name: self.export_channel_name(selected.file_index, selected.channel_index),
+                unit,
+                color_index: selected.color_index,
+                log: tab
+                    .filter(|t| t.compare.is_some())
+                    .map(|t| t.log_role(selected)),
+                points,
+            });
+        }
+        if series.is_empty() {
+            return Err("No data available".into());
+        }
+
+        let file = self
+            .active_file_index()
+            .or(channels.first().map(|c| c.file_index))
+            .and_then(|i| self.files.get(i))
+            .ok_or("No file loaded")?;
+        let mut meta = vec![
+            format!(
+                "{} \u{2013} {}",
+                Self::format_time(t0),
+                Self::format_time(t1)
+            ),
+            format!(
+                "{} records \u{00B7} {} ch",
+                group_thousands(file.log.times.len()),
+                file.log.channels.len()
+            ),
+        ];
+        // Both files and log B's offset, so the sheet says what is compared with what.
+        if let Some(compare) = tab.and_then(|t| t.compare.as_ref())
+            && let Some(b) = self.files.get(compare.file_index)
+        {
+            meta.push(format!(
+                "A {} \u{00B7} B {} \u{00B7} B offset {:+.2} s",
+                file.name, b.name, compare.offset_s
+            ));
+        }
+        Ok(Sheet {
+            title: file.name.clone(),
+            meta,
+            body: Body::Chart(ChartModel { series, t0, t1 }),
+        })
     }
 
-    /// Export the current scatter plot view as PDF
-    pub fn export_scatter_plot_pdf(&mut self) {
-        // Show save dialog
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("PDF Document", &["pdf"])
-            .set_file_name("ultralog_scatter_plot.pdf")
-            .save_file()
-        else {
-            return;
-        };
-
-        match self.render_scatter_plot_to_pdf(&path) {
-            Ok(_) => {
-                analytics::track_export("scatter_plot_pdf");
-                self.show_toast_success(&t!("toast.scatter_exported_pdf"));
-            }
-            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
-        }
-    }
-
-    /// Export the current histogram view as PDF
-    pub fn export_histogram_pdf(&mut self) {
-        // Show save dialog
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("PDF Document", &["pdf"])
-            .set_file_name("ultralog_histogram.pdf")
-            .save_file()
-        else {
-            return;
-        };
-
-        match self.render_histogram_to_pdf(&path) {
-            Ok(_) => {
-                analytics::track_export("histogram_pdf");
-                self.show_toast_success(&t!("toast.histogram_exported_pdf"));
-            }
-            Err(e) => self.show_toast_error(&t!("toast.export_failed", error = e.to_string())),
-        }
-    }
-
-    /// Render histogram to PDF file
-    fn render_histogram_to_pdf(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // Get tab and file data
+    /// The histogram as the Histogram tool shows it (custom ranges, sample filters, min hits).
+    fn histogram_sheet(&self) -> ExportResult<Sheet> {
         let tab_idx = self.active_tab.ok_or("No active tab")?;
         let config = &self.tabs[tab_idx].histogram_state.config;
-        let file_idx = self.tabs[tab_idx].file_index;
+        let file_idx = self.active_file_index().ok_or("Invalid file index")?;
+        let mode = config.mode;
+        let (cols, rows) = config.effective_grid_size();
 
-        if file_idx >= self.files.len() {
-            return Err("Invalid file index".into());
+        let x_idx = config.x_channel.ok_or("X axis not selected")?;
+        let y_idx = config.y_channel.ok_or("Y axis not selected")?;
+        let z_idx = match mode {
+            HistogramMode::AverageZ => Some(
+                config
+                    .z_channel
+                    .ok_or("Z axis not selected for Average mode")?,
+            ),
+            HistogramMode::HitCount => None,
+        };
+        let x_data = self.get_channel_data(file_idx, x_idx);
+        let y_data = self.get_channel_data(file_idx, y_idx);
+        let z_data = z_idx.map(|z| self.get_channel_data(file_idx, z));
+        if x_data.is_empty() || x_data.len() != y_data.len() {
+            return Err("No data available".into());
         }
+
+        let bounds = |custom: Option<(f64, f64)>, data: &[f64]| match custom {
+            Some((lo, hi)) if hi > lo => (lo, hi),
+            _ => finite_bounds(data).unwrap_or((0.0, 1.0)),
+        };
+        let (x_min, x_max) = bounds(config.custom_x_range, &x_data);
+        let (y_min, y_max) = bounds(config.custom_y_range, &y_data);
+        let (x_range, y_range) = (nonzero(x_max - x_min), nonzero(y_max - y_min));
+
+        let filters: Vec<_> = config
+            .sample_filters
+            .iter()
+            .filter(|f| f.enabled)
+            .map(|f| (f, self.get_channel_data(file_idx, f.channel_idx)))
+            .collect();
+
+        // Same binning as `render_histogram_grid` (`binning::uniform_bin`).
+        let mut hits = vec![vec![0u32; cols]; rows];
+        let mut z_sums = vec![vec![0.0f64; cols]; rows];
+        let mut samples = 0usize;
+        'samples: for i in 0..x_data.len() {
+            for (filter, data) in &filters {
+                let Some(&v) = data.get(i) else {
+                    continue 'samples;
+                };
+                if filter.min_value.is_some_and(|m| v < m)
+                    || filter.max_value.is_some_and(|m| v > m)
+                {
+                    continue 'samples;
+                }
+            }
+            if config.custom_x_range.is_some() && (x_data[i] < x_min || x_data[i] > x_max) {
+                continue;
+            }
+            if config.custom_y_range.is_some() && (y_data[i] < y_min || y_data[i] > y_max) {
+                continue;
+            }
+            let xb = uniform_bin(x_data[i], x_min, x_range, cols);
+            let yb = uniform_bin(y_data[i], y_min, y_range, rows);
+            hits[yb][xb] += 1;
+            if let Some(z) = &z_data {
+                z_sums[yb][xb] += z[i];
+            }
+            samples += 1;
+        }
+
+        // Like `render_histogram_grid`: the colour range spans every cell with hits, and cells
+        // under the minimum-hits filter are blanked afterwards (they still widen the range).
+        let min_hits = config.min_hits_filter;
+        let mut values = vec![vec![None::<f64>; cols]; rows];
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for r in 0..rows {
+            for c in 0..cols {
+                let h = hits[r][c];
+                if h == 0 {
+                    continue;
+                }
+                let v = match mode {
+                    HistogramMode::HitCount => h as f64,
+                    HistogramMode::AverageZ => z_sums[r][c] / h as f64,
+                };
+                lo = lo.min(v);
+                hi = hi.max(v);
+                if !(min_hits > 0 && h < min_hits) {
+                    values[r][c] = Some(v);
+                }
+            }
+        }
+        if !lo.is_finite() {
+            // No sample landed in the grid: export it empty, as the tool shows it.
+            (lo, hi) = (0.0, 1.0);
+        }
+        let value_range = nonzero(hi - lo);
+        let norm = values
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            let k = if mode == HistogramMode::HitCount && hi > 1.0 {
+                                v.ln() / hi.ln()
+                            } else {
+                                (v - lo) / value_range
+                            };
+                            k.clamp(0.0, 1.0) as f32
+                        })
+                    })
+                    .collect()
+            })
+            .collect();
+        let labels = values
+            .iter()
+            .enumerate()
+            .map(|(r, row)| {
+                row.iter()
+                    .enumerate()
+                    .map(|(c, v)| {
+                        v.map(|v| match mode {
+                            HistogramMode::HitCount => hits[r][c].to_string(),
+                            HistogramMode::AverageZ => format!("{v:.1}"),
+                        })
+                    })
+                    .collect()
+            })
+            .collect();
+        let (scale_title, scale_min, scale_max) = match mode {
+            HistogramMode::HitCount => (
+                t!("histogram.scale_hits").to_string(),
+                "0".to_string(),
+                format!("{hi:.0}"),
+            ),
+            HistogramMode::AverageZ => (
+                format!(
+                    "{} \u{00B7} {}",
+                    t!("histogram.scale_average"),
+                    self.export_channel_name(file_idx, z_idx.unwrap_or(0))
+                ),
+                format!("{lo:.1}"),
+                format!("{hi:.1}"),
+            ),
+        };
 
         let file = &self.files[file_idx];
-        let mode = config.mode;
-        let (grid_cols, grid_rows) = config.effective_grid_size();
-
-        let x_idx = config.x_channel.ok_or("X axis not selected")?;
-        let y_idx = config.y_channel.ok_or("Y axis not selected")?;
-        let z_idx = if mode == HistogramMode::AverageZ {
-            config
-                .z_channel
-                .ok_or("Z axis not selected for Average mode")?
-        } else {
-            0 // unused
-        };
-
-        // Get channel data (handles both regular and computed channels)
-        let x_data = self.get_channel_data(file_idx, x_idx);
-        let y_data = self.get_channel_data(file_idx, y_idx);
-        let z_data = if mode == HistogramMode::AverageZ {
-            Some(self.get_channel_data(file_idx, z_idx))
-        } else {
-            None
-        };
-
-        if x_data.is_empty() || y_data.is_empty() {
-            return Err("No data available".into());
-        }
-
-        // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-        let x_range = if (x_max - x_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            x_max - x_min
-        };
-        let y_range = if (y_max - y_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            y_max - y_min
-        };
-
-        // Build histogram grid
-        let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
-        let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
-
-        for i in 0..x_data.len() {
-            let x_bin = (((x_data[i] - x_min) / x_range) * (grid_cols - 1) as f64).round() as usize;
-            let y_bin = (((y_data[i] - y_min) / y_range) * (grid_rows - 1) as f64).round() as usize;
-            let x_bin = x_bin.min(grid_cols - 1);
-            let y_bin = y_bin.min(grid_rows - 1);
-
-            hit_counts[y_bin][x_bin] += 1;
-            if let Some(ref z) = z_data {
-                z_sums[y_bin][x_bin] += z[i];
-            }
-        }
-
-        // Calculate cell values and find min/max for color scaling
-        let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
-        let mut min_value: f64 = f64::INFINITY;
-        let mut max_value: f64 = f64::NEG_INFINITY;
-
-        for y_bin in 0..grid_rows {
-            for x_bin in 0..grid_cols {
-                let hits = hit_counts[y_bin][x_bin];
-                if hits > 0 {
-                    let value = match mode {
-                        HistogramMode::HitCount => hits as f64,
-                        HistogramMode::AverageZ => z_sums[y_bin][x_bin] / hits as f64,
-                    };
-                    cell_values[y_bin][x_bin] = Some(value);
-                    min_value = min_value.min(value);
-                    max_value = max_value.max(value);
-                }
-            }
-        }
-
-        let value_range = if (max_value - min_value).abs() < f64::EPSILON {
-            1.0
-        } else {
-            max_value - min_value
-        };
-
-        // Get channel names (handles both regular and computed channels)
-        let x_name = self.get_channel_name(file_idx, x_idx);
-        let y_name = self.get_channel_name(file_idx, y_idx);
-        let z_name = if mode == HistogramMode::AverageZ {
-            self.get_channel_name(file_idx, z_idx)
-        } else {
-            "Hit Count".to_string()
-        };
-
-        let font_bold = PdfFontHandle::Builtin(BuiltinFont::HelveticaBold);
-        let font_regular = PdfFontHandle::Builtin(BuiltinFont::Helvetica);
-
-        let mut ops: Vec<Op> = Vec::new();
-
-        // Chart dimensions in mm (A4 landscape with margins)
-        let margin: f64 = 20.0;
-        let axis_margin: f64 = 25.0;
-        let chart_left: f64 = margin + axis_margin;
-        let chart_right: f64 = 250.0; // Leave room for legend
-        let chart_bottom: f64 = margin + axis_margin;
-        let chart_top: f64 = 210.0 - margin - 30.0;
-
-        let chart_width: f64 = chart_right - chart_left;
-        let chart_height: f64 = chart_top - chart_bottom;
-
-        let cell_width = chart_width / grid_cols as f64;
-        let cell_height = chart_height / grid_rows as f64;
-
-        // Draw title
-        push_text(
-            &mut ops,
-            "UltraLog Histogram Export",
-            16.0,
-            Mm(margin as f32),
-            Mm(200.0),
-            &font_bold,
-        );
-
-        // Draw subtitle
-        let subtitle = format!(
-            "{} | Grid: {}x{} | Mode: {}",
-            file.name,
-            grid_cols,
-            grid_rows,
-            if mode == HistogramMode::HitCount {
-                "Hit Count"
-            } else {
-                "Average Z"
-            }
-        );
-        push_text(
-            &mut ops,
-            &subtitle,
-            10.0,
-            Mm(margin as f32),
-            Mm(192.0),
-            &font_regular,
-        );
-
-        // Draw axis labels
-        let axis_subtitle = format!("X: {} | Y: {} | Z: {}", x_name, y_name, z_name);
-        push_text(
-            &mut ops,
-            &axis_subtitle,
-            9.0,
-            Mm(margin as f32),
-            Mm(186.0),
-            &font_regular,
-        );
-
-        // Draw histogram cells
-        for y_bin in 0..grid_rows {
-            for x_bin in 0..grid_cols {
-                let cell_x = chart_left + x_bin as f64 * cell_width;
-                let cell_y = chart_bottom + y_bin as f64 * cell_height;
-
-                if let Some(value) = cell_values[y_bin][x_bin] {
-                    // Calculate color
-                    let normalized = if mode == HistogramMode::HitCount && max_value > 1.0 {
-                        (value.ln() / max_value.ln()).clamp(0.0, 1.0)
-                    } else {
-                        ((value - min_value) / value_range).clamp(0.0, 1.0)
-                    };
-                    let color = Self::get_pdf_heat_color(normalized);
-
-                    ops.push(Op::SetFillColor { col: color });
-
-                    push_filled_rect(
-                        &mut ops,
-                        cell_x as f32,
-                        cell_y as f32,
-                        cell_width as f32,
-                        cell_height as f32,
-                    );
-
-                    // Draw cell value text (only for smaller grids)
-                    if grid_cols.max(grid_rows) <= 32 {
-                        let text = if mode == HistogramMode::HitCount {
-                            format!("{}", hit_counts[y_bin][x_bin])
-                        } else {
-                            format!("{:.1}", value)
-                        };
-
-                        // Calculate text color based on brightness
-                        let brightness = normalized;
-                        let text_color = if brightness > 0.5 {
-                            Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) // Black
-                        } else {
-                            Color::Rgb(Rgb::new(1.0, 1.0, 1.0, None)) // White
-                        };
-
-                        ops.push(Op::SetFillColor { col: text_color });
-                        let font_size = if grid_cols.max(grid_rows) <= 16 {
-                            6.0
-                        } else {
-                            4.0
-                        };
-                        push_text(
-                            &mut ops,
-                            &text,
-                            font_size,
-                            Mm((cell_x + cell_width / 2.0 - 2.0) as f32),
-                            Mm((cell_y + cell_height / 2.0 - 1.0) as f32),
-                            &font_regular,
-                        );
-                    }
-                }
-            }
-        }
-
-        // Draw grid lines
-        let grid_color = Color::Rgb(Rgb::new(0.4, 0.4, 0.4, None));
-        ops.push(Op::SetOutlineColor { col: grid_color });
-        ops.push(Op::SetOutlineThickness { pt: Pt(0.25) });
-
-        // Vertical grid lines (X axis divisions)
-        for i in 0..=grid_cols {
-            let x = chart_left + i as f64 * cell_width;
-            push_open_line(
-                &mut ops,
-                &[
-                    (x as f32, chart_bottom as f32),
-                    (x as f32, chart_top as f32),
-                ],
-            );
-        }
-
-        // Horizontal grid lines (Y axis divisions)
-        for i in 0..=grid_rows {
-            let y = chart_bottom + i as f64 * cell_height;
-            push_open_line(
-                &mut ops,
-                &[
-                    (chart_left as f32, y as f32),
-                    (chart_right as f32, y as f32),
-                ],
-            );
-        }
-
-        // Draw axis value labels
-        let label_color = Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None));
-        ops.push(Op::SetFillColor { col: label_color });
-
-        // Y axis labels
-        for i in 0..=4 {
-            let t = i as f64 / 4.0;
-            let value = y_min + t * y_range;
-            let y_pos = chart_bottom + t * chart_height;
-            push_text(
-                &mut ops,
-                &format!("{:.0}", value),
-                7.0,
-                Mm((chart_left - 12.0) as f32),
-                Mm((y_pos - 1.0) as f32),
-                &font_regular,
-            );
-        }
-
-        // X axis labels
-        for i in 0..=4 {
-            let t = i as f64 / 4.0;
-            let value = x_min + t * x_range;
-            let x_pos = chart_left + t * chart_width;
-            push_text(
-                &mut ops,
-                &format!("{:.0}", value),
-                7.0,
-                Mm((x_pos - 4.0) as f32),
-                Mm((chart_bottom - 8.0) as f32),
-                &font_regular,
-            );
-        }
-
-        // Draw legend (color scale)
-        let legend_left: f64 = 260.0;
-        let legend_width: f64 = 15.0;
-        let legend_bottom: f64 = chart_bottom;
-        let legend_height: f64 = chart_height;
-
-        // Draw legend title
-        ops.push(Op::SetFillColor {
-            col: Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)),
-        });
-        let legend_title = if mode == HistogramMode::HitCount {
-            "Hits"
-        } else {
-            "Value"
-        };
-        push_text(
-            &mut ops,
-            legend_title,
-            9.0,
-            Mm(legend_left as f32),
-            Mm((legend_bottom + legend_height + 5.0) as f32),
-            &font_bold,
-        );
-
-        // Draw color gradient bar
-        let gradient_steps = 30;
-        let step_height = legend_height / gradient_steps as f64;
-
-        for i in 0..gradient_steps {
-            let t = i as f64 / gradient_steps as f64;
-            let color = Self::get_pdf_heat_color(t);
-            ops.push(Op::SetFillColor { col: color });
-
-            let y = legend_bottom + i as f64 * step_height;
-            push_filled_rect(
-                &mut ops,
-                legend_left as f32,
-                y as f32,
-                legend_width as f32,
-                (step_height + 0.5) as f32,
-            );
-        }
-
-        // Draw legend min/max labels
-        ops.push(Op::SetFillColor {
-            col: Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)),
-        });
-        let min_label = if mode == HistogramMode::HitCount {
-            "0".to_string()
-        } else {
-            format!("{:.1}", min_value)
-        };
-        let max_label = if mode == HistogramMode::HitCount {
-            format!("{:.0}", max_value)
-        } else {
-            format!("{:.1}", max_value)
-        };
-
-        push_text(
-            &mut ops,
-            &min_label,
-            7.0,
-            Mm((legend_left + legend_width + 3.0) as f32),
-            Mm(legend_bottom as f32),
-            &font_regular,
-        );
-        push_text(
-            &mut ops,
-            &max_label,
-            7.0,
-            Mm((legend_left + legend_width + 3.0) as f32),
-            Mm((legend_bottom + legend_height - 3.0) as f32),
-            &font_regular,
-        );
-
-        // Draw statistics
-        let stats_y = legend_bottom - 15.0;
-        push_text(
-            &mut ops,
-            &format!("Total Points: {}", x_data.len()),
-            8.0,
-            Mm(legend_left as f32),
-            Mm(stats_y as f32),
-            &font_regular,
-        );
-
-        // Build page and save PDF
-        let page = PdfPage::new(Mm(297.0), Mm(210.0), ops);
-        let mut doc = PdfDocument::new("UltraLog Histogram Export");
-        doc.with_pages(vec![page]);
-        let mut warnings = Vec::new();
-        let pdf_bytes = doc.save(&PdfSaveOptions::default(), &mut warnings);
-        std::fs::write(path, pdf_bytes)?;
-
-        Ok(())
-    }
-
-    /// Get a PDF color from the heat map gradient based on normalized value (0-1)
-    fn get_pdf_heat_color(normalized: f64) -> Color {
-        const HEAT_COLORS: &[[u8; 3]] = &[
-            [0, 0, 80],    // Dark blue (0.0)
-            [0, 0, 180],   // Blue
-            [0, 100, 255], // Light blue
-            [0, 200, 255], // Cyan
-            [0, 255, 200], // Cyan-green
-            [0, 255, 100], // Green
-            [100, 255, 0], // Yellow-green
-            [200, 255, 0], // Yellow
-            [255, 200, 0], // Orange
-            [255, 100, 0], // Red-orange
-            [255, 0, 0],   // Red (1.0)
-        ];
-
-        let t = normalized.clamp(0.0, 1.0);
-        let scaled = t * (HEAT_COLORS.len() - 1) as f64;
-        let idx = scaled.floor() as usize;
-        let frac = scaled - idx as f64;
-
-        if idx >= HEAT_COLORS.len() - 1 {
-            let c = HEAT_COLORS[HEAT_COLORS.len() - 1];
-            return Color::Rgb(Rgb::new(
-                c[0] as f32 / 255.0,
-                c[1] as f32 / 255.0,
-                c[2] as f32 / 255.0,
-                None,
-            ));
-        }
-
-        let c1 = HEAT_COLORS[idx];
-        let c2 = HEAT_COLORS[idx + 1];
-
-        let r = (c1[0] as f64 + (c2[0] as f64 - c1[0] as f64) * frac) / 255.0;
-        let g = (c1[1] as f64 + (c2[1] as f64 - c1[1] as f64) * frac) / 255.0;
-        let b = (c1[2] as f64 + (c2[2] as f64 - c1[2] as f64) * frac) / 255.0;
-
-        Color::Rgb(Rgb::new(r as f32, g as f32, b as f32, None))
-    }
-
-    /// Get a PNG color from the heat map gradient based on normalized value (0-1)
-    fn get_png_heat_color(normalized: f64) -> Rgba<u8> {
-        const HEAT_COLORS: &[[u8; 3]] = &[
-            [0, 0, 80],    // Dark blue (0.0)
-            [0, 0, 180],   // Blue
-            [0, 100, 255], // Light blue
-            [0, 200, 255], // Cyan
-            [0, 255, 200], // Cyan-green
-            [0, 255, 100], // Green
-            [100, 255, 0], // Yellow-green
-            [200, 255, 0], // Yellow
-            [255, 200, 0], // Orange
-            [255, 100, 0], // Red-orange
-            [255, 0, 0],   // Red (1.0)
-        ];
-
-        let t = normalized.clamp(0.0, 1.0);
-        let scaled = t * (HEAT_COLORS.len() - 1) as f64;
-        let idx = scaled.floor() as usize;
-        let frac = scaled - idx as f64;
-
-        if idx >= HEAT_COLORS.len() - 1 {
-            let c = HEAT_COLORS[HEAT_COLORS.len() - 1];
-            return Rgba([c[0], c[1], c[2], 255]);
-        }
-
-        let c1 = HEAT_COLORS[idx];
-        let c2 = HEAT_COLORS[idx + 1];
-
-        let r = (c1[0] as f64 + (c2[0] as f64 - c1[0] as f64) * frac) as u8;
-        let g = (c1[1] as f64 + (c2[1] as f64 - c1[1] as f64) * frac) as u8;
-        let b = (c1[2] as f64 + (c2[2] as f64 - c1[2] as f64) * frac) as u8;
-
-        Rgba([r, g, b, 255])
-    }
-
-    /// Render histogram to PNG file
-    fn render_histogram_to_png(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // Get tab and file data
-        let tab_idx = self.active_tab.ok_or("No active tab")?;
-        let config = &self.tabs[tab_idx].histogram_state.config;
-        let file_idx = self.tabs[tab_idx].file_index;
-
-        if file_idx >= self.files.len() {
-            return Err("Invalid file index".into());
-        }
-
-        let mode = config.mode;
-        let (grid_cols, grid_rows) = config.effective_grid_size();
-
-        let x_idx = config.x_channel.ok_or("X axis not selected")?;
-        let y_idx = config.y_channel.ok_or("Y axis not selected")?;
-        let z_idx = if mode == HistogramMode::AverageZ {
-            config
-                .z_channel
-                .ok_or("Z axis not selected for Average mode")?
-        } else {
-            0 // unused
-        };
-
-        // Get channel data (handles both regular and computed channels)
-        let x_data = self.get_channel_data(file_idx, x_idx);
-        let y_data = self.get_channel_data(file_idx, y_idx);
-        let z_data = if mode == HistogramMode::AverageZ {
-            Some(self.get_channel_data(file_idx, z_idx))
-        } else {
-            None
-        };
-
-        if x_data.is_empty() || y_data.is_empty() {
-            return Err("No data available".into());
-        }
-
-        // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-        let x_range = if (x_max - x_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            x_max - x_min
-        };
-        let y_range = if (y_max - y_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            y_max - y_min
-        };
-
-        // Build histogram grid
-        let mut hit_counts = vec![vec![0u32; grid_cols]; grid_rows];
-        let mut z_sums = vec![vec![0.0f64; grid_cols]; grid_rows];
-
-        for i in 0..x_data.len() {
-            let x_bin = (((x_data[i] - x_min) / x_range) * (grid_cols - 1) as f64).round() as usize;
-            let y_bin = (((y_data[i] - y_min) / y_range) * (grid_rows - 1) as f64).round() as usize;
-            let x_bin = x_bin.min(grid_cols - 1);
-            let y_bin = y_bin.min(grid_rows - 1);
-
-            hit_counts[y_bin][x_bin] += 1;
-            if let Some(ref z) = z_data {
-                z_sums[y_bin][x_bin] += z[i];
-            }
-        }
-
-        // Calculate cell values and find min/max for color scaling
-        let mut cell_values = vec![vec![None::<f64>; grid_cols]; grid_rows];
-        let mut min_value: f64 = f64::INFINITY;
-        let mut max_value: f64 = f64::NEG_INFINITY;
-
-        for y_bin in 0..grid_rows {
-            for x_bin in 0..grid_cols {
-                let hits = hit_counts[y_bin][x_bin];
-                if hits > 0 {
-                    let value = match mode {
-                        HistogramMode::HitCount => hits as f64,
-                        HistogramMode::AverageZ => z_sums[y_bin][x_bin] / hits as f64,
-                    };
-                    cell_values[y_bin][x_bin] = Some(value);
-                    min_value = min_value.min(value);
-                    max_value = max_value.max(value);
-                }
-            }
-        }
-
-        let value_range = if (max_value - min_value).abs() < f64::EPSILON {
-            1.0
-        } else {
-            max_value - min_value
-        };
-
-        // Image dimensions
-        let width = 1920u32;
-        let height = 1080u32;
-        let margin = 80u32;
-        let legend_width = 100u32;
-
-        let chart_left = margin;
-        let chart_right = width - margin - legend_width;
-        let chart_top = margin;
-        let chart_bottom = height - margin;
-
-        let chart_width = chart_right - chart_left;
-        let chart_height = chart_bottom - chart_top;
-        let cell_width = chart_width as f64 / grid_cols as f64;
-        let cell_height = chart_height as f64 / grid_rows as f64;
-
-        // Create image buffer
-        let mut imgbuf = RgbaImage::new(width, height);
-
-        // Fill with dark background
-        for pixel in imgbuf.pixels_mut() {
-            *pixel = Rgba([30, 30, 30, 255]);
-        }
-
-        // Draw histogram cells
-        #[allow(clippy::needless_range_loop)]
-        for y_bin in 0..grid_rows {
-            for x_bin in 0..grid_cols {
-                if let Some(value) = cell_values[y_bin][x_bin] {
-                    // Calculate color
-                    let normalized = if mode == HistogramMode::HitCount && max_value > 1.0 {
-                        (value.ln() / max_value.ln()).clamp(0.0, 1.0)
-                    } else {
-                        ((value - min_value) / value_range).clamp(0.0, 1.0)
-                    };
-                    let color = Self::get_png_heat_color(normalized);
-
-                    // Calculate cell position (Y inverted - higher values at top)
-                    let cell_x = chart_left as f64 + x_bin as f64 * cell_width;
-                    let cell_y = chart_bottom as f64 - (y_bin + 1) as f64 * cell_height;
-
-                    // Fill cell
-                    for py in 0..(cell_height.ceil() as u32) {
-                        for px in 0..(cell_width.ceil() as u32) {
-                            let x = (cell_x as u32 + px).min(width - 1);
-                            let y = (cell_y as u32 + py).min(height - 1);
-                            imgbuf.put_pixel(x, y, color);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Draw grid lines
-        let grid_color = Rgba([80, 80, 80, 255]);
-
-        // Vertical grid lines (X axis divisions)
-        for i in 0..=grid_cols {
-            let x = chart_left + (i as f64 * cell_width) as u32;
-            for py in chart_top..chart_bottom {
-                if x < width {
-                    imgbuf.put_pixel(x, py, grid_color);
-                }
-            }
-        }
-
-        // Horizontal grid lines (Y axis divisions)
-        for i in 0..=grid_rows {
-            let y = chart_top + (i as f64 * cell_height) as u32;
-            for px in chart_left..chart_right {
-                if y < height {
-                    imgbuf.put_pixel(px, y, grid_color);
-                }
-            }
-        }
-
-        // Draw color scale legend
-        let legend_left = width - margin - legend_width + 20;
-        let legend_bar_width = 20u32;
-        let legend_height = chart_height;
-
-        for i in 0..legend_height {
-            let t = i as f64 / legend_height as f64;
-            let color = Self::get_png_heat_color(t);
-
-            for px in 0..legend_bar_width {
-                let x = legend_left + px;
-                let y = chart_bottom - i;
-                if x < width && y < height {
-                    imgbuf.put_pixel(x, y, color);
-                }
-            }
-        }
-
-        // Save the image
-        imgbuf.save(path)?;
-
-        Ok(())
-    }
-
-    /// Render scatter plot to PNG file (exports both left and right plots)
-    fn render_scatter_plot_to_png(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let tab_idx = self.active_tab.ok_or("No active tab")?;
-
-        // Image dimensions (wider to fit two plots)
-        let width = 2560u32;
-        let height = 1080u32;
-        let margin = 60u32;
-        let gap = 40u32;
-
-        let plot_width = (width - 2 * margin - gap) / 2;
-        let plot_height = height - 2 * margin;
-
-        // Create image buffer
-        let mut imgbuf = RgbaImage::new(width, height);
-
-        // Fill with dark background
-        for pixel in imgbuf.pixels_mut() {
-            *pixel = Rgba([30, 30, 30, 255]);
-        }
-
-        // Render left plot
-        let left_config = &self.tabs[tab_idx].scatter_plot_state.left;
-        let left_rect = (margin, margin, plot_width, plot_height);
-        self.render_scatter_plot_to_image(&mut imgbuf, left_config, left_rect, tab_idx)?;
-
-        // Render right plot
-        let right_config = &self.tabs[tab_idx].scatter_plot_state.right;
-        let right_rect = (margin + plot_width + gap, margin, plot_width, plot_height);
-        self.render_scatter_plot_to_image(&mut imgbuf, right_config, right_rect, tab_idx)?;
-
-        // Save the image
-        imgbuf.save(path)?;
-
-        Ok(())
-    }
-
-    /// Helper to render a single scatter plot to an image region
-    fn render_scatter_plot_to_image(
-        &self,
-        imgbuf: &mut RgbaImage,
-        config: &crate::state::ScatterPlotConfig,
-        rect: (u32, u32, u32, u32),
-        tab_idx: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let (left, top, width, height) = rect;
-        let right = left + width;
-        let bottom = top + height;
-
-        let file_idx = config.file_index.unwrap_or(self.tabs[tab_idx].file_index);
-
-        // Check if we have valid axis selections
-        let (x_idx, y_idx) = match (config.x_channel, config.y_channel) {
-            (Some(x), Some(y)) => (x, y),
-            _ => {
-                // Draw placeholder
-                let placeholder_color = Rgba([80, 80, 80, 255]);
-                for y in top..bottom {
-                    for x in left..right {
-                        imgbuf.put_pixel(x, y, placeholder_color);
-                    }
-                }
-                return Ok(());
-            }
-        };
-
-        if file_idx >= self.files.len() {
-            return Err("Invalid file index".into());
-        }
-
-        let x_data = self.get_channel_data(file_idx, x_idx);
-        let y_data = self.get_channel_data(file_idx, y_idx);
-
-        if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
-            return Err("No data available".into());
-        }
-
-        // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-        let x_range = if (x_max - x_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            x_max - x_min
-        };
-        let y_range = if (y_max - y_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            y_max - y_min
-        };
-
-        // Build 2D histogram (512 bins like the UI)
-        const HEATMAP_BINS: usize = 512;
-        let mut histogram = vec![vec![0u32; HEATMAP_BINS]; HEATMAP_BINS];
-        let mut max_hits: u32 = 0;
-
-        for (&x, &y) in x_data.iter().zip(y_data.iter()) {
-            let x_bin = (((x - x_min) / x_range) * (HEATMAP_BINS - 1) as f64).round() as usize;
-            let y_bin = (((y - y_min) / y_range) * (HEATMAP_BINS - 1) as f64).round() as usize;
-
-            let x_bin = x_bin.min(HEATMAP_BINS - 1);
-            let y_bin = y_bin.min(HEATMAP_BINS - 1);
-
-            histogram[y_bin][x_bin] += 1;
-            max_hits = max_hits.max(histogram[y_bin][x_bin]);
-        }
-
-        // Fill background with black
-        let bg_color = Rgba([0, 0, 0, 255]);
-        for y in top..bottom {
-            for x in left..right {
-                imgbuf.put_pixel(x, y, bg_color);
-            }
-        }
-
-        let cell_width = width as f64 / HEATMAP_BINS as f64;
-        let cell_height = height as f64 / HEATMAP_BINS as f64;
-
-        // Draw heatmap cells
-        #[allow(clippy::needless_range_loop)]
-        for y_bin in 0..HEATMAP_BINS {
-            for x_bin in 0..HEATMAP_BINS {
-                let hits = histogram[y_bin][x_bin];
-                if hits > 0 {
-                    // Normalize using log scale
-                    let normalized = if max_hits > 1 {
-                        (hits as f64).ln() / (max_hits as f64).ln()
-                    } else {
-                        1.0
-                    };
-                    let color = Self::get_png_heat_color(normalized);
-
-                    // Calculate cell position (Y inverted)
-                    let cell_x = left as f64 + x_bin as f64 * cell_width;
-                    let cell_y = bottom as f64 - (y_bin + 1) as f64 * cell_height;
-
-                    // Fill cell
-                    for py in 0..(cell_height.ceil() as u32 + 1) {
-                        for px in 0..(cell_width.ceil() as u32 + 1) {
-                            let x = (cell_x as u32 + px).min(right - 1);
-                            let y = (cell_y as u32 + py).min(bottom - 1);
-                            if x >= left && y >= top {
-                                imgbuf.put_pixel(x, y, color);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Render scatter plot to PDF file
-    fn render_scatter_plot_to_pdf(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let tab_idx = self.active_tab.ok_or("No active tab")?;
-
-        let font_bold = PdfFontHandle::Builtin(BuiltinFont::HelveticaBold);
-        let font_regular = PdfFontHandle::Builtin(BuiltinFont::Helvetica);
-
-        let mut ops: Vec<Op> = Vec::new();
-
-        // Draw title
-        push_text(
-            &mut ops,
-            "UltraLog Scatter Plot Export",
-            16.0,
-            Mm(20.0),
-            Mm(200.0),
-            &font_bold,
-        );
-
-        // Subtitle with file info
-        if let Some(file_idx) = self.selected_file
-            && file_idx < self.files.len()
-        {
-            let file = &self.files[file_idx];
-            push_text(
-                &mut ops,
-                &file.name,
-                10.0,
-                Mm(20.0),
-                Mm(192.0),
-                &font_regular,
-            );
-        }
-
-        // Layout: two plots side by side
-        let margin: f64 = 20.0;
-        let gap: f64 = 15.0;
-        let plot_width: f64 = (297.0 - 2.0 * margin - gap) / 2.0;
-        let plot_height: f64 = 150.0;
-        let plot_top: f64 = 180.0;
-        let plot_bottom: f64 = plot_top - plot_height;
-
-        // Render left plot
-        let left_config = &self.tabs[tab_idx].scatter_plot_state.left;
-        let left_rect = (margin, plot_bottom, plot_width, plot_height);
-        self.render_scatter_plot_to_pdf_region(
-            &mut ops,
-            &font_regular,
-            left_config,
-            left_rect,
-            tab_idx,
-        )?;
-
-        // Render right plot
-        let right_config = &self.tabs[tab_idx].scatter_plot_state.right;
-        let right_rect = (
-            margin + plot_width + gap,
-            plot_bottom,
-            plot_width,
-            plot_height,
-        );
-        self.render_scatter_plot_to_pdf_region(
-            &mut ops,
-            &font_regular,
-            right_config,
-            right_rect,
-            tab_idx,
-        )?;
-
-        // Build page and save PDF
-        let page = PdfPage::new(Mm(297.0), Mm(210.0), ops);
-        let mut doc = PdfDocument::new("UltraLog Scatter Plot Export");
-        doc.with_pages(vec![page]);
-        let mut warnings = Vec::new();
-        let pdf_bytes = doc.save(&PdfSaveOptions::default(), &mut warnings);
-        std::fs::write(path, pdf_bytes)?;
-
-        Ok(())
-    }
-
-    /// Helper to render a single scatter plot to a PDF region
-    fn render_scatter_plot_to_pdf_region(
-        &self,
-        ops: &mut Vec<Op>,
-        font: &PdfFontHandle,
-        config: &crate::state::ScatterPlotConfig,
-        rect: (f64, f64, f64, f64),
-        tab_idx: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let (left, bottom, width, height) = rect;
-        let right = left + width;
-        let top = bottom + height;
-
-        let file_idx = config.file_index.unwrap_or(self.tabs[tab_idx].file_index);
-
-        // Check if we have valid axis selections
-        let (x_idx, y_idx) = match (config.x_channel, config.y_channel) {
-            (Some(x), Some(y)) => (x, y),
-            _ => {
-                // Draw placeholder text
-                push_text(
-                    ops,
-                    "No axes selected",
-                    10.0,
-                    Mm((left + width / 2.0 - 15.0) as f32),
-                    Mm((bottom + height / 2.0) as f32),
-                    font,
-                );
-                return Ok(());
-            }
-        };
-
-        if file_idx >= self.files.len() {
-            return Err("Invalid file index".into());
-        }
-
-        let x_data = self.get_channel_data(file_idx, x_idx);
-        let y_data = self.get_channel_data(file_idx, y_idx);
-
-        if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
-            return Err("No data available".into());
-        }
-
-        // Get channel names for labels (handles both regular and computed channels)
-        let x_name = self.get_channel_name(file_idx, x_idx);
-        let y_name = self.get_channel_name(file_idx, y_idx);
-
-        // Draw axis labels
-        push_text(
-            ops,
-            &format!("{} vs {}", y_name, x_name),
-            9.0,
-            Mm(left as f32),
-            Mm((top + 3.0) as f32),
-            font,
-        );
-
-        // Calculate data bounds
-        let x_min = x_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let x_max = x_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let y_min = y_data.iter().cloned().fold(f64::INFINITY, f64::min);
-        let y_max = y_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-        let x_range = if (x_max - x_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            x_max - x_min
-        };
-        let y_range = if (y_max - y_min).abs() < f64::EPSILON {
-            1.0
-        } else {
-            y_max - y_min
-        };
-
-        // Build 2D histogram (use smaller bins for PDF)
-        const PDF_BINS: usize = 64;
-        let mut histogram = vec![vec![0u32; PDF_BINS]; PDF_BINS];
-        let mut max_hits: u32 = 0;
-
-        for (&x, &y) in x_data.iter().zip(y_data.iter()) {
-            let x_bin = (((x - x_min) / x_range) * (PDF_BINS - 1) as f64).round() as usize;
-            let y_bin = (((y - y_min) / y_range) * (PDF_BINS - 1) as f64).round() as usize;
-
-            let x_bin = x_bin.min(PDF_BINS - 1);
-            let y_bin = y_bin.min(PDF_BINS - 1);
-
-            histogram[y_bin][x_bin] += 1;
-            max_hits = max_hits.max(histogram[y_bin][x_bin]);
-        }
-
-        let cell_width = width / PDF_BINS as f64;
-        let cell_height = height / PDF_BINS as f64;
-
-        // Draw heatmap cells
-        #[allow(clippy::needless_range_loop)]
-        for y_bin in 0..PDF_BINS {
-            for x_bin in 0..PDF_BINS {
-                let hits = histogram[y_bin][x_bin];
-                if hits > 0 {
-                    // Normalize using log scale
-                    let normalized = if max_hits > 1 {
-                        (hits as f64).ln() / (max_hits as f64).ln()
-                    } else {
-                        1.0
-                    };
-                    let color = Self::get_pdf_heat_color(normalized);
-
-                    ops.push(Op::SetFillColor { col: color });
-
-                    let cell_x = left + x_bin as f64 * cell_width;
-                    let cell_y = bottom + y_bin as f64 * cell_height;
-
-                    push_filled_rect(
-                        ops,
-                        cell_x as f32,
-                        cell_y as f32,
-                        cell_width as f32,
-                        cell_height as f32,
-                    );
-                }
-            }
-        }
-
-        // Draw border
-        let border_color = Color::Rgb(Rgb::new(0.5, 0.5, 0.5, None));
-        ops.push(Op::SetOutlineColor { col: border_color });
-        ops.push(Op::SetOutlineThickness { pt: Pt(0.5) });
-
-        push_closed_line(
-            ops,
-            &[
-                (left as f32, bottom as f32),
-                (right as f32, bottom as f32),
-                (right as f32, top as f32),
-                (left as f32, top as f32),
+        Ok(Sheet {
+            title: file.name.clone(),
+            meta: vec![
+                format!("{cols} \u{00D7} {rows}"),
+                format!("{} samples", group_thousands(samples)),
             ],
-        );
+            body: Body::Grids(vec![GridModel {
+                caption: None,
+                x_title: self.export_channel_name(file_idx, x_idx),
+                y_title: self.export_channel_name(file_idx, y_idx),
+                x_ticks: even_ticks(x_min, x_range, 4),
+                y_ticks: even_ticks(y_min, y_range, 4),
+                norm,
+                labels,
+                counts: None,
+                kind: MapKind::Sequential,
+                scale_title,
+                scale_min,
+                scale_max,
+                rich_lean: false,
+                dense: false,
+            }]),
+        })
+    }
 
-        // Draw axis labels
-        let label_color = Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None));
-        ops.push(Op::SetFillColor { col: label_color });
-
-        // X axis labels
-        for i in 0..=4 {
-            let t = i as f64 / 4.0;
-            let value = x_min + t * x_range;
-            let x_pos = left + t * width;
-            push_text(
-                ops,
-                &format!("{:.0}", value),
-                6.0,
-                Mm((x_pos - 3.0) as f32),
-                Mm((bottom - 5.0) as f32),
-                font,
-            );
+    /// Both scatter plots as density maps, side by side.
+    fn scatter_sheet(&self) -> ExportResult<Sheet> {
+        let tab_idx = self.active_tab.ok_or("No active tab")?;
+        let state = &self.tabs[tab_idx].scatter_plot_state;
+        let fallback = self.tabs[tab_idx].file_index;
+        let grids: Vec<GridModel> = [&state.left, &state.right]
+            .into_iter()
+            .filter_map(|config| self.scatter_grid(config, fallback))
+            .collect();
+        if grids.is_empty() {
+            return Err("Select X and Y channels to export a scatter plot".into());
         }
+        let file = self
+            .files
+            .get(state.left.file_index.unwrap_or(fallback))
+            .ok_or("Invalid file index")?;
+        Ok(Sheet {
+            title: file.name.clone(),
+            meta: vec![format!("{} records", group_thousands(file.log.times.len()))],
+            body: Body::Grids(grids),
+        })
+    }
 
-        // Y axis labels
-        for i in 0..=4 {
-            let t = i as f64 / 4.0;
-            let value = y_min + t * y_range;
-            let y_pos = bottom + t * height;
-            push_text(
-                ops,
-                &format!("{:.0}", value),
-                6.0,
-                Mm((left - 10.0) as f32),
-                Mm((y_pos - 1.0) as f32),
-                font,
-            );
+    fn scatter_grid(&self, config: &ScatterPlotConfig, fallback: usize) -> Option<GridModel> {
+        let file_idx = config.file_index.unwrap_or(fallback);
+        let (x_idx, y_idx) = (config.x_channel?, config.y_channel?);
+        if file_idx >= self.files.len() {
+            return None;
         }
-
-        Ok(())
+        let x = self.get_channel_data(file_idx, x_idx);
+        let y = self.get_channel_data(file_idx, y_idx);
+        if x.is_empty() || x.len() != y.len() {
+            return None;
+        }
+        let (x_min, x_max) = finite_bounds(&x)?;
+        let (y_min, y_max) = finite_bounds(&y)?;
+        let (x_range, y_range) = (nonzero(x_max - x_min), nonzero(y_max - y_min));
+        let n = SCATTER_BINS;
+        let mut hits = vec![vec![0u32; n]; n];
+        for (&xv, &yv) in x.iter().zip(&y) {
+            if xv.is_finite() && yv.is_finite() {
+                hits[uniform_bin(yv, y_min, y_range, n)][uniform_bin(xv, x_min, x_range, n)] += 1;
+            }
+        }
+        let max = hits.iter().flatten().copied().max().unwrap_or(0);
+        let norm = hits
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|&h| {
+                        (h > 0).then(|| {
+                            if max > 1 {
+                                ((h as f64).ln() / (max as f64).ln()) as f32
+                            } else {
+                                1.0
+                            }
+                        })
+                    })
+                    .collect()
+            })
+            .collect();
+        let x_title = self.export_channel_name(file_idx, x_idx);
+        let y_title = self.export_channel_name(file_idx, y_idx);
+        Some(GridModel {
+            caption: Some(format!("{y_title} vs {x_title}")),
+            x_title,
+            y_title,
+            x_ticks: even_ticks(x_min, x_range, 4),
+            y_ticks: even_ticks(y_min, y_range, 4),
+            norm,
+            labels: Vec::new(),
+            counts: None,
+            kind: MapKind::Sequential,
+            scale_title: t!("histogram.scale_hits").to_string(),
+            scale_min: "1".into(),
+            scale_max: max.to_string(),
+            rich_lean: false,
+            dense: true,
+        })
     }
 }
 
-/// Draw a line between two points using Bresenham's algorithm
-pub(crate) fn draw_line(img: &mut RgbaImage, x0: u32, y0: u32, x1: u32, y1: u32, color: Rgba<u8>) {
-    let dx = (x1 as i32 - x0 as i32).abs();
-    let dy = -(y1 as i32 - y0 as i32).abs();
-    let sx: i32 = if x0 < x1 { 1 } else { -1 };
-    let sy: i32 = if y0 < y1 { 1 } else { -1 };
-    let mut err = dx + dy;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::LogRole;
 
-    let mut x = x0 as i32;
-    let mut y = y0 as i32;
+    #[test]
+    fn thousands_use_thin_spaces() {
+        assert_eq!(group_thousands(223_559), "223\u{2009}559");
+        assert_eq!(group_thousands(1_000_000), "1\u{2009}000\u{2009}000");
+        assert_eq!(group_thousands(999), "999");
+    }
 
-    let (width, height) = img.dimensions();
+    #[test]
+    fn constant_channel_sits_mid_height() {
+        assert_eq!(normalize_like_chart(5.0, 5.0, 5.0), 0.5);
+        assert_eq!(normalize_like_chart(7.5, 5.0, 10.0), 0.5);
+    }
 
-    loop {
-        if x >= 0 && x < width as i32 && y >= 0 && y < height as i32 {
-            img.put_pixel(x as u32, y as u32, color);
-        }
+    #[test]
+    fn edge_points_move_along_their_segment() {
+        let pts = [[0.0, 0.0], [10.0, 10.0], [20.0, 0.0], [30.0, 10.0]];
+        let clipped = clip_to_range(&pts, 5.0, 25.0);
+        assert_eq!(clipped.first(), Some(&[5.0, 5.0]));
+        assert_eq!(clipped.last(), Some(&[25.0, 5.0]));
+        assert_eq!(clipped.len(), 4);
+        // Fully inside: unchanged.
+        assert_eq!(clip_to_range(&pts, 0.0, 30.0), pts.to_vec());
+    }
 
-        if x == x1 as i32 && y == y1 as i32 {
-            break;
-        }
+    /// One "MAP" channel at 10 Hz over 0..=`secs` s, value `f(t)`.
+    fn file(name: &str, secs: usize, f: impl Fn(f64) -> f64) -> crate::state::LoadedFile {
+        use crate::parsers::aim::AimChannel;
+        use crate::parsers::types::Meta;
+        use crate::parsers::{Channel, EcuType, Log, Value};
+        let times: Vec<f64> = (0..=secs * 10).map(|i| i as f64 * 0.1).collect();
+        let log = Log {
+            meta: Meta::Empty,
+            channels: vec![Channel::Aim(AimChannel {
+                name: "MAP".to_string(),
+                unit: String::new(),
+            })],
+            data: times.iter().map(|&t| vec![Value::Float(f(t))]).collect(),
+            times,
+        };
+        crate::state::LoadedFile::new(
+            std::path::PathBuf::from(name),
+            name.to_string(),
+            EcuType::Aim,
+            log,
+        )
+    }
 
-        let e2 = 2 * err;
-        if e2 >= dy {
-            err += dy;
-            x += sx;
-        }
-        if e2 <= dx {
-            err += dx;
-            y += sy;
-        }
+    #[test]
+    fn compare_export_keeps_log_bs_early_part_and_shared_scale() {
+        let mut app = UltraLogApp::default();
+        app.files.push(file("a.csv", 10, |t| t)); // 0..10
+        app.files.push(file("b.csv", 8, |t| 2.0 * t)); // 0..16
+        app.tabs
+            .push(crate::state::Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.update_tab_time_range(0);
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 0); // MAP pairs with B's MAP
+        app.set_compare_offset(0, -3.0);
+
+        let sheet = app.chart_sheet().expect("chart sheet");
+        let Body::Chart(chart) = &sheet.body else {
+            panic!("chart body");
+        };
+        assert_eq!((chart.t0, chart.t1), (-3.0, 10.0));
+        let (a, b) = (&chart.series[0], &chart.series[1]);
+        assert_eq!(a.log, Some(LogRole::A));
+        assert_eq!(b.log, Some(LogRole::B));
+        // Log B starts at tab time -3 (its file time 0), before log A exists.
+        assert!((b.points.first().unwrap()[0] + 3.0).abs() < 1e-9);
+        // Shared scale 0..16: A's peak (10) sits at 10/16, B's (16) at the top.
+        let top = |p: &[[f64; 2]]| p.iter().map(|q| q[1]).fold(f64::MIN, f64::max);
+        assert!((top(&a.points) - 10.0 / 16.0).abs() < 1e-9);
+        assert!((top(&b.points) - 1.0).abs() < 1e-9);
+        assert!(sheet.meta.last().unwrap().contains("B offset -3.00 s"));
+    }
+
+    #[test]
+    fn even_ticks_span_the_range() {
+        let ticks = even_ticks(1000.0, 6000.0, 4);
+        assert_eq!(ticks.first().unwrap(), &(0.0, "1000".to_string()));
+        assert_eq!(ticks.last().unwrap(), &(1.0, "7000".to_string()));
+        assert_eq!(even_ticks(0.5, 1.0, 2)[1].1, "1.00");
     }
 }

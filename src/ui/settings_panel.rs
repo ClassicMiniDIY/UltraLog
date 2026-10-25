@@ -9,6 +9,9 @@ use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::i18n::Language;
 use crate::state::FontScale;
+use crate::ui::components::{self, icon};
+use crate::ui::theme;
+use crate::ui::theme::tokens::space;
 use crate::units::{
     AccelerationUnit, AfrLambdaUnit, DistanceUnit, FlowUnit, FuelEconomyUnit, PressureUnit,
     SpeedUnit, TemperatureUnit, VolumeUnit,
@@ -52,20 +55,17 @@ impl UltraLogApp {
 
     /// Render language settings section
     fn render_language_settings(&mut self, ui: &mut egui::Ui) {
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F310} {}", t!("settings.language")))
-                .size(font_14)
+            egui::RichText::new(format!("{} {}", icon::GLOBE, t!("settings.language")))
+                .heading()
                 .strong(),
         )
         .default_open(true)
         .show(ui, |ui| {
             ui.label(
                 egui::RichText::new(t!("settings.language_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
@@ -96,62 +96,191 @@ impl UltraLogApp {
         });
     }
 
+    /// Ultra intensity: one slider, 0-100, with named stops (Stealth, Night Drive, Neon,
+    /// Ultra) that snap within a small detent. Locked while High contrast is on.
+    /// Spec: `design/design-system/components/IntensityControl/README.md`. Also shown in the
+    /// menu bar's theme menu (`render_menu_bar`).
+    pub(crate) fn render_intensity_control(&mut self, ui: &mut egui::Ui) {
+        let t = self.tokens;
+        let locked = self.high_contrast;
+        let mut value = self.ultra_intensity;
+        // Keep clear of the panel's floating scroll bar so the readout and "Ultra" stay visible.
+        let width = ui.available_width() - ui.spacing().scroll.bar_width - space::SPACE_1;
+
+        ui.horizontal(|ui| {
+            ui.set_max_width(width);
+            ui.label(
+                egui::RichText::new(t!("settings.ultra_intensity"))
+                    .text_style(egui::TextStyle::Body),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let readout = format!("{} \u{00B7} {}", theme::intensity_name(value), value);
+                ui.label(
+                    egui::RichText::new(readout)
+                        .text_style(egui::TextStyle::Body)
+                        .family(egui::FontFamily::Name(
+                            crate::ui::fonts::DISPLAY_BOLD_ITALIC.into(),
+                        ))
+                        .color(if locked { t.ink_disabled } else { t.cyan }),
+                );
+            });
+        });
+
+        let small = egui::TextStyle::Small.resolve(ui.style());
+        let slider = ui
+            .add_enabled_ui(!locked, |ui| {
+                components::intensity_slider(ui, &mut value, width)
+            })
+            .inner;
+        // Snap to a named stop only for pointer input: an arrow-key step of 1 is inside the
+        // detent and would snap straight back, so the keyboard could never leave a stop.
+        if slider.changed() && (slider.dragged() || slider.clicked()) {
+            value = theme::snap_intensity(value);
+        }
+
+        // Stop labels under the track; a click jumps to the nearest stop.
+        let (rect, stops) = ui.allocate_exact_size(
+            egui::vec2(width, small.size + 4.0),
+            if locked {
+                egui::Sense::hover()
+            } else {
+                egui::Sense::click()
+            },
+        );
+        if stops.clicked()
+            && let Some(pos) = stops.interact_pointer_pos()
+        {
+            let x = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0) * 100.0;
+            if let Some((stop, _)) = theme::INTENSITY_STOPS.iter().min_by(|a, b| {
+                (f32::from(a.0) - x)
+                    .abs()
+                    .total_cmp(&(f32::from(b.0) - x).abs())
+            }) {
+                value = *stop;
+            }
+        }
+        let painter = ui.painter_at(rect);
+        for (stop, name) in theme::INTENSITY_STOPS {
+            let x = rect.left() + rect.width() * f32::from(stop) / 100.0;
+            let anchor = match stop {
+                0 => egui::Align2::LEFT_TOP,
+                100 => egui::Align2::RIGHT_TOP,
+                _ => egui::Align2::CENTER_TOP,
+            };
+            let color = if locked {
+                t.ink_disabled
+            } else if theme::intensity_name(value) == name {
+                t.ink
+            } else {
+                t.ink_subtle
+            };
+            painter.text(
+                egui::pos2(x, rect.top()),
+                anchor,
+                name,
+                small.clone(),
+                color,
+            );
+        }
+
+        let caption = if locked {
+            t!("settings.ultra_intensity_locked")
+        } else {
+            t!("settings.ultra_intensity_desc")
+        };
+        ui.label(egui::RichText::new(caption).small().color(t.ink_subtle));
+
+        if value != self.ultra_intensity {
+            self.ultra_intensity = value;
+            // One event per adjustment: at the end of a drag, or at once for a click/keypress.
+            if !slider.dragged() && !slider.drag_stopped() {
+                analytics::track_ultra_intensity_changed(value);
+            }
+        }
+        if slider.drag_stopped() {
+            analytics::track_ultra_intensity_changed(self.ultra_intensity);
+        }
+    }
+
     /// Render display settings section
     fn render_display_settings(&mut self, ui: &mut egui::Ui) {
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F5A5} {}", t!("settings.display")))
-                .size(font_14)
+            egui::RichText::new(format!("{} {}", icon::MONITOR, t!("settings.display")))
+                .heading()
                 .strong(),
         )
         .default_open(true)
         .show(ui, |ui| {
+            self.render_intensity_control(ui);
+
+            ui.add_space(8.0);
+
             // Colorblind mode
             let old_color_blind_mode = self.color_blind_mode;
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.color_blind_mode,
-                egui::RichText::new(t!("settings.color_blind_mode")).size(font_14),
+                t!("settings.color_blind_mode"),
             );
             if self.color_blind_mode != old_color_blind_mode {
                 analytics::track_colorblind_mode_toggled(self.color_blind_mode);
             }
             ui.label(
                 egui::RichText::new(t!("settings.color_blind_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
+            );
+
+            ui.add_space(8.0);
+
+            // High contrast
+            let old_high_contrast = self.high_contrast;
+            components::checkbox(ui, &mut self.high_contrast, t!("settings.high_contrast"));
+            if self.high_contrast != old_high_contrast {
+                analytics::track_high_contrast_toggled(self.high_contrast);
+            }
+            ui.label(
+                egui::RichText::new(t!("settings.high_contrast_desc"))
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
 
             // Font size
-            ui.label(egui::RichText::new(t!("settings.font_size")).size(font_14));
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.font_scale, FontScale::Small, "S");
-                ui.selectable_value(&mut self.font_scale, FontScale::Medium, "M");
-                ui.selectable_value(&mut self.font_scale, FontScale::Large, "L");
-                ui.selectable_value(&mut self.font_scale, FontScale::ExtraLarge, "XL");
-            });
+            ui.label(
+                egui::RichText::new(t!("settings.font_size")).text_style(egui::TextStyle::Body),
+            );
+            components::segmented(
+                ui,
+                &mut self.font_scale,
+                &[
+                    (FontScale::Small, "S"),
+                    (FontScale::Medium, "M"),
+                    (FontScale::Large, "L"),
+                    (FontScale::ExtraLarge, "XL"),
+                ],
+            );
 
             ui.add_space(8.0);
 
             // Cursor tracking
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.cursor_tracking,
-                egui::RichText::new(t!("settings.cursor_tracking")).size(font_14),
+                t!("settings.cursor_tracking"),
             );
             ui.label(
                 egui::RichText::new(t!("settings.cursor_tracking_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
 
             if self.cursor_tracking {
                 ui.add_space(4.0);
                 let mut window_resp = None;
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(t!("settings.window")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.window")).small());
                     window_resp = Some(
                         ui.add(
                             egui::Slider::new(&mut self.view_window_seconds, 5.0..=120.0)
@@ -170,14 +299,11 @@ impl UltraLogApp {
 
             // Scroll to zoom
             let old_scroll_to_zoom = self.scroll_to_zoom;
-            ui.checkbox(
-                &mut self.scroll_to_zoom,
-                egui::RichText::new(t!("settings.scroll_to_zoom")).size(font_14),
-            );
+            components::checkbox(ui, &mut self.scroll_to_zoom, t!("settings.scroll_to_zoom"));
             ui.label(
                 egui::RichText::new(t!("settings.scroll_to_zoom_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
             if self.scroll_to_zoom != old_scroll_to_zoom {
                 self.user_settings.scroll_to_zoom = self.scroll_to_zoom;
@@ -190,14 +316,11 @@ impl UltraLogApp {
 
             // Chart grid
             let old_show_grid = self.show_grid;
-            ui.checkbox(
-                &mut self.show_grid,
-                egui::RichText::new(t!("settings.show_grid")).size(font_14),
-            );
+            components::checkbox(ui, &mut self.show_grid, t!("settings.show_grid"));
             ui.label(
                 egui::RichText::new(t!("settings.show_grid_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
             if self.show_grid != old_show_grid {
                 self.user_settings.show_grid = self.show_grid;
@@ -210,7 +333,7 @@ impl UltraLogApp {
                 ui.add_space(4.0);
                 let mut slider_response = None;
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(t!("settings.grid_opacity")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.grid_opacity")).small());
                     slider_response =
                         Some(ui.add(egui::Slider::new(&mut self.grid_opacity, 0..=255)));
                 });
@@ -231,24 +354,22 @@ impl UltraLogApp {
 
     /// Render field normalization settings
     fn render_normalization_settings(&mut self, ui: &mut egui::Ui) {
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F4DD} {}", t!("settings.field_names")))
-                .size(font_14)
+            egui::RichText::new(format!("{} {}", icon::TEXT_AA, t!("settings.field_names")))
+                .heading()
                 .strong(),
         )
         .default_open(true)
         .show(ui, |ui| {
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.field_normalization,
-                egui::RichText::new(t!("settings.field_normalization")).size(font_14),
+                t!("settings.field_normalization"),
             );
             ui.label(
                 egui::RichText::new(t!("settings.field_normalization_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
@@ -258,21 +379,21 @@ impl UltraLogApp {
             if custom_count > 0 {
                 ui.label(
                     egui::RichText::new(t!("settings.custom_mappings", count = custom_count))
-                        .size(font_12)
-                        .color(egui::Color32::GRAY),
+                        .small()
+                        .color(self.tokens.ink_subtle),
                 );
             }
 
             // Edit mappings button
             let btn = egui::Frame::NONE
-                .fill(egui::Color32::from_rgb(60, 60, 60))
+                .fill(self.tokens.bg_raised)
                 .corner_radius(4)
                 .inner_margin(egui::vec2(12.0, 6.0))
                 .show(ui, |ui| {
                     ui.label(
                         egui::RichText::new(t!("settings.edit_custom_mappings"))
-                            .color(egui::Color32::LIGHT_GRAY)
-                            .size(font_14),
+                            .color(self.tokens.ink_muted)
+                            .text_style(egui::TextStyle::Body),
                     );
                 });
 
@@ -288,20 +409,17 @@ impl UltraLogApp {
 
     /// Render unit preferences
     fn render_unit_settings(&mut self, ui: &mut egui::Ui) {
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F4D0} {}", t!("settings.units")))
-                .size(font_14)
+            egui::RichText::new(format!("{} {}", icon::RULER, t!("settings.units")))
+                .heading()
                 .strong(),
         )
         .default_open(true)
         .show(ui, |ui| {
             ui.label(
                 egui::RichText::new(t!("settings.units_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
             ui.add_space(8.0);
 
@@ -311,7 +429,7 @@ impl UltraLogApp {
                 .spacing([8.0, 6.0])
                 .show(ui, |ui| {
                     // Temperature
-                    ui.label(egui::RichText::new(t!("settings.temperature")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.temperature")).small());
                     egui::ComboBox::from_id_salt("temp_unit")
                         .selected_text(self.unit_preferences.temperature.symbol())
                         .width(80.0)
@@ -335,7 +453,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // Pressure
-                    ui.label(egui::RichText::new(t!("settings.pressure")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.pressure")).small());
                     egui::ComboBox::from_id_salt("pressure_unit")
                         .selected_text(self.unit_preferences.pressure.symbol())
                         .width(80.0)
@@ -359,7 +477,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // Speed
-                    ui.label(egui::RichText::new(t!("settings.speed")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.speed")).small());
                     egui::ComboBox::from_id_salt("speed_unit")
                         .selected_text(self.unit_preferences.speed.symbol())
                         .width(80.0)
@@ -378,7 +496,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // Distance
-                    ui.label(egui::RichText::new(t!("settings.distance")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.distance")).small());
                     egui::ComboBox::from_id_salt("distance_unit")
                         .selected_text(self.unit_preferences.distance.symbol())
                         .width(80.0)
@@ -397,7 +515,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // Fuel Economy
-                    ui.label(egui::RichText::new(t!("settings.fuel_economy")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.fuel_economy")).small());
                     egui::ComboBox::from_id_salt("fuel_unit")
                         .selected_text(self.unit_preferences.fuel_economy.symbol())
                         .width(80.0)
@@ -421,7 +539,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // Volume
-                    ui.label(egui::RichText::new(t!("settings.volume")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.volume")).small());
                     egui::ComboBox::from_id_salt("volume_unit")
                         .selected_text(self.unit_preferences.volume.symbol())
                         .width(80.0)
@@ -440,7 +558,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // Flow Rate
-                    ui.label(egui::RichText::new(t!("settings.flow_rate")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.flow_rate")).small());
                     egui::ComboBox::from_id_salt("flow_unit")
                         .selected_text(self.unit_preferences.flow.symbol())
                         .width(80.0)
@@ -459,7 +577,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // Acceleration
-                    ui.label(egui::RichText::new(t!("settings.acceleration")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.acceleration")).small());
                     egui::ComboBox::from_id_salt("accel_unit")
                         .selected_text(self.unit_preferences.acceleration.symbol())
                         .width(80.0)
@@ -478,7 +596,7 @@ impl UltraLogApp {
                     ui.end_row();
 
                     // AFR/Lambda
-                    ui.label(egui::RichText::new(t!("settings.afr_lambda")).size(font_12));
+                    ui.label(egui::RichText::new(t!("settings.afr_lambda")).small());
                     egui::ComboBox::from_id_salt("afr_lambda_unit")
                         .selected_text(self.unit_preferences.afr_lambda.symbol())
                         .width(80.0)
@@ -501,25 +619,27 @@ impl UltraLogApp {
 
     /// Render update settings
     fn render_update_settings(&mut self, ui: &mut egui::Ui) {
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("\u{1F504} {}", t!("settings.updates")))
-                .size(font_14)
-                .strong(),
+            egui::RichText::new(format!(
+                "{} {}",
+                icon::ARROWS_CLOCKWISE,
+                t!("settings.updates")
+            ))
+            .heading()
+            .strong(),
         )
         .default_open(true)
         .show(ui, |ui| {
             // Auto-check preference
-            ui.checkbox(
+            components::checkbox(
+                ui,
                 &mut self.auto_check_updates,
-                egui::RichText::new(t!("settings.check_on_startup")).size(font_14),
+                t!("settings.check_on_startup"),
             );
             ui.label(
                 egui::RichText::new(t!("settings.auto_check_desc"))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
 
             ui.add_space(8.0);
@@ -528,7 +648,7 @@ impl UltraLogApp {
             let is_checking = matches!(self.update_state, UpdateState::Checking);
             ui.add_enabled_ui(!is_checking, |ui| {
                 let btn = egui::Frame::NONE
-                    .fill(egui::Color32::from_rgb(60, 60, 60))
+                    .fill(self.tokens.bg_raised)
                     .corner_radius(4)
                     .inner_margin(egui::vec2(12.0, 6.0))
                     .show(ui, |ui| {
@@ -539,8 +659,8 @@ impl UltraLogApp {
                         };
                         ui.label(
                             egui::RichText::new(text)
-                                .color(egui::Color32::LIGHT_GRAY)
-                                .size(font_14),
+                                .color(self.tokens.ink_muted)
+                                .text_style(egui::TextStyle::Body),
                         );
                     });
 
@@ -559,8 +679,8 @@ impl UltraLogApp {
             let version = env!("CARGO_PKG_VERSION");
             ui.label(
                 egui::RichText::new(t!("settings.current_version", version = version))
-                    .size(font_12)
-                    .color(egui::Color32::GRAY),
+                    .small()
+                    .color(self.tokens.ink_subtle),
             );
 
             // Show update status
@@ -570,8 +690,8 @@ impl UltraLogApp {
                         ui.spinner();
                         ui.label(
                             egui::RichText::new(t!("settings.checking"))
-                                .size(font_12)
-                                .color(egui::Color32::GRAY),
+                                .small()
+                                .color(self.tokens.ink_subtle),
                         );
                     });
                 }
@@ -579,11 +699,12 @@ impl UltraLogApp {
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new(format!(
-                            "\u{2713} {}",
+                            "{} {}",
+                            crate::ui::components::Status::Success.icon(),
                             t!("settings.update_available", version = &info.new_version)
                         ))
-                        .size(font_12)
-                        .color(egui::Color32::from_rgb(150, 200, 150)),
+                        .small()
+                        .color(self.tokens.success),
                     );
 
                     let view_btn = ui.add(
@@ -592,8 +713,8 @@ impl UltraLogApp {
                                 "{} \u{2192}",
                                 t!("settings.view_details")
                             ))
-                            .size(font_12)
-                            .color(egui::Color32::from_rgb(150, 180, 220)),
+                            .small()
+                            .color(self.tokens.cyan),
                         )
                         .sense(egui::Sense::click()),
                     );
@@ -608,9 +729,9 @@ impl UltraLogApp {
                 }
                 UpdateState::Error(msg) => {
                     ui.label(
-                        egui::RichText::new(format!("⚠ {}", msg))
-                            .size(font_12)
-                            .color(egui::Color32::from_rgb(200, 150, 100)),
+                        egui::RichText::new(format!("{} {}", icon::WARNING, msg))
+                            .small()
+                            .color(self.tokens.warning),
                     );
                 }
                 _ => {}

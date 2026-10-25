@@ -328,3 +328,41 @@ fn test_settings_handles_unknown_fields() {
     // Should successfully deserialize, ignoring unknown field
     assert!(result.is_ok());
 }
+
+// ============================================
+// Theme settings (Night Drive, 3.0.0)
+// ============================================
+
+#[test]
+fn test_settings_from_before_3_0_open_at_stealth() {
+    // A 2.x settings file has no theme fields. It must load at the in-app default,
+    // intensity 0 (Stealth), and with High contrast off.
+    let json = r#"{"version":1,"language":"English","color_blind_mode":true}"#;
+    let settings: UserSettings = serde_json::from_str(json).unwrap();
+
+    assert_eq!(settings.ultra_intensity, 0);
+    assert!(!settings.high_contrast);
+    assert!(settings.color_blind_mode);
+}
+
+#[test]
+fn test_settings_default_theme_fields() {
+    let settings = UserSettings::default();
+    assert_eq!(settings.ultra_intensity, 0);
+    assert!(!settings.high_contrast);
+}
+
+#[test]
+fn test_settings_theme_fields_round_trip() {
+    let settings = UserSettings {
+        ultra_intensity: 88,
+        high_contrast: true,
+        ..UserSettings::default()
+    };
+    let json = serde_json::to_string(&settings).unwrap();
+    let back: UserSettings = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(back.ultra_intensity, 88);
+    assert!(back.high_contrast);
+    assert_eq!(back, settings);
+}

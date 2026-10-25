@@ -1,0 +1,33 @@
+<!-- @dsCard group="Export" height=340 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Export sheet — UltraLog</title></head>
+<body>
+<div style="display:flex;gap:16px;padding:16px;background:var(--bg-base);transform:scale(.82);transform-origin:0 0;width:122%"><div class="ul-sheet" data-theme="paper">
+  <div class="ul-redline" style="margin:-28px -32px 20px"></div>
+  <div class="ul-sheet__head"><div><img src="/_blob/a6a3e04387e6744e6151d22451177a8a" alt="UltraLog" style="height:20px;display:block;margin-bottom:8px"><div class="ul-sheet__title">2025-03-06 Haltech pull</div></div>
+  <div class="ul-sheet__meta">13:05.000 – 13:55.000<br>223 559 records · 114 ch</div></div>
+  <svg class="sheetplot" viewBox="0 0 496 170" style="display:block;width:100%"></svg>
+  <div style="margin-top:10px;font-size:12px;color:var(--ink-muted)"><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-1)"></span>RPM</span><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-2)"></span>TPS</span><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-3)"></span>MAP</span><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-4)"></span>Ign. Timing</span></div>
+  <div class="ul-sheet__foot"><span>ultralog.co</span><span>v2.16.1 · exported 2026-10-23</span></div>
+</div><div class="ul-sheet" data-theme="graphite">
+  <div class="ul-redline" style="margin:-28px -32px 20px"></div>
+  <div class="ul-sheet__head"><div><img src="/_blob/93ed6253a91b8630355b074d444dd70d" alt="UltraLog" style="height:20px;display:block;margin-bottom:8px"><div class="ul-sheet__title">2025-03-06 Haltech pull</div></div>
+  <div class="ul-sheet__meta">13:05.000 – 13:55.000<br>223 559 records · 114 ch</div></div>
+  <svg class="sheetplot" viewBox="0 0 496 170" style="display:block;width:100%"></svg>
+  <div style="margin-top:10px;font-size:12px;color:var(--ink-muted)"><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-1)"></span>RPM</span><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-2)"></span>TPS</span><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-3)"></span>MAP</span><span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><span class="ul-swatch" style="--c:var(--series-4)"></span>Ign. Timing</span></div>
+  <div class="ul-sheet__foot"><span>ultralog.co</span><span>v2.16.1 · exported 2026-10-23</span></div>
+</div></div>
+<script>
+
+document.querySelectorAll('svg.sheetplot').forEach(function(svg){
+  var ns='http://www.w3.org/2000/svg',W=496,H=170;function el(t,a){var e=document.createElementNS(ns,t);for(var k in a)e.setAttribute(k,a[k]);svg.appendChild(e);return e;}
+  el('rect',{x:0,y:0,width:W,height:H,style:'fill:var(--plot-bg);stroke:var(--plot-grid-major)'});
+  for(var x=31;x<W;x+=31)el('line',{x1:x,y1:0,x2:x,y2:H,style:'stroke:var(--plot-grid)'});
+  for(var y=34;y<H;y+=34)el('line',{x1:0,y1:y,x2:W,y2:y,style:'stroke:var(--plot-grid)'});
+  var f=[function(i){return 130-i*0.18+8*Math.sin(i/9)},function(i){return i<150?140:i<300?70:110},function(i){return 80+30*Math.sin(i/40)},function(i){return 50+20*Math.cos(i/30)}];
+  f.forEach(function(fn,n){var d='';for(var i=0;i<=W;i+=4)d+=(i?'L':'M')+i+' '+fn(i).toFixed(1);el('path',{d:d,style:'fill:none;stroke-width:1.5;stroke:var(--series-'+(n+1)+')'});});
+});
+</script>
+</body>
+</html>

@@ -7,11 +7,7 @@ menu:
   open_log_file: "لاگ فائل کھولیں..."
   close_tab: "ٹیب بند کریں"
   export: "برآمد"
-  export_png: "PNG کے طور پر برآمد کریں..."
-  export_pdf: "PDF کے طور پر برآمد کریں..."
-  export_histogram_pdf: "ہسٹوگرام PDF کے طور پر برآمد کریں..."
-  export_table_png: "ٹیبل PNG کے طور پر برآمد کریں..."
-  export_table_pdf: "ٹیبل PDF کے طور پر برآمد کریں..."
+  export_ellipsis: "برآمد..."
   view: "منظر"
   show_grid: "گرڈ دکھائیں"
   tool_mode: "ٹول موڈ"
@@ -31,6 +27,7 @@ menu:
   support_development: "ترقی میں مدد کریں"
   check_for_updates: "اپڈیٹس کی جانچ کریں"
   checking_for_updates: "اپڈیٹس کی جانچ ہو رہی ہے..."
+  about: "UltraLog کے بارے میں"
   version: "ورژن %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -54,13 +51,40 @@ channels:
   with_data: "ڈیٹا والے (%{count})"
   empty: "خالی (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "موازنہ"
+  none: "کوئی نہیں"
+  open_file: "فائل کھولیں…"
+  compare_with: "اس سے موازنہ کریں…"
+  hint: "چینل نام سے جوڑے جاتے ہیں۔ لاگ B ڈیش والی لکیر ہے۔"
+  no_other_files: "اس سے موازنہ کے لیے دوسرا لاگ لوڈ کریں۔"
+  log_a: "لاگ A"
+  log_b: "لاگ B"
+  not_in_b: "B میں نہیں"
+  remove_pair: "جوڑا ہٹائیں"
+  offset: "لاگ B آفسیٹ"
+  offset_hint: "لاگ B کے اوقات میں شامل کیے جانے والے سیکنڈ۔ گھسیٹیں یا قدر لکھیں۔"
+  reset: "ری سیٹ"
+  align: "کرسر پر سیدھ کریں"
+  align_hint: "کرسر کو لاگ A کے کسی واقعے پر رکھیں، یہاں کلک کریں، پھر لاگ B میں وہی واقعہ کلک کریں۔"
+  align_no_cursor: "پہلے کرسر رکھنے کے لیے چارٹ پر کلک کریں۔"
+  align_pick: "لاگ B کا مماثل نقطہ کلک کریں۔"
+  align_pick_rest: "Esc منسوخ کرتا ہے۔"
+  align_cancel: "منسوخ کریں"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "زبان"
   language_desc: "ڈسپلے زبان منتخب کریں"
   display: "ڈسپلے"
+  ultra_intensity: "Ultra شدت"
+  ultra_intensity_desc: "ایپ پر نیون اثر کتنا نظر آئے۔ آپ کے ڈیٹا کے رنگ یا متن کا کنٹراسٹ کبھی تبدیل نہیں ہوتا۔"
+  ultra_intensity_locked: "ہائی کنٹراسٹ آن ہونے پر بند رہتا ہے: کوئی چمک، گریڈینٹ یا پس منظر کا گرڈ نہیں۔"
   color_blind_mode: "کلر بلائنڈ موڈ"
-  color_blind_desc: "قابل رسائی رنگ پیلٹ استعمال کریں (Wong's پیلٹ)"
+  color_blind_desc: "رنگ اندھے پن کے لیے محفوظ ڈیٹا رنگ، ڈیش اور لیبل والی لکیریں، اور زیادہ واضح متن کنٹراسٹ۔"
+  high_contrast: "ہائی کنٹراسٹ"
+  high_contrast_desc: "سیاہ پس منظر، سفید متن اور خاکہ دار کنٹرول۔ نیون اثرات بند کر دیتا ہے۔"
   font_size: "فونٹ سائز:"
   cursor_tracking: "کرسر ٹریکنگ"
   cursor_tracking_desc: "سکربنگ کے دوران کرسر کو مرکز میں رکھیں"
@@ -100,6 +124,9 @@ timeline:
   speed: "رفتار:"
   time: "وقت: %{time}"
   record: "ریکارڈ %{current} از %{total}"
+  play: "چلائیں"
+  pause: "وقفہ"
+  stop: "روکیں"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -173,9 +200,10 @@ toast:
   export_png_success: "چارٹ PNG کے طور پر برآمد ہوگیا"
   export_pdf_success: "چارٹ PDF کے طور پر برآمد ہوگیا"
   export_failed: "برآمد ناکام: %{error}"
+  export_copied: "تصویر کلپ بورڈ پر کاپی ہوگئی"
   histogram_exported_png: "ہسٹوگرام PNG کے طور پر برآمد ہوگیا"
   histogram_exported_pdf: "ہسٹوگرام PDF کے طور پر برآمد ہوگیا"
-  table_exported_png: "ٹیبل PNG کے طور پر برآمد ہوا (صرف خلیے؛ اقدار کے لیے CSV)"
+  table_exported_png: "ٹیبل PNG کے طور پر برآمد ہوا"
   table_exported_pdf: "ٹیبل PDF کے طور پر برآمد ہوا"
   scatter_exported_png: "سکیٹر پلاٹ PNG کے طور پر برآمد ہوگیا"
   scatter_exported_pdf: "سکیٹر پلاٹ PDF کے طور پر برآمد ہوگیا"
@@ -210,6 +238,7 @@ common:
   duplicate: "نقل بنائیں"
   apply: "لاگو کریں"
   close: "بند کریں"
+  cancel: "منسوخ"
   reset: "ری سیٹ"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -326,10 +355,42 @@ histogram:
   filter_min: "کم سے کم"
   filter_max: "زیادہ سے زیادہ"
   no_filters: "کوئی فلٹر فعال نہیں"
+  scale_hits: "ہٹ کاؤنٹ"
+  scale_average: "اوسط قدر"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "چارٹ دکھانے کے لیے چینلز منتخب کریں"
+  cursor: "کرسر"
+  rich: "رچ"
+  target: "ہدف"
+  lean: "لین"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "برآمد..."
+  title_chart: "چارٹ برآمد کریں"
+  title_scatter: "سکیٹر پلاٹ برآمد کریں"
+  title_histogram: "ہسٹوگرام برآمد کریں"
+  title_table: "ٹیبل برآمد کریں"
+  format: "فارمیٹ"
+  paper: "کاغذ"
+  paper_desc: "ہلکا۔ ڈیفالٹ؛ صاف چھپتا ہے۔"
+  graphite: "گریفائٹ"
+  graphite_desc: "گہرا، سیاہی بچانے والا خاکستری۔"
+  cvd_note: "برآمدات ہمیشہ رنگ-اندھے پن کے لیے محفوظ پیلیٹ استعمال کرتی ہیں، تاکہ جن کے ساتھ آپ شیئر کریں وہ انہیں پڑھ سکیں۔"
+  export_pdf: "PDF برآمد کریں"
+  export_png: "PNG برآمد کریں"
+  copy_image: "تصویر کاپی کریں"
+  copy_tooltip: "ہیڈر یا فوٹر کے بغیر چارٹ یا ٹیبل کاپی کریں، تاکہ دستاویز میں چسپاں کیا جا سکے"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "UltraLog کے بارے میں"
+  tagline: "اعلیٰ کارکردگی والا ECU لاگ ویور"
+  license: "%{license} لائسنس کے تحت اوپن سورس"
+  website: "ویب سائٹ"
+  source: "سورس کوڈ"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -402,6 +463,10 @@ table_gen:
   copy_failed: "کلپ بورڈ پر کاپی کرنے میں ناکام"
   exported: "ٹیبل %{path} پر برآمد کیا گیا"
   export_failed: "برآمد ناکام"
+  legend_high: "اعلیٰ اعتماد"
+  legend_medium: "درمیانہ اعتماد"
+  legend_low: "کم اعتماد"
+  legend_empty: "کوئی نمونہ نہیں"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -439,8 +504,8 @@ track_map:
   color_by: "رنگ کریں"
   solid: "ٹھوس"
   colormap: "رنگ نقشہ"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "ترتیبی"
+  colormap.diverging: "دو طرفہ"
   range: "رینج"
   range_auto: "خودکار"
   lap: "چکر"

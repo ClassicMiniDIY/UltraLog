@@ -6,11 +6,7 @@ menu:
   open_log_file: "Logdatei öffnen..."
   close_tab: "Tab schließen"
   export: "Exportieren"
-  export_png: "Als PNG exportieren..."
-  export_pdf: "Als PDF exportieren..."
-  export_histogram_pdf: "Histogramm als PDF exportieren..."
-  export_table_png: "Tabelle als PNG exportieren..."
-  export_table_pdf: "Tabelle als PDF exportieren..."
+  export_ellipsis: "Exportieren..."
   view: "Ansicht"
   show_grid: "Gitter anzeigen"
   tool_mode: "Werkzeugmodus"
@@ -30,6 +26,7 @@ menu:
   support_development: "Entwicklung unterstützen"
   check_for_updates: "Nach Updates suchen"
   checking_for_updates: "Suche nach Updates..."
+  about: "Über UltraLog"
   version: "Version %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -53,13 +50,40 @@ channels:
   with_data: "Mit Daten (%{count})"
   empty: "Leer (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Vergleichen"
+  none: "Keiner"
+  open_file: "Datei öffnen…"
+  compare_with: "Vergleichen mit…"
+  hint: "Kanäle werden nach Namen gepaart. Log B ist gestrichelt."
+  no_other_files: "Laden Sie ein zweites Log, um es mit diesem zu vergleichen."
+  log_a: "Log A"
+  log_b: "Log B"
+  not_in_b: "nicht in B"
+  remove_pair: "Paar entfernen"
+  offset: "Versatz Log B"
+  offset_hint: "Sekunden, die zu den Zeiten von Log B addiert werden. Ziehen oder Wert eingeben."
+  reset: "Zurücksetzen"
+  align: "Am Cursor ausrichten"
+  align_hint: "Cursor auf ein Ereignis in Log A setzen, hier klicken, dann dasselbe Ereignis in Log B anklicken."
+  align_no_cursor: "Klicken Sie zuerst in das Diagramm, um den Cursor zu setzen."
+  align_pick: "Klicken Sie auf den passenden Punkt in Log B."
+  align_pick_rest: "Esc bricht ab."
+  align_cancel: "Abbrechen"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Sprache"
   language_desc: "Anzeigesprache auswählen"
   display: "Anzeige"
+  ultra_intensity: "Ultra-Intensität"
+  ultra_intensity_desc: "Wie stark die App Neon-Effekte zeigt. Ändert nie Datenfarben oder Textkontrast."
+  ultra_intensity_locked: "Gesperrt, solange Hoher Kontrast aktiv ist: kein Leuchten, keine Verläufe und kein Bodengitter."
   color_blind_mode: "Farbenblind-Modus"
-  color_blind_desc: "Barrierefreie Farbpalette verwenden (Wong-Palette)"
+  color_blind_desc: "Farbenblind-sichere Datenfarben, gestrichelte und beschriftete Linien sowie stärkerer Textkontrast."
+  high_contrast: "Hoher Kontrast"
+  high_contrast_desc: "Schwarzer Hintergrund, weiße Schrift und Steuerelemente mit Umrandung. Schaltet die Neon-Effekte ab."
   font_size: "Schriftgröße:"
   cursor_tracking: "Cursor-Verfolgung"
   cursor_tracking_desc: "Cursor beim Scrubben zentriert halten"
@@ -99,6 +123,9 @@ timeline:
   speed: "Geschwindigkeit:"
   time: "Zeit: %{time}"
   record: "Datensatz %{current} von %{total}"
+  play: "Abspielen"
+  pause: "Pause"
+  stop: "Stopp"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +199,10 @@ toast:
   export_png_success: "Diagramm als PNG exportiert"
   export_pdf_success: "Diagramm als PDF exportiert"
   export_failed: "Export fehlgeschlagen: %{error}"
+  export_copied: "Bild in die Zwischenablage kopiert"
   histogram_exported_png: "Histogramm als PNG exportiert"
   histogram_exported_pdf: "Histogramm als PDF exportiert"
-  table_exported_png: "Tabelle als PNG exportiert (nur Zellen; CSV für Werte)"
+  table_exported_png: "Tabelle als PNG exportiert"
   table_exported_pdf: "Tabelle als PDF exportiert"
   scatter_exported_png: "Streudiagramm als PNG exportiert"
   scatter_exported_pdf: "Streudiagramm als PDF exportiert"
@@ -209,6 +237,7 @@ common:
   duplicate: "Duplizieren"
   apply: "Anwenden"
   close: "Schließen"
+  cancel: "Abbrechen"
   reset: "Zurücksetzen"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -325,10 +354,42 @@ histogram:
   filter_min: "Min"
   filter_max: "Max"
   no_filters: "Keine Filter aktiv"
+  scale_hits: "Trefferanzahl"
+  scale_average: "Durchschnittswert"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Kanäle auswählen, um Diagramm anzuzeigen"
+  cursor: "Cursor"
+  rich: "fett"
+  target: "Ziel"
+  lean: "mager"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "Exportieren..."
+  title_chart: "Diagramm exportieren"
+  title_scatter: "Streudiagramme exportieren"
+  title_histogram: "Histogramm exportieren"
+  title_table: "Tabelle exportieren"
+  format: "Format"
+  paper: "Papier"
+  paper_desc: "Hell. Standard; druckt sauber."
+  graphite: "Graphit"
+  graphite_desc: "Dunkles, tintensparendes Grau."
+  cvd_note: "Exporte nutzen immer die farbenblindsichere Palette, damit alle Empfänger sie lesen können."
+  export_pdf: "PDF exportieren"
+  export_png: "PNG exportieren"
+  copy_image: "Bild kopieren"
+  copy_tooltip: "Diagramm oder Tabelle ohne Kopf- und Fußzeile kopieren, zum Einfügen in ein Dokument"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "Über UltraLog"
+  tagline: "Hochleistungs-Viewer für ECU-Logs"
+  license: "Open Source unter der Lizenz %{license}"
+  website: "Website"
+  source: "Quellcode"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -401,6 +462,10 @@ table_gen:
   copy_failed: "Fehler beim Kopieren in die Zwischenablage"
   exported: "Tabelle exportiert nach %{path}"
   export_failed: "Export fehlgeschlagen"
+  legend_high: "hohe Konfidenz"
+  legend_medium: "mittlere Konfidenz"
+  legend_low: "niedrige Konfidenz"
+  legend_empty: "keine Messwerte"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -438,8 +503,8 @@ track_map:
   color_by: "Farbe nach"
   solid: "Durchgehend"
   colormap: "Farbschema"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Sequenziell"
+  colormap.diverging: "Divergent"
   range: "Bereich"
   range_auto: "Auto"
   lap: "Runde"

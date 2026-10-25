@@ -12,11 +12,12 @@ use ultralog::parsers::Channel;
 use ultralog::parsers::haltech::{ChannelType, HaltechChannel};
 use ultralog::parsers::types::{EcuType, Log, Value};
 use ultralog::state::{
-    ActiveTool, CHART_COLORS, COLORBLIND_COLORS, CacheKey, HistogramConfig, HistogramGridSize,
-    HistogramMode, HistogramState, LoadResult, LoadedFile, LoadingState, MAX_CHANNELS,
-    MAX_CHART_POINTS, SUPPORTED_EXTENSIONS, ScatterPlotConfig, ScatterPlotState, SelectedChannel,
-    SelectedHeatmapPoint, SelectedHistogramCell, Tab, ToastType,
+    ActiveTool, CacheKey, HistogramConfig, HistogramGridSize, HistogramMode, HistogramState,
+    LoadResult, LoadedFile, LoadingState, MAX_CHANNELS, MAX_CHART_POINTS, SUPPORTED_EXTENSIONS,
+    ScatterPlotConfig, ScatterPlotState, SelectedChannel, SelectedHeatmapPoint,
+    SelectedHistogramCell, Tab, ToastType, next_color_index,
 };
+use ultralog::ui::theme::tokens as ultralog_theme;
 
 // ============================================
 // Constant Tests
@@ -63,64 +64,34 @@ fn test_supported_extensions_contains_common() {
 // Color Palette Tests
 // ============================================
 
-#[test]
-fn test_chart_colors_not_empty() {
-    assert!(!CHART_COLORS.is_empty(), "Should have chart colors");
-    assert_eq!(CHART_COLORS.len(), 10, "Should have 10 chart colors");
-}
-
-#[test]
-fn test_chart_colors_valid_rgb() {
-    for (i, color) in CHART_COLORS.iter().enumerate() {
-        assert_eq!(color.len(), 3, "Color {} should have 3 components", i);
-        // RGB values are u8, so already in 0-255 range
+fn channel_with_color(color_index: usize) -> SelectedChannel {
+    SelectedChannel {
+        file_index: 0,
+        channel_index: color_index,
+        channel: Channel::Haltech(HaltechChannel {
+            name: format!("ch{color_index}"),
+            id: String::new(),
+            r#type: ChannelType::Raw,
+            display_min: None,
+            display_max: None,
+        }),
+        color_index,
     }
 }
 
 #[test]
-fn test_chart_colors_unique() {
-    let mut unique_colors: Vec<&[u8; 3]> = Vec::new();
-    for color in CHART_COLORS {
-        assert!(
-            !unique_colors.contains(&color),
-            "Chart colors should be unique"
-        );
-        unique_colors.push(color);
-    }
+fn test_next_color_index_fills_the_lowest_gap() {
+    let selected: Vec<_> = [0, 1, 3].into_iter().map(channel_with_color).collect();
+    assert_eq!(next_color_index(&selected), 2);
 }
 
 #[test]
-fn test_colorblind_colors_not_empty() {
-    assert!(
-        !COLORBLIND_COLORS.is_empty(),
-        "Should have colorblind colors"
-    );
-    assert_eq!(
-        COLORBLIND_COLORS.len(),
-        10,
-        "Should have 10 colorblind colors"
-    );
-}
-
-#[test]
-fn test_colorblind_colors_valid_rgb() {
-    for (i, color) in COLORBLIND_COLORS.iter().enumerate() {
-        assert_eq!(
-            color.len(),
-            3,
-            "Colorblind color {} should have 3 components",
-            i
-        );
-    }
-}
-
-#[test]
-fn test_chart_and_colorblind_same_count() {
-    assert_eq!(
-        CHART_COLORS.len(),
-        COLORBLIND_COLORS.len(),
-        "Chart and colorblind palettes should have same count"
-    );
+fn test_next_color_index_continues_past_the_palette() {
+    // Stacked mode allows 60 channels; slots keep counting so the theme can repeat colours
+    // with a dashed or dotted stroke instead of reusing slot 0.
+    let selected: Vec<_> = (0..12).map(channel_with_color).collect();
+    assert_eq!(next_color_index(&selected), 12);
+    assert_eq!(next_color_index(&[]), 0);
 }
 
 // ============================================
@@ -133,36 +104,59 @@ fn test_toast_type_default() {
     assert!(matches!(toast, ToastType::Info));
 }
 
-#[test]
-fn test_toast_type_colors() {
-    let info_color = ToastType::Info.color();
-    let success_color = ToastType::Success.color();
-    let warning_color = ToastType::Warning.color();
-    let error_color = ToastType::Error.color();
+const TOAST_TYPES: [ToastType; 4] = [
+    ToastType::Info,
+    ToastType::Success,
+    ToastType::Warning,
+    ToastType::Error,
+];
 
-    // Each type should have unique color
-    assert_ne!(info_color, success_color);
-    assert_ne!(info_color, warning_color);
-    assert_ne!(info_color, error_color);
-    assert_ne!(success_color, warning_color);
-    assert_ne!(success_color, error_color);
-    assert_ne!(warning_color, error_color);
+fn relative_luminance(c: eframe::egui::Color32) -> f32 {
+    let lin = |v: u8| {
+        let v = v as f32 / 255.0;
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let [r, g, b, _] = c.to_srgba_unmultiplied();
+    0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+fn contrast(a: eframe::egui::Color32, b: eframe::egui::Color32) -> f32 {
+    let (x, y) = (relative_luminance(a), relative_luminance(b));
+    (x.max(y) + 0.05) / (x.min(y) + 0.05)
 }
 
 #[test]
-fn test_toast_type_text_colors() {
-    let info_text = ToastType::Info.text_color();
-    let success_text = ToastType::Success.text_color();
-    let warning_text = ToastType::Warning.text_color();
-    let error_text = ToastType::Error.text_color();
+fn test_toast_type_colors_are_distinct_in_every_app_theme() {
+    for t in [
+        ultralog_theme::NIGHT,
+        ultralog_theme::CVD,
+        ultralog_theme::HC,
+    ] {
+        for (i, a) in TOAST_TYPES.iter().enumerate() {
+            for b in &TOAST_TYPES[i + 1..] {
+                assert_ne!(a.accent(&t), b.accent(&t));
+                assert_ne!(a.fill(&t), b.fill(&t));
+            }
+        }
+    }
+}
 
-    // Warning should have dark text (for amber background)
-    assert_eq!(warning_text, [30, 30, 30]);
-
-    // Others should have white text
-    assert_eq!(info_text, [255, 255, 255]);
-    assert_eq!(success_text, [255, 255, 255]);
-    assert_eq!(error_text, [255, 255, 255]);
+#[test]
+fn test_toast_text_is_readable_on_its_fill() {
+    for t in [
+        ultralog_theme::NIGHT,
+        ultralog_theme::CVD,
+        ultralog_theme::HC,
+    ] {
+        for toast in TOAST_TYPES {
+            let ratio = contrast(t.ink, toast.fill(&t));
+            assert!(ratio >= 4.5, "{toast:?}: {ratio:.2}");
+        }
+    }
 }
 
 #[test]

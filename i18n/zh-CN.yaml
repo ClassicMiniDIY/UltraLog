@@ -6,11 +6,7 @@ menu:
   open_log_file: "打开日志文件..."
   close_tab: "关闭标签页"
   export: "导出"
-  export_png: "导出为 PNG..."
-  export_pdf: "导出为 PDF..."
-  export_histogram_pdf: "导出直方图为 PDF..."
-  export_table_png: "导出表格为 PNG..."
-  export_table_pdf: "导出表格为 PDF..."
+  export_ellipsis: "导出..."
   view: "视图"
   show_grid: "显示网格"
   tool_mode: "工具模式"
@@ -30,6 +26,7 @@ menu:
   support_development: "支持开发"
   check_for_updates: "检查更新"
   checking_for_updates: "正在检查更新..."
+  about: "关于 UltraLog"
   version: "版本 %{version}"
 
 # 文件面板 (src/ui/files_panel.rs)
@@ -58,8 +55,13 @@ settings:
   language: "语言"
   language_desc: "选择显示语言"
   display: "显示"
+  ultra_intensity: "Ultra 强度"
+  ultra_intensity_desc: "应用显示多少霓虹效果。不会改变数据颜色或文字对比度。"
+  ultra_intensity_locked: "开启高对比度时锁定：无光晕、渐变或背景网格。"
   color_blind_mode: "色盲模式"
-  color_blind_desc: "使用无障碍色彩方案 (Wong 配色)"
+  color_blind_desc: "色盲友好的数据颜色、虚线和带标签的线条，以及更强的文字对比度。"
+  high_contrast: "高对比度"
+  high_contrast_desc: "黑色背景、白色文字和描边控件。关闭霓虹效果。"
   font_size: "字体大小:"
   cursor_tracking: "光标跟踪"
   cursor_tracking_desc: "拖动时保持光标居中"
@@ -99,6 +101,9 @@ timeline:
   speed: "速度:"
   time: "时间: %{time}"
   record: "记录 %{current} / %{total}"
+  play: "播放"
+  pause: "暂停"
+  stop: "停止"
 
 # 公式编辑器 (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +177,10 @@ toast:
   export_png_success: "图表已导出为 PNG"
   export_pdf_success: "图表已导出为 PDF"
   export_failed: "导出失败: %{error}"
+  export_copied: "图像已复制到剪贴板"
   histogram_exported_png: "直方图已导出为 PNG"
   histogram_exported_pdf: "直方图已导出为 PDF"
-  table_exported_png: "表格已导出为 PNG（仅单元格；数值请使用 CSV）"
+  table_exported_png: "表格已导出为 PNG"
   table_exported_pdf: "表格已导出为 PDF"
   scatter_exported_png: "散点图已导出为 PNG"
   scatter_exported_pdf: "散点图已导出为 PDF"
@@ -209,6 +215,7 @@ common:
   duplicate: "复制"
   apply: "应用"
   close: "关闭"
+  cancel: "取消"
   reset: "重置"
 
 # 计算通道管理器 (src/ui/computed_channels_manager.rs)
@@ -325,10 +332,42 @@ histogram:
   filter_min: "最小值"
   filter_max: "最大值"
   no_filters: "没有活动过滤器"
+  scale_hits: "命中次数"
+  scale_average: "平均值"
 
 # 图表 (src/ui/chart.rs)
 chart:
   select_channels: "选择通道以显示图表"
+  cursor: "光标"
+  rich: "浓"
+  target: "目标"
+  lean: "稀"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "导出..."
+  title_chart: "导出图表"
+  title_scatter: "导出散点图"
+  title_histogram: "导出直方图"
+  title_table: "导出表格"
+  format: "格式"
+  paper: "纸张"
+  paper_desc: "浅色。默认；打印清晰。"
+  graphite: "石墨"
+  graphite_desc: "深灰色，节省墨水。"
+  cvd_note: "导出内容始终使用色盲安全配色，分享对象都能看清。"
+  export_pdf: "导出 PDF"
+  export_png: "导出 PNG"
+  copy_image: "复制图像"
+  copy_tooltip: "复制图表或表格（不含页眉页脚），可粘贴到文档中"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "关于 UltraLog"
+  tagline: "高性能 ECU 日志查看器"
+  license: "基于 %{license} 许可证的开源软件"
+  website: "网站"
+  source: "源代码"
 
 # 分析面板 (src/ui/analysis_panel.rs)
 analysis:
@@ -402,6 +441,10 @@ table_gen:
   copy_failed: "复制到剪贴板失败"
   exported: "表格导出到%{path}"
   export_failed: "导出失败"
+  legend_high: "高置信度"
+  legend_medium: "中置信度"
+  legend_low: "低置信度"
+  legend_empty: "无样本"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -439,8 +482,8 @@ track_map:
   color_by: "按以下方式着色"
   solid: "实心"
   colormap: "颜色映射"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "顺序"
+  colormap.diverging: "发散"
   range: "范围"
   range_auto: "自动"
   lap: "圈"
@@ -455,3 +498,25 @@ track_map:
   tiles.privacy_notice: "地图图块从 %{provider} 下载。您赛道的大致位置将共享给该提供商。"
   tooltip.time: "时间"
   tooltip.position: "位置"
+
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "对比"
+  none: "无"
+  open_file: "打开文件…"
+  compare_with: "对比…"
+  hint: "通道按名称配对。日志 B 为虚线。"
+  no_other_files: "加载第二个日志以与此日志对比。"
+  log_a: "日志 A"
+  log_b: "日志 B"
+  not_in_b: "B 中没有"
+  remove_pair: "移除配对"
+  offset: "日志 B 偏移"
+  offset_hint: "加到日志 B 时间上的秒数。拖动或输入数值。"
+  reset: "重置"
+  align: "在光标处对齐"
+  align_hint: "将光标放在日志 A 的某个事件上，点击此处，然后点击日志 B 中的同一事件。"
+  align_no_cursor: "请先点击图表放置光标。"
+  align_pick: "点击日志 B 中对应的点。"
+  align_pick_rest: "按 Esc 取消。"
+  align_cancel: "取消"

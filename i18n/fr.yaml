@@ -6,11 +6,7 @@ menu:
   open_log_file: "Ouvrir un fichier journal..."
   close_tab: "Fermer l'onglet"
   export: "Exporter"
-  export_png: "Exporter en PNG..."
-  export_pdf: "Exporter en PDF..."
-  export_histogram_pdf: "Exporter l'histogramme en PDF..."
-  export_table_png: "Exporter le tableau en PNG..."
-  export_table_pdf: "Exporter le tableau en PDF..."
+  export_ellipsis: "Exporter..."
   view: "Affichage"
   show_grid: "Afficher la grille"
   tool_mode: "Mode outil"
@@ -30,6 +26,7 @@ menu:
   support_development: "Soutenir le developpement"
   check_for_updates: "Rechercher des mises a jour"
   checking_for_updates: "Recherche de mises a jour..."
+  about: "À propos d'UltraLog"
   version: "Version %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -53,13 +50,40 @@ channels:
   with_data: "Avec donnees (%{count})"
   empty: "Vides (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Comparer"
+  none: "Aucun"
+  open_file: "Ouvrir un fichier…"
+  compare_with: "Comparer avec…"
+  hint: "Les canaux sont appariés par nom. Le journal B est en pointillés."
+  no_other_files: "Chargez un second journal pour le comparer à celui-ci."
+  log_a: "Journal A"
+  log_b: "Journal B"
+  not_in_b: "absent de B"
+  remove_pair: "Retirer la paire"
+  offset: "Décalage du journal B"
+  offset_hint: "Secondes ajoutées aux temps du journal B. Faites glisser ou saisissez une valeur."
+  reset: "Réinitialiser"
+  align: "Aligner sur le curseur"
+  align_hint: "Placez le curseur sur un événement du journal A, cliquez ici, puis cliquez sur le même événement dans le journal B."
+  align_no_cursor: "Cliquez d'abord sur le graphique pour placer le curseur."
+  align_pick: "Cliquez sur le point correspondant du journal B."
+  align_pick_rest: "Échap annule."
+  align_cancel: "Annuler"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Langue"
   language_desc: "Selectionnez la langue d'affichage"
   display: "Affichage"
+  ultra_intensity: "Intensité Ultra"
+  ultra_intensity_desc: "Quantité de néon affichée par l'application. Ne modifie jamais les couleurs de vos données ni le contraste du texte."
+  ultra_intensity_locked: "Verrouillé quand le contraste élevé est activé : pas de lueur, de dégradés ni de grille de fond."
   color_blind_mode: "Mode daltonien"
-  color_blind_desc: "Utiliser une palette de couleurs accessible (palette de Wong)"
+  color_blind_desc: "Couleurs de données adaptées au daltonisme, lignes en pointillés et étiquetées, et contraste de texte renforcé."
+  high_contrast: "Contraste élevé"
+  high_contrast_desc: "Fonds noirs, texte blanc et commandes contournées. Désactive les effets néon."
   font_size: "Taille de police :"
   cursor_tracking: "Suivi du curseur"
   cursor_tracking_desc: "Garder le curseur centre pendant le defilement"
@@ -99,6 +123,9 @@ timeline:
   speed: "Vitesse :"
   time: "Temps : %{time}"
   record: "Enregistrement %{current} sur %{total}"
+  play: "Lecture"
+  pause: "Pause"
+  stop: "Arrêter"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +199,10 @@ toast:
   export_png_success: "Graphique exporte en PNG"
   export_pdf_success: "Graphique exporte en PDF"
   export_failed: "Echec de l'exportation : %{error}"
+  export_copied: "Image copiée dans le presse-papiers"
   histogram_exported_png: "Histogramme exporte en PNG"
   histogram_exported_pdf: "Histogramme exporte en PDF"
-  table_exported_png: "Tableau exporté en PNG (cellules seulement ; CSV pour les valeurs)"
+  table_exported_png: "Tableau exporté en PNG"
   table_exported_pdf: "Tableau exporté en PDF"
   scatter_exported_png: "Nuage de points exporte en PNG"
   scatter_exported_pdf: "Nuage de points exporte en PDF"
@@ -209,6 +237,7 @@ common:
   duplicate: "Dupliquer"
   apply: "Appliquer"
   close: "Fermer"
+  cancel: "Annuler"
   reset: "Reinitialiser"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -325,10 +354,42 @@ histogram:
   filter_min: "Min"
   filter_max: "Max"
   no_filters: "Aucun filtre actif"
+  scale_hits: "Nombre d'occurrences"
+  scale_average: "Valeur moyenne"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Selectionnez des canaux pour afficher le graphique"
+  cursor: "Curseur"
+  rich: "riche"
+  target: "cible"
+  lean: "pauvre"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "Exporter..."
+  title_chart: "Exporter le graphique"
+  title_scatter: "Exporter les nuages de points"
+  title_histogram: "Exporter l'histogramme"
+  title_table: "Exporter le tableau"
+  format: "Format"
+  paper: "Papier"
+  paper_desc: "Clair. Par défaut ; s'imprime proprement."
+  graphite: "Graphite"
+  graphite_desc: "Gris foncé, économise l'encre."
+  cvd_note: "Les exports utilisent toujours la palette adaptée au daltonisme, pour que tous vos destinataires puissent les lire."
+  export_pdf: "Exporter en PDF"
+  export_png: "Exporter en PNG"
+  copy_image: "Copier l'image"
+  copy_tooltip: "Copie le graphique ou le tableau sans en-tête ni pied de page, pour le coller dans un document"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "À propos d'UltraLog"
+  tagline: "Visualiseur de journaux ECU haute performance"
+  license: "Open source sous licence %{license}"
+  website: "Site web"
+  source: "Code source"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -401,6 +462,10 @@ table_gen:
   copy_failed: "Échec de la copie dans le presse-papiers"
   exported: "Tableau exporté vers %{path}"
   export_failed: "Échec de l'exportation"
+  legend_high: "haute confiance"
+  legend_medium: "confiance moyenne"
+  legend_low: "faible confiance"
+  legend_empty: "aucun échantillon"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -438,8 +503,8 @@ track_map:
   color_by: "Colorer par"
   solid: "Uniforme"
   colormap: "Palette de couleurs"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Séquentielle"
+  colormap.diverging: "Divergente"
   range: "Plage"
   range_auto: "Auto"
   lap: "Tour"

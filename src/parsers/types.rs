@@ -401,6 +401,34 @@ impl EcuType {
             EcuType::Unknown => "Unknown",
         }
     }
+
+    /// The short source code shown in file tabs (`ecu` badge), at most three letters.
+    pub fn short_code(&self) -> &'static str {
+        match self {
+            EcuType::Haltech => "HAL",
+            EcuType::Aim => "AIM",
+            EcuType::BlueDriver => "BLU",
+            EcuType::DynamicEfi => "DEF",
+            EcuType::Emerald => "EMR",
+            EcuType::EcuMaster => "EMU",
+            EcuType::MegaSquirt => "MS",
+            EcuType::Mhd => "MHD",
+            EcuType::MotorsportElectronics => "ME",
+            EcuType::Msl => "MSL",
+            EcuType::RaceChrono => "RCH",
+            EcuType::Aem => "AEM",
+            EcuType::MaxxEcu => "MAX",
+            EcuType::MotEc => "MTC",
+            EcuType::Link => "LNK",
+            EcuType::Locomotive => "LOC",
+            EcuType::RomRaider => "ROM",
+            // Speeduino and rusEFI share the MLG format and this variant: name the format.
+            EcuType::Speeduino => "MLG",
+            EcuType::TorquePro => "TRQ",
+            EcuType::Woolich => "WRT",
+            EcuType::Unknown => "LOG",
+        }
+    }
 }
 
 #[cfg(test)]

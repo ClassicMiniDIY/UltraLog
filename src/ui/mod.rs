@@ -11,13 +11,11 @@
 //! - `settings_panel` - Consolidated settings (display, units, normalization, updates)
 //!
 //! ## Core UI Components
-//! - `sidebar` - Legacy files panel (being replaced by files_panel)
 //! - `channels` - Legacy channel selection (being replaced by channels_panel)
 //! - `chart` - Main chart rendering and legends
 //! - `timeline` - Timeline scrubber and playback controls
 //! - `menu` - Menu bar (File, Edit, View, Help)
 //! - `toast` - Toast notification system
-//! - `icons` - Custom icon drawing utilities
 //! - `export` - Chart export functionality (PNG, PDF)
 //! - `normalization_editor` - Field normalization customization window
 //! - `tool_switcher` - Tool mode selection (Log Viewer, Scatter Plot, Histogram)
@@ -30,9 +28,12 @@
 //! - `formula_editor` - Formula creation and editing
 
 // New activity bar architecture
+pub mod about_window;
 pub mod activity_bar;
+pub mod components;
 pub mod data_panel;
 pub mod files_panel;
+pub mod fonts;
 pub mod settings_panel;
 pub mod side_panel;
 pub mod tool_properties_panel;
@@ -45,16 +46,20 @@ pub mod channels;
 pub mod chart;
 pub mod computed_channels_manager;
 pub mod export;
+pub mod export_dialog;
+pub mod export_sheet;
 pub mod formula_editor;
+pub mod formula_syntax;
+pub mod heatmap;
 pub mod histogram;
-pub mod icons;
 pub mod menu;
 pub mod normalization_editor;
+pub mod plot_style;
 pub mod scatter_plot;
-pub mod sidebar;
 pub mod tab_bar;
 pub mod table_export;
 pub mod table_generator;
+pub mod theme;
 pub mod timeline;
 pub mod toast;
 pub mod tool_switcher;

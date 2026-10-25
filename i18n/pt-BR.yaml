@@ -6,11 +6,7 @@ menu:
   open_log_file: "Abrir Arquivo de Log..."
   close_tab: "Fechar Aba"
   export: "Exportar"
-  export_png: "Exportar como PNG..."
-  export_pdf: "Exportar como PDF..."
-  export_histogram_pdf: "Exportar Histograma como PDF..."
-  export_table_png: "Exportar Tabela como PNG..."
-  export_table_pdf: "Exportar Tabela como PDF..."
+  export_ellipsis: "Exportar..."
   view: "Visualizar"
   show_grid: "Mostrar Grade"
   tool_mode: "Modo de Ferramenta"
@@ -30,6 +26,7 @@ menu:
   support_development: "Apoiar o Desenvolvimento"
   check_for_updates: "Verificar Atualizações"
   checking_for_updates: "Verificando Atualizações..."
+  about: "Sobre o UltraLog"
   version: "Versão %{version}"
 
 # Painel de arquivos (src/ui/files_panel.rs)
@@ -58,8 +55,13 @@ settings:
   language: "Idioma"
   language_desc: "Selecionar idioma de exibição"
   display: "Exibição"
+  ultra_intensity: "Intensidade Ultra"
+  ultra_intensity_desc: "Quanto de neon o app exibe. Nunca altera as cores dos seus dados nem o contraste do texto."
+  ultra_intensity_locked: "Bloqueado enquanto o Alto contraste estiver ativado: sem brilho, gradientes ou grade de fundo."
   color_blind_mode: "Modo para Daltonismo"
-  color_blind_desc: "Usar paleta de cores acessível (paleta de Wong)"
+  color_blind_desc: "Cores de dados seguras para daltonismo, linhas tracejadas e rotuladas e contraste de texto mais forte."
+  high_contrast: "Alto contraste"
+  high_contrast_desc: "Fundos pretos, texto branco e controles com contorno. Desativa os efeitos de neon."
   font_size: "Tamanho da Fonte:"
   cursor_tracking: "Rastreamento do Cursor"
   cursor_tracking_desc: "Manter o cursor centralizado durante a navegação"
@@ -99,6 +101,9 @@ timeline:
   speed: "Velocidade:"
   time: "Tempo: %{time}"
   record: "Registro %{current} de %{total}"
+  play: "Reproduzir"
+  pause: "Pausar"
+  stop: "Parar"
 
 # Editor de fórmulas (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +177,10 @@ toast:
   export_png_success: "Gráfico exportado como PNG"
   export_pdf_success: "Gráfico exportado como PDF"
   export_failed: "Falha na exportação: %{error}"
+  export_copied: "Imagem copiada para a área de transferência"
   histogram_exported_png: "Histograma exportado como PNG"
   histogram_exported_pdf: "Histograma exportado como PDF"
-  table_exported_png: "Tabela exportada como PNG (apenas células; use CSV para valores)"
+  table_exported_png: "Tabela exportada como PNG"
   table_exported_pdf: "Tabela exportada como PDF"
   scatter_exported_png: "Gráfico de dispersão exportado como PNG"
   scatter_exported_pdf: "Gráfico de dispersão exportado como PDF"
@@ -209,6 +215,7 @@ common:
   duplicate: "Duplicar"
   apply: "Aplicar"
   close: "Fechar"
+  cancel: "Cancelar"
   reset: "Redefinir"
 
 # Gerenciador de canais calculados (src/ui/computed_channels_manager.rs)
@@ -325,10 +332,42 @@ histogram:
   filter_min: "Min"
   filter_max: "Max"
   no_filters: "Nenhum filtro ativo"
+  scale_hits: "Contagem de Ocorrências"
+  scale_average: "Valor médio"
 
 # Gráfico (src/ui/chart.rs)
 chart:
   select_channels: "Selecione canais para exibir o gráfico"
+  cursor: "Cursor"
+  rich: "rica"
+  target: "alvo"
+  lean: "pobre"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "Exportar..."
+  title_chart: "Exportar gráfico"
+  title_scatter: "Exportar gráficos de dispersão"
+  title_histogram: "Exportar histograma"
+  title_table: "Exportar tabela"
+  format: "Formato"
+  paper: "Papel"
+  paper_desc: "Claro. Padrão; imprime bem."
+  graphite: "Grafite"
+  graphite_desc: "Cinza escuro, economiza tinta."
+  cvd_note: "As exportações sempre usam a paleta segura para daltonismo, para que quem receber consiga ler."
+  export_pdf: "Exportar PDF"
+  export_png: "Exportar PNG"
+  copy_image: "Copiar imagem"
+  copy_tooltip: "Copia o gráfico ou a tabela sem cabeçalho e rodapé, para colar em um documento"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "Sobre o UltraLog"
+  tagline: "Visualizador de logs de ECU de alto desempenho"
+  license: "Código aberto sob a licença %{license}"
+  website: "Site"
+  source: "Código-fonte"
 
 # Painel de análise (src/ui/analysis_panel.rs)
 analysis:
@@ -402,6 +441,10 @@ table_gen:
   copy_failed: "Falha ao copiar para a área de transferência"
   exported: "Tabela exportada para %{path}"
   export_failed: "Falha na exportação"
+  legend_high: "confiança alta"
+  legend_medium: "confiança média"
+  legend_low: "confiança baixa"
+  legend_empty: "sem amostras"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -439,8 +482,8 @@ track_map:
   color_by: "Colorir por"
   solid: "Sólido"
   colormap: "Mapa de cores"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Sequencial"
+  colormap.diverging: "Divergente"
   range: "Intervalo"
   range_auto: "Automático"
   lap: "Volta"
@@ -455,3 +498,25 @@ track_map:
   tiles.privacy_notice: "Os blocos do mapa são baixados de %{provider}. A localização aproximada do seu traçado é compartilhada com esse provedor."
   tooltip.time: "Tempo"
   tooltip.position: "Posição"
+
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Comparar"
+  none: "Nenhum"
+  open_file: "Abrir arquivo…"
+  compare_with: "Comparar com…"
+  hint: "Os canais são pareados pelo nome. O log B é tracejado."
+  no_other_files: "Carregue um segundo log para compará-lo com este."
+  log_a: "Log A"
+  log_b: "Log B"
+  not_in_b: "não está em B"
+  remove_pair: "Remover par"
+  offset: "Deslocamento do log B"
+  offset_hint: "Segundos somados aos tempos do log B. Arraste ou digite um valor."
+  reset: "Redefinir"
+  align: "Alinhar no cursor"
+  align_hint: "Coloque o cursor em um evento do log A, clique aqui e depois clique no mesmo evento do log B."
+  align_no_cursor: "Clique no gráfico para posicionar o cursor primeiro."
+  align_pick: "Clique no ponto correspondente do log B."
+  align_pick_rest: "Esc cancela."
+  align_cancel: "Cancelar"

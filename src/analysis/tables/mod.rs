@@ -95,6 +95,18 @@ pub struct MeasureSpec {
     pub decimals: usize,
 }
 
+impl MeasureSpec {
+    /// Whether the measure is a lambda deviation where positive means leaner than target, so a
+    /// diverging scale may be labelled rich · target · lean. Other signed measures (Lambda Delay's
+    /// PW step, where positive means more fuel) get the plain ± scale.
+    pub fn lean_is_positive(&self) -> bool {
+        matches!(
+            self.key,
+            "correction_pct" | "depth_lambda" | "area_pct" | "area_lambda_s"
+        )
+    }
+}
+
 /// One detected event, accepted or rejected.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableEvent {

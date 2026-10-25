@@ -2,267 +2,26 @@
 
 use eframe::egui;
 
+use rust_i18n::t;
+
 use crate::app::UltraLogApp;
-use crate::normalize::{normalize_channel_name_with_custom, sort_channels_by_priority};
-use crate::state::MAX_CHANNELS;
+use crate::normalize::normalize_channel_name_with_custom;
+use crate::ui::components::{self, icon};
+use crate::ui::fonts::{self, style};
+use crate::ui::plot_style;
+use crate::ui::theme::{
+    SeriesStroke,
+    tokens::{radius, space, stroke},
+};
 
 impl UltraLogApp {
-    /// Render channel selection panel - fills available space
-    pub fn render_channel_selection(&mut self, ui: &mut egui::Ui) {
-        // Pre-compute scaled font sizes
-        let font_14 = self.scaled_font(14.0);
-        let font_16 = self.scaled_font(16.0);
-        let font_18 = self.scaled_font(18.0);
-
-        ui.label(egui::RichText::new("Channels").heading().size(font_18));
-        ui.separator();
-
-        // Get active tab info
-        let tab_info = self.active_tab.and_then(|tab_idx| {
-            let tab = &self.tabs[tab_idx];
-            if tab.file_index < self.files.len() {
-                Some((
-                    tab.file_index,
-                    tab.channel_search.clone(),
-                    tab.selected_channels.len(),
-                ))
-            } else {
-                None
-            }
-        });
-
-        if let Some((file_index, current_search, selected_count)) = tab_info {
-            let channel_count = self.files[file_index].log.channels.len();
-
-            // Computed Channels button
-            if ui
-                .button(egui::RichText::new("+ Computed Channels").size(font_14))
-                .on_hover_text("Create virtual channels from mathematical formulas")
-                .clicked()
-            {
-                self.show_computed_channels_manager = true;
-            }
-
-            ui.add_space(4.0);
-
-            // Search box - use a temporary string that we'll update
-            let mut search_text = current_search;
-            let mut search_changed = false;
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Search:").size(font_14));
-                let response = ui
-                    .add(egui::TextEdit::singleline(&mut search_text).desired_width(f32::INFINITY));
-                search_changed = response.changed();
-            });
-
-            // Defer the set_channel_search call to avoid borrow issues
-            if search_changed {
-                self.set_channel_search(search_text.clone());
-            }
-
-            ui.add_space(5.0);
-
-            // Channel count
-            ui.label(
-                egui::RichText::new(format!(
-                    "Selected: {} / {} | Total: {}",
-                    selected_count, MAX_CHANNELS, channel_count
-                ))
-                .size(font_14),
-            );
-
-            ui.separator();
-
-            // Channel list - use all remaining vertical space
-            let search_lower = search_text.to_lowercase();
-            let mut channel_to_add: Option<(usize, usize)> = None;
-            let mut channel_to_remove: Option<usize> = None;
-
-            // Sort channels: normalized fields first, then alphabetically
-            // Collect channel names upfront to avoid borrow issues
-            let file = &self.files[file_index];
-            let sorted_channels = sort_channels_by_priority(
-                file.log.channels.len(),
-                |idx| file.log.channels[idx].name(),
-                self.field_normalization,
-                Some(&self.custom_normalizations),
-            );
-
-            // Get original names for all channels (needed for search)
-            let channel_names: Vec<String> = (0..file.log.channels.len())
-                .map(|idx| file.log.channels[idx].name())
-                .collect();
-
-            // Use cached channel data flags from the loaded file
-            let channels_with_data = &file.channels_with_data;
-
-            // Split channels into two groups: with data and without data
-            let (channels_with, channels_without): (Vec<_>, Vec<_>) = sorted_channels
-                .into_iter()
-                .partition(|(idx, _, _)| channels_with_data[*idx]);
-
-            // Get selected channels for comparison
-            let selected_channels = self.get_selected_channels().to_vec();
-
-            // Count how many channels match search in each group
-            let count_matching = |channels: &[(usize, String, bool)]| -> usize {
-                if search_lower.is_empty() {
-                    channels.len()
-                } else {
-                    channels
-                        .iter()
-                        .filter(|(idx, display_name, _)| {
-                            let original_name = &channel_names[*idx];
-                            original_name.to_lowercase().contains(&search_lower)
-                                || display_name.to_lowercase().contains(&search_lower)
-                        })
-                        .count()
-                }
-            };
-
-            let with_data_count = count_matching(&channels_with);
-            let without_data_count = count_matching(&channels_without);
-
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-
-                    // Helper closure to render a channel item
-                    let render_channel =
-                        |ui: &mut egui::Ui,
-                         channel_index: usize,
-                         display_name: &str,
-                         channel_to_add: &mut Option<(usize, usize)>,
-                         channel_to_remove: &mut Option<usize>| {
-                            let original_name = &channel_names[channel_index];
-
-                            // Filter by search (search both original and normalized names)
-                            if !search_lower.is_empty()
-                                && !original_name.to_lowercase().contains(&search_lower)
-                                && !display_name.to_lowercase().contains(&search_lower)
-                            {
-                                return;
-                            }
-
-                            // Check if already selected and get its index in selected_channels
-                            let selected_idx = selected_channels.iter().position(|c| {
-                                c.file_index == file_index && c.channel_index == channel_index
-                            });
-                            let is_selected = selected_idx.is_some();
-
-                            // Build the label with checkmark prefix if selected
-                            let label_text = if is_selected {
-                                format!("[*] {}", display_name)
-                            } else {
-                                format!("[ ] {}", display_name)
-                            };
-
-                            let response = ui.selectable_label(is_selected, label_text);
-
-                            if response.clicked() {
-                                if let Some(idx) = selected_idx {
-                                    // Already selected - remove it
-                                    *channel_to_remove = Some(idx);
-                                } else {
-                                    // Not selected - add it
-                                    *channel_to_add = Some((file_index, channel_index));
-                                }
-                            }
-                            if response.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                        };
-
-                    // Section 1: Channels with Data
-                    if with_data_count > 0 || search_lower.is_empty() {
-                        let header = egui::CollapsingHeader::new(
-                            egui::RichText::new(format!(
-                                "📊 Channels with Data ({})",
-                                channels_with.len()
-                            ))
-                            .strong()
-                            .size(font_16),
-                        )
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            for (channel_index, display_name, _is_normalized) in &channels_with {
-                                render_channel(
-                                    ui,
-                                    *channel_index,
-                                    display_name,
-                                    &mut channel_to_add,
-                                    &mut channel_to_remove,
-                                );
-                            }
-                        });
-
-                        // Show count of filtered results when searching
-                        if !search_lower.is_empty() && header.body_returned.is_some() {
-                            // Already showing filtered results inside
-                        }
-                    }
-
-                    ui.add_space(5.0);
-
-                    // Section 2: Channels without Data
-                    if without_data_count > 0 || search_lower.is_empty() {
-                        egui::CollapsingHeader::new(
-                            egui::RichText::new(format!(
-                                "📭 Empty Channels ({})",
-                                channels_without.len()
-                            ))
-                            .color(egui::Color32::GRAY)
-                            .size(font_16),
-                        )
-                        .default_open(false) // Collapsed by default
-                        .show(ui, |ui| {
-                            for (channel_index, display_name, _is_normalized) in &channels_without {
-                                render_channel(
-                                    ui,
-                                    *channel_index,
-                                    display_name,
-                                    &mut channel_to_add,
-                                    &mut channel_to_remove,
-                                );
-                            }
-                        });
-                    }
-                });
-
-            // Handle deferred channel removal (must happen before addition to keep indices valid)
-            if let Some(idx) = channel_to_remove {
-                self.remove_channel(idx);
-            }
-
-            // Handle deferred channel addition
-            if let Some((file_idx, channel_idx)) = channel_to_add {
-                self.add_channel(file_idx, channel_idx);
-            }
-        } else {
-            ui.centered_and_justified(|ui| {
-                ui.label(
-                    egui::RichText::new("Select a file to view channels")
-                        .italics()
-                        .color(egui::Color32::GRAY)
-                        .size(font_16),
-                );
-            });
-        }
-    }
-
     /// Render selected channel cards
     pub fn render_selected_channels(&mut self, ui: &mut egui::Ui) {
-        // Pre-compute scaled font sizes
-        let font_12 = self.scaled_font(12.0);
-        let font_14 = self.scaled_font(14.0);
-        let font_16 = self.scaled_font(16.0);
-        let font_18 = self.scaled_font(18.0);
-
+        let t = self.tokens;
         ui.label(
             egui::RichText::new("Selected Channels")
-                .heading()
-                .size(font_18),
+                .text_style(fonts::text_style(style::TITLE))
+                .color(t.ink),
         );
         ui.separator();
 
@@ -274,6 +33,8 @@ impl UltraLogApp {
         // Pre-compute all display data to avoid borrow conflicts in closure
         struct ChannelCardData {
             color: egui::Color32,
+            stroke: SeriesStroke,
+            unit: String,
             display_name: String,
             is_computed: bool,
             min_str: Option<String>,
@@ -282,13 +43,29 @@ impl UltraLogApp {
             max_record: Option<usize>,
             min_time: Option<f64>,
             max_time: Option<f64>,
+            file_index: usize,
+            /// "A" / "B" while the tab compares two logs.
+            tag: Option<&'static str>,
+            /// Log B's file name, shown under the name on B cards.
+            source: Option<String>,
+            /// A log-A card with no partner while comparing ("not in B").
+            not_in_b: bool,
+            has_partner: bool,
         }
+
+        let tab = self.active_tab.map(|idx| &self.tabs[idx]);
 
         let mut channel_cards: Vec<ChannelCardData> = Vec::with_capacity(selected_channels.len());
 
-        for selected in &selected_channels {
-            let color = self.get_channel_color(selected.color_index);
-            let color32 = egui::Color32::from_rgb(color[0], color[1], color[2]);
+        for (idx, selected) in selected_channels.iter().enumerate() {
+            let (color32, series_stroke) = self.channel_style(selected);
+            let tag = self.log_tag(selected);
+            let has_partner = tab.is_some_and(|t| t.partner(idx).is_some());
+            let source = (tag == Some("B"))
+                .then(|| self.files.get(selected.file_index).map(|f| f.name.clone()))
+                .flatten();
+            let not_in_b = tag == Some("A") && !has_partner && !selected.channel.is_computed();
+            let mut card_unit = String::new();
 
             // Get display name
             let channel_name = selected.channel.name();
@@ -351,15 +128,11 @@ impl UltraLogApp {
                                 self.unit_preferences.convert_value(min_val, source_unit);
                             let (conv_max, _) =
                                 self.unit_preferences.convert_value(max_val, source_unit);
-                            let unit_str = if display_unit.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" {}", display_unit)
-                            };
+                            card_unit = display_unit.to_string();
 
                             (
-                                Some(format!("{:.1}{}", conv_min, unit_str)),
-                                Some(format!("{:.1}{}", conv_max, unit_str)),
+                                Some(format!("{conv_min:.1}")),
+                                Some(format!("{conv_max:.1}")),
                                 Some(min_idx),
                                 Some(max_idx),
                                 times.get(min_idx).copied(),
@@ -375,6 +148,8 @@ impl UltraLogApp {
 
             channel_cards.push(ChannelCardData {
                 color: color32,
+                stroke: series_stroke,
+                unit: card_unit,
                 display_name,
                 is_computed: selected.channel.is_computed(),
                 min_str,
@@ -383,137 +158,173 @@ impl UltraLogApp {
                 max_record,
                 min_time,
                 max_time,
+                file_index: selected.file_index,
+                tag,
+                source,
+                not_in_b,
+                has_partner,
             });
         }
 
         let mut channel_to_remove: Option<usize> = None;
-        let mut jump_to: Option<(usize, f64)> = None; // (record, time)
+        let mut pair_to_remove: Option<usize> = None;
+        // (file, record in that file, time in that file's own time)
+        let mut jump_to: Option<(usize, usize, f64)> = None;
 
         egui::ScrollArea::horizontal().show(ui, |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_top(|ui| {
                 for (i, card) in channel_cards.iter().enumerate() {
-                    egui::Frame::NONE
-                        .fill(egui::Color32::from_rgb(40, 40, 40))
-                        .stroke(egui::Stroke::new(2.0, card.color))
-                        .corner_radius(5)
-                        .inner_margin(10.0)
+                    let frame = egui::Frame::NONE
+                        .fill(t.bg_raised)
+                        .stroke(egui::Stroke::new(stroke::STROKE_HAIRLINE, t.line))
+                        .corner_radius(egui::CornerRadius::same(radius::RADIUS_MD))
+                        .inner_margin(egui::Margin {
+                            left: 12,
+                            right: 6,
+                            top: 10,
+                            bottom: 8,
+                        })
                         .show(ui, |ui| {
-                            // Use horizontal layout with content on left, close button on right
-                            // Align to top so cards with different heights don't stair-step
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                                // Main content column
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        // Show computed channel indicator
-                                        if card.is_computed {
-                                            ui.label(
-                                                egui::RichText::new("ƒ")
-                                                    .color(egui::Color32::from_rgb(150, 200, 255))
-                                                    .strong(),
-                                            )
-                                            .on_hover_text("Computed channel (formula-based)");
-                                        }
-                                        ui.label(
-                                            egui::RichText::new(&card.display_name)
-                                                .strong()
-                                                .color(card.color)
-                                                .size(font_14),
-                                        );
-                                    });
-
-                                    // Show min with jump button
-                                    if let Some(min_str) = &card.min_str {
-                                        ui.horizontal(|ui| {
-                                            ui.label(
-                                                egui::RichText::new("Min:")
-                                                    .color(egui::Color32::GRAY)
-                                                    .size(font_12),
-                                            );
-                                            ui.label(
-                                                egui::RichText::new(min_str)
-                                                    .color(egui::Color32::LIGHT_GRAY)
-                                                    .size(font_14),
-                                            );
-                                            if let (Some(record), Some(time)) =
-                                                (card.min_record, card.min_time)
-                                            {
-                                                let btn = ui
-                                                    .small_button("⏵")
-                                                    .on_hover_text("Jump to minimum");
-                                                if btn.clicked() {
-                                                    jump_to = Some((record, time));
-                                                }
-                                                if btn.hovered() {
-                                                    ui.ctx().set_cursor_icon(
-                                                        egui::CursorIcon::PointingHand,
-                                                    );
-                                                }
-                                            }
-                                        });
-                                    }
-
-                                    // Show max with jump button
-                                    if let Some(max_str) = &card.max_str {
-                                        ui.horizontal(|ui| {
-                                            ui.label(
-                                                egui::RichText::new("Max:")
-                                                    .color(egui::Color32::GRAY)
-                                                    .size(font_12),
-                                            );
-                                            ui.label(
-                                                egui::RichText::new(max_str)
-                                                    .color(egui::Color32::LIGHT_GRAY)
-                                                    .size(font_14),
-                                            );
-                                            if let (Some(record), Some(time)) =
-                                                (card.max_record, card.max_time)
-                                            {
-                                                let btn = ui
-                                                    .small_button("⏵")
-                                                    .on_hover_text("Jump to maximum");
-                                                if btn.clicked() {
-                                                    jump_to = Some((record, time));
-                                                }
-                                                if btn.hovered() {
-                                                    ui.ctx().set_cursor_icon(
-                                                        egui::CursorIcon::PointingHand,
-                                                    );
-                                                }
-                                            }
-                                        });
-                                    }
-                                });
-
-                                // Close button in top right
-                                ui.add_space(8.0);
-                                ui.vertical(|ui| {
-                                    let close_btn = ui.add(
-                                        egui::Button::new(
-                                            egui::RichText::new("x")
-                                                .size(font_12)
-                                                .color(egui::Color32::from_rgb(150, 150, 150)),
-                                        )
-                                        .fill(egui::Color32::TRANSPARENT)
-                                        .stroke(egui::Stroke::NONE)
-                                        .corner_radius(2.0),
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    // Series swatch: the line glyph, dashed when the line is
+                                    let (sw, _) = ui.allocate_exact_size(
+                                        egui::vec2(14.0, 14.0),
+                                        egui::Sense::hover(),
                                     );
-                                    if close_btn.clicked() {
+                                    plot_style::swatch(
+                                        ui.painter(),
+                                        sw.left_center(),
+                                        sw.width(),
+                                        card.color,
+                                        card.stroke,
+                                    );
+                                    if card.is_computed {
+                                        ui.label(
+                                            egui::RichText::new("\u{0192}")
+                                                .family(egui::FontFamily::Name(
+                                                    fonts::DISPLAY_BOLD_ITALIC.into(),
+                                                ))
+                                                .color(t.magenta),
+                                        )
+                                        .on_hover_text("Computed channel (formula-based)");
+                                    }
+                                    if let Some(tag) = card.tag {
+                                        ui.label(
+                                            egui::RichText::new(tag)
+                                                .text_style(fonts::text_style(style::DATA))
+                                                .color(t.ink_muted),
+                                        )
+                                        .on_hover_text(
+                                            card.source.as_deref().unwrap_or(&card.display_name),
+                                        );
+                                    }
+                                    ui.label(
+                                        egui::RichText::new(&card.display_name)
+                                            .text_style(egui::TextStyle::Heading)
+                                            .color(t.ink),
+                                    );
+                                    ui.add_space(space::SPACE_4);
+                                    if card.has_partner
+                                        && components::icon_button(
+                                            ui,
+                                            icon::TRASH,
+                                            t!("compare.remove_pair"),
+                                        )
+                                        .clicked()
+                                    {
+                                        pair_to_remove = Some(i);
+                                    }
+                                    if components::icon_button(ui, icon::X, "Remove channel")
+                                        .clicked()
+                                    {
                                         channel_to_remove = Some(i);
                                     }
-                                    if close_btn.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
                                 });
+                                if let Some(source) = &card.source {
+                                    ui.label(
+                                        egui::RichText::new(source)
+                                            .text_style(fonts::text_style(style::DATA_SM))
+                                            .color(t.ink_subtle),
+                                    );
+                                } else if card.not_in_b {
+                                    ui.label(
+                                        egui::RichText::new(t!("compare.not_in_b"))
+                                            .text_style(fonts::text_style(style::DATA_SM))
+                                            .color(t.ink_subtle),
+                                    );
+                                }
+
+                                for (label, value, record, time, hint) in [
+                                    (
+                                        "Min",
+                                        &card.min_str,
+                                        card.min_record,
+                                        card.min_time,
+                                        "Jump to minimum",
+                                    ),
+                                    (
+                                        "Max",
+                                        &card.max_str,
+                                        card.max_record,
+                                        card.max_time,
+                                        "Jump to maximum",
+                                    ),
+                                ] {
+                                    let Some(value) = value else { continue };
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            egui::RichText::new(label)
+                                                .text_style(fonts::text_style(style::LABEL))
+                                                .color(t.ink_subtle),
+                                        );
+                                        ui.label(
+                                            egui::RichText::new(value)
+                                                .text_style(egui::TextStyle::Monospace)
+                                                .color(t.ink),
+                                        );
+                                        if !card.unit.is_empty() {
+                                            ui.label(
+                                                egui::RichText::new(&card.unit)
+                                                    .text_style(fonts::text_style(style::DATA_SM))
+                                                    .color(t.ink_subtle),
+                                            );
+                                        }
+                                        if let (Some(record), Some(time)) = (record, time)
+                                            && components::icon_button(ui, icon::CARET_RIGHT, hint)
+                                                .clicked()
+                                        {
+                                            jump_to = Some((card.file_index, record, time));
+                                        }
+                                    });
+                                }
                             });
                         });
 
-                    ui.add_space(5.0);
+                    // 2px series strip along the top edge
+                    let r = frame.response.rect;
+                    ui.painter().rect_filled(
+                        egui::Rect::from_min_size(
+                            r.left_top(),
+                            egui::vec2(r.width(), stroke::STROKE_INDICATOR),
+                        ),
+                        egui::CornerRadius {
+                            nw: radius::RADIUS_MD,
+                            ne: radius::RADIUS_MD,
+                            sw: 0,
+                            se: 0,
+                        },
+                        card.color,
+                    );
+
+                    ui.add_space(space::SPACE_1);
                 }
             });
         });
 
         // Handle jump to min/max
-        if let Some((record, time)) = jump_to {
+        if let Some((file_index, record, time)) = jump_to {
+            let (time, record) = self.cursor_for_file_sample(file_index, record, time);
             self.set_cursor_time(Some(time));
             self.set_cursor_record(Some(record));
             // Request the chart to center on this time
@@ -523,7 +334,9 @@ impl UltraLogApp {
             self.last_frame_time = None;
         }
 
-        if let Some(index) = channel_to_remove {
+        if let Some(index) = pair_to_remove {
+            self.remove_pair(index);
+        } else if let Some(index) = channel_to_remove {
             self.remove_channel(index);
         }
 
@@ -531,8 +344,7 @@ impl UltraLogApp {
             ui.label(
                 egui::RichText::new("Click channels to add them to the chart")
                     .italics()
-                    .color(egui::Color32::GRAY)
-                    .size(font_16),
+                    .color(t.ink_subtle),
             );
         }
     }

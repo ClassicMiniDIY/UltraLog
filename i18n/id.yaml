@@ -6,11 +6,7 @@ menu:
   open_log_file: "Buka Berkas Log..."
   close_tab: "Tutup Tab"
   export: "Ekspor"
-  export_png: "Ekspor sebagai PNG..."
-  export_pdf: "Ekspor sebagai PDF..."
-  export_histogram_pdf: "Ekspor Histogram sebagai PDF..."
-  export_table_png: "Ekspor Tabel sebagai PNG..."
-  export_table_pdf: "Ekspor Tabel sebagai PDF..."
+  export_ellipsis: "Ekspor..."
   view: "Tampilan"
   show_grid: "Tampilkan Kisi"
   tool_mode: "Mode Alat"
@@ -30,6 +26,7 @@ menu:
   support_development: "Dukung Pengembangan"
   check_for_updates: "Periksa Pembaruan"
   checking_for_updates: "Memeriksa Pembaruan..."
+  about: "Tentang UltraLog"
   version: "Versi %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -53,13 +50,40 @@ channels:
   with_data: "Dengan Data (%{count})"
   empty: "Kosong (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Bandingkan"
+  none: "Tidak ada"
+  open_file: "Buka file…"
+  compare_with: "Bandingkan dengan…"
+  hint: "Kanal dipasangkan berdasarkan nama. Log B bergaris putus-putus."
+  no_other_files: "Muat log kedua untuk membandingkannya dengan log ini."
+  log_a: "Log A"
+  log_b: "Log B"
+  not_in_b: "tidak ada di B"
+  remove_pair: "Hapus pasangan"
+  offset: "Offset log B"
+  offset_hint: "Detik yang ditambahkan ke waktu log B. Seret atau ketik nilai."
+  reset: "Atur ulang"
+  align: "Sejajarkan di kursor"
+  align_hint: "Letakkan kursor pada peristiwa di log A, klik ini, lalu klik peristiwa yang sama di log B."
+  align_no_cursor: "Klik grafik untuk menempatkan kursor terlebih dahulu."
+  align_pick: "Klik titik yang cocok di log B."
+  align_pick_rest: "Esc membatalkan."
+  align_cancel: "Batal"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Bahasa"
   language_desc: "Pilih bahasa tampilan"
   display: "Tampilan"
+  ultra_intensity: "Intensitas Ultra"
+  ultra_intensity_desc: "Seberapa banyak efek neon yang ditampilkan aplikasi. Tidak pernah mengubah warna data atau kontras teks."
+  ultra_intensity_locked: "Terkunci saat Kontras Tinggi aktif: tanpa efek cahaya, gradien, atau kisi latar."
   color_blind_mode: "Mode Buta Warna"
-  color_blind_desc: "Gunakan palet warna aksesibel (palet Wong)"
+  color_blind_desc: "Warna data yang aman untuk buta warna, garis putus-putus dan berlabel, serta kontras teks yang lebih kuat."
+  high_contrast: "Kontras Tinggi"
+  high_contrast_desc: "Latar hitam, teks putih, dan kontrol berbingkai. Mematikan efek neon."
   font_size: "Ukuran Font:"
   cursor_tracking: "Pelacakan Kursor"
   cursor_tracking_desc: "Pertahankan kursor di tengah saat menggulir"
@@ -99,6 +123,9 @@ timeline:
   speed: "Kecepatan:"
   time: "Waktu: %{time}"
   record: "Rekaman %{current} dari %{total}"
+  play: "Putar"
+  pause: "Jeda"
+  stop: "Berhenti"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +199,10 @@ toast:
   export_png_success: "Grafik diekspor sebagai PNG"
   export_pdf_success: "Grafik diekspor sebagai PDF"
   export_failed: "Ekspor gagal: %{error}"
+  export_copied: "Gambar disalin ke papan klip"
   histogram_exported_png: "Histogram diekspor sebagai PNG"
   histogram_exported_pdf: "Histogram diekspor sebagai PDF"
-  table_exported_png: "Tabel diekspor sebagai PNG (sel saja; gunakan CSV untuk nilai)"
+  table_exported_png: "Tabel diekspor sebagai PNG"
   table_exported_pdf: "Tabel diekspor sebagai PDF"
   scatter_exported_png: "Diagram sebar diekspor sebagai PNG"
   scatter_exported_pdf: "Diagram sebar diekspor sebagai PDF"
@@ -209,6 +237,7 @@ common:
   duplicate: "Duplikat"
   apply: "Terapkan"
   close: "Tutup"
+  cancel: "Batal"
   reset: "Reset"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -325,10 +354,42 @@ histogram:
   filter_min: "Min"
   filter_max: "Maks"
   no_filters: "Tidak ada filter aktif"
+  scale_hits: "Jumlah Hit"
+  scale_average: "Nilai rata-rata"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Pilih kanal untuk menampilkan grafik"
+  cursor: "Kursor"
+  rich: "kaya"
+  target: "target"
+  lean: "miskin"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "Ekspor..."
+  title_chart: "Ekspor Grafik"
+  title_scatter: "Ekspor Diagram Sebar"
+  title_histogram: "Ekspor Histogram"
+  title_table: "Ekspor Tabel"
+  format: "Format"
+  paper: "Kertas"
+  paper_desc: "Terang. Default; tercetak dengan rapi."
+  graphite: "Grafit"
+  graphite_desc: "Abu-abu gelap, hemat tinta."
+  cvd_note: "Ekspor selalu memakai palet aman untuk buta warna, agar siapa pun yang Anda bagikan dapat membacanya."
+  export_pdf: "Ekspor PDF"
+  export_png: "Ekspor PNG"
+  copy_image: "Salin gambar"
+  copy_tooltip: "Salin grafik atau tabel tanpa header atau footer, untuk ditempel ke dokumen"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "Tentang UltraLog"
+  tagline: "Penampil log ECU berkinerja tinggi"
+  license: "Open source di bawah lisensi %{license}"
+  website: "Situs web"
+  source: "Kode sumber"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -401,6 +462,10 @@ table_gen:
   copy_failed: "Gagal menyalin ke clipboard"
   exported: "Tabel diekspor ke %{path}"
   export_failed: "Ekspor gagal"
+  legend_high: "kepercayaan tinggi"
+  legend_medium: "kepercayaan sedang"
+  legend_low: "kepercayaan rendah"
+  legend_empty: "tanpa sampel"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -438,8 +503,8 @@ track_map:
   color_by: "Warna berdasarkan"
   solid: "Padat"
   colormap: "Peta warna"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Berurutan"
+  colormap.diverging: "Divergen"
   range: "Rentang"
   range_auto: "Otomatis"
   lap: "Lap"

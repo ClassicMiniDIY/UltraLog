@@ -74,7 +74,7 @@ src/
 ├── units.rs           # Unit preference types and conversions
 ├── normalize.rs       # Field name normalization system
 ├── computed.rs        # Computed channels data types and library
-├── colormap.rs        # Viridis/Turbo colormap LUTs for track coloring
+├── colormap.rs        # Colour-map entry point: theme Sequential / Diverging maps (no rainbow LUTs)
 ├── laps.rs            # GPS coordinate-format normalization, track sanitization, lap detection
 ├── tiles.rs           # Map tile providers, bounded worker pool, disk/texture caches
 ├── expression/
@@ -144,23 +144,43 @@ src/
     ├── tool_properties_panel.rs      # Dynamic panel showing controls for the active tool (channels / histogram / scatter)
     ├── analysis_panel.rs             # Window for running analysis algorithms (src/analysis) on the active log
     ├── table_generator.rs            # Table tools: Tool Properties setup + central heatmap / inspector view
-    ├── table_export.rs               # PNG / PDF export for generated tables (pure renderers + app wrappers)
+    ├── table_export.rs               # ExportSheet model for generated tables (`table_sheet`)
     ├── data_panel.rs                 # Right-side data panel hosting DataWidget panes (rail, header, hide/restore)
     ├── widgets/
     │   ├── mod.rs                    # DataWidget trait + static widget registry
     │   └── track_map.rs              # GPS Track Map widget (polyline, laps, tile backgrounds)
-    ├── sidebar.rs                    # Legacy files panel, superseded by files_panel (kept, not wired into render path)
-    ├── channels.rs                   # Selected-channel cards; legacy channel-picker superseded by tool_properties_panel
+    ├── channels.rs                   # Selected-channel cards
     ├── chart.rs                      # Chart rendering, legends, LTTB algorithm
     ├── timeline.rs                   # Timeline scrubber and playback controls
     ├── menu.rs                       # Menu bar (Units, Tools, Help menus)
     ├── toast.rs                      # Toast notification system
-    ├── icons.rs                      # Custom icon drawing utilities
     ├── tab_bar.rs                    # Multi-file tab interface
+    ├── fonts.rs                      # Font families (per weight), script/CJK fallbacks, the type scale as TextStyles
+    ├── formula_syntax.rs             # Formula tokenizer + LayoutJob colouring (editor, help window)
+    ├── plot_style.rs                 # Chart chrome: series strokes, bloom, Ultra floor, cursor, custom legend, direct labels
+    ├── heatmap.rs                    # Heatmap/table cells: seq/div fill, value plate, hatch, count badges, ring, ColorScale
+    ├── components/
+    │   ├── mod.rs                    # Night Drive components; re-exports Phosphor as `icon`
+    │   ├── button.rs                 # primary / secondary / ghost / danger / sm / icon buttons
+    │   ├── controls.rs               # segmented, checkbox, Ultra intensity slider
+    │   ├── notice.rs                 # Status (icon + word), notice, status and ECU badges
+    │   └── window.rs                 # window(): Saira title; finish_window(): redline + Esc
+    ├── theme/
+    │   ├── mod.rs                    # Night Drive runtime: tokens_at, series/seq/div, egui Visuals, install/current
+    │   ├── tokens.rs                 # GENERATED from design/tokens/tokens.json — never edit by hand
+    │   └── codegen.rs                # tokens.json -> tokens.rs generator (cargo run --example gen_theme)
     ├── tool_switcher.rs              # Switch between the five tools (ActiveTool::ALL)
     ├── scatter_plot.rs               # XY scatter plot visualization
     ├── histogram.rs                  # 2D histogram/heatmap view for channel distributions
-    ├── export.rs                     # PNG and PDF export functionality
+    ├── export.rs                     # Builds the ExportSheet per tool; file export and Copy image
+    ├── export_dialog.rs              # ExportDialog: format, Paper/Graphite, Copy image / Export
+    ├── about_window.rs               # About window (Help menu): lockup on bg_void, version, links
+    ├── export_sheet/                 # ExportSheet layout + Canvas back ends (see Export Contract)
+    │   ├── mod.rs                    # Sheet / ChartModel / GridModel, draw_sheet, render_png/pdf
+    │   ├── canvas.rs                 # Canvas trait (points, top-left origin, baseline text)
+    │   ├── text.rs                   # skrifa layout, font fallback, glyph outlines
+    │   ├── png.rs                    # vello_cpu back end (2×), lockup composited after render
+    │   └── pdf.rs                    # printpdf back end, bundled TTFs embedded
     ├── normalization_editor.rs       # Custom field mapping editor
     ├── computed_channels_manager.rs  # Computed channels library UI
     ├── formula_editor.rs             # Formula creation and editing
@@ -179,7 +199,7 @@ src/
   - `LoadedFile` - Represents a parsed log file
   - `SelectedChannel` - A channel selected for visualization
   - `CacheKey`, `LoadResult`, `LoadingState`, `DownsampleViewKey` - Internal state types
-  - Color palette constants (`CHART_COLORS`, `COLORBLIND_COLORS`)
+  - No colour constants: series colours come from `theme::series` (see the Theme Contract)
 
 - **`settings.rs`** - `UserSettings` persistence (see [Settings Persistence Contract](#settings-persistence-contract) below)
 
@@ -288,9 +308,11 @@ low cells are never interpolated and export blank.
   differences are exactly zero). The previous reading for interpolation is the last update, but no
   earlier than `t - effective_update_interval`: a flat baseline is still being sampled every
   interval, so interpolating from its last value change would place every crossing far too early.
-- **Invalid-sample masking** (`events::mask_invalid`) - Haltech writes an i32 sentinel family
+- **Invalid-sample masking** (`events::mask_invalid`) - ECUs write an i32 sentinel family
   (`-2147483617`, `…637`, …) for "no reading"; those and out-of-band samples become `NaN` before any
-  math, and a window with >10 % masked lambda rejects as `InvalidSamples`.
+  math, and a window with >10 % masked lambda rejects as `InvalidSamples`. Haltech sentinels never
+  get this far: the Haltech parser fills them (see its load-bearing behaviors), so a Haltech wideband
+  dropout reaches the generators as a held value and is caught by steadiness / band gating instead.
 - **Alignment** (`tables::mapped_column`) - `Log::get_channel_data` drops ragged rows, so a column
   can be shorter than `times`; the generators refuse with `ComputationError` rather than index
   misaligned pairs (same contract as `channel_series` in the IPC handler).
@@ -313,11 +335,11 @@ low cells are never interpolated and export blank.
   holds the accumulators, mappings and export options for both generators. The tables are
   multi-log by design, so the active tab only decides which file *Run / Add current file* reads;
   switching tabs or tools does not lose a table.
-- **PNG has no text** - the crate has no font rasterizer, so `table_export::render_table_png`
-  draws cells and grid lines only (same as the histogram PNG). `render_table_pdf` draws values,
-  counts and axis labels with built-in Helvetica, whose encoding turns `~` into an arrow, so the
-  confidence markers are `*` (medium) and `?` (low). Both go through `tables::export::cell_value`
-  so PNG, PDF, CSV and clipboard blank the same cells and convert delay units identically.
+- **Exports go through the ExportSheet** - `table_export::table_sheet` builds a `GridModel`
+  (values, count badges whose fill style shows confidence, edge labels) and `ui::export_sheet`
+  draws PNG and PDF from it (see the Export Contract below). Cell values go through
+  `tables::export::cell_value`, so PNG, PDF, CSV and clipboard blank the same cells and convert
+  delay units identically.
 - **Auto-suggestion** (`channel_map::suggest_mapping`) - normalization hit (100) → strong name
   hints (50) → spec category + hint (60) → generic hints (40), then a data-plausibility veto on the
   channel median; `overall|avg|average` names lose 10 points so a single sensor beats an averaged
@@ -382,27 +404,25 @@ it, so a ragged log yields a pair that is *misaligned*, not merely short — and
 
 ### UI Modules (src/ui/)
 
-UI rendering is split into focused modules that implement methods on `UltraLogApp`. The current layout is a VS Code-style activity bar + side panel; a couple of pre-activity-bar modules remain in the tree but are superseded (noted below):
+UI rendering is split into focused modules that implement methods on `UltraLogApp`. The layout is a VS Code-style activity bar + side panel:
 
 - **`activity_bar.rs`** - Vertical icon strip on the far left for switching between side-panel sections (Files / Tool Properties / Tools / Settings)
 - **`side_panel.rs`** - Container that routes to the panel selected in the activity bar
-- **`files_panel.rs`** - File management, loading, and file list (current files panel — see `sidebar.rs` note below)
+- **`files_panel.rs`** - File management, loading, and file list
 - **`tools_panel.rs`** - Analysis tools, computed channels library, and export options, inline in the side panel
 - **`settings_panel.rs`** - Consolidated settings: display, units, normalization, updates
 - **`tool_properties_panel.rs`** - Dynamic panel showing controls for the active tool: channel selection for Log Viewer, axis/grid/filter controls for Histogram, controls for Scatter Plot
 - **`analysis_panel.rs`** - Window for running `src/analysis` algorithms (filters, statistics, AFR, derived metrics) against the active log, with category tabs
-- **`sidebar.rs`** - Legacy file list/drop-zone panel, superseded by `files_panel.rs` (module still compiles but its render methods are not called from `app.rs`)
-- **`channels.rs`** - Selected-channel cards (`render_selected_channels`, still active) plus a legacy channel-picker list (`render_channel_selection`) superseded by `tool_properties_panel.rs`
+- **`channels.rs`** - Selected-channel cards (`render_selected_channels`); channel picking lives in `tool_properties_panel.rs`
 - **`chart.rs`** - Main chart with egui_plot, min/max legend overlay, LTTB downsampling, normalization
 - **`timeline.rs`** - Bottom panel: playback controls (play/pause/stop), speed selector, timeline scrubber
 - **`menu.rs`** - Top menu bar (File, Edit, View, Help; Units submenu with 8 unit categories)
 - **`toast.rs`** - Toast notification overlay for user feedback
-- **`icons.rs`** - Custom icon drawing (upload icon for drop zone)
 - **`tab_bar.rs`** - Chrome-style tabs for multi-file support
 - **`tool_switcher.rs`** - Switch between the five tools in `ActiveTool::ALL` (Log Viewer, Scatter Plot, Histogram, Lambda Delay, Accel Enrichment)
 - **`scatter_plot.rs`** - XY scatter plot for channel correlation analysis
 - **`histogram.rs`** - 2D histogram/heatmap view of channel distributions, with configurable cell coloring (average Z-value or hit count)
-- **`export.rs`** - PNG and PDF export with chart rendering
+- **`export.rs`** / **`export_dialog.rs`** / **`export_sheet/`** - the ExportDialog and the one ExportSheet layout every PNG/PDF export uses (see the Export Contract)
 - **`normalization_editor.rs`** - Dialog for creating custom field name mappings
 - **`computed_channels_manager.rs`** - Window for managing computed channel library
 - **`formula_editor.rs`** - Dialog for creating/editing computed channel formulas
@@ -616,6 +636,7 @@ preferences convert them.
 **Haltech parser load-bearing behaviors** (`src/parsers/haltech.rs`, added for wall-clock-timestamped exports):
 
 - **Last-known-value substitution** - Unparseable/blank fields are filled with the last successfully parsed value for that column (`0.0` before the first valid sample), matching the approach used in `parsers/ecumaster.rs`. This preserves column alignment instead of shifting subsequent columns when a field fails to parse.
+- **"No reading" sentinels are filled before scaling** - NSP writes an i32 sentinel family (`-2147483617`, `-2147483637`, ...) when a channel has no reading. The parser checks the *raw* value with `analysis::tables::events::is_invalid_sample` and treats a hit like a blank field (last known value, `0.0` before the first). It must run before `ChannelType::convert_value`: once scaled (lambda / 1000, pressure / 10) the sentinel drops below `SENTINEL_MAGNITUDE`, no longer matches, and showed up as a -31,568,009 AFR minimum on the channel card and a flattened chart.
 - **Midnight rollover handling** - Timestamps are wall-clock time-of-day, so a logging session that crosses midnight wraps from ~86400 back toward 0. The parser tracks the previous raw timestamp and accumulates a 24h (`86_400.0`) offset on each backwards jump greater than 1 second (the 1s guard avoids tripping on timestamp jitter), keeping `times` monotonically increasing. This is the same technique used in `parsers/woolich.rs` (`Log Time` column) — monotonic times are required because computed-channel time-shift lookups binary-search the `times` vector.
 
 ### Data Flow
@@ -651,10 +672,11 @@ preferences convert them.
 
 ### Settings Persistence Contract
 
-`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, `custom_normalizations`, and the Track Map preferences (`tile_provider`, `tile_cache_max_mb`, `tiles_enabled`, `tile_opacity`, `tile_grayscale`, `tile_privacy_notice_seen`, `hidden_widgets`).
+`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `ultra_intensity`, `high_contrast`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, `custom_normalizations`, and the Track Map preferences (`tile_provider`, `tile_cache_max_mb`, `tiles_enabled`, `tile_opacity`, `tile_grayscale`, `tile_privacy_notice_seen`, `hidden_widgets`), and `export` (the ExportDialog's last format and theme per format).
 
 - **Load** - `UltraLogApp::new` calls `UserSettings::load()` and copies each field into the corresponding live `UltraLogApp` field (e.g. `app.color_blind_mode = user_settings.color_blind_mode`).
 - **Save** - `UltraLogApp` implements `eframe::App::save`, which eframe calls on its auto-save interval (~30s) and again at shutdown. `save()` rebuilds a `UserSettings` from the current live fields, and only writes to disk if it differs from the last-loaded/saved value.
+- **Defaults for new fields must match the in-app default, not the type default.** `serde(default)` on a `u8` gives 0; `ultra_intensity` uses `default_ultra_intensity`, which returns `theme::DEFAULT_INTENSITY` (0, Stealth), so a 2.x settings file opens at the same level as a new install (`test_settings_from_before_3_0_open_at_stealth`). `DEFAULT_INTENSITY` is the default only; the Night Drive anchor that `tokens_at` blends around is `NIGHT_DRIVE_INTENSITY` (35).
 - **Load-bearing invariant:** because the sync is manual field-by-field (not `#[derive]` magic), **any new persisted preference must be added in three places**: the field on the `UserSettings` struct, the copy in `UltraLogApp::new`, and the reconstruction in `eframe::App::save` in `src/app.rs`. Missing any one of the three means the preference silently resets on restart or never saves at all.
 
 ### Chart/Scatter Cache Invalidation Contract
@@ -667,11 +689,174 @@ Several `UltraLogApp` fields cache expensive per-file, per-channel computations 
 
 **Load-bearing invariant:** these caches are keyed by index (file index / channel index), not by identity. Any code path that mutates or reindexes channel data — removing a file, or removing/editing a computed channel (which shifts later computed channels' indices down) — **must clear the relevant caches**, or stale entries will silently render the wrong data against a different channel's index. See `remove_computed_channel` and the file-removal path in `src/app.rs` for the current call sites (`self.downsample_cache.clear()`, `self.minmax_cache.clear()`, `self.scatter_histogram_cache.clear()`).
 
+A cache that holds derived **colours** has a second key: `UltraLogApp::theme_generation`, which
+increments on every theme install. The Track Map's coloured-polyline cache stores it
+(`theme_generation` in `state.rs`) and rebuilds when it differs, so a change of intensity, Color
+blind mode or High contrast never leaves the old palette on screen.
+
+### Log Compare Contract (issue #98)
+
+A tab can overlay a second log: `Tab::compare: Option<CompareState>` names log **B** (the tab's own
+file is log **A**), log B's time offset, the Align-at-cursor pick flag and the A | B list switch.
+Design: `docs/plans/2026-10-25-log-compare.md` (decisions D1-D5, rules R1-R4). Session-only; not
+in `UserSettings`.
+
+- **One time axis.** Tab time is log A's time. Log B's sample at file time `t` is drawn at
+  `t + offset_s` (`Tab::time_offset`). Values at the cursor come from `UltraLogApp::record_at`
+  (nearest sample, the same rule as the cursor record and the track-map dot, and **`None` outside
+  that log's span**, R4) for every file, in the legend and in IPC `get_cursor_values`. The tab's
+  `cursor_record` is a record of log A only; arrow keys step it with `state::arrow_step`, which
+  enters log A from the near edge when the cursor is outside A's span. The track-map dot hides
+  outside A's span. Align at cursor stores the cursor time when it starts (`align_target`), and
+  a pick is cancelled on a tab or tool switch. `Tab::time_range` is the union of A and
+  shifted B (`update_tab_time_range`, which also clamps the cursor); call it after any compare or
+  offset change (`set_compare_file`, `set_compare_offset` do).
+- **Pairs are colour slots.** A pair is an A and a B channel with the same `color_index`
+  (`Tab::partner` / `partner_of`). `insert_channel` pairs by `pair_key` (normalized display name,
+  case-insensitive); computed channels are never paired (R3). A pair counts as **one** against
+  `MAX_CHANNELS` / `MAX_CHANNELS_PER_PLOT` / `MAX_TOTAL_CHANNELS` (`Tab::channel_units`,
+  `plot_has_capacity`, R2).
+- **A pair shares one y range** (R1): `UltraLogApp::pair_y_range` on screen and the same union
+  in `chart_sheet`. Otherwise every channel is scaled to its own 0..1 and two pulls with different
+  peaks look identical.
+- **The downsample cache holds raw file-time points.** `compute_viewport_points` applies the
+  offset and the y scale to the copy it returns, so a nudge smaller than one LTTB bucket (or a new
+  pair range) shows at once. Never store shifted or normalized points in `downsample_cache`.
+- **Every file-index consumer must accept log B or refuse it on purpose.** The add guards use
+  `Tab::accepts_file`; the track map's "Color by" and `color_source` take log A only (B's values
+  do not line up with the track's records); scatter, histogram and table generators read log A.
+  A Min/Max jump on a B card goes through `cursor_for_file_sample`.
+- **Removal is index-shifting, in every tab.** `remove_file` calls `Tab::remap_after_file_removed`
+  on **all** tabs (log B can be any file, before or after the tab's own), and every removal of a
+  selected channel goes through `Tab::remove_selected_channel`, which also shifts
+  `plot_areas.channel_indices` and the track-map colour slot. A stale index renders another file's
+  channel with no error (same class as the cache invalidation contract).
+- **Exports** use the tab range (`get_time_range`, not the app-wide `time_range`), slice log B in
+  its own time and shift it, dash it via `SeriesModel::log`, tag the legend `A · ` / `B · ` and add
+  a meta line with both files and the offset.
+- **MCP/IPC:** no compare commands. `get_cursor_values` reads the tab's own file at the cursor
+  record and any other file (log B included) through `record_at`, so log B gets its own record and
+  no values outside its span. `deselect_all_channels` keeps log B. `set_time_range` writes the
+  tab's range directly, so the next compare or offset change replaces it with the data range.
+
 ### Map Tile Fetching Contract (src/tiles.rs)
 
 The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.
 
 **Load-bearing invariant:** network fetches are gated by per-provider permits (`FetchPermits` + `TileProvider::max_concurrent_fetches`). The OSM tile usage policy allows at most **2 simultaneous download connections** (<https://operations.osmfoundation.org/policies/tiles/>), so `OpenStreetMap::max_concurrent_fetches` returns 2. Do not raise it and do not bypass the permit gate — exceeding the policy risks a per-IP block that would hit every UltraLog user at once.
+
+### Theme Contract (src/ui/theme/)
+
+UI work follows the Night Drive design system in `design/` (brand book
+`design/design-system/README.md`, brief `design/HANDOFF-APP.md`, implementation plan
+`docs/plans/2026-10-23-night-drive-design-system.md`). It shipped in 3.0.0; every screen reads
+the tokens, and the CI colour gate keeps it that way.
+
+- **Never hard-code a colour, size or radius.** Read `UltraLogApp::tokens` (or
+  `theme::current(ctx)` where there is no app reference, e.g. `DataWidget`s) and the
+  `tokens::{space, radius, stroke, text}` modules.
+- **`tokens.rs` is generated.** Edit `design/tokens/tokens.json`, then run
+  `cargo run --example gen_theme`. The test `committed_tokens_match_json` fails when the two
+  drift. The module is `#[rustfmt::skip]` so the generator's output is what gets committed.
+  Resolution rules (night fallback, `{ref}` in-theme, effects from the shadow tokens) are
+  documented at the top of `codegen.rs`; they match `design/tokens/tokens.ts`.
+- **One install path.** `UltraLogApp::sync_theme` runs every frame from `logic()`, derives
+  `ThemeSettings` from the live preference fields and reinstalls only on a change, so a setting
+  toggled anywhere applies next frame without its own hook. `theme::install` pins
+  `ThemePreference::Dark` (otherwise egui follows the OS appearance and swaps in its light
+  style) and stores the tokens in `ctx.data`.
+- **Data colours ignore intensity.** Series, colour maps, status and cursor follow Color blind
+  mode only (tested by `data_colors_ignore_intensity`). The exception is by design: the diverging
+  midpoint `div_2` is a ground-tinted neutral outside Color blind mode.
+- **Series beyond the palette** change stroke, not colour: `theme::series` returns
+  `SeriesStroke::Dashed` for the second lap and `Dotted` after (laps of 10, or of 8 when
+  `color_blind_like` — Color blind mode, High contrast and exports). **One exception:** while a
+  tab compares two logs, `theme::compare_series` uses the stroke for the log (A solid, B dashed),
+  so slots past the palette repeat colours without a stroke change; the A/B tag in the legend,
+  direct labels and cards tells them apart. Draw selected channels through
+  `UltraLogApp::channel_style`, never `series_style`, so compare mode is respected.
+- **Colour maps:** never add a rainbow (jet, Turbo) or a hand-rolled ramp; everything that colours by magnitude goes through `colormap::sample` / `theme::seq` / `theme::div`, cells through `ui::heatmap` (value plate, hatched empty cells, badge fill styles).
+- **Caches of derived colours** must key on `UltraLogApp::theme_generation`, which increments on
+  every install, or they keep the old palette after a theme change.
+- **Fonts** (`src/ui/fonts.rs`): egui families have no weight axis, so each weight is its own
+  family (`ui-medium`, `ui-semibold`, `display`, `display-bold-italic`, `display-black-italic`,
+  `mono-medium`; Proportional = Outfit 400, Monospace = JetBrains Mono 400), built from static
+  instances in `assets/fonts/` (`scripts/fonts/build_static_fonts.sh`; egui renders only a
+  variable font's default instance). Every family falls back to egui's defaults (Greek,
+  Cyrillic, emoji — Outfit has none of these), bundled Noto Devanagari/Bengali/Arabic, a 3 KB
+  Noto SC subset holding only the language picker's 简体中文日本語, and for `ja`/`zh-CN` only a
+  system CJK `.ttc` read at runtime (`cjk_candidates`; bundling CJK would add ~10 MB).
+  `UltraLogApp::sync_fonts` reinstalls on a language change. The type scale lives in
+  `Style::text_styles` (installed with the visuals, scaled by `FontScale`); use `TextStyle`s and
+  `fonts::style::*` names rather than `FontId::proportional(scaled_font(n))`.
+  Arabic/Urdu still lack right-to-left layout (an egui limitation).
+- **Components** (`src/ui/components/`) read `theme::current(ui.ctx())`, so any `Ui` can call
+  them. New floating windows go through `components::window(..)` and must call
+  `components::finish_window` after `.show(..)` (redline, Esc closes the topmost window). Use
+  `components::button(.., Kind::..)` instead of hand-built `Frame` buttons; one primary per view.
+  Status is always icon + word (`components::Status`), never colour alone.
+- **Charts** draw series through `plot_style::draw_series` and the legend through
+  `plot_style::legend_overlay` (egui_plot's built-in `Legend` is off: it cannot show the Cursor row,
+  live mono values or the solo fade). The soloed series is kept per plot in egui temp memory
+  (`plot_style::solo_memory`). Colour slots are unbounded (`state::next_color_index`); past the
+  palette `theme::series` repeats colours dashed, then dotted.
+- **Custom painting** stays in `src/ui/theme/paint.rs`: redline, glow, floor, dashed outline and
+  the one keyboard focus ring (`keyboard_focus_ring`, called once per frame at the end of
+  `ui()`; it shows after Tab/arrow navigation or on a text field, not after a mouse click).
+  Chart-specific painting (series strokes and Ultra bloom, the legend overlay, direct labels)
+  lives in `src/ui/plot_style.rs`.
+- **Icons are Phosphor** (`components::icon::*`, regular outline). The `phosphor` font sits right
+  after each brand face in every family, so an icon codepoint works in any label; the filled
+  set (`fonts::PHOSPHOR_FILL`) is only for transport glyphs and the favourite star. No emoji.
+- **Brand assets are generated, not edited.** `assets/icons/*` come from
+  `design/logos/ultralog-app-icon-1024.png` via `scripts/brand/build_app_icons.sh` (macOS keeps
+  Apple's 824 px tile in the 1024 canvas; the paths are fixed because `main.rs`, `build.rs` and
+  `release.yml` read them). `assets/brand/*` lockups come from `scripts/brand/rasterize_lockups.sh`.
+- **Colour gate (CI):** `grep -rnE 'Color32::|Rgba\(|Rgb::new|\[u8; 3\]' src/` may match only
+  `src/ui/theme/`, `Color32::TRANSPARENT`, the PDF/PNG type conversion in
+  `src/ui/export_sheet/{pdf,png}.rs` and a byte triple in `parsers/link.rs`. Image tints go
+  through `theme::image_tint`, translucent export colours through `theme::flatten`.
+- **CI** runs `python3 design/tools/check_contrast.py design/tokens/tokens.json`. A token change
+  that breaks a pair fails the build: fix the token, never relax the check.
+
+### Export Contract (src/ui/export.rs, src/ui/export_sheet/)
+
+Every PNG and PDF export is one ExportSheet (`design/design-system/4-exports.md`): sunset
+redline, lockup, title, mono meta (time range, counts), the chart or grids, a legend or
+ColorScale, and the footer (ultralog.co · version · export date).
+
+- **One path.** `UltraLogApp::export_sheet` builds a `Sheet` for the active tool (chart, scatter,
+  histogram, table via `table_export::table_sheet`); `export_to_file` and `copy_export_image` are
+  the only writers. Menu, Tools panel and Cmd+E open the ExportDialog; do not add a direct
+  per-tool export again.
+- **Models, not app state, are drawn.** `draw_sheet` lays out `ChartModel` / `GridModel` once on a
+  `Canvas`; `PngCanvas` (vello_cpu, 960 × 540 pt at 2×) and `PdfCanvas` (printpdf, A4 landscape)
+  implement it. A layout change is made once and both formats follow.
+- **Exports ignore app settings.** Colours come from `export_tokens(ExportTheme)` only, the series
+  palette is always the colour-blind one (`theme::series(.., true)`), and there are no intensity
+  effects. PDF has no cheap alpha, so translucent tokens go through `canvas::flatten`.
+- **PDF text is embedded TTF, PNG text is outlines.** `PdfCanvas` embeds the bundled faces
+  (`fonts::face_bytes`) so text stays selectable and `−`, `λ`, `°`, Cyrillic and Devanagari print;
+  never go back to built-in Helvetica (its encoding mangles anything past Latin-1). PNG text is
+  skrifa glyph outlines filled by vello_cpu. `text::layout` has no shaping or kerning and falls
+  back per character Outfit/Saira → JetBrains Mono → Noto scripts → a system CJK face
+  (`fonts::export_cjk_face`, any UI language), so Arabic prints unjoined. A character no face has
+  prints as `?`, never `.notdef`: printpdf's `.notdef` width differs from skrifa's and shifted the
+  text after it.
+- **Exported scales match the screen.** The table export picks the diverging map for values on
+  both sides of zero exactly as `render_table_tool_view` does, and only lambda-deviation measures
+  (`MeasureSpec::lean_is_positive`) get the rich · target · lean labels; PW step does not.
+- **The lockup is a pre-rasterized PNG** (`assets/brand/ultralog-lockup{,-paper}.png`,
+  `scripts/brand/rasterize_lockups.sh`, rsvg-convert): there is no SVG renderer at runtime. PNG
+  composites it after the vector render; PDF places it as an image XObject.
+- **The export matches the screen.** The chart exports the visible range
+  (`chart_last_x_bounds[0]`) normalized per channel like the chart; the histogram applies the
+  same custom ranges, sample filters, min-hits blanking and `binning::uniform_bin` as
+  `render_histogram_grid`. Change one and change the other.
+- **Remembered choices** live in `UserSettings::export` (`ExportChoice`: last format, last theme
+  per format), synced in the usual three places.
+- **Visual check:** `EXPORT_SHEET_DUMP=<dir> cargo test --lib dump_ -- --ignored` writes sample
+  chart, scatter and table sheets in both themes.
 
 ## Key Features
 
@@ -679,21 +864,23 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 - **Computed Channels** - Create virtual channels from mathematical formulas with time-shifting (e.g., `RPM[-1]`, `Boost@-0.5s`)
 - **Analysis Algorithms** - AFR/Lambda drift and zone detection, derived metrics (VE, injector duty cycle), signal filters, and descriptive statistics (`src/analysis/`)
 - **Table Generators** - Lambda delay and acceleration enrichment tuning tables mined from one or more logs, each a top-level tool beside Histogram, with auto-suggested channel roles, confidence-tiered cells, an event inspector, and CSV/clipboard/PNG/PDF export (`src/analysis/tables/`, `src/ui/table_generator.rs`, `src/ui/table_export.rs`)
-- **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (Viridis/Turbo with editable range), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
+- **GPS Track Map** - Right-side data panel with a track map: lap detection, channel-colored polyline (theme Sequential / Diverging map with editable range, 3px with a bg_void casing), hover-scrub/click-seek cursor sync, and opt-in Esri/OSM tile backgrounds (`src/ui/widgets/track_map.rs`, `src/tiles.rs`, `src/laps.rs`). GPS coordinate encodings are auto-detected and normalized to decimal degrees (`GpsCoordSpec` in `src/laps.rs`): NMEA `DDMM.mmmm`, milli/micro/1e-7-scaled integer degrees, and 0-360 longitude. Detection is conservative - values already in valid degree ranges are never transformed, and radians are deliberately not detected (ambiguous with genuine near-equator degree tracks).
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
 - **Unit Preferences** - Users can select display units for temperature, pressure, speed, distance, fuel economy, volume, flow rate, and acceleration
 - **Field Normalization** - Maps ECU-specific channel names to standardized names for cross-ECU comparison
 - **Scatter Plot Tool** - XY scatter plot for analyzing channel correlations
 - **Histogram Tool** - 2D heatmap view of channel distributions
-- **Export Options** - Export charts as PNG or PDF
-- **Colorblind Mode** - Wong's optimized color palette for accessibility
+- **Export Options** - Export the chart, scatter plots, histogram or a tuning table as PNG or PDF on the Paper or Graphite sheet, or copy it as an image for pasting
+- **Log Compare** - Overlay a second log in the same tab (issue #98): channels pair by name, log B is dashed in its pair's colour on a shared scale, with a time offset, Align at cursor, A/B tags and compare-aware exports (see the Log Compare Contract)
+- **Night Drive design system** - one dark theme with an Ultra intensity slider (Stealth · Night Drive · Ultra), Color blind mode (Okabe-Ito series, cividis and blue/orange maps) and High contrast; tokens generated from `design/tokens/tokens.json` (see the Theme Contract)
+- **About window** - Help → About UltraLog: version, licence, links, Check for Updates
 - **Playback** - Play through log data at 0.25x to 8x speed
 - **Cursor Tracking** - Lock view to follow cursor during playback/scrubbing
 - **Min/Max Legend** - Shows peak values for each channel
 - **Initial Zoom** - Charts start zoomed to first 60 seconds for better initial view
 - **Multi-File Tabs** - Chrome-style tabs for working with multiple log files simultaneously
 - **Internationalization** - `rust-i18n`-backed language selection (`src/i18n.rs`)
-- **Settings Persistence** - Unit/display/normalization preferences survive restarts (see [Settings Persistence Contract](#settings-persistence-contract))
+- **Settings Persistence** - Unit/display/theme/normalization/export preferences survive restarts (see [Settings Persistence Contract](#settings-persistence-contract))
 - **Auto-Update** - Automatic update checking and installation
 
 ### Keyboard Shortcuts
@@ -708,7 +895,7 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 - **Arrow Left/Right** - Step cursor one record (Shift = 10 records)
 - **Home/End** - Jump cursor to start/end of log
 - **Escape** - Stop playback
-- **Cmd/Ctrl+E** - Export the current view (chart, scatter plot, or histogram) as PNG
+- **Cmd/Ctrl+E** - Open the ExportDialog for the current view
 - **Space** - Toggle play/pause
 
 ## Key Dependencies
@@ -730,7 +917,8 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
   `serde_yaml` fork, and unlike `serde_yaml_ng` its libyaml backend is maintained too.
   Do not go back to `serde_yml` or `serde_yaml`.
 - **printpdf** (0.12) - PDF generation
-- **image** (0.25) - PNG export
+- **image** (0.25) - PNG encoding
+- **skrifa** (0.44) / **vello_cpu** (0.1) - PNG export text and shapes: skrifa reads glyph outlines from the bundled fonts, vello_cpu fills them as paths (its glyph-atlas `text` feature is off)
 - **memmap2** (0.9) - Memory-mapped file loading for large files
 - **rayon** (1.12) - Parallel iteration for parsing
 - **dirs** (6.0) - Cross-platform app data directory detection for cache and settings

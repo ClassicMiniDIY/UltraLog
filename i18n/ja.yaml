@@ -6,11 +6,7 @@ menu:
   open_log_file: "ログファイルを開く..."
   close_tab: "タブを閉じる"
   export: "エクスポート"
-  export_png: "PNGとしてエクスポート..."
-  export_pdf: "PDFとしてエクスポート..."
-  export_histogram_pdf: "ヒストグラムをPDFでエクスポート..."
-  export_table_png: "テーブルをPNGでエクスポート..."
-  export_table_pdf: "テーブルをPDFでエクスポート..."
+  export_ellipsis: "エクスポート..."
   view: "表示"
   show_grid: "グリッドを表示"
   tool_mode: "ツールモード"
@@ -30,6 +26,7 @@ menu:
   support_development: "開発を支援"
   check_for_updates: "アップデートを確認"
   checking_for_updates: "アップデートを確認中..."
+  about: "UltraLog について"
   version: "バージョン %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -53,13 +50,40 @@ channels:
   with_data: "データあり (%{count})"
   empty: "空 (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "比較"
+  none: "なし"
+  open_file: "ファイルを開く…"
+  compare_with: "比較対象…"
+  hint: "チャンネルは名前でペアになります。ログ B は破線です。"
+  no_other_files: "比較する 2 つ目のログを読み込んでください。"
+  log_a: "ログ A"
+  log_b: "ログ B"
+  not_in_b: "B にない"
+  remove_pair: "ペアを削除"
+  offset: "ログ B のオフセット"
+  offset_hint: "ログ B の時刻に加える秒数。ドラッグまたは値を入力します。"
+  reset: "リセット"
+  align: "カーソルで揃える"
+  align_hint: "ログ A のイベントにカーソルを置き、これをクリックしてから、ログ B の同じイベントをクリックします。"
+  align_no_cursor: "先にチャートをクリックしてカーソルを置いてください。"
+  align_pick: "ログ B の対応する点をクリックしてください。"
+  align_pick_rest: "Esc でキャンセル。"
+  align_cancel: "キャンセル"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "言語"
   language_desc: "表示言語を選択"
   display: "表示"
+  ultra_intensity: "Ultra 強度"
+  ultra_intensity_desc: "アプリにネオンの装飾をどれだけ表示するかを決めます。データの色や文字のコントラストは変わりません。"
+  ultra_intensity_locked: "ハイコントラストが有効な間はロックされます。グロー、グラデーション、背景グリッドは表示されません。"
   color_blind_mode: "色覚サポートモード"
-  color_blind_desc: "アクセシブルなカラーパレットを使用（ウォンのパレット）"
+  color_blind_desc: "色覚に配慮したデータの色、破線とラベル付きの線、より強い文字のコントラストを使用します。"
+  high_contrast: "ハイコントラスト"
+  high_contrast_desc: "黒い背景、白い文字、枠線のあるコントロールを使用します。ネオン効果はオフになります。"
   font_size: "フォントサイズ:"
   cursor_tracking: "カーソル追従"
   cursor_tracking_desc: "スクラブ中にカーソルを中央に保持"
@@ -99,6 +123,9 @@ timeline:
   speed: "速度:"
   time: "時間: %{time}"
   record: "レコード %{current} / %{total}"
+  play: "再生"
+  pause: "一時停止"
+  stop: "停止"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +199,10 @@ toast:
   export_png_success: "チャートをPNGとしてエクスポートしました"
   export_pdf_success: "チャートをPDFとしてエクスポートしました"
   export_failed: "エクスポートに失敗しました: %{error}"
+  export_copied: "画像をクリップボードにコピーしました"
   histogram_exported_png: "ヒストグラムをPNGとしてエクスポートしました"
   histogram_exported_pdf: "ヒストグラムをPDFとしてエクスポートしました"
-  table_exported_png: "テーブルをPNGとしてエクスポートしました（セルのみ、数値はCSVを使用）"
+  table_exported_png: "テーブルをPNGとしてエクスポートしました"
   table_exported_pdf: "テーブルをPDFとしてエクスポートしました"
   scatter_exported_png: "散布図をPNGとしてエクスポートしました"
   scatter_exported_pdf: "散布図をPDFとしてエクスポートしました"
@@ -209,6 +237,7 @@ common:
   duplicate: "複製"
   apply: "適用"
   close: "閉じる"
+  cancel: "キャンセル"
   reset: "リセット"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -325,10 +354,42 @@ histogram:
   filter_min: "最小"
   filter_max: "最大"
   no_filters: "アクティブなフィルターなし"
+  scale_hits: "ヒット数"
+  scale_average: "平均値"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "チャートを表示するにはチャンネルを選択してください"
+  cursor: "カーソル"
+  rich: "リッチ"
+  target: "ターゲット"
+  lean: "リーン"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "エクスポート..."
+  title_chart: "チャートをエクスポート"
+  title_scatter: "散布図をエクスポート"
+  title_histogram: "ヒストグラムをエクスポート"
+  title_table: "テーブルをエクスポート"
+  format: "形式"
+  paper: "ペーパー"
+  paper_desc: "明るい配色。標準設定です。きれいに印刷されます。"
+  graphite: "グラファイト"
+  graphite_desc: "暗いグレー。インクを節約します。"
+  cvd_note: "エクスポートは常に色覚多様性に配慮したパレットを使うため、共有先の人も読めます。"
+  export_pdf: "PDFをエクスポート"
+  export_png: "PNGをエクスポート"
+  copy_image: "画像をコピー"
+  copy_tooltip: "ヘッダーとフッターを除いてチャートまたはテーブルをコピーし、文書に貼り付けます"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "UltraLog について"
+  tagline: "高性能 ECU ログビューア"
+  license: "%{license} ライセンスのオープンソース"
+  website: "ウェブサイト"
+  source: "ソースコード"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -401,6 +462,10 @@ table_gen:
   copy_failed: "クリップボードへのコピーが失敗しました"
   exported: "テーブルが%{path}にエクスポートされました"
   export_failed: "エクスポートに失敗しました"
+  legend_high: "高信頼度"
+  legend_medium: "中信頼度"
+  legend_low: "低信頼度"
+  legend_empty: "サンプルなし"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -438,8 +503,8 @@ track_map:
   color_by: "色分け方法"
   solid: "ベタ塗り"
   colormap: "カラーマップ"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "連続"
+  colormap.diverging: "発散"
   range: "範囲"
   range_auto: "自動"
   lap: "ラップ"

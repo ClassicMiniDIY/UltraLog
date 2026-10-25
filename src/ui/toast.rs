@@ -3,49 +3,59 @@
 use eframe::egui;
 
 use crate::app::UltraLogApp;
+use crate::state::ToastType;
+use crate::ui::components::Status;
+use crate::ui::theme::tokens::radius;
+
+/// How long a toast stays on screen.
+const TOAST_DURATION: std::time::Duration = std::time::Duration::from_secs(3);
 
 impl UltraLogApp {
     /// Render toast notifications in the bottom right corner
     pub fn render_toast(&mut self, ctx: &egui::Context) {
         if let Some((message, time, toast_type)) = &self.toast_message {
-            if time.elapsed().as_secs() < 3 {
+            let shown_for = time.elapsed();
+            if shown_for < TOAST_DURATION {
+                // Wake up to take the toast down even if nothing else repaints.
+                ctx.request_repaint_after(TOAST_DURATION - shown_for);
                 let margin = 20.0;
 
-                // Get colors for this toast type
-                let bg_color = toast_type.color();
-                let text_color = toast_type.text_color();
+                let t = self.tokens;
+                let fill = toast_type.fill(&t);
+                let accent = toast_type.accent(&t);
+                let shadow = ctx.global_style().visuals.popup_shadow;
 
                 egui::Area::new(egui::Id::new("toast"))
                     .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-margin, -margin))
-                    .order(egui::Order::Foreground)
+                    // Above windows and not interactable, so a toast never takes Esc or clicks
+                    // from the window under it.
+                    .order(egui::Order::Tooltip)
+                    .interactable(false)
                     .show(ctx, |ui| {
                         egui::Frame::NONE
-                            .fill(egui::Color32::from_rgb(
-                                bg_color[0],
-                                bg_color[1],
-                                bg_color[2],
-                            ))
-                            .corner_radius(8)
+                            .fill(fill)
+                            .stroke(egui::Stroke::new(1.0, accent))
+                            .corner_radius(radius::RADIUS_MD)
                             .inner_margin(egui::Margin::symmetric(16, 12))
-                            .shadow(egui::epaint::Shadow {
-                                offset: [2, 2],
-                                blur: 8,
-                                spread: 0,
-                                color: egui::Color32::from_black_alpha(60),
-                            })
+                            .shadow(shadow)
                             .show(ui, |ui| {
                                 // Set min/max width for proper text wrapping
                                 ui.set_min_width(200.0);
                                 ui.set_max_width(400.0);
-                                ui.label(
-                                    egui::RichText::new(message)
-                                        .color(egui::Color32::from_rgb(
-                                            text_color[0],
-                                            text_color[1],
-                                            text_color[2],
-                                        ))
-                                        .size(self.scaled_font(14.0)),
-                                );
+                                let status = match toast_type {
+                                    ToastType::Info => Status::Info,
+                                    ToastType::Success => Status::Success,
+                                    ToastType::Warning => Status::Warning,
+                                    ToastType::Error => Status::Danger,
+                                };
+                                ui.horizontal_top(|ui| {
+                                    ui.label(egui::RichText::new(status.icon()).color(accent));
+                                    ui.label(
+                                        egui::RichText::new(message)
+                                            .color(t.ink)
+                                            .text_style(egui::TextStyle::Body),
+                                    );
+                                });
                             });
                     });
             } else {

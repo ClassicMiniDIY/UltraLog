@@ -12,21 +12,9 @@ use crate::normalize::sort_channels_by_priority;
 use crate::state::{
     HistogramMode, PastedTable, SampleFilter, SelectedHistogramCell, TableOperation,
 };
-
-/// Heat map color gradient from blue (low) to red (high)
-const HEAT_COLORS: &[[u8; 3]] = &[
-    [0, 0, 80],    // Dark blue (0.0)
-    [0, 0, 180],   // Blue
-    [0, 100, 255], // Light blue
-    [0, 200, 255], // Cyan
-    [0, 255, 200], // Cyan-green
-    [0, 255, 100], // Green
-    [100, 255, 0], // Yellow-green
-    [200, 255, 0], // Yellow
-    [255, 200, 0], // Orange
-    [255, 100, 0], // Red-orange
-    [255, 0, 0],   // Red (1.0)
-];
+use crate::ui::fonts::{self, style};
+use crate::ui::heatmap::{self, MapKind};
+use crate::ui::theme::{self, tokens::radius};
 
 /// Margin for axis labels and titles
 const AXIS_LABEL_MARGIN_LEFT: f32 = 75.0;
@@ -36,18 +24,6 @@ const AXIS_LABEL_MARGIN_RIGHT: f32 = 25.0;
 
 /// Height reserved for legend at bottom
 const LEGEND_HEIGHT: f32 = 55.0;
-
-/// Current position indicator color (cyan, matches chart cursor)
-const CURSOR_COLOR: egui::Color32 = egui::Color32::from_rgb(0, 255, 255);
-
-/// Cell highlight color for current position
-const CELL_HIGHLIGHT_COLOR: egui::Color32 = egui::Color32::WHITE;
-
-/// Selected cell highlight color
-const SELECTED_CELL_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 165, 0); // Orange
-
-/// Crosshair color for cursor tracking during playback
-const CURSOR_CROSSHAIR_COLOR: egui::Color32 = egui::Color32::from_rgb(128, 128, 128); // Grey
 
 /// Maximum length for axis labels before truncation
 const MAX_AXIS_LABEL_LENGTH: usize = 20;
@@ -75,48 +51,6 @@ fn truncate_label(s: &str, max_len: usize) -> String {
     }
 }
 
-/// Calculate relative luminance for WCAG contrast ratio
-/// Uses the sRGB colorspace formula from WCAG 2.1
-fn calculate_luminance(color: egui::Color32) -> f64 {
-    let r = linearize_channel(color.r());
-    let g = linearize_channel(color.g());
-    let b = linearize_channel(color.b());
-    0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-/// Linearize an sRGB channel value (0-255) to linear RGB
-fn linearize_channel(value: u8) -> f64 {
-    let v = value as f64 / 255.0;
-    if v <= 0.03928 {
-        v / 12.92
-    } else {
-        ((v + 0.055) / 1.055).powf(2.4)
-    }
-}
-
-/// Calculate WCAG contrast ratio between two colors
-fn contrast_ratio(color1: egui::Color32, color2: egui::Color32) -> f64 {
-    let l1 = calculate_luminance(color1);
-    let l2 = calculate_luminance(color2);
-    let (lighter, darker) = if l1 > l2 { (l1, l2) } else { (l2, l1) };
-    (lighter + 0.05) / (darker + 0.05)
-}
-
-/// Get the best text color (black or white) for AAA compliance on given background
-/// Returns the color that provides the highest contrast ratio
-pub(crate) fn get_aaa_text_color(background: egui::Color32) -> egui::Color32 {
-    let white_contrast = contrast_ratio(egui::Color32::WHITE, background);
-    let black_contrast = contrast_ratio(egui::Color32::BLACK, background);
-
-    // Choose whichever provides better contrast
-    // AAA requires 7:1 for normal text, but we pick the better option regardless
-    if white_contrast >= black_contrast {
-        egui::Color32::WHITE
-    } else {
-        egui::Color32::BLACK
-    }
-}
-
 impl UltraLogApp {
     /// Main entry point: render the histogram view
     pub fn render_histogram_view(&mut self, ui: &mut egui::Ui) {
@@ -124,8 +58,8 @@ impl UltraLogApp {
             ui.centered_and_justified(|ui| {
                 ui.label(
                     egui::RichText::new(t!("histogram.no_file_loaded"))
-                        .size(self.scaled_font(20.0))
-                        .color(egui::Color32::GRAY),
+                        .heading()
+                        .color(self.tokens.ink_subtle),
                 );
             });
             return;
@@ -243,17 +177,15 @@ impl UltraLogApp {
         let mut new_sample_filter: Option<SampleFilter> = None;
 
         // Pre-compute scaled font sizes
-        let font_14 = self.scaled_font(14.0);
-        let font_15 = self.scaled_font(15.0);
 
         // ============================================================================
         // AXES SECTION
         // ============================================================================
-        ui.label(egui::RichText::new("📊 Axes").size(font_15).strong());
+        ui.label(egui::RichText::new("📊 Axes").heading().strong());
         ui.add_space(8.0);
 
         // X Axis
-        ui.label(egui::RichText::new(t!("histogram.x_axis")).size(font_14));
+        ui.label(egui::RichText::new(t!("histogram.x_axis")).text_style(egui::TextStyle::Body));
         egui::ComboBox::from_id_salt("histogram_x")
             .selected_text(
                 current_x
@@ -272,7 +204,7 @@ impl UltraLogApp {
         ui.add_space(8.0);
 
         // Y Axis
-        ui.label(egui::RichText::new(t!("histogram.y_axis")).size(font_14));
+        ui.label(egui::RichText::new(t!("histogram.y_axis")).text_style(egui::TextStyle::Body));
         egui::ComboBox::from_id_salt("histogram_y")
             .selected_text(
                 current_y
@@ -295,11 +227,11 @@ impl UltraLogApp {
         ui.add_enabled_ui(z_enabled, |ui| {
             ui.label(
                 egui::RichText::new(t!("histogram.z_axis"))
-                    .size(font_14)
+                    .text_style(egui::TextStyle::Body)
                     .color(if z_enabled {
-                        egui::Color32::WHITE
+                        self.tokens.ink
                     } else {
-                        egui::Color32::GRAY
+                        self.tokens.ink_subtle
                     }),
             );
             egui::ComboBox::from_id_salt("histogram_z")
@@ -325,44 +257,40 @@ impl UltraLogApp {
         // ============================================================================
         // DISPLAY OPTIONS SECTION
         // ============================================================================
-        ui.label(egui::RichText::new("⚙ Display").size(font_15).strong());
+        ui.label(egui::RichText::new("⚙ Display").heading().strong());
         ui.add_space(8.0);
 
         // Mode selector - Pill style
-        ui.label(
-            egui::RichText::new(t!("histogram.mode"))
-                .size(font_14)
-                .strong(),
-        );
+        ui.label(egui::RichText::new(t!("histogram.mode")).heading().strong());
         ui.horizontal(|ui| {
             // Hit Count button
             let is_hit_count = current_mode == HistogramMode::HitCount;
             let hit_fill = if is_hit_count {
-                egui::Color32::from_rgb(70, 70, 70)
+                self.tokens.cyan_soft
             } else {
-                egui::Color32::from_rgb(45, 45, 45)
+                self.tokens.bg_field
             };
             let hit_text = if is_hit_count {
-                egui::Color32::WHITE
+                self.tokens.cyan
             } else {
-                egui::Color32::from_rgb(180, 180, 180)
+                self.tokens.ink_muted
             };
             let hit_stroke = if is_hit_count {
-                egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                egui::Stroke::new(1.0, self.tokens.cyan)
             } else {
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                egui::Stroke::new(1.0, self.tokens.line_control)
             };
 
             if ui
                 .add(
                     egui::Button::new(
                         egui::RichText::new(t!("histogram.hit_count"))
-                            .size(font_14)
+                            .text_style(egui::TextStyle::Body)
                             .color(hit_text),
                     )
                     .fill(hit_fill)
                     .stroke(hit_stroke)
-                    .corner_radius(egui::CornerRadius::same(16))
+                    .corner_radius(egui::CornerRadius::same(radius::RADIUS_SM))
                     .min_size(egui::vec2(80.0, 28.0)),
                 )
                 .clicked()
@@ -375,31 +303,31 @@ impl UltraLogApp {
             // Average Z button
             let is_avg_z = current_mode == HistogramMode::AverageZ;
             let avg_fill = if is_avg_z {
-                egui::Color32::from_rgb(70, 70, 70)
+                self.tokens.cyan_soft
             } else {
-                egui::Color32::from_rgb(45, 45, 45)
+                self.tokens.bg_field
             };
             let avg_text = if is_avg_z {
-                egui::Color32::WHITE
+                self.tokens.cyan
             } else {
-                egui::Color32::from_rgb(180, 180, 180)
+                self.tokens.ink_muted
             };
             let avg_stroke = if is_avg_z {
-                egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                egui::Stroke::new(1.0, self.tokens.cyan)
             } else {
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                egui::Stroke::new(1.0, self.tokens.line_control)
             };
 
             if ui
                 .add(
                     egui::Button::new(
                         egui::RichText::new(t!("histogram.average_z"))
-                            .size(font_14)
+                            .text_style(egui::TextStyle::Body)
                             .color(avg_text),
                     )
                     .fill(avg_fill)
                     .stroke(avg_stroke)
-                    .corner_radius(egui::CornerRadius::same(16))
+                    .corner_radius(egui::CornerRadius::same(radius::RADIUS_SM))
                     .min_size(egui::vec2(80.0, 28.0)),
                 )
                 .clicked()
@@ -411,7 +339,7 @@ impl UltraLogApp {
         ui.add_space(8.0);
 
         // Grid columns
-        ui.label(egui::RichText::new("Columns (X bins)").size(font_14));
+        ui.label(egui::RichText::new("Columns (X bins)").text_style(egui::TextStyle::Body));
         let effective_cols = if current_custom_grid_cols > 0 {
             current_custom_grid_cols
         } else {
@@ -430,7 +358,7 @@ impl UltraLogApp {
         ui.add_space(8.0);
 
         // Grid rows
-        ui.label(egui::RichText::new("Rows (Y bins)").size(font_14));
+        ui.label(egui::RichText::new("Rows (Y bins)").text_style(egui::TextStyle::Body));
         let effective_rows = if current_custom_grid_rows > 0 {
             current_custom_grid_rows
         } else {
@@ -449,7 +377,7 @@ impl UltraLogApp {
         ui.add_space(8.0);
 
         // Min hits filter
-        ui.label(egui::RichText::new(t!("histogram.min_hits")).size(font_14));
+        ui.label(egui::RichText::new(t!("histogram.min_hits")).text_style(egui::TextStyle::Body));
         let mut min_hits_value = current_min_hits as i32;
         ui.add(
             egui::DragValue::new(&mut min_hits_value)
@@ -467,11 +395,11 @@ impl UltraLogApp {
         // ============================================================================
         // DATA RANGE SECTION
         // ============================================================================
-        ui.label(egui::RichText::new("📏 Data Range").size(font_15).strong());
+        ui.label(egui::RichText::new("📏 Data Range").heading().strong());
         ui.add_space(8.0);
 
         // X Range
-        ui.label(egui::RichText::new(t!("histogram.x_range")).size(font_14));
+        ui.label(egui::RichText::new(t!("histogram.x_range")).text_style(egui::TextStyle::Body));
         let mut x_auto = current_custom_x.is_none();
         if ui.checkbox(&mut x_auto, t!("histogram.auto")).changed() {
             if x_auto {
@@ -496,7 +424,7 @@ impl UltraLogApp {
         ui.add_space(8.0);
 
         // Y Range
-        ui.label(egui::RichText::new(t!("histogram.y_range")).size(font_14));
+        ui.label(egui::RichText::new(t!("histogram.y_range")).text_style(egui::TextStyle::Body));
         let mut y_auto = current_custom_y.is_none();
         if ui.checkbox(&mut y_auto, t!("histogram.auto")).changed() {
             if y_auto {
@@ -527,7 +455,7 @@ impl UltraLogApp {
         // ============================================================================
         let current_sample_filters = config.sample_filters.clone();
         egui::CollapsingHeader::new(
-            egui::RichText::new(format!("🔍 {}", t!("histogram.sample_filters"))).size(font_15),
+            egui::RichText::new(format!("🔍 {}", t!("histogram.sample_filters"))).heading(),
         )
         .default_open(false)
         .show(ui, |ui| {
@@ -536,8 +464,8 @@ impl UltraLogApp {
             if current_sample_filters.is_empty() {
                 ui.label(
                     egui::RichText::new(t!("histogram.no_filters"))
-                        .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .text_style(egui::TextStyle::Body)
+                        .color(self.tokens.ink_subtle),
                 );
             } else {
                 for (filter_idx, filter) in current_sample_filters.iter().enumerate() {
@@ -551,16 +479,16 @@ impl UltraLogApp {
 
                         ui.label(
                             egui::RichText::new(&filter.channel_name)
-                                .size(font_14)
+                                .text_style(egui::TextStyle::Body)
                                 .color(if enabled {
-                                    egui::Color32::WHITE
+                                    self.tokens.ink
                                 } else {
-                                    egui::Color32::GRAY
+                                    self.tokens.ink_subtle
                                 }),
                         );
 
                         if ui
-                            .button(egui::RichText::new("❌").size(font_14))
+                            .button(egui::RichText::new("❌").text_style(egui::TextStyle::Body))
                             .on_hover_text(t!("histogram.remove_filter"))
                             .clicked()
                         {
@@ -624,7 +552,9 @@ impl UltraLogApp {
             ui.add_space(8.0);
 
             // Add filter
-            ui.label(egui::RichText::new(t!("histogram.add_filter")).size(font_14));
+            ui.label(
+                egui::RichText::new(t!("histogram.add_filter")).text_style(egui::TextStyle::Body),
+            );
             egui::ComboBox::from_id_salt("add_sample_filter")
                 .selected_text(t!("histogram.filter_channel"))
                 .width(ui.available_width())
@@ -646,7 +576,7 @@ impl UltraLogApp {
         // ============================================================================
         ui.label(
             egui::RichText::new("📋 Table Operations")
-                .size(font_15)
+                .heading()
                 .strong(),
         );
         ui.add_space(8.0);
@@ -654,10 +584,11 @@ impl UltraLogApp {
         // Copy/Paste buttons
         ui.horizontal(|ui| {
             let copy_button = egui::Button::new(
-                egui::RichText::new(format!("📋 {}", t!("histogram.copy"))).size(font_14),
+                egui::RichText::new(format!("📋 {}", t!("histogram.copy")))
+                    .text_style(egui::TextStyle::Body),
             )
-            .fill(egui::Color32::from_rgb(45, 45, 45))
-            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+            .fill(self.tokens.bg_raised)
+            .stroke(egui::Stroke::new(1.0, self.tokens.line))
             .corner_radius(4);
 
             if ui.add(copy_button).clicked() {
@@ -667,10 +598,11 @@ impl UltraLogApp {
             ui.add_space(6.0);
 
             let paste_button = egui::Button::new(
-                egui::RichText::new(format!("📥 {}", t!("histogram.paste"))).size(font_14),
+                egui::RichText::new(format!("📥 {}", t!("histogram.paste")))
+                    .text_style(egui::TextStyle::Body),
             )
-            .fill(egui::Color32::from_rgb(45, 45, 45))
-            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+            .fill(self.tokens.bg_raised)
+            .stroke(egui::Stroke::new(1.0, self.tokens.line))
             .corner_radius(4);
 
             if ui.add(paste_button).clicked() {
@@ -684,7 +616,7 @@ impl UltraLogApp {
 
             ui.label(
                 egui::RichText::new(t!("histogram.operation"))
-                    .size(font_14)
+                    .heading()
                     .strong(),
             );
             ui.horizontal(|ui| {
@@ -692,24 +624,26 @@ impl UltraLogApp {
                 let is_selected = current_table_op == TableOperation::Add;
                 if ui
                     .add(
-                        egui::Button::new(egui::RichText::new("+").size(font_14).color(
-                            if is_selected {
-                                egui::Color32::WHITE
-                            } else {
-                                egui::Color32::from_rgb(180, 180, 180)
-                            },
-                        ))
+                        egui::Button::new(
+                            egui::RichText::new("+")
+                                .text_style(egui::TextStyle::Body)
+                                .color(if is_selected {
+                                    self.tokens.cyan
+                                } else {
+                                    self.tokens.ink_muted
+                                }),
+                        )
                         .fill(if is_selected {
-                            egui::Color32::from_rgb(70, 70, 70)
+                            self.tokens.cyan_soft
                         } else {
-                            egui::Color32::from_rgb(45, 45, 45)
+                            self.tokens.bg_field
                         })
                         .stroke(if is_selected {
-                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                            egui::Stroke::new(1.0, self.tokens.cyan)
                         } else {
-                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                            egui::Stroke::new(1.0, self.tokens.line_control)
                         })
-                        .corner_radius(egui::CornerRadius::same(16))
+                        .corner_radius(egui::CornerRadius::same(radius::RADIUS_SM))
                         .min_size(egui::vec2(40.0, 28.0)),
                     )
                     .clicked()
@@ -723,24 +657,26 @@ impl UltraLogApp {
                 let is_selected = current_table_op == TableOperation::Subtract;
                 if ui
                     .add(
-                        egui::Button::new(egui::RichText::new("−").size(font_14).color(
-                            if is_selected {
-                                egui::Color32::WHITE
-                            } else {
-                                egui::Color32::from_rgb(180, 180, 180)
-                            },
-                        ))
+                        egui::Button::new(
+                            egui::RichText::new("−")
+                                .text_style(egui::TextStyle::Body)
+                                .color(if is_selected {
+                                    self.tokens.cyan
+                                } else {
+                                    self.tokens.ink_muted
+                                }),
+                        )
                         .fill(if is_selected {
-                            egui::Color32::from_rgb(70, 70, 70)
+                            self.tokens.cyan_soft
                         } else {
-                            egui::Color32::from_rgb(45, 45, 45)
+                            self.tokens.bg_field
                         })
                         .stroke(if is_selected {
-                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                            egui::Stroke::new(1.0, self.tokens.cyan)
                         } else {
-                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                            egui::Stroke::new(1.0, self.tokens.line_control)
                         })
-                        .corner_radius(egui::CornerRadius::same(16))
+                        .corner_radius(egui::CornerRadius::same(radius::RADIUS_SM))
                         .min_size(egui::vec2(40.0, 28.0)),
                     )
                     .clicked()
@@ -754,24 +690,26 @@ impl UltraLogApp {
                 let is_selected = current_table_op == TableOperation::Multiply;
                 if ui
                     .add(
-                        egui::Button::new(egui::RichText::new("×").size(font_14).color(
-                            if is_selected {
-                                egui::Color32::WHITE
-                            } else {
-                                egui::Color32::from_rgb(180, 180, 180)
-                            },
-                        ))
+                        egui::Button::new(
+                            egui::RichText::new("×")
+                                .text_style(egui::TextStyle::Body)
+                                .color(if is_selected {
+                                    self.tokens.cyan
+                                } else {
+                                    self.tokens.ink_muted
+                                }),
+                        )
                         .fill(if is_selected {
-                            egui::Color32::from_rgb(70, 70, 70)
+                            self.tokens.cyan_soft
                         } else {
-                            egui::Color32::from_rgb(45, 45, 45)
+                            self.tokens.bg_field
                         })
                         .stroke(if is_selected {
-                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                            egui::Stroke::new(1.0, self.tokens.cyan)
                         } else {
-                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                            egui::Stroke::new(1.0, self.tokens.line_control)
                         })
-                        .corner_radius(egui::CornerRadius::same(16))
+                        .corner_radius(egui::CornerRadius::same(radius::RADIUS_SM))
                         .min_size(egui::vec2(40.0, 28.0)),
                     )
                     .clicked()
@@ -785,24 +723,26 @@ impl UltraLogApp {
                 let is_selected = current_table_op == TableOperation::Divide;
                 if ui
                     .add(
-                        egui::Button::new(egui::RichText::new("÷").size(font_14).color(
-                            if is_selected {
-                                egui::Color32::WHITE
-                            } else {
-                                egui::Color32::from_rgb(180, 180, 180)
-                            },
-                        ))
+                        egui::Button::new(
+                            egui::RichText::new("÷")
+                                .text_style(egui::TextStyle::Body)
+                                .color(if is_selected {
+                                    self.tokens.cyan
+                                } else {
+                                    self.tokens.ink_muted
+                                }),
+                        )
                         .fill(if is_selected {
-                            egui::Color32::from_rgb(70, 70, 70)
+                            self.tokens.cyan_soft
                         } else {
-                            egui::Color32::from_rgb(45, 45, 45)
+                            self.tokens.bg_field
                         })
                         .stroke(if is_selected {
-                            egui::Stroke::new(1.5, egui::Color32::from_rgb(113, 120, 78))
+                            egui::Stroke::new(1.0, self.tokens.cyan)
                         } else {
-                            egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80))
+                            egui::Stroke::new(1.0, self.tokens.line_control)
                         })
-                        .corner_radius(egui::CornerRadius::same(16))
+                        .corner_radius(egui::CornerRadius::same(radius::RADIUS_SM))
                         .min_size(egui::vec2(40.0, 28.0)),
                     )
                     .clicked()
@@ -825,10 +765,11 @@ impl UltraLogApp {
 
             ui.horizontal(|ui| {
                 let clear_button = egui::Button::new(
-                    egui::RichText::new(format!("❌ {}", t!("histogram.clear"))).size(font_14),
+                    egui::RichText::new(format!("❌ {}", t!("histogram.clear")))
+                        .text_style(egui::TextStyle::Body),
                 )
-                .fill(egui::Color32::from_rgb(45, 45, 45))
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+                .fill(self.tokens.bg_raised)
+                .stroke(egui::Stroke::new(1.0, self.tokens.line))
                 .corner_radius(4);
 
                 if ui.add(clear_button).clicked() {
@@ -839,10 +780,10 @@ impl UltraLogApp {
 
                 let copy_result_button = egui::Button::new(
                     egui::RichText::new(format!("📋 {}", t!("histogram.copy_result")))
-                        .size(font_14),
+                        .text_style(egui::TextStyle::Body),
                 )
-                .fill(egui::Color32::from_rgb(45, 45, 45))
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 80, 80)))
+                .fill(self.tokens.bg_raised)
+                .stroke(egui::Stroke::new(1.0, self.tokens.line))
                 .corner_radius(4);
 
                 if ui.add(copy_result_button).clicked() {
@@ -957,7 +898,7 @@ impl UltraLogApp {
                     egui::Align2::CENTER_CENTER,
                     "Select X and Y axes",
                     egui::FontId::proportional(font_16),
-                    egui::Color32::GRAY,
+                    self.tokens.ink_subtle,
                 );
                 return;
             }
@@ -975,7 +916,7 @@ impl UltraLogApp {
                         egui::Align2::CENTER_CENTER,
                         "Select Z axis for Average mode",
                         egui::FontId::proportional(font_16),
-                        egui::Color32::GRAY,
+                        self.tokens.ink_subtle,
                     );
                     return;
                 }
@@ -1221,8 +1162,8 @@ impl UltraLogApp {
                         min_value,
                         max_value
                     ))
-                    .size(font_12)
-                    .color(egui::Color32::WHITE),
+                    .small()
+                    .color(self.tokens.ink),
                 );
                 ui.add_space(16.0);
                 ui.label(
@@ -1232,8 +1173,8 @@ impl UltraLogApp {
                         pasted_min,
                         pasted_max
                     ))
-                    .size(font_12)
-                    .color(egui::Color32::WHITE),
+                    .small()
+                    .color(self.tokens.ink),
                 );
                 ui.add_space(16.0);
                 ui.label(
@@ -1243,8 +1184,8 @@ impl UltraLogApp {
                         result_min,
                         result_max
                     ))
-                    .size(font_12)
-                    .color(egui::Color32::WHITE),
+                    .small()
+                    .color(self.tokens.ink),
                 );
             });
 
@@ -1268,8 +1209,9 @@ impl UltraLogApp {
             ),
         );
 
+        let t = self.tokens;
         let painter = ui.painter_at(full_rect);
-        painter.rect_filled(plot_rect, 0.0, egui::Color32::BLACK);
+        painter.rect_filled(plot_rect, 0.0, t.plot_bg);
 
         let cell_width = plot_rect.width() / grid_cols as f32;
         let cell_height = plot_rect.height() / grid_rows as f32;
@@ -1280,6 +1222,25 @@ impl UltraLogApp {
             .config
             .selected_cell
             .clone();
+
+        // Cell value font: mono, smaller as the grid gets denser
+        let max_dim = grid_cols.max(grid_rows);
+        let base_font_size = if max_dim <= 16 {
+            11.0
+        } else if max_dim <= 32 {
+            9.0
+        } else {
+            7.0
+        };
+        let cell_font = egui::FontId::monospace(self.scaled_font(base_font_size));
+
+        // Small cells: one empty-ground fill for the whole grid instead of a shape per empty
+        // cell (a sparse 256² grid would otherwise add ~65k shapes every frame).
+        let small_cells =
+            cell_width < heatmap::MIN_HATCH_CELL || cell_height < heatmap::MIN_HATCH_CELL;
+        if small_cells {
+            painter.rect_filled(plot_rect, 0.0, t.cell_empty);
+        }
 
         // Draw grid cells with values
         for y_bin in 0..grid_rows {
@@ -1292,89 +1253,49 @@ impl UltraLogApp {
                 );
 
                 let hits = hit_counts[y_bin][x_bin];
+                let rect = cell_rect.shrink(1.0);
 
-                // Skip cells below minimum hits threshold (draw grayed out)
-                if min_hits_filter > 0 && hits < min_hits_filter {
-                    painter.rect_filled(cell_rect, 0.0, egui::Color32::from_rgb(30, 30, 30));
-                    continue;
-                }
-
-                if let Some(value) = cell_values[y_bin][x_bin] {
-                    // Normalize to 0-1 for color scaling
-                    let normalized = if mode == HistogramMode::HitCount && max_value > 1.0 {
-                        (value.ln() / max_value.ln()).clamp(0.0, 1.0)
-                    } else {
-                        ((value - min_value) / value_range).clamp(0.0, 1.0)
-                    };
-                    let color = Self::get_histogram_color(normalized);
-
-                    painter.rect_filled(cell_rect, 0.0, color);
-
-                    // Draw value text in center of cell (only if cell is large enough)
-                    if cell_width > 25.0 && cell_height > 18.0 {
-                        let text = if mode == HistogramMode::HitCount {
-                            format!("{}", hit_counts[y_bin][x_bin])
-                        } else {
-                            format!("{:.1}", value)
-                        };
-
-                        // Choose text color for AAA contrast compliance
-                        let text_color = get_aaa_text_color(color);
-
-                        let max_dim = grid_cols.max(grid_rows);
-                        let base_font_size = if max_dim <= 16 {
-                            11.0
-                        } else if max_dim <= 32 {
-                            9.0
-                        } else {
-                            7.0
-                        };
-                        let cell_font_size = self.scaled_font(base_font_size);
-
-                        painter.text(
-                            cell_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            text,
-                            egui::FontId::proportional(cell_font_size),
-                            text_color,
-                        );
+                // Cells below the minimum-hits threshold read as empty, like cells with no data
+                let value = cell_values[y_bin][x_bin]
+                    .filter(|_| !(min_hits_filter > 0 && hits < min_hits_filter));
+                let Some(value) = value else {
+                    if !small_cells {
+                        heatmap::empty_cell(&painter, rect, &t);
                     }
-                }
+                    continue;
+                };
+                let normalized = if mode == HistogramMode::HitCount && max_value > 1.0 {
+                    (value.ln() / max_value.ln()).clamp(0.0, 1.0)
+                } else {
+                    ((value - min_value) / value_range).clamp(0.0, 1.0)
+                };
+                // Value text only where the cell is large enough to hold it
+                let label = (cell_width > 25.0 && cell_height > 18.0).then(|| {
+                    if mode == HistogramMode::HitCount {
+                        format!("{}", hits)
+                    } else {
+                        format!("{:.1}", value)
+                    }
+                });
+                heatmap::cell(
+                    &painter,
+                    rect,
+                    &t,
+                    MapKind::Sequential,
+                    normalized as f32,
+                    label.as_deref(),
+                    &cell_font,
+                );
             }
-        }
-
-        // Draw grid lines
-        let grid_color = egui::Color32::from_rgb(60, 60, 60);
-        // Vertical lines (X axis divisions)
-        for i in 0..=grid_cols {
-            let x = plot_rect.left() + i as f32 * cell_width;
-            painter.line_segment(
-                [
-                    egui::pos2(x, plot_rect.top()),
-                    egui::pos2(x, plot_rect.bottom()),
-                ],
-                egui::Stroke::new(0.5, grid_color),
-            );
-        }
-        // Horizontal lines (Y axis divisions)
-        for i in 0..=grid_rows {
-            let y = plot_rect.top() + i as f32 * cell_height;
-            painter.line_segment(
-                [
-                    egui::pos2(plot_rect.left(), y),
-                    egui::pos2(plot_rect.right(), y),
-                ],
-                egui::Stroke::new(0.5, grid_color),
-            );
         }
 
         // Get channel names for axis labels (handles computed channels)
         let x_channel_name = self.get_channel_name(file_idx, x_idx);
         let y_channel_name = self.get_channel_name(file_idx, y_idx);
 
-        // Draw axis labels
-        let text_color = egui::Color32::from_rgb(200, 200, 200);
-        let axis_title_color = egui::Color32::from_rgb(255, 255, 255);
+        // Draw axis labels: values in mono `plot_axis`, titles in `ink_muted`
+        let text_color = t.plot_axis;
+        let axis_title_color = t.ink_muted;
 
         // Y axis value labels
         for i in 0..=4 {
@@ -1385,7 +1306,7 @@ impl UltraLogApp {
                 egui::pos2(plot_rect.left() - 8.0, y_pos),
                 egui::Align2::RIGHT_CENTER,
                 format!("{:.1}", value),
-                egui::FontId::proportional(font_10),
+                egui::FontId::monospace(font_10),
                 text_color,
             );
         }
@@ -1463,7 +1384,7 @@ impl UltraLogApp {
                 egui::pos2(x_pos, plot_rect.bottom() + 5.0),
                 egui::Align2::CENTER_TOP,
                 format!("{:.0}", value),
-                egui::FontId::proportional(font_10),
+                egui::FontId::monospace(font_10),
                 text_color,
             );
         }
@@ -1500,11 +1421,7 @@ impl UltraLogApp {
                 egui::pos2(sel_x, sel_y),
                 egui::vec2(cell_width, cell_height),
             );
-            let stroke = egui::Stroke::new(3.0, SELECTED_CELL_COLOR);
-            painter.line_segment([sel_rect.left_top(), sel_rect.right_top()], stroke);
-            painter.line_segment([sel_rect.left_bottom(), sel_rect.right_bottom()], stroke);
-            painter.line_segment([sel_rect.left_top(), sel_rect.left_bottom()], stroke);
-            painter.line_segment([sel_rect.right_top(), sel_rect.right_bottom()], stroke);
+            heatmap::selected_ring(&painter, sel_rect.shrink(1.0), &t);
         }
 
         // Draw current position indicator (cursor time)
@@ -1527,14 +1444,14 @@ impl UltraLogApp {
                         egui::pos2(pos_x, plot_rect.top()),
                         egui::pos2(pos_x, plot_rect.bottom()),
                     ],
-                    egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
+                    egui::Stroke::new(1.0, t.plot_grid_major),
                 );
                 painter.line_segment(
                     [
                         egui::pos2(plot_rect.left(), pos_y),
                         egui::pos2(plot_rect.right(), pos_y),
                     ],
-                    egui::Stroke::new(1.0, CURSOR_CROSSHAIR_COLOR),
+                    egui::Stroke::new(1.0, t.plot_grid_major),
                 );
 
                 // Highlight the cell containing the cursor
@@ -1548,30 +1465,20 @@ impl UltraLogApp {
                     egui::pos2(highlight_x, highlight_y),
                     egui::vec2(cell_width, cell_height),
                 );
-                let stroke = egui::Stroke::new(2.0, CELL_HIGHLIGHT_COLOR);
-                painter.line_segment(
-                    [highlight_rect.left_top(), highlight_rect.right_top()],
-                    stroke,
-                );
-                painter.line_segment(
-                    [highlight_rect.left_bottom(), highlight_rect.right_bottom()],
-                    stroke,
-                );
-                painter.line_segment(
-                    [highlight_rect.left_top(), highlight_rect.left_bottom()],
-                    stroke,
-                );
-                painter.line_segment(
-                    [highlight_rect.right_top(), highlight_rect.right_bottom()],
-                    stroke,
+                painter.rect_stroke(
+                    highlight_rect.shrink(1.0),
+                    egui::CornerRadius::same(2),
+                    egui::Stroke::new(1.0, t.ink),
+                    egui::StrokeKind::Inside,
                 );
 
                 // Draw circle at exact position
-                painter.circle_filled(egui::pos2(pos_x, pos_y), 6.0, CURSOR_COLOR);
-                painter.circle_stroke(
+                // Current position: a plot_cursor dot with a bg_void ring
+                painter.circle(
                     egui::pos2(pos_x, pos_y),
-                    6.0,
-                    egui::Stroke::new(2.0, egui::Color32::WHITE),
+                    5.0,
+                    t.plot_cursor,
+                    egui::Stroke::new(2.0, t.bg_void),
                 );
             }
         }
@@ -1618,7 +1525,7 @@ impl UltraLogApp {
                 // Draw hover crosshairs
                 let hover_x = plot_rect.left() + rel_x * plot_rect.width();
                 let hover_y = plot_rect.top() + (1.0 - rel_y) * plot_rect.height();
-                let crosshair_color = egui::Color32::from_rgb(255, 255, 0);
+                let crosshair_color = t.ink_subtle;
 
                 painter.line_segment(
                     [
@@ -1639,8 +1546,8 @@ impl UltraLogApp {
                     egui::pos2(plot_rect.right() - 10.0, plot_rect.top() + 15.0),
                     egui::Align2::RIGHT_TOP,
                     tooltip_text,
-                    egui::FontId::proportional(font_12),
-                    egui::Color32::WHITE,
+                    egui::FontId::monospace(font_12),
+                    t.ink,
                 );
             }
         }
@@ -1724,28 +1631,6 @@ impl UltraLogApp {
         self.render_histogram_legend(ui, min_value, max_value, mode, selected_cell);
     }
 
-    /// Get a color from the heat map gradient based on normalized value (0-1)
-    fn get_histogram_color(normalized: f64) -> egui::Color32 {
-        let t = normalized.clamp(0.0, 1.0);
-        let scaled = t * (HEAT_COLORS.len() - 1) as f64;
-        let idx = scaled.floor() as usize;
-        let frac = scaled - idx as f64;
-
-        if idx >= HEAT_COLORS.len() - 1 {
-            let c = HEAT_COLORS[HEAT_COLORS.len() - 1];
-            return egui::Color32::from_rgb(c[0], c[1], c[2]);
-        }
-
-        let c1 = HEAT_COLORS[idx];
-        let c2 = HEAT_COLORS[idx + 1];
-
-        let r = (c1[0] as f64 + (c2[0] as f64 - c1[0] as f64) * frac) as u8;
-        let g = (c1[1] as f64 + (c2[1] as f64 - c1[1] as f64) * frac) as u8;
-        let b = (c1[2] as f64 + (c2[2] as f64 - c1[2] as f64) * frac) as u8;
-
-        egui::Color32::from_rgb(r, g, b)
-    }
-
     /// Render the legend with color scale and cell statistics
     fn render_histogram_legend(
         &self,
@@ -1755,74 +1640,42 @@ impl UltraLogApp {
         mode: HistogramMode,
         selected_cell: Option<&SelectedHistogramCell>,
     ) {
-        let font_12 = self.scaled_font(12.0);
-        let font_13 = self.scaled_font(13.0);
-
         ui.horizontal(|ui| {
             ui.add_space(4.0);
 
-            // Color scale legend
-            egui::Frame::NONE
-                .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
-                .corner_radius(4)
-                .inner_margin(8.0)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let label = match mode {
-                            HistogramMode::HitCount => "Hits:",
-                            HistogramMode::AverageZ => "Value:",
-                        };
-                        ui.label(
-                            egui::RichText::new(label)
-                                .size(font_13)
-                                .color(egui::Color32::WHITE),
-                        );
-
-                        // Color gradient bar
-                        let (rect, _) =
-                            ui.allocate_exact_size(egui::vec2(120.0, 18.0), egui::Sense::hover());
-
-                        let painter = ui.painter();
-                        let steps = 30;
-                        let step_width = rect.width() / steps as f32;
-
-                        for i in 0..steps {
-                            let t = i as f64 / steps as f64;
-                            let color = Self::get_histogram_color(t);
-                            let x = rect.left() + i as f32 * step_width;
-                            painter.rect_filled(
-                                egui::Rect::from_min_size(
-                                    egui::pos2(x, rect.top()),
-                                    egui::vec2(step_width + 1.0, rect.height()),
-                                ),
-                                0.0,
-                                color,
-                            );
-                        }
-
-                        ui.add_space(6.0);
-                        let range_text = if mode == HistogramMode::HitCount {
-                            format!("0-{:.0}", max_value)
-                        } else {
-                            format!("{:.1}-{:.1}", min_value, max_value)
-                        };
-                        ui.label(
-                            egui::RichText::new(range_text)
-                                .size(font_13)
-                                .color(egui::Color32::WHITE),
-                        );
-                    });
-                });
+            // ColorScale with the real min / max
+            ui.vertical(|ui| {
+                let (title, min_label, max_label) = match mode {
+                    HistogramMode::HitCount => (
+                        t!("histogram.scale_hits"),
+                        "0".to_string(),
+                        format!("{:.0}", max_value),
+                    ),
+                    HistogramMode::AverageZ => (
+                        t!("histogram.scale_average"),
+                        format!("{:.1}", min_value),
+                        format!("{:.1}", max_value),
+                    ),
+                };
+                heatmap::color_scale(
+                    ui,
+                    MapKind::Sequential,
+                    &title,
+                    &min_label,
+                    &max_label,
+                    false,
+                );
+            });
 
             ui.add_space(16.0);
 
             // Cell statistics panel (only shown when a cell is selected)
             if let Some(cell) = selected_cell {
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
+                    .fill(self.tokens.bg_raised)
                     .corner_radius(4)
                     .inner_margin(8.0)
-                    .stroke(egui::Stroke::new(1.0, SELECTED_CELL_COLOR))
+                    .stroke(egui::Stroke::new(1.0, self.tokens.cyan))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             // Cell identifier
@@ -1831,19 +1684,19 @@ impl UltraLogApp {
                                     "Cell [{}, {}]",
                                     cell.x_bin, cell.y_bin
                                 ))
-                                .size(font_13)
-                                .color(SELECTED_CELL_COLOR),
+                                .text_style(fonts::text_style(style::LABEL))
+                                .color(self.tokens.cyan),
                             );
                             ui.add_space(12.0);
 
                             // Key statistics inline
-                            let stat_color = egui::Color32::from_rgb(180, 180, 180);
-                            let value_color = egui::Color32::WHITE;
+                            let stat_color = self.tokens.ink_subtle;
+                            let value_color = self.tokens.ink;
 
-                            ui.label(egui::RichText::new("Hits:").size(font_12).color(stat_color));
+                            ui.label(egui::RichText::new("Hits:").small().color(stat_color));
                             ui.label(
                                 egui::RichText::new(format!("{}", cell.hit_count))
-                                    .size(font_12)
+                                    .monospace()
                                     .color(value_color),
                             );
 
@@ -1851,40 +1704,34 @@ impl UltraLogApp {
                             if mode == HistogramMode::AverageZ {
                                 ui.add_space(8.0);
 
-                                ui.label(
-                                    egui::RichText::new("Mean:").size(font_12).color(stat_color),
-                                );
+                                ui.label(egui::RichText::new("Mean:").small().color(stat_color));
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", cell.mean))
-                                        .size(font_12)
+                                        .monospace()
                                         .color(value_color),
                                 );
                                 ui.add_space(8.0);
 
-                                ui.label(
-                                    egui::RichText::new("Min:").size(font_12).color(stat_color),
-                                );
+                                ui.label(egui::RichText::new("Min:").small().color(stat_color));
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", cell.minimum))
-                                        .size(font_12)
+                                        .monospace()
                                         .color(value_color),
                                 );
                                 ui.add_space(8.0);
 
-                                ui.label(
-                                    egui::RichText::new("Max:").size(font_12).color(stat_color),
-                                );
+                                ui.label(egui::RichText::new("Max:").small().color(stat_color));
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", cell.maximum))
-                                        .size(font_12)
+                                        .monospace()
                                         .color(value_color),
                                 );
                                 ui.add_space(8.0);
 
-                                ui.label(egui::RichText::new("σ:").size(font_12).color(stat_color));
+                                ui.label(egui::RichText::new("σ:").small().color(stat_color));
                                 ui.label(
                                     egui::RichText::new(format!("{:.2}", cell.std_dev))
-                                        .size(font_12)
+                                        .monospace()
                                         .color(value_color),
                                 );
                             }
@@ -1893,15 +1740,15 @@ impl UltraLogApp {
             } else {
                 // Hint when no cell is selected
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220))
+                    .fill(self.tokens.bg_raised)
                     .corner_radius(4)
                     .inner_margin(8.0)
                     .show(ui, |ui| {
                         ui.label(
                             egui::RichText::new("Click a cell to view statistics")
-                                .size(font_12)
+                                .small()
                                 .italics()
-                                .color(egui::Color32::GRAY),
+                                .color(self.tokens.ink_subtle),
                         );
                     });
             }
@@ -1918,36 +1765,31 @@ impl UltraLogApp {
         let selected = &config.selected_cell;
         let mode = config.mode;
 
-        // Pre-compute scaled font sizes
-        let font_12 = self.scaled_font(12.0);
-        let font_13 = self.scaled_font(13.0);
-        let font_14 = self.scaled_font(14.0);
-
         ui.add_space(10.0);
         ui.separator();
         ui.add_space(5.0);
 
         ui.label(
             egui::RichText::new("Cell Statistics")
-                .size(font_14)
+                .heading()
                 .strong()
-                .color(egui::Color32::WHITE),
+                .color(self.tokens.ink),
         );
 
         ui.add_space(5.0);
 
         if let Some(cell) = selected {
             egui::Frame::NONE
-                .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 200))
+                .fill(self.tokens.bg_raised)
                 .corner_radius(4)
                 .inner_margin(8.0)
-                .stroke(egui::Stroke::new(1.0, SELECTED_CELL_COLOR))
+                .stroke(egui::Stroke::new(1.0, self.tokens.cyan))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(format!("Cell [{}, {}]", cell.x_bin, cell.y_bin))
-                                .size(font_13)
-                                .color(SELECTED_CELL_COLOR),
+                                .text_style(fonts::text_style(style::LABEL))
+                                .color(self.tokens.cyan),
                         );
                     });
 
@@ -1982,16 +1824,16 @@ impl UltraLogApp {
                         ui.horizontal(|ui| {
                             ui.label(
                                 egui::RichText::new(format!("{}:", label))
-                                    .size(font_12)
-                                    .color(egui::Color32::from_rgb(180, 180, 180)),
+                                    .small()
+                                    .color(self.tokens.ink_subtle),
                             );
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.label(
                                         egui::RichText::new(&value)
-                                            .size(font_12)
-                                            .color(egui::Color32::WHITE),
+                                            .monospace()
+                                            .color(self.tokens.ink),
                                     );
                                 },
                             );
@@ -2007,9 +1849,9 @@ impl UltraLogApp {
         } else {
             ui.label(
                 egui::RichText::new("Click a cell to view statistics")
-                    .size(font_12)
+                    .small()
                     .italics()
-                    .color(egui::Color32::GRAY),
+                    .color(self.tokens.ink_subtle),
             );
         }
     }
@@ -2165,13 +2007,14 @@ impl UltraLogApp {
             return;
         }
 
+        let t = theme::current(&painter.ctx().clone());
         // Draw title
         painter.text(
             egui::pos2(rect.center().x, rect.top() + 15.0),
             egui::Align2::CENTER_CENTER,
             title,
             egui::FontId::proportional(font_size),
-            egui::Color32::WHITE,
+            t.ink_muted,
         );
 
         // Calculate plot area
@@ -2180,7 +2023,7 @@ impl UltraLogApp {
             egui::pos2(rect.right() - 10.0, rect.bottom() - 10.0),
         );
 
-        painter.rect_filled(plot_rect, 0.0, egui::Color32::BLACK);
+        painter.rect_filled(plot_rect, 0.0, t.plot_bg);
 
         let cell_width = plot_rect.width() / grid_cols as f32;
         let cell_height = plot_rect.height() / grid_rows as f32;
@@ -2190,79 +2033,46 @@ impl UltraLogApp {
         } else {
             max_value - min_value
         };
+        let max_dim = grid_cols.max(grid_rows);
+        let font = egui::FontId::monospace(if max_dim <= 16 { 9.0 } else { 7.0 });
 
         for (y_bin, row) in values.iter().enumerate().take(grid_rows) {
             for (x_bin, cell_value) in row.iter().enumerate().take(grid_cols) {
                 let cell_x = plot_rect.left() + x_bin as f32 * cell_width;
                 let cell_y = plot_rect.bottom() - (y_bin + 1) as f32 * cell_height;
-                let cell_rect = egui::Rect::from_min_size(
+                let rect = egui::Rect::from_min_size(
                     egui::pos2(cell_x, cell_y),
                     egui::vec2(cell_width, cell_height),
-                );
+                )
+                .shrink(0.5);
 
-                // Check min hits filter if hit_counts provided
-                if let Some(hits) = hit_counts
-                    && min_hits_filter > 0
-                {
-                    let cell_hits = hits
-                        .get(y_bin)
-                        .and_then(|r| r.get(x_bin))
-                        .copied()
-                        .unwrap_or(0);
-                    if cell_hits < min_hits_filter {
-                        painter.rect_filled(cell_rect, 0.0, egui::Color32::from_rgb(30, 30, 30));
-                        continue;
-                    }
-                }
-
-                if let Some(value) = cell_value {
-                    let normalized = ((value - min_value) / value_range).clamp(0.0, 1.0);
-                    let color = Self::get_histogram_color(normalized);
-                    painter.rect_filled(cell_rect, 0.0, color);
-
-                    // Draw value text if cell is large enough
-                    if cell_width > 20.0 && cell_height > 14.0 {
-                        let text = format!("{:.1}", value);
-                        let text_color = get_aaa_text_color(color);
-                        let max_dim = grid_cols.max(grid_rows);
-                        let text_size = if max_dim <= 16 { 9.0 } else { 7.0 };
-                        painter.text(
-                            cell_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            text,
-                            egui::FontId::proportional(text_size),
-                            text_color,
+                let filtered = hit_counts.is_some_and(|hits| {
+                    min_hits_filter > 0
+                        && hits
+                            .get(y_bin)
+                            .and_then(|r| r.get(x_bin))
+                            .copied()
+                            .unwrap_or(0)
+                            < min_hits_filter
+                });
+                match cell_value {
+                    Some(value) if !filtered => {
+                        let normalized = ((value - min_value) / value_range).clamp(0.0, 1.0);
+                        let label = (cell_width > 20.0 && cell_height > 14.0)
+                            .then(|| format!("{:.1}", value));
+                        heatmap::cell(
+                            painter,
+                            rect,
+                            &t,
+                            MapKind::Sequential,
+                            normalized as f32,
+                            label.as_deref(),
+                            &font,
                         );
                     }
-                } else {
-                    painter.rect_filled(cell_rect, 0.0, egui::Color32::from_rgb(30, 30, 30));
+                    _ => heatmap::empty_cell(painter, rect, &t),
                 }
             }
-        }
-
-        // Draw grid lines
-        let grid_color = egui::Color32::from_rgb(60, 60, 60);
-        // Vertical lines (X axis divisions)
-        for i in 0..=grid_cols {
-            let x = plot_rect.left() + i as f32 * cell_width;
-            painter.line_segment(
-                [
-                    egui::pos2(x, plot_rect.top()),
-                    egui::pos2(x, plot_rect.bottom()),
-                ],
-                egui::Stroke::new(0.5, grid_color),
-            );
-        }
-        // Horizontal lines (Y axis divisions)
-        for i in 0..=grid_rows {
-            let y = plot_rect.top() + i as f32 * cell_height;
-            painter.line_segment(
-                [
-                    egui::pos2(plot_rect.left(), y),
-                    egui::pos2(plot_rect.right(), y),
-                ],
-                egui::Stroke::new(0.5, grid_color),
-            );
         }
     }
 

@@ -1,4 +1,4 @@
-//! Menu bar UI components (File, View, Help menus).
+//! Menu bar UI components (File, View, Help menus and the theme menu).
 //!
 //! Simplified menu structure - settings moved to Settings panel.
 
@@ -7,31 +7,21 @@ use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::state::{ActivePanel, ActiveTool, LoadingState};
+use crate::ui::components::icon;
+use crate::ui::theme;
+
+/// Width of the theme menu, enough for the four stop names under the slider.
+const THEME_MENU_WIDTH: f32 = 280.0;
 
 impl UltraLogApp {
     /// Render the application menu bar
     pub fn render_menu_bar(&mut self, ui: &mut egui::Ui) {
         // Pre-compute scaled font sizes for use in closures
-        let font_14 = self.scaled_font(14.0);
-        let font_15 = self.scaled_font(15.0);
 
         egui::MenuBar::new().ui(ui, |ui| {
-            // Increase font size for menu items
-            ui.style_mut()
-                .text_styles
-                .insert(egui::TextStyle::Button, egui::FontId::proportional(font_15));
-
             // File menu
             ui.menu_button(t!("menu.file"), |ui| {
                 ui.set_min_width(180.0);
-
-                // Increase font size for dropdown items
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
 
                 let is_loading = matches!(self.loading_state, LoadingState::Loading(_));
 
@@ -48,6 +38,40 @@ impl UltraLogApp {
                         self.start_loading_file(path);
                     }
                     ui.close();
+                }
+
+                // Compare the active tab with another log (issue #98)
+                if let Some(tab_idx) = self.active_tab {
+                    ui.add_enabled_ui(!is_loading, |ui| {
+                        ui.menu_button(t!("compare.compare_with"), |ui| {
+                            let tab_file = self.tabs[tab_idx].file_index;
+                            let current = self.tabs[tab_idx].compare_file();
+                            let mut choice: Option<Option<usize>> = None;
+                            if ui
+                                .radio(current.is_none(), t!("compare.none").as_ref())
+                                .clicked()
+                            {
+                                choice = Some(None);
+                            }
+                            for (i, file) in self.files.iter().enumerate() {
+                                if i != tab_file
+                                    && ui.radio(current == Some(i), file.name.as_str()).clicked()
+                                {
+                                    choice = Some(Some(i));
+                                }
+                            }
+                            ui.separator();
+                            if ui.button(t!("compare.open_file")).clicked() {
+                                ui.close();
+                                self.pick_compare_file(tab_idx);
+                            }
+                            if let Some(file) = choice {
+                                self.choose_compare_file(tab_idx, file);
+                                self.set_active_tool(ActiveTool::LogViewer);
+                                ui.close();
+                            }
+                        });
+                    });
                 }
 
                 ui.separator();
@@ -67,7 +91,7 @@ impl UltraLogApp {
 
                 ui.separator();
 
-                // Export submenu - context-aware based on active tool
+                // Export opens the ExportDialog for the active tool
                 let has_chart_data =
                     !self.files.is_empty() && !self.get_selected_channels().is_empty();
                 let has_histogram_data = !self.files.is_empty()
@@ -84,39 +108,16 @@ impl UltraLogApp {
                     .generator_kind()
                     .is_some_and(|k| self.table_generator.table(k).is_some());
 
-                let can_export = has_chart_data || has_histogram_data || has_table_data;
+                let has_scatter_data =
+                    !self.files.is_empty() && self.active_tool == ActiveTool::ScatterPlot;
+                let can_export =
+                    has_chart_data || has_histogram_data || has_scatter_data || has_table_data;
 
                 ui.add_enabled_ui(can_export, |ui| {
-                    ui.menu_button(t!("menu.export"), |ui| {
-                        ui.style_mut()
-                            .text_styles
-                            .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-
-                        if has_table_data {
-                            if ui.button(t!("menu.export_table_png")).clicked() {
-                                self.export_table_png();
-                                ui.close();
-                            }
-                            if ui.button(t!("menu.export_table_pdf")).clicked() {
-                                self.export_table_pdf();
-                                ui.close();
-                            }
-                        } else if self.active_tool == ActiveTool::Histogram && has_histogram_data {
-                            if ui.button(t!("menu.export_histogram_pdf")).clicked() {
-                                self.export_histogram_pdf();
-                                ui.close();
-                            }
-                        } else if has_chart_data {
-                            if ui.button(t!("menu.export_png")).clicked() {
-                                self.export_chart_png();
-                                ui.close();
-                            }
-                            if ui.button(t!("menu.export_pdf")).clicked() {
-                                self.export_chart_pdf();
-                                ui.close();
-                            }
-                        }
-                    });
+                    if ui.button(t!("menu.export_ellipsis")).clicked() {
+                        self.show_export_dialog = true;
+                        ui.close();
+                    }
                 });
             });
 
@@ -124,18 +125,11 @@ impl UltraLogApp {
             ui.menu_button(t!("menu.view"), |ui| {
                 ui.set_min_width(200.0);
 
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
-
                 // Chart grid toggle
                 let old_show_grid = self.show_grid;
                 ui.checkbox(
                     &mut self.show_grid,
-                    egui::RichText::new(t!("menu.show_grid")).size(font_14),
+                    egui::RichText::new(t!("menu.show_grid")).text_style(egui::TextStyle::Body),
                 );
                 if self.show_grid != old_show_grid {
                     self.user_settings.show_grid = self.show_grid;
@@ -149,8 +143,8 @@ impl UltraLogApp {
                 // Tool modes
                 ui.label(
                     egui::RichText::new(t!("menu.tool_mode"))
-                        .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .text_style(egui::TextStyle::Body)
+                        .color(self.tokens.ink_subtle),
                 );
 
                 for (i, tool) in ActiveTool::ALL.into_iter().enumerate() {
@@ -176,8 +170,8 @@ impl UltraLogApp {
                 // Panel navigation
                 ui.label(
                     egui::RichText::new(t!("menu.side_panel"))
-                        .size(font_14)
-                        .color(egui::Color32::GRAY),
+                        .text_style(egui::TextStyle::Body)
+                        .color(self.tokens.ink_subtle),
                 );
 
                 if ui
@@ -222,13 +216,6 @@ impl UltraLogApp {
             ui.menu_button(t!("menu.help"), |ui| {
                 ui.set_min_width(200.0);
 
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(font_14));
-                ui.style_mut()
-                    .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(font_14));
-
                 if ui.button(t!("menu.documentation")).clicked() {
                     let _ = open::that("https://github.com/ClassicMiniDIY/UltraLog/wiki");
                     ui.close();
@@ -270,16 +257,40 @@ impl UltraLogApp {
 
                 ui.separator();
 
+                if ui.button(t!("menu.about")).clicked() {
+                    self.show_about = true;
+                    ui.close();
+                }
+
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new(t!(
                             "menu.version",
                             version = env!("CARGO_PKG_VERSION")
                         ))
-                        .color(egui::Color32::GRAY),
+                        .color(self.tokens.ink_subtle),
                     );
                 });
             });
+
+            // Theme menu: the Ultra intensity control from Settings → Display, labelled with
+            // the current level. Clicks inside must not close it, or the slider and the stop
+            // labels could not be used.
+            let theme_label = format!(
+                "{} {}",
+                icon::MOON_STARS,
+                theme::intensity_name(self.ultra_intensity)
+            );
+            egui::containers::menu::MenuButton::new(theme_label)
+                .config(
+                    egui::containers::menu::MenuConfig::find(ui)
+                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+                )
+                .ui(ui, |ui| {
+                    ui.set_width(THEME_MENU_WIDTH);
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    self.render_intensity_control(ui);
+                });
         });
     }
 }

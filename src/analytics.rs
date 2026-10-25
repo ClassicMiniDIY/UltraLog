@@ -190,6 +190,28 @@ pub fn track_update_checked(update_available: bool) {
     capture_event(event);
 }
 
+/// Track a change of the Ultra intensity slider (sent when the drag ends, not per frame)
+pub fn track_ultra_intensity_changed(intensity: u8) {
+    let mut event = create_event("ultra_intensity_changed");
+
+    event
+        .properties
+        .insert("intensity".to_string(), serde_json::json!(intensity));
+
+    capture_event(event);
+}
+
+/// Track toggling the High contrast theme
+pub fn track_high_contrast_toggled(enabled: bool) {
+    let mut event = create_event("high_contrast_toggled");
+
+    event
+        .properties
+        .insert("enabled".to_string(), serde_json::json!(enabled));
+
+    capture_event(event);
+}
+
 /// Track colorblind mode toggle
 pub fn track_colorblind_mode_toggled(enabled: bool) {
     let mut event = create_event("colorblind_mode_toggled");

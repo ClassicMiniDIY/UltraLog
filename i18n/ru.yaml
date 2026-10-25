@@ -6,11 +6,7 @@ menu:
   open_log_file: "Открыть лог-файл..."
   close_tab: "Закрыть вкладку"
   export: "Экспорт"
-  export_png: "Экспортировать в PNG..."
-  export_pdf: "Экспортировать в PDF..."
-  export_histogram_pdf: "Экспортировать гистограмму в PDF..."
-  export_table_png: "Экспортировать таблицу в PNG..."
-  export_table_pdf: "Экспортировать таблицу в PDF..."
+  export_ellipsis: "Экспорт..."
   view: "Вид"
   show_grid: "Показывать сетку"
   tool_mode: "Режим инструмента"
@@ -30,6 +26,7 @@ menu:
   support_development: "Поддержать разработку"
   check_for_updates: "Проверить обновления"
   checking_for_updates: "Проверка обновлений..."
+  about: "О UltraLog"
   version: "Версия %{version}"
 
 # Files panel (src/ui/files_panel.rs)
@@ -53,13 +50,40 @@ channels:
   with_data: "С данными (%{count})"
   empty: "Пустые (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Сравнение"
+  none: "Нет"
+  open_file: "Открыть файл…"
+  compare_with: "Сравнить с…"
+  hint: "Каналы сопоставляются по имени. Лог B — пунктир."
+  no_other_files: "Загрузите второй лог, чтобы сравнить его с этим."
+  log_a: "Лог A"
+  log_b: "Лог B"
+  not_in_b: "нет в B"
+  remove_pair: "Удалить пару"
+  offset: "Смещение лога B"
+  offset_hint: "Секунды, добавляемые ко времени лога B. Перетащите или введите значение."
+  reset: "Сбросить"
+  align: "Выровнять по курсору"
+  align_hint: "Поставьте курсор на событие в логе A, нажмите здесь, затем щёлкните то же событие в логе B."
+  align_no_cursor: "Сначала щёлкните по графику, чтобы поставить курсор."
+  align_pick: "Щёлкните соответствующую точку лога B."
+  align_pick_rest: "Esc — отмена."
+  align_cancel: "Отмена"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Язык"
   language_desc: "Выберите язык интерфейса"
   display: "Отображение"
+  ultra_intensity: "Интенсивность Ultra"
+  ultra_intensity_desc: "Насколько сильно приложение использует неоновые эффекты. Никогда не меняет цвета данных и контраст текста."
+  ultra_intensity_locked: "Заблокировано, пока включён высокий контраст: без свечения, градиентов и декоративной сетки."
   color_blind_mode: "Режим для дальтоников"
-  color_blind_desc: "Использовать доступную цветовую палитру (палитра Вонга)"
+  color_blind_desc: "Цвета данных, безопасные для дальтоников, пунктирные и подписанные линии и более контрастный текст."
+  high_contrast: "Высокий контраст"
+  high_contrast_desc: "Чёрный фон, белый текст и элементы управления с обводкой. Отключает неоновые эффекты."
   font_size: "Размер шрифта:"
   cursor_tracking: "Отслеживание курсора"
   cursor_tracking_desc: "Удерживать курсор в центре при прокрутке"
@@ -99,6 +123,9 @@ timeline:
   speed: "Скорость:"
   time: "Время: %{time}"
   record: "Запись %{current} из %{total}"
+  play: "Воспроизвести"
+  pause: "Пауза"
+  stop: "Стоп"
 
 # Formula editor (src/ui/formula_editor.rs)
 formula:
@@ -172,9 +199,10 @@ toast:
   export_png_success: "График экспортирован в PNG"
   export_pdf_success: "График экспортирован в PDF"
   export_failed: "Ошибка экспорта: %{error}"
+  export_copied: "Изображение скопировано в буфер обмена"
   histogram_exported_png: "Гистограмма экспортирована в PNG"
   histogram_exported_pdf: "Гистограмма экспортирована в PDF"
-  table_exported_png: "Таблица экспортирована в PNG (только ячейки; значения в CSV)"
+  table_exported_png: "Таблица экспортирована в PNG"
   table_exported_pdf: "Таблица экспортирована в PDF"
   scatter_exported_png: "Диаграмма рассеяния экспортирована в PNG"
   scatter_exported_pdf: "Диаграмма рассеяния экспортирована в PDF"
@@ -209,6 +237,7 @@ common:
   duplicate: "Дублировать"
   apply: "Применить"
   close: "Закрыть"
+  cancel: "Отмена"
   reset: "Сбросить"
 
 # Computed channels manager (src/ui/computed_channels_manager.rs)
@@ -325,10 +354,42 @@ histogram:
   filter_min: "Мин"
   filter_max: "Макс"
   no_filters: "Активные фильтры отсутствуют"
+  scale_hits: "Количество попаданий"
+  scale_average: "Среднее значение"
 
 # Chart (src/ui/chart.rs)
 chart:
   select_channels: "Выберите каналы для отображения графика"
+  cursor: "Курсор"
+  rich: "богатая"
+  target: "цель"
+  lean: "бедная"
+
+# Export dialog (src/ui/export_dialog.rs, src/ui/tools_panel.rs)
+export:
+  open: "Экспорт..."
+  title_chart: "Экспорт графика"
+  title_scatter: "Экспорт диаграмм рассеяния"
+  title_histogram: "Экспорт гистограммы"
+  title_table: "Экспорт таблицы"
+  format: "Формат"
+  paper: "Бумага"
+  paper_desc: "Светлая. По умолчанию; печатается чисто."
+  graphite: "Графит"
+  graphite_desc: "Тёмно-серая, экономит чернила."
+  cvd_note: "Экспорт всегда использует палитру, безопасную для дальтоников, поэтому его смогут прочитать все, с кем вы поделитесь."
+  export_pdf: "Экспорт в PDF"
+  export_png: "Экспорт в PNG"
+  copy_image: "Копировать изображение"
+  copy_tooltip: "Копировать график или таблицу без заголовка и подвала, чтобы вставить в документ"
+
+# About window (src/ui/about_window.rs)
+about:
+  title: "О UltraLog"
+  tagline: "Высокопроизводительный просмотрщик логов ECU"
+  license: "Открытый исходный код под лицензией %{license}"
+  website: "Веб-сайт"
+  source: "Исходный код"
 
 # Analysis panel (src/ui/analysis_panel.rs)
 analysis:
@@ -401,6 +462,10 @@ table_gen:
   copy_failed: "Ошибка копирования в буфер обмена"
   exported: "Таблица экспортирована в %{path}"
   export_failed: "Ошибка экспорта"
+  legend_high: "высокая уверенность"
+  legend_medium: "средняя уверенность"
+  legend_low: "низкая уверенность"
+  legend_empty: "нет выборок"
 
 # Tool switcher (src/ui/tool_switcher.rs)
 tools:
@@ -438,8 +503,8 @@ track_map:
   color_by: "Цвет по"
   solid: "Сплошной"
   colormap: "Палитра"
-  colormap.viridis: "Viridis"
-  colormap.turbo: "Turbo"
+  colormap.sequential: "Последовательная"
+  colormap.diverging: "Расходящаяся"
   range: "Диапазон"
   range_auto: "Авто"
   lap: "Круг"

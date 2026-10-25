@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::i18n::Language;
 use crate::state::{FontScale, TileProviderId};
+use crate::ui::export_sheet::ExportChoice;
 use crate::units::UnitPreferences;
 
 /// User settings that persist across sessions
@@ -38,6 +39,18 @@ pub struct UserSettings {
     /// Use the colorblind-friendly chart palette
     #[serde(default)]
     pub color_blind_mode: bool,
+    /// Ultra intensity, 0..=100: how much neon the chrome wears (0 = Stealth, the default).
+    /// Never changes data colours or text contrast. The serde default comes from
+    /// `theme::DEFAULT_INTENSITY`, so a settings file from before 3.0.0 opens at the same
+    /// level as a new install.
+    #[serde(default = "default_ultra_intensity")]
+    pub ultra_intensity: u8,
+    /// High contrast theme: true black grounds, AAA text, intensity effects locked off.
+    #[serde(default)]
+    pub high_contrast: bool,
+    /// ExportDialog choices: last format, and last theme per format (PDF, Paper by default).
+    #[serde(default)]
+    pub export: ExportChoice,
     /// Normalize ECU-specific channel names to standardized names
     #[serde(default = "default_true")]
     pub field_normalization: bool,
@@ -85,6 +98,10 @@ fn default_version() -> u32 {
     1
 }
 
+fn default_ultra_intensity() -> u8 {
+    crate::ui::theme::DEFAULT_INTENSITY as u8
+}
+
 fn default_show_grid() -> bool {
     true
 }
@@ -116,6 +133,9 @@ impl Default for UserSettings {
             unit_preferences: UnitPreferences::default(),
             font_scale: FontScale::default(),
             color_blind_mode: false,
+            ultra_intensity: default_ultra_intensity(),
+            high_contrast: false,
+            export: ExportChoice::default(),
             field_normalization: default_true(),
             cursor_tracking: default_true(),
             auto_check_updates: default_true(),
