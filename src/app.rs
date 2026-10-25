@@ -1086,6 +1086,48 @@ impl UltraLogApp {
         self.update_tab_time_range(tab_idx);
     }
 
+    /// Start "Align at cursor": the next chart click marks log B's point that matches the
+    /// cursor's event in log A. Needs a cursor and a log B.
+    pub fn start_alignment(&mut self, tab_idx: usize) {
+        let Some(tab) = self.tabs.get_mut(tab_idx) else {
+            return;
+        };
+        if tab.cursor_time.is_none() {
+            return;
+        }
+        if let Some(compare) = tab.compare.as_mut() {
+            compare.picking_alignment = true;
+        }
+    }
+
+    /// Leave "Align at cursor" without changing the offset.
+    pub fn cancel_alignment(&mut self, tab_idx: usize) {
+        if let Some(compare) = self.tabs.get_mut(tab_idx).and_then(|t| t.compare.as_mut()) {
+            compare.picking_alignment = false;
+        }
+    }
+
+    /// Finish "Align at cursor" with the chart click at tab time `clicked`: the offset changes so
+    /// that log B's point under the click moves under the cursor.
+    pub fn finish_alignment(&mut self, tab_idx: usize, clicked: f64) {
+        let Some(tab) = self.tabs.get(tab_idx) else {
+            return;
+        };
+        let (Some(compare), Some(cursor)) = (tab.compare.as_ref(), tab.cursor_time) else {
+            return;
+        };
+        let offset = compare.offset_s + (cursor - clicked);
+        self.cancel_alignment(tab_idx);
+        self.set_compare_offset(tab_idx, offset);
+    }
+
+    /// Whether the active tab waits for the "Align at cursor" click.
+    pub fn picking_alignment(&self) -> bool {
+        self.active_tab
+            .and_then(|idx| self.tabs[idx].compare.as_ref())
+            .is_some_and(|c| c.picking_alignment)
+    }
+
     /// Set log B's time offset for a tab and recompute its range.
     pub fn set_compare_offset(&mut self, tab_idx: usize, offset_s: f64) {
         let Some(compare) = self.tabs.get_mut(tab_idx).and_then(|t| t.compare.as_mut()) else {
@@ -3117,6 +3159,45 @@ mod tests {
         // A file already loaded becomes log B at once.
         app.open_compare_file(0, PathBuf::from("b.csv"));
         assert_eq!(app.tabs[0].compare_file(), Some(1));
+    }
+
+    #[test]
+    fn align_at_cursor_moves_log_bs_point_under_the_cursor() {
+        let mut app = app_with_three_files();
+        app.set_compare_file(0, Some(1));
+        app.set_compare_offset(0, 1.0);
+
+        // No cursor: nothing to align to.
+        app.tabs[0].cursor_time = None;
+        app.start_alignment(0);
+        assert!(!app.picking_alignment());
+
+        // Cursor on log A's event at 4.0; log B's matching event is drawn at 6.5.
+        app.tabs[0].cursor_time = Some(4.0);
+        app.start_alignment(0);
+        assert!(app.picking_alignment());
+        app.finish_alignment(0, 6.5);
+        assert!(!app.picking_alignment());
+        // B's event was at file time 5.5 (6.5 - 1.0); now 5.5 + offset == 4.0.
+        let offset = app.tabs[0].compare.as_ref().unwrap().offset_s;
+        assert!((offset - (-1.5)).abs() < 1e-9);
+        assert_eq!(app.tabs[0].time_range, Some((-1.5, 10.0)));
+
+        // Cancel leaves the offset alone.
+        app.start_alignment(0);
+        app.cancel_alignment(0);
+        assert!(!app.picking_alignment());
+        assert!((app.tabs[0].compare.as_ref().unwrap().offset_s + 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_non_finite_offset_is_ignored() {
+        let mut app = app_with_three_files();
+        app.set_compare_file(0, Some(1));
+        app.set_compare_offset(0, 2.0);
+        app.set_compare_offset(0, f64::NAN);
+        app.set_compare_offset(0, f64::INFINITY);
+        assert_eq!(app.tabs[0].compare.as_ref().unwrap().offset_s, 2.0);
     }
 
     #[test]

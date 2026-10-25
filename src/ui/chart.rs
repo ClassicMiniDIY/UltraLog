@@ -21,6 +21,15 @@ const SCROLL_ZOOM_SENSITIVITY: f64 = 0.003;
 impl UltraLogApp {
     /// Render the main chart with cached downsampled data
     pub fn render_chart(&mut self, ui: &mut egui::Ui) {
+        // "Align at cursor" handles its own Esc: the global shortcuts skip a frame where a
+        // widget (the Align button) still has focus, and their Esc stops playback.
+        if self.picking_alignment()
+            && ui.input(|i| i.key_pressed(egui::Key::Escape))
+            && let Some(tab_idx) = self.active_tab
+        {
+            self.cancel_alignment(tab_idx);
+        }
+
         // Check if stacked mode is enabled
         let stacked_mode = self
             .active_tab
@@ -284,24 +293,47 @@ impl UltraLogApp {
             self.set_chart_interacted(true);
         }
 
-        // Handle click on chart to set cursor position
-        if response.response.clicked()
-            && let Some(pos) = response.inner
-        {
-            let clicked_time = pos.x;
-            // Clamp to time range
-            if let Some((min, max)) = self.get_time_range() {
-                // Stop playback when user clicks on chart
-                self.is_playing = false;
-                self.last_frame_time = None;
+        self.handle_chart_click(ui, &response.response, response.inner);
+    }
 
-                let clamped_time = clicked_time.clamp(min, max);
-                self.set_cursor_time(Some(clamped_time));
-                let record = self.find_record_at_time(clamped_time);
-                self.set_cursor_record(record);
-                // Force repaint to update legend values immediately
-                ui.ctx().request_repaint();
+    /// A click on a plot (single or stacked mode): finishes "Align at cursor" while it waits,
+    /// otherwise sets the cursor. Shows a crosshair over the plot while aligning.
+    fn handle_chart_click(
+        &mut self,
+        ui: &egui::Ui,
+        response: &egui::Response,
+        pointer: Option<egui_plot::PlotPoint>,
+    ) {
+        let picking = self.picking_alignment();
+        if picking && response.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+        }
+        if !response.clicked() {
+            return;
+        }
+        let Some(pos) = pointer else {
+            return;
+        };
+        let clicked_time = pos.x;
+        if picking {
+            if let Some(tab_idx) = self.active_tab {
+                self.finish_alignment(tab_idx, clicked_time);
             }
+            ui.ctx().request_repaint();
+            return;
+        }
+        // Clamp to time range
+        if let Some((min, max)) = self.get_time_range() {
+            // Stop playback when user clicks on chart
+            self.is_playing = false;
+            self.last_frame_time = None;
+
+            let clamped_time = clicked_time.clamp(min, max);
+            self.set_cursor_time(Some(clamped_time));
+            let record = self.find_record_at_time(clamped_time);
+            self.set_cursor_record(record);
+            // Force repaint to update legend values immediately
+            ui.ctx().request_repaint();
         }
     }
 
@@ -593,21 +625,7 @@ impl UltraLogApp {
             self.set_chart_interacted(true);
         }
 
-        // Handle click
-        if response.response.clicked()
-            && let Some(pos) = response.inner
-        {
-            let clicked_time = pos.x;
-            if let Some((min, max)) = self.get_time_range() {
-                self.is_playing = false;
-                self.last_frame_time = None;
-                let clamped_time = clicked_time.clamp(min, max);
-                self.set_cursor_time(Some(clamped_time));
-                let record = self.find_record_at_time(clamped_time);
-                self.set_cursor_record(record);
-                ui.ctx().request_repaint();
-            }
-        }
+        self.handle_chart_click(ui, &response.response, response.inner);
 
         // Handle dropped channel on the plot
         if let Some(payload) = response.response.dnd_release_payload::<(usize, usize)>() {

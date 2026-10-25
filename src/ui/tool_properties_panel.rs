@@ -244,6 +244,8 @@ impl UltraLogApp {
                     .small()
                     .color(self.tokens.ink_subtle),
             );
+            ui.add_space(6.0);
+            self.render_compare_offset(ui, tab_idx);
         } else if others.is_empty() {
             ui.label(
                 egui::RichText::new(t!("compare.no_other_files"))
@@ -257,6 +259,78 @@ impl UltraLogApp {
         }
         if open_file {
             self.pick_compare_file(tab_idx);
+        }
+    }
+
+    /// Log B's time offset (D3): a seconds field, nudge buttons, Reset, and Align at cursor.
+    fn render_compare_offset(&mut self, ui: &mut egui::Ui, tab_idx: usize) {
+        let Some(compare) = self.tabs[tab_idx].compare.as_ref() else {
+            return;
+        };
+        let mut offset = compare.offset_s;
+        let picking = compare.picking_alignment;
+        let has_cursor = self.tabs[tab_idx].cursor_time.is_some();
+
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(t!("compare.offset")).text_style(egui::TextStyle::Body));
+            ui.add(
+                egui::DragValue::new(&mut offset)
+                    .speed(0.01)
+                    .fixed_decimals(2)
+                    .suffix(" s"),
+            )
+            .on_hover_text(t!("compare.offset_hint"));
+        });
+        ui.horizontal(|ui| {
+            for (label, step) in [("−1", -1.0), ("−0.1", -0.1), ("+0.1", 0.1), ("+1", 1.0)] {
+                if components::button_sm(ui, Kind::Secondary, None, label).clicked() {
+                    offset += step;
+                }
+            }
+            if components::button_sm(ui, Kind::Ghost, None, t!("compare.reset")).clicked() {
+                offset = 0.0;
+            }
+        });
+        // Round away float drift from the nudges (0.1 steps).
+        let offset = (offset * 1000.0).round() / 1000.0;
+        if offset
+            != self.tabs[tab_idx]
+                .compare
+                .as_ref()
+                .map_or(0.0, |c| c.offset_s)
+        {
+            self.set_compare_offset(tab_idx, offset);
+        }
+
+        ui.add_space(4.0);
+        if picking {
+            components::notice(
+                ui,
+                components::Status::Info,
+                &t!("compare.align_pick"),
+                &t!("compare.align_pick_rest"),
+            );
+            if components::button(ui, Kind::Ghost, Some(icon::X), t!("compare.align_cancel"))
+                .clicked()
+            {
+                self.cancel_alignment(tab_idx);
+            }
+        } else {
+            let response = ui
+                .add_enabled_ui(has_cursor, |ui| {
+                    components::button(
+                        ui,
+                        Kind::Secondary,
+                        Some(icon::CROSSHAIR),
+                        t!("compare.align"),
+                    )
+                })
+                .inner
+                .on_hover_text(t!("compare.align_hint"))
+                .on_disabled_hover_text(t!("compare.align_no_cursor"));
+            if response.clicked() {
+                self.start_alignment(tab_idx);
+            }
         }
     }
 

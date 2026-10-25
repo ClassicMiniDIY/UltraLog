@@ -62,6 +62,15 @@ compare:
   log_b: "Log B"
   not_in_b: "not in B"
   remove_pair: "Remove pair"
+  offset: "Log B offset"
+  offset_hint: "Seconds added to log B's times. Drag or type a value."
+  reset: "Reset"
+  align: "Align at cursor"
+  align_hint: "Put the cursor on an event in log A, click this, then click the same event in log B."
+  align_no_cursor: "Click the chart to place the cursor first."
+  align_pick: "Click log B's matching point."
+  align_pick_rest: "Esc cancels."
+  align_cancel: "Cancel"
 
 # Settings panel (src/ui/settings_panel.rs)
 settings:
