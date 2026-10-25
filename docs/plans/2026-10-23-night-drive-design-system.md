@@ -1,7 +1,8 @@
 # Night Drive Design System — Desktop App Implementation Plan
 
 - **Date:** 2026-10-23
-- **Status:** Revised after the skeptical review; decisions resolved 2026-10-23 — awaiting go-ahead for Phase 0.5
+- **Status:** Implemented 2026-10-24 — Phases 0.5-8 are on `release/3.0.0`. Verified against
+  `design/reference/` in Stealth, Night Drive, Ultra, Color blind and High contrast.
 - **Branch:** `origin/release/3.0.0` (the handoff worktree's local branch is `night-drive-3.0.0`,
   because `release/3.0.0` is checked out in another worktree). Ships in 3.0.0 with the six fixes
   already on the branch.

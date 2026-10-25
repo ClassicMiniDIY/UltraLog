@@ -189,7 +189,7 @@ src/
   - `LoadedFile` - Represents a parsed log file
   - `SelectedChannel` - A channel selected for visualization
   - `CacheKey`, `LoadResult`, `LoadingState`, `DownsampleViewKey` - Internal state types
-  - Color palette constants (`CHART_COLORS`, `COLORBLIND_COLORS`)
+  - No colour constants: series colours come from `theme::series` (see the Theme Contract)
 
 - **`settings.rs`** - `UserSettings` persistence (see [Settings Persistence Contract](#settings-persistence-contract) below)
 
@@ -679,6 +679,11 @@ Several `UltraLogApp` fields cache expensive per-file, per-channel computations 
 
 **Load-bearing invariant:** these caches are keyed by index (file index / channel index), not by identity. Any code path that mutates or reindexes channel data — removing a file, or removing/editing a computed channel (which shifts later computed channels' indices down) — **must clear the relevant caches**, or stale entries will silently render the wrong data against a different channel's index. See `remove_computed_channel` and the file-removal path in `src/app.rs` for the current call sites (`self.downsample_cache.clear()`, `self.minmax_cache.clear()`, `self.scatter_histogram_cache.clear()`).
 
+A cache that holds derived **colours** has a second key: `UltraLogApp::theme_generation`, which
+increments on every theme install. The Track Map's coloured-polyline cache stores it
+(`theme_generation` in `state.rs`) and rebuilds when it differs, so a change of intensity, Color
+blind mode or High contrast never leaves the old palette on screen.
+
 ### Map Tile Fetching Contract (src/tiles.rs)
 
 The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.
@@ -689,8 +694,8 @@ The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by
 
 UI work follows the Night Drive design system in `design/` (brand book
 `design/design-system/README.md`, brief `design/HANDOFF-APP.md`, implementation plan
-`docs/plans/2026-10-23-night-drive-design-system.md`). The migration is in progress on
-`release/3.0.0`; hard-coded colours outside `src/ui/theme/` are being swept file by file.
+`docs/plans/2026-10-23-night-drive-design-system.md`). It shipped in 3.0.0; every screen reads
+the tokens, and the CI colour gate keeps it that way.
 
 - **Never hard-code a colour, size or radius.** Read `UltraLogApp::tokens` (or
   `theme::current(ctx)` where there is no app reference, e.g. `DataWidget`s) and the
@@ -739,7 +744,8 @@ UI work follows the Night Drive design system in `design/` (brand book
 - **Custom painting** stays in `src/ui/theme/paint.rs`: redline, glow, floor, dashed outline and
   the one keyboard focus ring (`keyboard_focus_ring`, called once per frame at the end of
   `ui()`; it shows after Tab/arrow navigation or on a text field, not after a mouse click).
-  Bloom, the plot legend overlay and the major grid join it in Phase 5.
+  Chart-specific painting (series strokes and Ultra bloom, the legend overlay, direct labels)
+  lives in `src/ui/plot_style.rs`.
 - **Icons are Phosphor** (`components::icon::*`, regular outline). The `phosphor` font sits right
   after each brand face in every family, so an icon codepoint works in any label; the filled
   set (`fonts::PHOSPHOR_FILL`) is only for transport glyphs and the favourite star. No emoji.
@@ -747,6 +753,10 @@ UI work follows the Night Drive design system in `design/` (brand book
   `design/logos/ultralog-app-icon-1024.png` via `scripts/brand/build_app_icons.sh` (macOS keeps
   Apple's 824 px tile in the 1024 canvas; the paths are fixed because `main.rs`, `build.rs` and
   `release.yml` read them). `assets/brand/*` lockups come from `scripts/brand/rasterize_lockups.sh`.
+- **Colour gate (CI):** `grep -rnE 'Color32::|Rgba\(|Rgb::new|\[u8; 3\]' src/` may match only
+  `src/ui/theme/`, `Color32::TRANSPARENT`, the PDF/PNG type conversion in
+  `src/ui/export_sheet/{pdf,png}.rs` and a byte triple in `parsers/link.rs`. Image tints go
+  through `theme::image_tint`, translucent export colours through `theme::flatten`.
 - **CI** runs `python3 design/tools/check_contrast.py design/tokens/tokens.json`. A token change
   that breaks a pair fails the build: fix the token, never relax the check.
 
@@ -796,14 +806,15 @@ ColorScale, and the footer (ultralog.co · version · export date).
 - **Scatter Plot Tool** - XY scatter plot for analyzing channel correlations
 - **Histogram Tool** - 2D heatmap view of channel distributions
 - **Export Options** - Export the chart, scatter plots, histogram or a tuning table as PNG or PDF on the Paper or Graphite sheet, or copy it as an image for pasting
-- **Colorblind Mode** - Wong's optimized color palette for accessibility
+- **Night Drive design system** - one dark theme with an Ultra intensity slider (Stealth · Night Drive · Ultra), Color blind mode (Okabe-Ito series, cividis and blue/orange maps) and High contrast; tokens generated from `design/tokens/tokens.json` (see the Theme Contract)
+- **About window** - Help → About UltraLog: version, licence, links, Check for Updates
 - **Playback** - Play through log data at 0.25x to 8x speed
 - **Cursor Tracking** - Lock view to follow cursor during playback/scrubbing
 - **Min/Max Legend** - Shows peak values for each channel
 - **Initial Zoom** - Charts start zoomed to first 60 seconds for better initial view
 - **Multi-File Tabs** - Chrome-style tabs for working with multiple log files simultaneously
 - **Internationalization** - `rust-i18n`-backed language selection (`src/i18n.rs`)
-- **Settings Persistence** - Unit/display/normalization preferences survive restarts (see [Settings Persistence Contract](#settings-persistence-contract))
+- **Settings Persistence** - Unit/display/theme/normalization/export preferences survive restarts (see [Settings Persistence Contract](#settings-persistence-contract))
 - **Auto-Update** - Automatic update checking and installation
 
 ### Keyboard Shortcuts
