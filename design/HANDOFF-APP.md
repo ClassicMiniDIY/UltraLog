@@ -24,7 +24,7 @@ Report before changing anything: egui / eframe / egui_plot versions; where `Visu
 ## Phase 2: Settings
 
 In Settings → Display:
-- **Ultra intensity** slider 0-100, default 35, with named stops (Stealth 0, Night Drive 35, Neon 70, Ultra 100); show "Night Drive · 35" style label; caption "How much neon the app wears. Never changes your data colours or text contrast." See `components/IntensityControl`.
+- **Ultra intensity** slider 0-100, default 0 (Stealth), with named stops (Stealth 0, Night Drive 35, Neon 70, Ultra 100); show "Night Drive · 35" style label; caption "How much neon the app wears. Never changes your data colours or text contrast." See `components/IntensityControl`.
 - **Color blind mode** (existing checkbox): now drives the `cvd` data palette and AAA text through `theme::tokens_at`.
 - **High contrast** (new checkbox). When on, disable the intensity slider and say why in its caption.
 - Persist all three; migrate the existing color-blind setting. Recompute `Tokens` and call `ctx.set_visuals(theme::visuals(&t))` when any changes; store the current `Tokens` somewhere every view can read (context data or app state).

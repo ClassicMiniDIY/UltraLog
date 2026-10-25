@@ -15,7 +15,7 @@ Seven token tables share every name. The app composes three independent settings
 
 | Setting | Values | Themes |
 | --- | --- | --- |
-| Ultra intensity (slider 0-100) | Stealth 0 · **Night Drive 35** · Neon 70 · Ultra 100 | `stealth`, `night` (default), `ultra`; values in between interpolate in OKLab |
+| Ultra intensity (slider 0-100) | **Stealth 0** · Night Drive 35 · Neon 70 · Ultra 100 | `stealth` (app default), `night`, `ultra`; values in between interpolate in OKLab |
 | Color blind mode (checkbox) | off · on | `cvd`: Okabe-Ito data palette, cividis maps, AAA text, direct labels |
 | High contrast (checkbox) | off · on | `hc`: true black, white text, 3:1+ borders everywhere, AAA; locks intensity effects off |
 | Export theme (per export) | **Paper** · Graphite | `paper`, `graphite`: export-only, always color-blind safe |

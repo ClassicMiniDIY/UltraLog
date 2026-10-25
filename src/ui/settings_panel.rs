@@ -98,8 +98,9 @@ impl UltraLogApp {
 
     /// Ultra intensity: one slider, 0-100, with named stops (Stealth, Night Drive, Neon,
     /// Ultra) that snap within a small detent. Locked while High contrast is on.
-    /// Spec: `design/design-system/components/IntensityControl/README.md`.
-    fn render_intensity_control(&mut self, ui: &mut egui::Ui) {
+    /// Spec: `design/design-system/components/IntensityControl/README.md`. Also shown in the
+    /// menu bar's theme menu (`render_menu_bar`).
+    pub(crate) fn render_intensity_control(&mut self, ui: &mut egui::Ui) {
         let t = self.tokens;
         let locked = self.high_contrast;
         let mut value = self.ultra_intensity;

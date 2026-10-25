@@ -28,7 +28,7 @@ UltraLog is an **independent, open-source** desktop application designed for aut
 ## Screenshots
 
 ![Log Viewer in Night Drive](docs/screenshots/chart-night.png)
-*Log Viewer in Night Drive, the default look: a Haltech pull with RPM, MAP, TPS and ignition timing.*
+*Log Viewer in Night Drive: a Haltech pull with RPM, MAP, TPS and ignition timing.*
 
 | Ultra | Color blind mode |
 | --- | --- |
@@ -110,7 +110,7 @@ Configurable units for 8 measurement categories:
 - **Field Normalization** - Maps ECU-specific channel names to standard names (e.g., "Act_AFR" → "AFR")
 
 ### Night Drive Look
-- **Ultra intensity** - one slider from **Stealth** (quiet greys) through **Night Drive** (default) and **Neon** to **Ultra** (glow, gradients and a grid floor under the chart). It never changes data colours or text contrast
+- **Ultra intensity** - one slider from **Stealth** (quiet greys, the default) through **Night Drive** and **Neon** to **Ultra** (glow, gradients and a grid floor under the chart), in the menu bar and in Settings. It never changes data colours or text contrast
 - **Built for data** - one cyan accent, a sunset redline, mono numbers, and heatmaps on perceptual colour maps (no rainbow)
 
 ### Accessibility
@@ -583,7 +583,8 @@ The Analysis Tools panel provides built-in signal processing and statistical ana
 - Black grounds, white text, outlined controls; turns off glow, gradients and the grid floor
 
 **Ultra intensity:**
-- Settings panel → Display → **Ultra intensity**, 0-100 with stops at Stealth, Night Drive (default), Neon and Ultra
+- The theme menu at the end of the menu bar (it shows the current level), or Settings panel → Display → **Ultra intensity**
+- 0-100 with stops at Stealth (default), Night Drive, Neon and Ultra
 - Changes only the chrome; data colours and text contrast stay the same
 
 **Font Scaling:**

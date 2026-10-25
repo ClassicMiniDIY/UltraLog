@@ -676,7 +676,7 @@ preferences convert them.
 
 - **Load** - `UltraLogApp::new` calls `UserSettings::load()` and copies each field into the corresponding live `UltraLogApp` field (e.g. `app.color_blind_mode = user_settings.color_blind_mode`).
 - **Save** - `UltraLogApp` implements `eframe::App::save`, which eframe calls on its auto-save interval (~30s) and again at shutdown. `save()` rebuilds a `UserSettings` from the current live fields, and only writes to disk if it differs from the last-loaded/saved value.
-- **Defaults for new fields must match the in-app default, not the type default.** `serde(default)` on a `u8` gives 0; `ultra_intensity` uses `default_ultra_intensity` (35) so a 2.x settings file opens at Night Drive, not Stealth (`test_settings_from_before_3_0_open_at_night_drive`).
+- **Defaults for new fields must match the in-app default, not the type default.** `serde(default)` on a `u8` gives 0; `ultra_intensity` uses `default_ultra_intensity`, which returns `theme::DEFAULT_INTENSITY` (0, Stealth), so a 2.x settings file opens at the same level as a new install (`test_settings_from_before_3_0_open_at_stealth`). `DEFAULT_INTENSITY` is the default only; the Night Drive anchor that `tokens_at` blends around is `NIGHT_DRIVE_INTENSITY` (35).
 - **Load-bearing invariant:** because the sync is manual field-by-field (not `#[derive]` magic), **any new persisted preference must be added in three places**: the field on the `UserSettings` struct, the copy in `UltraLogApp::new`, and the reconstruction in `eframe::App::save` in `src/app.rs`. Missing any one of the three means the preference silently resets on restart or never saves at all.
 
 ### Chart/Scatter Cache Invalidation Contract

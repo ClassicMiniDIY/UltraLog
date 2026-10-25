@@ -1,4 +1,4 @@
-//! Menu bar UI components (File, View, Help menus).
+//! Menu bar UI components (File, View, Help menus and the theme menu).
 //!
 //! Simplified menu structure - settings moved to Settings panel.
 
@@ -7,6 +7,11 @@ use rust_i18n::t;
 
 use crate::app::UltraLogApp;
 use crate::state::{ActivePanel, ActiveTool, LoadingState};
+use crate::ui::components::icon;
+use crate::ui::theme;
+
+/// Width of the theme menu, enough for the four stop names under the slider.
+const THEME_MENU_WIDTH: f32 = 280.0;
 
 impl UltraLogApp {
     /// Render the application menu bar
@@ -233,6 +238,25 @@ impl UltraLogApp {
                     );
                 });
             });
+
+            // Theme menu: the Ultra intensity control from Settings → Display, labelled with
+            // the current level. Clicks inside must not close it, or the slider and the stop
+            // labels could not be used.
+            let theme_label = format!(
+                "{} {}",
+                icon::MOON_STARS,
+                theme::intensity_name(self.ultra_intensity)
+            );
+            egui::containers::menu::MenuButton::new(theme_label)
+                .config(
+                    egui::containers::menu::MenuConfig::find(ui)
+                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+                )
+                .ui(ui, |ui| {
+                    ui.set_width(THEME_MENU_WIDTH);
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    self.render_intensity_control(ui);
+                });
         });
     }
 }

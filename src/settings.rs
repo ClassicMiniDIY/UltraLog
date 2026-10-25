@@ -39,9 +39,10 @@ pub struct UserSettings {
     /// Use the colorblind-friendly chart palette
     #[serde(default)]
     pub color_blind_mode: bool,
-    /// Ultra intensity, 0..=100: how much neon the chrome wears (35 = Night Drive). Never
-    /// changes data colours or text contrast. The serde default is 35, not 0, so a settings
-    /// file from before 3.0.0 opens at Night Drive rather than Stealth.
+    /// Ultra intensity, 0..=100: how much neon the chrome wears (0 = Stealth, the default).
+    /// Never changes data colours or text contrast. The serde default comes from
+    /// `theme::DEFAULT_INTENSITY`, so a settings file from before 3.0.0 opens at the same
+    /// level as a new install.
     #[serde(default = "default_ultra_intensity")]
     pub ultra_intensity: u8,
     /// High contrast theme: true black grounds, AAA text, intensity effects locked off.

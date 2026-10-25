@@ -21,7 +21,7 @@ use tokens::{self as ut};
 /// User-facing settings that decide the theme.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ThemeSettings {
-    /// Ultra intensity, 0..=100. 0 Stealth, 35 Night Drive (default), 70 Neon, 100 Ultra.
+    /// Ultra intensity, 0..=100. 0 Stealth (default), 35 Night Drive, 70 Neon, 100 Ultra.
     pub intensity: f32,
     pub color_blind: bool,
     pub high_contrast: bool,
@@ -37,8 +37,12 @@ impl Default for ThemeSettings {
     }
 }
 
-/// The Night Drive anchor on the Ultra intensity slider.
-pub const DEFAULT_INTENSITY: f32 = 35.0;
+/// The intensity a new install opens at: Stealth.
+pub const DEFAULT_INTENSITY: f32 = 0.0;
+
+/// The Night Drive anchor on the Ultra intensity slider. `tokens_at` blends Stealth -> Night
+/// Drive below it and Night Drive -> Ultra above it.
+pub const NIGHT_DRIVE_INTENSITY: f32 = 35.0;
 
 /// Named stops on the Ultra intensity slider. The names are the brand's level names and are not
 /// translated.
@@ -91,13 +95,13 @@ pub fn tokens_at(s: ThemeSettings) -> Tokens {
         return ut::HC;
     }
     let i = s.intensity.clamp(0.0, 100.0);
-    let mut t = if i <= DEFAULT_INTENSITY {
-        lerp_tokens(&ut::STEALTH, &ut::NIGHT, i / DEFAULT_INTENSITY)
+    let mut t = if i <= NIGHT_DRIVE_INTENSITY {
+        lerp_tokens(&ut::STEALTH, &ut::NIGHT, i / NIGHT_DRIVE_INTENSITY)
     } else {
         lerp_tokens(
             &ut::NIGHT,
             &ut::ULTRA,
-            (i - DEFAULT_INTENSITY) / (100.0 - DEFAULT_INTENSITY),
+            (i - NIGHT_DRIVE_INTENSITY) / (100.0 - NIGHT_DRIVE_INTENSITY),
         )
     };
     if s.color_blind {
@@ -568,7 +572,11 @@ mod tests {
 
     #[test]
     fn anchors_are_exact() {
-        assert_eq!(tokens_at(ThemeSettings::default()), ut::NIGHT);
+        assert_eq!(tokens_at(ThemeSettings::default()), ut::STEALTH);
+        assert_eq!(
+            tokens_at(settings(NIGHT_DRIVE_INTENSITY, false, false)),
+            ut::NIGHT
+        );
         assert_eq!(
             tokens_at(settings(0.0, false, false)).bg_panel,
             ut::STEALTH.bg_panel
@@ -607,7 +615,7 @@ mod tests {
     #[test]
     fn data_colors_ignore_intensity() {
         for cb in [false, true] {
-            let base = tokens_at(settings(DEFAULT_INTENSITY, cb, false));
+            let base = tokens_at(settings(NIGHT_DRIVE_INTENSITY, cb, false));
             for i in [0.0, 20.0, 50.0, 70.0, 100.0] {
                 let t = tokens_at(settings(i, cb, false));
                 for idx in 0..30 {

@@ -1,8 +1,8 @@
 # Ultra intensity
 
-One slider in Settings → Display, labelled **Ultra intensity**, 0-100, default 35. It lets people who find neon distracting turn it down to a clean dark tool, and lets people who want the full synthwave cockpit turn it all the way up. It is a single dial so it stays simple; the levels are names on the track, not separate settings.
+One slider in Settings → Display, labelled **Ultra intensity**, 0-100, default 0 (Stealth). The app also shows it in a theme menu at the end of the menu bar. It lets people who find neon distracting turn it down to a clean dark tool, and lets people who want the full synthwave cockpit turn it all the way up. It is a single dial so it stays simple; the levels are names on the track, not separate settings.
 
-| | Stealth · 0 | Night Drive · 35 (default) | Neon · 70 | Ultra · 100 |
+| | Stealth · 0 (default) | Night Drive · 35 | Neon · 70 | Ultra · 100 |
 | --- | --- | --- | --- | --- |
 | Grounds (`bg-*`, `line-*`) | Neutral greys | Indigo-black | Toward purple | Deep purple |
 | `cyan` accent | Softened `#5cc8dc` | `#2de2ff` | Interpolated | Hotter `#3df0ff` |

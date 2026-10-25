@@ -334,13 +334,13 @@ fn test_settings_handles_unknown_fields() {
 // ============================================
 
 #[test]
-fn test_settings_from_before_3_0_open_at_night_drive() {
-    // A 2.x settings file has no theme fields. It must load at intensity 35 (Night Drive),
-    // not at the integer default 0 (Stealth), and with High contrast off.
+fn test_settings_from_before_3_0_open_at_stealth() {
+    // A 2.x settings file has no theme fields. It must load at the in-app default,
+    // intensity 0 (Stealth), and with High contrast off.
     let json = r#"{"version":1,"language":"English","color_blind_mode":true}"#;
     let settings: UserSettings = serde_json::from_str(json).unwrap();
 
-    assert_eq!(settings.ultra_intensity, 35);
+    assert_eq!(settings.ultra_intensity, 0);
     assert!(!settings.high_contrast);
     assert!(settings.color_blind_mode);
 }
@@ -348,7 +348,7 @@ fn test_settings_from_before_3_0_open_at_night_drive() {
 #[test]
 fn test_settings_default_theme_fields() {
     let settings = UserSettings::default();
-    assert_eq!(settings.ultra_intensity, 35);
+    assert_eq!(settings.ultra_intensity, 0);
     assert!(!settings.high_contrast);
 }
 
