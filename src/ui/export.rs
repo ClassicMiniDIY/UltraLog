@@ -268,7 +268,9 @@ impl UltraLogApp {
         if channels.is_empty() {
             return Err("No channels selected".into());
         }
-        let (full0, full1) = self.time_range.ok_or("No time range available")?;
+        // The tab range: log A joined with the shifted log B, as on screen.
+        let (full0, full1) = self.get_time_range().ok_or("No time range available")?;
+        let tab = self.active_tab.map(|i| &self.tabs[i]);
         let (t0, t1) = self
             .chart_last_x_bounds
             .get(&0)
@@ -289,16 +291,32 @@ impl UltraLogApp {
             if times.is_empty() || times.len() != data.len() {
                 continue;
             }
-            // Normalized to the whole channel, like the chart.
-            let Some((lo, hi)) = finite_bounds(data) else {
+            // Normalized to the whole channel, like the chart; a compare pair shares one range
+            // (R1).
+            let Some(mut bounds) = finite_bounds(data) else {
                 continue;
             };
-            let a = times.partition_point(|&t| t < t0).saturating_sub(1);
-            let b = (times.partition_point(|&t| t <= t1) + 1).min(times.len());
+            if let Some(partner) = tab.and_then(|t| t.partner_of(selected))
+                && let Some((plo, phi)) = finite_bounds(
+                    self.get_channel_data_ref(partner.file_index, partner.channel_index),
+                )
+            {
+                bounds = (bounds.0.min(plo), bounds.1.max(phi));
+            }
+            let (lo, hi) = bounds;
+            // Log B is sliced in its own time, then moved onto the tab axis.
+            let offset = tab.map_or(0.0, |t| t.time_offset(selected.file_index));
+            let (s0, s1) = (t0 - offset, t1 - offset);
+            let a = times.partition_point(|&t| t < s0).saturating_sub(1);
+            let b = (times.partition_point(|&t| t <= s1) + 1).min(times.len());
+            if a >= b {
+                continue;
+            }
             let raw: Vec<[f64; 2]> =
                 crate::app::UltraLogApp::downsample_lttb(&times[a..b], &data[a..b], CHART_POINTS)
                     .into_iter()
                     .filter(|p| p[1].is_finite())
+                    .map(|[t, v]| [t + offset, v])
                     .collect();
             let points = clip_to_range(&raw, t0, t1)
                 .into_iter()
@@ -313,6 +331,9 @@ impl UltraLogApp {
                 name: self.export_channel_name(selected.file_index, selected.channel_index),
                 unit,
                 color_index: selected.color_index,
+                log: tab
+                    .filter(|t| t.compare.is_some())
+                    .map(|t| t.log_role(selected)),
                 points,
             });
         }
@@ -325,20 +346,30 @@ impl UltraLogApp {
             .or(channels.first().map(|c| c.file_index))
             .and_then(|i| self.files.get(i))
             .ok_or("No file loaded")?;
+        let mut meta = vec![
+            format!(
+                "{} \u{2013} {}",
+                Self::format_time(t0),
+                Self::format_time(t1)
+            ),
+            format!(
+                "{} records \u{00B7} {} ch",
+                group_thousands(file.log.times.len()),
+                file.log.channels.len()
+            ),
+        ];
+        // Both files and log B's offset, so the sheet says what is compared with what.
+        if let Some(compare) = tab.and_then(|t| t.compare.as_ref())
+            && let Some(b) = self.files.get(compare.file_index)
+        {
+            meta.push(format!(
+                "A {} \u{00B7} B {} \u{00B7} B offset {:+.2} s",
+                file.name, b.name, compare.offset_s
+            ));
+        }
         Ok(Sheet {
             title: file.name.clone(),
-            meta: vec![
-                format!(
-                    "{} \u{2013} {}",
-                    Self::format_time(t0),
-                    Self::format_time(t1)
-                ),
-                format!(
-                    "{} records \u{00B7} {} ch",
-                    group_thousands(file.log.times.len()),
-                    file.log.channels.len()
-                ),
-            ],
+            meta,
             body: Body::Chart(ChartModel { series, t0, t1 }),
         })
     }
@@ -600,6 +631,7 @@ impl UltraLogApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::LogRole;
 
     #[test]
     fn thousands_use_thin_spaces() {
@@ -623,6 +655,59 @@ mod tests {
         assert_eq!(clipped.len(), 4);
         // Fully inside: unchanged.
         assert_eq!(clip_to_range(&pts, 0.0, 30.0), pts.to_vec());
+    }
+
+    /// One "MAP" channel at 10 Hz over 0..=`secs` s, value `f(t)`.
+    fn file(name: &str, secs: usize, f: impl Fn(f64) -> f64) -> crate::state::LoadedFile {
+        use crate::parsers::aim::AimChannel;
+        use crate::parsers::types::Meta;
+        use crate::parsers::{Channel, EcuType, Log, Value};
+        let times: Vec<f64> = (0..=secs * 10).map(|i| i as f64 * 0.1).collect();
+        let log = Log {
+            meta: Meta::Empty,
+            channels: vec![Channel::Aim(AimChannel {
+                name: "MAP".to_string(),
+                unit: String::new(),
+            })],
+            data: times.iter().map(|&t| vec![Value::Float(f(t))]).collect(),
+            times,
+        };
+        crate::state::LoadedFile::new(
+            std::path::PathBuf::from(name),
+            name.to_string(),
+            EcuType::Aim,
+            log,
+        )
+    }
+
+    #[test]
+    fn compare_export_keeps_log_bs_early_part_and_shared_scale() {
+        let mut app = UltraLogApp::default();
+        app.files.push(file("a.csv", 10, |t| t)); // 0..10
+        app.files.push(file("b.csv", 8, |t| 2.0 * t)); // 0..16
+        app.tabs
+            .push(crate::state::Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.update_tab_time_range(0);
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 0); // MAP pairs with B's MAP
+        app.set_compare_offset(0, -3.0);
+
+        let sheet = app.chart_sheet().expect("chart sheet");
+        let Body::Chart(chart) = &sheet.body else {
+            panic!("chart body");
+        };
+        assert_eq!((chart.t0, chart.t1), (-3.0, 10.0));
+        let (a, b) = (&chart.series[0], &chart.series[1]);
+        assert_eq!(a.log, Some(LogRole::A));
+        assert_eq!(b.log, Some(LogRole::B));
+        // Log B starts at tab time -3 (its file time 0), before log A exists.
+        assert!((b.points.first().unwrap()[0] + 3.0).abs() < 1e-9);
+        // Shared scale 0..16: A's peak (10) sits at 10/16, B's (16) at the top.
+        let top = |p: &[[f64; 2]]| p.iter().map(|q| q[1]).fold(f64::MIN, f64::max);
+        assert!((top(&a.points) - 10.0 / 16.0).abs() < 1e-9);
+        assert!((top(&b.points) - 1.0).abs() < 1e-9);
+        assert!(sheet.meta.last().unwrap().contains("B offset -3.00 s"));
     }
 
     #[test]

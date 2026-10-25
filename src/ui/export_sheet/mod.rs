@@ -20,6 +20,7 @@ use ::image::RgbaImage;
 use eframe::egui::{Color32, Pos2, Rect, pos2, vec2};
 use rust_i18n::t;
 
+use crate::state::LogRole;
 use crate::ui::heatmap::{self, MapKind};
 use crate::ui::theme::{self, ExportTheme, SeriesStroke, Tokens, export_tokens};
 use canvas::{Canvas, Face, HAlign, flatten};
@@ -37,6 +38,9 @@ pub struct SeriesModel {
     pub unit: String,
     /// Colour slot; the export palette is `theme::series(.., true)`.
     pub color_index: usize,
+    /// Which log the series comes from while the tab compares two logs (issue #98): log B is
+    /// dashed in its pair's colour and both get an A/B tag in the legend.
+    pub log: Option<LogRole>,
     /// `(time, value 0..=1)` within the sheet's time range.
     pub points: Vec<[f64; 2]>,
 }
@@ -337,8 +341,11 @@ fn draw_body(c: &mut dyn Canvas, body: &Body, t: &Tokens, rect: Rect) {
     }
 }
 
-fn series_style(t: &Tokens, index: usize) -> (Color32, Option<[f32; 2]>) {
-    let (color, stroke) = theme::series(t, index, true);
+fn series_style(t: &Tokens, s: &SeriesModel) -> (Color32, Option<[f32; 2]>) {
+    let (color, stroke) = match s.log {
+        Some(role) => theme::compare_series(t, s.color_index, true, role == LogRole::B),
+        None => theme::series(t, s.color_index, true),
+    };
     let dash = match stroke {
         SeriesStroke::Solid => None,
         SeriesStroke::Dashed => Some([4.0, 2.5]),
@@ -405,7 +412,7 @@ fn draw_chart(c: &mut dyn Canvas, chart: &ChartModel, t: &Tokens, rect: Rect) {
     }
 
     for s in &chart.series {
-        let (color, dash) = series_style(t, s.color_index);
+        let (color, dash) = series_style(t, s);
         let pts: Vec<Pos2> = s
             .points
             .iter()
@@ -460,10 +467,15 @@ fn legend_layout(chart: &ChartModel, width: f32) -> Vec<LegendEntry> {
     let mut entries = Vec::with_capacity(chart.series.len());
     let (mut line, mut x) = (0, 0.0);
     for (series, s) in chart.series.iter().enumerate() {
+        let name = match s.log {
+            Some(LogRole::A) => format!("A \u{00B7} {}", s.name),
+            Some(LogRole::B) => format!("B \u{00B7} {}", s.name),
+            None => s.name.clone(),
+        };
         let label = if s.unit.is_empty() {
-            s.name.clone()
+            name
         } else {
-            format!("{} ({})", s.name, s.unit)
+            format!("{name} ({})", s.unit)
         };
         let w = LEGEND_SWATCH + text::width(&label, Face::Ui, 8.5);
         if x > 0.0 && x + w > width {
@@ -489,7 +501,7 @@ fn draw_series_legend(
     origin: Pos2,
 ) {
     for e in entries {
-        let (color, dash) = series_style(t, chart.series[e.series].color_index);
+        let (color, dash) = series_style(t, &chart.series[e.series]);
         let x = origin.x + e.x;
         let y = origin.y + LEGEND_LINE * e.line as f32;
         c.polyline(
@@ -780,6 +792,7 @@ mod tests {
                 name: format!("Channel {i}"),
                 unit: "kPa".into(),
                 color_index: i,
+                log: None,
                 points: (0..200)
                     .map(|k| {
                         let x = k as f64 / 10.0;
@@ -851,6 +864,7 @@ mod tests {
                     name: format!("Manifold Pressure {i}"),
                     unit: "kPa".into(),
                     color_index: i,
+                    log: None,
                     points: (0..200)
                         .map(|k| {
                             let x = k as f64 / 10.0;
@@ -863,6 +877,38 @@ mod tests {
         render_png(&wide, ExportTheme::Paper)
             .save(format!("{dir}/chart-wide-paper.png"))
             .unwrap();
+
+        // A compare sheet: two pairs, log B dashed and shifted (issue #98).
+        let mut compare = chart_sheet();
+        compare
+            .meta
+            .push("A 2025-03-06.csv \u{00B7} B 2025-07-18.csv \u{00B7} B offset +1.25 s".into());
+        if let Body::Chart(chart) = &mut compare.body {
+            chart.series = (0..4)
+                .map(|i| {
+                    let (slot, b) = (i / 2, i % 2 == 1);
+                    SeriesModel {
+                        name: ["MAP", "RPM"][slot].into(),
+                        unit: ["kPa", "rpm"][slot].into(),
+                        color_index: slot,
+                        log: Some(if b { LogRole::B } else { LogRole::A }),
+                        points: (0..200)
+                            .map(|k| {
+                                let x = k as f64 / 10.0;
+                                let shift = if b { 1.25 } else { 0.0 };
+                                [x, 0.45 + 0.35 * ((x - shift) * 0.6 + slot as f64).sin()]
+                            })
+                            .collect(),
+                    }
+                })
+                .collect();
+        }
+        for theme in [ExportTheme::Paper, ExportTheme::Graphite] {
+            let name = format!("{theme:?}").to_lowercase();
+            render_png(&compare, theme)
+                .save(format!("{dir}/chart-compare-{name}.png"))
+                .unwrap();
+        }
         std::fs::write(
             format!("{dir}/chart-wide-paper.pdf"),
             render_pdf(&wide, ExportTheme::Paper),
@@ -938,6 +984,7 @@ mod tests {
                 name: format!("Manifold Pressure {i}"),
                 unit: "kPa".into(),
                 color_index: i,
+                log: None,
                 points: Vec::new(),
             })
             .collect();
