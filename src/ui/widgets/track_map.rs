@@ -371,6 +371,7 @@ fn render_toolbar(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize) {
     ui.horizontal_wrapped(|ui| {
         // Color by selector
         let selected_channels = app.tabs[tab_idx].selected_channels.clone();
+        let tab_file = app.tabs[tab_idx].file_index;
         let color_label = match app.tabs[tab_idx].data_panel_state.track_map.color_channel {
             Some(i) => selected_channels
                 .get(i)
@@ -389,7 +390,12 @@ fn render_toolbar(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize) {
                 {
                     st.color_channel = None;
                 }
+                // Log A only: the track is log A's, and log B's values do not line up with its
+                // records.
                 for (i, sc) in selected_channels.iter().enumerate() {
+                    if sc.file_index != tab_file {
+                        continue;
+                    }
                     if ui
                         .selectable_label(st.color_channel == Some(i), sc.channel.name())
                         .clicked()
@@ -915,17 +921,23 @@ fn render_canvas(ui: &mut egui::Ui, app: &mut UltraLogApp, tab_idx: usize, file_
     }
 }
 
+/// The `(file, channel)` the track is coloured by. Log A only: the track is log A's, and a log-B
+/// channel's values do not line up with its records (issue #98).
+fn color_source(app: &UltraLogApp, tab_idx: usize) -> Option<(usize, usize)> {
+    let tab = &app.tabs[tab_idx];
+    let slot = tab.data_panel_state.track_map.color_channel?;
+    tab.selected_channels
+        .get(slot)
+        .filter(|selected| selected.file_index == tab.file_index)
+        .map(|selected| (selected.file_index, selected.channel_index))
+}
+
 fn ensure_color_cache(app: &mut UltraLogApp, tab_idx: usize) -> ColorCacheStatus {
     let state = &app.tabs[tab_idx].data_panel_state.track_map;
     let colormap = state.colormap;
     let requested_min = state.color_min;
     let requested_max = state.color_max;
-    let channel = state.color_channel.and_then(|slot| {
-        app.tabs[tab_idx]
-            .selected_channels
-            .get(slot)
-            .map(|selected| (selected.file_index, selected.channel_index))
-    });
+    let channel = color_source(app, tab_idx);
     let (data_address, data_length) = channel.map_or((0, 0), |(file_index, channel_index)| {
         let values = app.get_channel_data_ref(file_index, channel_index);
         (values.as_ptr() as usize, values.len())
@@ -1277,6 +1289,20 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+
+    #[test]
+    fn the_track_is_never_coloured_by_log_b() {
+        let mut app = app_with_active_tile_map();
+        app.files.push(app.files[0].clone());
+        app.set_compare_file(0, Some(1));
+        app.add_channel(0, 0); // brings log B's match along
+        assert_eq!(app.tabs[0].selected_channels.len(), 2);
+
+        app.tabs[0].data_panel_state.track_map.color_channel = Some(0);
+        assert_eq!(color_source(&app, 0), Some((0, 0)));
+        app.tabs[0].data_panel_state.track_map.color_channel = Some(1);
+        assert_eq!(color_source(&app, 0), None);
+    }
 
     #[test]
     fn track_colours_follow_the_theme_map_and_mark_missing_values() {

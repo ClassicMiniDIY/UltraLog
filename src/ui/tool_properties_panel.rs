@@ -48,8 +48,10 @@ impl UltraLogApp {
             }
         });
 
-        if let Some((file_index, current_search, selected_count, stacked_mode)) = tab_info {
-            let channel_count = self.files[file_index].log.channels.len();
+        if let Some((tab_file, current_search, _, stacked_mode)) = tab_info {
+            let Some(tab_idx) = self.active_tab else {
+                return;
+            };
 
             // Stacked Mode Toggle Section - Pill Style
             ui.vertical(|ui| {
@@ -67,6 +69,20 @@ impl UltraLogApp {
                     self.toggle_stacked_mode();
                 }
             });
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(8.0);
+
+            self.render_compare_row(ui, tab_idx);
+
+            // The list shows log A's channels, or log B's with the A | B switch on B.
+            let file_index = match &self.tabs[tab_idx].compare {
+                Some(c) if c.list_b && c.file_index < self.files.len() => c.file_index,
+                _ => tab_file,
+            };
+            let channel_count = self.files[file_index].log.channels.len();
+            let selected_count = self.tabs[tab_idx].total_channel_units();
 
             ui.add_space(8.0);
             ui.separator();
@@ -163,6 +179,94 @@ impl UltraLogApp {
                         .color(self.tokens.ink_subtle),
                 );
             });
+        }
+    }
+
+    /// The Compare row (issue #98): choose log B (None, another loaded file, or Open file…),
+    /// and the A | B switch for the channel list while comparing.
+    fn render_compare_row(&mut self, ui: &mut egui::Ui, tab_idx: usize) {
+        let tab_file = self.tabs[tab_idx].file_index;
+        let current = self.tabs[tab_idx].compare_file();
+        let others: Vec<(usize, String)> = self
+            .files
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != tab_file)
+            .map(|(i, f)| (i, f.name.clone()))
+            .collect();
+
+        ui.label(egui::RichText::new(t!("compare.title")).heading().strong());
+        ui.add_space(4.0);
+
+        let mut choice: Option<Option<usize>> = None;
+        let mut open_file = false;
+        let selected_text = current
+            .and_then(|i| self.files.get(i))
+            .map_or_else(|| t!("compare.none").to_string(), |f| f.name.clone());
+        egui::ComboBox::from_id_salt(("compare_file", self.tabs[tab_idx].id))
+            .selected_text(selected_text)
+            .width(ui.available_width() - space::SPACE_2)
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(current.is_none(), t!("compare.none"))
+                    .clicked()
+                {
+                    choice = Some(None);
+                }
+                for (i, name) in &others {
+                    if ui.selectable_label(current == Some(*i), name).clicked() {
+                        choice = Some(Some(*i));
+                    }
+                }
+                ui.separator();
+                if ui
+                    .selectable_label(false, t!("compare.open_file"))
+                    .clicked()
+                {
+                    open_file = true;
+                }
+            });
+
+        if current.is_some() {
+            ui.add_space(4.0);
+            let mut list_b = self.tabs[tab_idx]
+                .compare
+                .as_ref()
+                .is_some_and(|c| c.list_b);
+            let (a, b) = (t!("compare.log_a"), t!("compare.log_b"));
+            if components::segmented(ui, &mut list_b, &[(false, a.as_ref()), (true, b.as_ref())])
+                && let Some(compare) = self.tabs[tab_idx].compare.as_mut()
+            {
+                compare.list_b = list_b;
+            }
+            ui.label(
+                egui::RichText::new(t!("compare.hint"))
+                    .small()
+                    .color(self.tokens.ink_subtle),
+            );
+        } else if others.is_empty() {
+            ui.label(
+                egui::RichText::new(t!("compare.no_other_files"))
+                    .small()
+                    .color(self.tokens.ink_subtle),
+            );
+        }
+
+        if let Some(file) = choice {
+            self.choose_compare_file(tab_idx, file);
+        }
+        if open_file {
+            self.pick_compare_file(tab_idx);
+        }
+    }
+
+    /// The native file dialog for "Open file…" in the Compare row.
+    pub fn pick_compare_file(&mut self, tab_idx: usize) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Log Files", crate::state::SUPPORTED_EXTENSIONS)
+            .pick_file()
+        {
+            self.open_compare_file(tab_idx, path);
         }
     }
 

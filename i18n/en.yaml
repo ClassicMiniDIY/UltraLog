@@ -50,6 +50,19 @@ channels:
   with_data: "With Data (%{count})"
   empty: "Empty (%{count})"
 
+# Log compare (src/ui/tool_properties_panel.rs, src/ui/channels.rs, src/ui/menu.rs)
+compare:
+  title: "Compare"
+  none: "None"
+  open_file: "Open file…"
+  compare_with: "Compare with…"
+  hint: "Channels pair by name. Log B is dashed."
+  no_other_files: "Load a second log to compare it with this one."
+  log_a: "Log A"
+  log_b: "Log B"
+  not_in_b: "not in B"
+  remove_pair: "Remove pair"
+
 # Settings panel (src/ui/settings_panel.rs)
 settings:
   language: "Language"

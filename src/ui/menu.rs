@@ -40,6 +40,40 @@ impl UltraLogApp {
                     ui.close();
                 }
 
+                // Compare the active tab with another log (issue #98)
+                if let Some(tab_idx) = self.active_tab {
+                    ui.add_enabled_ui(!is_loading, |ui| {
+                        ui.menu_button(t!("compare.compare_with"), |ui| {
+                            let tab_file = self.tabs[tab_idx].file_index;
+                            let current = self.tabs[tab_idx].compare_file();
+                            let mut choice: Option<Option<usize>> = None;
+                            if ui
+                                .radio(current.is_none(), t!("compare.none").as_ref())
+                                .clicked()
+                            {
+                                choice = Some(None);
+                            }
+                            for (i, file) in self.files.iter().enumerate() {
+                                if i != tab_file
+                                    && ui.radio(current == Some(i), file.name.as_str()).clicked()
+                                {
+                                    choice = Some(Some(i));
+                                }
+                            }
+                            ui.separator();
+                            if ui.button(t!("compare.open_file")).clicked() {
+                                ui.close();
+                                self.pick_compare_file(tab_idx);
+                            }
+                            if let Some(file) = choice {
+                                self.choose_compare_file(tab_idx, file);
+                                self.set_active_tool(ActiveTool::LogViewer);
+                                ui.close();
+                            }
+                        });
+                    });
+                }
+
                 ui.separator();
 
                 // Close current tab

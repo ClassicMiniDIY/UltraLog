@@ -1069,6 +1069,8 @@ pub struct CompareState {
     pub offset_s: f64,
     /// True while "Align at cursor" waits for the click on log B's matching point.
     pub picking_alignment: bool,
+    /// The channel list shows log B's channels (the A | B switch).
+    pub list_b: bool,
 }
 
 impl CompareState {
@@ -1077,6 +1079,7 @@ impl CompareState {
             file_index,
             offset_s: 0.0,
             picking_alignment: false,
+            list_b: false,
         }
     }
 }

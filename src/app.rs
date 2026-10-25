@@ -28,9 +28,9 @@ use crate::parsers::{
 use crate::settings::UserSettings;
 use crate::state::{
     ActivePanel, ActiveTool, CacheKey, DownsampleCache, FontScale, LoadResult, LoadedFile,
-    LoadingState, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS, MIN_PLOT_HEIGHT,
-    PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState, SelectedChannel, Tab,
-    TileProviderId, ToastType,
+    LoadingState, LogRole, MAX_CHANNELS, MAX_CHANNELS_PER_PLOT, MAX_TOTAL_CHANNELS,
+    MIN_PLOT_HEIGHT, PlotArea, ScatterHistogramCache, ScatterPlotConfig, ScatterPlotState,
+    SelectedChannel, Tab, TileProviderId, ToastType,
 };
 use crate::ui::table_generator::TableGeneratorState;
 use crate::units::UnitPreferences;
@@ -56,6 +56,11 @@ pub struct UltraLogApp {
     /// Starting a second load while one is in flight would drop the first
     /// receiver and silently lose its result.
     pending_loads: Vec<PathBuf>,
+    /// The file the background load is reading, if any.
+    loading_path: Option<PathBuf>,
+    /// "Open file…" requests from a tab's Compare row: (path, `Tab::id`). When that file
+    /// finishes loading, it becomes log B of that tab (if the tab is still open).
+    pending_compare: Vec<(PathBuf, u64)>,
     /// Current loading state
     pub(crate) loading_state: LoadingState,
     /// Cache for channel min/max values (avoids O(n) scans)
@@ -242,6 +247,8 @@ impl Default for UltraLogApp {
             last_drop_time: None,
             load_receiver: None,
             pending_loads: Vec::new(),
+            loading_path: None,
+            pending_compare: Vec::new(),
             loading_state: LoadingState::Idle,
             minmax_cache: HashMap::new(),
             chart_last_x_bounds: HashMap::new(),
@@ -520,6 +527,7 @@ impl UltraLogApp {
             .unwrap_or_else(|| "Unknown".to_string());
 
         self.loading_state = LoadingState::Loading(filename.clone());
+        self.loading_path = Some(path.clone());
 
         let (sender, receiver): (Sender<LoadResult>, Receiver<LoadResult>) = channel();
         self.load_receiver = Some(receiver);
@@ -932,11 +940,17 @@ impl UltraLogApp {
 
                     // Switch to Channels panel so user can select channels
                     self.active_panel = ActivePanel::ToolProperties;
+
+                    self.finish_compare_request(file_index);
                 }
                 LoadResult::Error(e) => {
                     self.show_toast_error(&format!("Error: {}", e));
+                    if let Some(path) = &self.loading_path {
+                        self.pending_compare.retain(|(p, _)| p != path);
+                    }
                 }
             }
+            self.loading_path = None;
             self.load_receiver = None;
             self.loading_state = LoadingState::Idle;
 
@@ -1000,6 +1014,24 @@ impl UltraLogApp {
             .map_or(0.0, |idx| self.tabs[idx].time_offset(file_index));
         let file = self.files.get(file_index)?;
         crate::state::record_at(file.log.get_times_as_f64(), tab_time - offset)
+    }
+
+    /// The tab cursor (time, log-A record) for a sample of `file_index` at `record` / `time` in
+    /// that file's own time. Log B's sample moves onto the tab axis by its offset, and the record
+    /// becomes log A's record there, which is what the tab cursor holds.
+    pub fn cursor_for_file_sample(
+        &self,
+        file_index: usize,
+        record: usize,
+        time: f64,
+    ) -> (f64, usize) {
+        match self.active_tab.map(|idx| &self.tabs[idx]) {
+            Some(tab) if file_index != tab.file_index => {
+                let tab_time = time + tab.time_offset(file_index);
+                (tab_time, self.find_record_at_time(tab_time).unwrap_or(0))
+            }
+            _ => (time, record),
+        }
     }
 
     /// The time span of one file, in its own time.
@@ -1338,28 +1370,9 @@ impl UltraLogApp {
             return;
         }
 
-        let file = &self.files[file_index];
-        let channel = file.log.channels[channel_index].clone();
-
-        let color_index = crate::state::next_color_index(&tab.selected_channels);
-
-        self.tabs[tab_idx].selected_channels.push(SelectedChannel {
-            file_index,
-            channel_index,
-            channel,
-            color_index,
-        });
-
-        // In single-plot mode, also add to the default plot area
-        if !self.tabs[tab_idx].plot_areas.is_empty() {
-            let new_idx = self.tabs[tab_idx].selected_channels.len() - 1;
-            self.tabs[tab_idx].plot_areas[0]
-                .channel_indices
-                .push(new_idx);
-        }
-
-        // Track channel selection for analytics
-        analytics::track_channel_selected(self.tabs[tab_idx].selected_channels.len());
+        // In single-plot mode, the channel also goes into the default plot area
+        let plot_idx = (!tab.plot_areas.is_empty()).then_some(0);
+        self.insert_channel(tab_idx, file_index, channel_index, plot_idx);
     }
 
     /// Remove a channel from the active tab's selection
@@ -1579,29 +1592,220 @@ impl UltraLogApp {
             return;
         }
 
-        // Add the channel to selected_channels
-        let file = &self.files[file_index];
-        let channel = file.log.channels[channel_index].clone();
+        self.insert_channel(tab_idx, file_index, channel_index, plot_idx);
+    }
 
-        let color_index = crate::state::next_color_index(&tab.selected_channels);
+    /// Push a checked, not-yet-selected log channel into a tab, in plot area `plot_idx`. While
+    /// the tab compares two logs (D5): a log-B channel matching an unpaired log-A channel joins
+    /// it (same colour slot, same plot area), and a log-A channel brings its log-B match along.
+    fn insert_channel(
+        &mut self,
+        tab_idx: usize,
+        file_index: usize,
+        channel_index: usize,
+        plot_idx: Option<usize>,
+    ) {
+        let channel = self.files[file_index].log.channels[channel_index].clone();
+        let is_b = self.tabs[tab_idx].compare_file() == Some(file_index);
+        let mate = if is_b {
+            self.unpaired_match(tab_idx, LogRole::A, &channel.name())
+        } else {
+            None
+        };
+        let tab = &self.tabs[tab_idx];
+        let color_index = match mate {
+            Some(m) => tab.selected_channels[m].color_index,
+            None => self.new_color_index(tab_idx),
+        };
+        let plot_idx = mate.and_then(|m| plot_of(tab, m)).or(plot_idx);
 
-        let selected_channel = SelectedChannel {
+        let tab = &mut self.tabs[tab_idx];
+        tab.selected_channels.push(SelectedChannel {
             file_index,
             channel_index,
             channel,
             color_index,
-        };
-
-        // Add to selected_channels and track its index
-        self.tabs[tab_idx].selected_channels.push(selected_channel);
-        let new_channel_idx = self.tabs[tab_idx].selected_channels.len() - 1;
-
-        // Add the index to the plot area's channel list
-        let plot = &mut self.tabs[tab_idx].plot_areas[plot_idx.unwrap()];
-        plot.channel_indices.push(new_channel_idx);
+        });
+        let new_idx = tab.selected_channels.len() - 1;
+        if let Some(plot) = plot_idx.and_then(|i| tab.plot_areas.get_mut(i)) {
+            plot.channel_indices.push(new_idx);
+        }
+        if !is_b {
+            self.attach_partner(tab_idx, new_idx);
+        }
 
         // Track channel selection for analytics
         analytics::track_channel_selected(self.tabs[tab_idx].selected_channels.len());
+    }
+
+    /// The name two logs' channels are matched on: the normalized display name (when field
+    /// normalization is on), case-insensitive, so `Engine Speed` pairs with `RPM`.
+    fn pair_key(&self, name: &str) -> String {
+        let name = if self.field_normalization {
+            crate::normalize::normalize_channel_name_with_custom(
+                name,
+                Some(&self.custom_normalizations),
+            )
+        } else {
+            name.to_string()
+        };
+        name.to_lowercase()
+    }
+
+    /// The first log channel of `file_index` that pairs with `name`. Log channels only:
+    /// computed channels are not paired (R3).
+    fn matching_channel(&self, file_index: usize, name: &str) -> Option<usize> {
+        let key = self.pair_key(name);
+        self.files
+            .get(file_index)?
+            .log
+            .channels
+            .iter()
+            .position(|c| self.pair_key(&c.name()) == key)
+    }
+
+    /// A selected log channel of `role` in the tab, without a partner, that pairs with `name`.
+    fn unpaired_match(&self, tab_idx: usize, role: LogRole, name: &str) -> Option<usize> {
+        let tab = &self.tabs[tab_idx];
+        let key = self.pair_key(name);
+        (0..tab.selected_channels.len()).find(|&i| {
+            let c = &tab.selected_channels[i];
+            tab.log_role(c) == role
+                && !c.channel.is_computed()
+                && tab.partner(i).is_none()
+                && self.pair_key(&c.channel.name()) == key
+        })
+    }
+
+    /// Give the log-A channel at `a_idx` its log-B partner: an unpaired selected B channel with
+    /// the same name takes A's colour slot, otherwise B's matching channel is added beside A.
+    /// No match leaves A alone (its card says "not in B").
+    fn attach_partner(&mut self, tab_idx: usize, a_idx: usize) {
+        let tab = &self.tabs[tab_idx];
+        let (Some(b_file), Some(a)) = (tab.compare_file(), tab.selected_channels.get(a_idx)) else {
+            return;
+        };
+        if a.channel.is_computed() || tab.partner(a_idx).is_some() {
+            return;
+        }
+        let (name, color_index) = (a.channel.name(), a.color_index);
+        if let Some(b_idx) = self.unpaired_match(tab_idx, LogRole::B, &name) {
+            self.tabs[tab_idx].selected_channels[b_idx].color_index = color_index;
+            return;
+        }
+        let Some(b_channel) = self.matching_channel(b_file, &name) else {
+            return;
+        };
+        let tab = &mut self.tabs[tab_idx];
+        if tab
+            .selected_channels
+            .iter()
+            .any(|c| c.file_index == b_file && c.channel_index == b_channel)
+        {
+            return;
+        }
+        let plot_idx = plot_of(tab, a_idx);
+        tab.selected_channels.push(SelectedChannel {
+            file_index: b_file,
+            channel_index: b_channel,
+            channel: self.files[b_file].log.channels[b_channel].clone(),
+            color_index,
+        });
+        let new_idx = tab.selected_channels.len() - 1;
+        if let Some(plot) = plot_idx.and_then(|i| tab.plot_areas.get_mut(i)) {
+            plot.channel_indices.push(new_idx);
+        }
+    }
+
+    /// Pair every selected log-A channel that has no partner yet (after choosing log B).
+    pub fn pair_selected_channels(&mut self, tab_idx: usize) {
+        let count = self
+            .tabs
+            .get(tab_idx)
+            .map_or(0, |t| t.selected_channels.len());
+        for a_idx in 0..count {
+            if self.tabs[tab_idx].log_role(&self.tabs[tab_idx].selected_channels[a_idx])
+                == LogRole::A
+            {
+                self.attach_partner(tab_idx, a_idx);
+            }
+        }
+    }
+
+    /// A colour slot for a new channel that is not half of a pair. While comparing, it also
+    /// skips slots whose palette colour is already on screen (the palette is 8 in Color blind
+    /// mode), so an unpaired line never looks like the other half of a pair.
+    fn new_color_index(&self, tab_idx: usize) -> usize {
+        let tab = &self.tabs[tab_idx];
+        if tab.compare.is_none() {
+            return crate::state::next_color_index(&tab.selected_channels);
+        }
+        let distinct = if self.color_blind_mode || self.high_contrast {
+            8
+        } else {
+            10
+        };
+        let used: HashSet<usize> = tab
+            .selected_channels
+            .iter()
+            .map(|c| c.color_index)
+            .collect();
+        let colours: HashSet<usize> = used.iter().map(|i| i % distinct).collect();
+        (0..distinct)
+            .find(|i| !used.contains(i) && !colours.contains(i))
+            .unwrap_or_else(|| crate::state::next_color_index(&tab.selected_channels))
+    }
+
+    /// Remove a selected channel and its compare partner from the active tab.
+    pub fn remove_pair(&mut self, idx: usize) {
+        let Some(tab_idx) = self.active_tab else {
+            return;
+        };
+        let tab = &mut self.tabs[tab_idx];
+        let partner = tab.partner(idx);
+        let mut doomed = vec![idx];
+        doomed.extend(partner);
+        doomed.sort_unstable_by(|a, b| b.cmp(a));
+        for i in doomed {
+            tab.remove_selected_channel(i);
+        }
+    }
+
+    /// Choose log B for a tab from the Compare row and pair the channels already selected.
+    pub fn choose_compare_file(&mut self, tab_idx: usize, file_index: Option<usize>) {
+        self.set_compare_file(tab_idx, file_index);
+        if file_index.is_some() {
+            self.pair_selected_channels(tab_idx);
+        }
+    }
+
+    /// "Open file…" in a tab's Compare row: a file already loaded becomes log B at once;
+    /// otherwise it loads, and becomes log B of that tab when it finishes.
+    pub fn open_compare_file(&mut self, tab_idx: usize, path: PathBuf) {
+        if let Some(file_index) = self.files.iter().position(|f| f.path == path) {
+            self.choose_compare_file(tab_idx, Some(file_index));
+            return;
+        }
+        let tab_id = self.tabs[tab_idx].id;
+        self.pending_compare.retain(|(_, id)| *id != tab_id);
+        self.pending_compare.push((path.clone(), tab_id));
+        self.start_loading_file(path);
+    }
+
+    /// After a load: if a tab asked for this file as log B, set it there and make that tab
+    /// active again (the load made the new file's own tab active). A closed tab's request is
+    /// dropped.
+    fn finish_compare_request(&mut self, file_index: usize) {
+        let path = &self.files[file_index].path;
+        let Some(pos) = self.pending_compare.iter().position(|(p, _)| p == path) else {
+            return;
+        };
+        let (_, tab_id) = self.pending_compare.remove(pos);
+        if let Some(tab_idx) = self.tabs.iter().position(|t| t.id == tab_id) {
+            self.choose_compare_file(tab_idx, Some(file_index));
+            self.active_tab = Some(tab_idx);
+            self.selected_file = Some(self.tabs[tab_idx].file_index);
+        }
     }
 
     /// Remove a channel from a plot area and from selected channels
@@ -2580,6 +2784,13 @@ impl eframe::App for UltraLogApp {
     }
 }
 
+/// The plot area holding the tab's selected channel `idx`, by position in `plot_areas`.
+fn plot_of(tab: &Tab, idx: usize) -> Option<usize> {
+    tab.plot_areas
+        .iter()
+        .position(|p| p.channel_indices.contains(&idx))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2746,6 +2957,166 @@ mod tests {
         assert_eq!(t.selected_channels.len(), 1);
         assert_eq!(t.plot_areas[0].channel_indices, vec![0]);
         assert_eq!(t.time_range, Some((0.0, 5.0)));
+    }
+
+    /// A log with named channels at 10 Hz over 0..=1 s, every value 1.0.
+    fn file_with_channels(name: &str, channels: &[&str]) -> LoadedFile {
+        use crate::parsers::aim::AimChannel;
+        use crate::parsers::types::Meta;
+        use crate::parsers::{Channel, Log, Value};
+        let times: Vec<f64> = (0..=10).map(|i| i as f64 * 0.1).collect();
+        let log = Log {
+            meta: Meta::Empty,
+            channels: channels
+                .iter()
+                .map(|n| {
+                    Channel::Aim(AimChannel {
+                        name: n.to_string(),
+                        unit: String::new(),
+                    })
+                })
+                .collect(),
+            data: times
+                .iter()
+                .map(|_| vec![Value::Float(1.0); channels.len()])
+                .collect(),
+            times,
+        };
+        LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    /// Tab 0: log A has RPM, Boost, IAT; log B has engine/rpm (normalizes to RPM), Boost, EGT.
+    fn pairing_app() -> UltraLogApp {
+        let mut app = UltraLogApp {
+            field_normalization: true,
+            ..Default::default()
+        };
+        app.files
+            .push(file_with_channels("a.csv", &["RPM", "Boost", "IAT"]));
+        app.files
+            .push(file_with_channels("b.csv", &["engine/rpm", "Boost", "EGT"]));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.update_tab_time_range(0);
+        app
+    }
+
+    fn picked(app: &UltraLogApp) -> Vec<(usize, usize, usize)> {
+        app.tabs[0]
+            .selected_channels
+            .iter()
+            .map(|c| (c.file_index, c.channel_index, c.color_index))
+            .collect()
+    }
+
+    #[test]
+    fn choosing_log_b_pairs_selected_channels_by_normalized_name() {
+        let mut app = pairing_app();
+        app.add_channel(0, 0); // RPM
+        app.add_channel(0, 2); // IAT: not in B
+        app.choose_compare_file(0, Some(1));
+        // RPM pairs with engine/rpm in RPM's colour slot; IAT stays alone.
+        assert_eq!(picked(&app), vec![(0, 0, 0), (0, 2, 1), (1, 0, 0)]);
+        assert_eq!(app.tabs[0].partner(0), Some(2));
+        assert_eq!(app.tabs[0].partner(1), None);
+        assert_eq!(app.tabs[0].plot_areas[0].channel_indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn adding_a_channel_while_comparing_adds_its_partner() {
+        let mut app = pairing_app();
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 1); // Boost brings B's Boost along
+        assert_eq!(picked(&app), vec![(0, 1, 0), (1, 1, 0)]);
+
+        // A B-only channel gets a free colour that is on screen nowhere else.
+        app.add_channel(1, 2); // EGT
+        assert_eq!(picked(&app)[2], (1, 2, 1));
+
+        // A B channel added first is joined by its A match later, in the A colour.
+        app.add_channel(1, 0); // engine/rpm alone: slot 2
+        assert_eq!(picked(&app)[3], (1, 0, 2));
+        app.add_channel(0, 0); // RPM takes slot 3 and recolours its B partner
+        let rpm_slot = picked(&app)[4].2;
+        assert_eq!(picked(&app)[3].2, rpm_slot);
+        assert_eq!(app.tabs[0].partner(4), Some(3));
+    }
+
+    #[test]
+    fn remove_pair_removes_both_halves() {
+        let mut app = pairing_app();
+        app.choose_compare_file(0, Some(1));
+        app.add_channel(0, 1);
+        app.add_channel(0, 0);
+        app.remove_pair(0);
+        assert_eq!(picked(&app), vec![(0, 0, 1), (1, 0, 1)]);
+        assert_eq!(app.tabs[0].plot_areas[0].channel_indices, vec![0, 1]);
+    }
+
+    #[test]
+    fn paired_b_joins_its_partners_plot_in_stacked_mode() {
+        let mut app = pairing_app();
+        app.toggle_stacked_mode();
+        app.create_plot_area("P2".to_string());
+        app.choose_compare_file(0, Some(1));
+        let p2 = app.tabs[0].plot_areas[1].id;
+        app.add_channel_to_plot(0, 1, p2);
+        assert_eq!(app.tabs[0].plot_areas[1].channel_indices, vec![0, 1]);
+        assert!(app.tabs[0].plot_areas[0].channel_indices.is_empty());
+    }
+
+    #[test]
+    fn ten_pairs_fit_in_single_mode() {
+        let names: Vec<String> = (0..11).map(|i| format!("ch{i}")).collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        let mut app = UltraLogApp::default();
+        app.files.push(file_with_channels("a.csv", &names));
+        app.files.push(file_with_channels("b.csv", &names));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        app.choose_compare_file(0, Some(1));
+        for i in 0..11 {
+            app.add_channel(0, i);
+        }
+        assert_eq!(app.tabs[0].selected_channels.len(), 20);
+        assert_eq!(app.tabs[0].total_channel_units(), 10);
+    }
+
+    #[test]
+    fn a_log_b_card_jump_lands_on_the_tab_axis() {
+        let mut app = pairing_app();
+        app.choose_compare_file(0, Some(1));
+        app.set_compare_offset(0, 0.5);
+        // B's sample 3 is at file time 0.3: tab time 0.8, log A record 8.
+        let (t, r) = app.cursor_for_file_sample(1, 3, 0.3);
+        assert!((t - 0.8).abs() < 1e-9);
+        assert_eq!(r, 8);
+        // Log A's own samples pass through.
+        assert_eq!(app.cursor_for_file_sample(0, 3, 0.3), (0.3, 3));
+    }
+
+    #[test]
+    fn a_compare_open_request_returns_to_the_asking_tab() {
+        let mut app = pairing_app();
+        app.files.push(file_with_channels("c.csv", &["RPM"]));
+        app.tabs.push(Tab::new(2, "c.csv".to_string()));
+        let asking = app.tabs[0].id;
+        app.pending_compare.push((PathBuf::from("c.csv"), asking));
+        app.active_tab = Some(1); // the load made the new file's tab active
+        app.finish_compare_request(2);
+        assert_eq!(app.active_tab, Some(0));
+        assert_eq!(app.tabs[0].compare_file(), Some(2));
+        assert!(app.pending_compare.is_empty());
+
+        // A request from a tab that has closed is dropped.
+        app.pending_compare.push((PathBuf::from("b.csv"), 9_999));
+        app.finish_compare_request(1);
+        assert!(app.pending_compare.is_empty());
+        assert_eq!(app.tabs[0].compare_file(), Some(2));
+
+        // A file already loaded becomes log B at once.
+        app.open_compare_file(0, PathBuf::from("b.csv"));
+        assert_eq!(app.tabs[0].compare_file(), Some(1));
     }
 
     #[test]

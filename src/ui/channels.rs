@@ -2,6 +2,8 @@
 
 use eframe::egui;
 
+use rust_i18n::t;
+
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
 use crate::ui::components::{self, icon};
@@ -41,12 +43,28 @@ impl UltraLogApp {
             max_record: Option<usize>,
             min_time: Option<f64>,
             max_time: Option<f64>,
+            file_index: usize,
+            /// "A" / "B" while the tab compares two logs.
+            tag: Option<&'static str>,
+            /// Log B's file name, shown under the name on B cards.
+            source: Option<String>,
+            /// A log-A card with no partner while comparing ("not in B").
+            not_in_b: bool,
+            has_partner: bool,
         }
+
+        let tab = self.active_tab.map(|idx| &self.tabs[idx]);
 
         let mut channel_cards: Vec<ChannelCardData> = Vec::with_capacity(selected_channels.len());
 
-        for selected in &selected_channels {
+        for (idx, selected) in selected_channels.iter().enumerate() {
             let (color32, series_stroke) = self.channel_style(selected);
+            let tag = self.log_tag(selected);
+            let has_partner = tab.is_some_and(|t| t.partner(idx).is_some());
+            let source = (tag == Some("B"))
+                .then(|| self.files.get(selected.file_index).map(|f| f.name.clone()))
+                .flatten();
+            let not_in_b = tag == Some("A") && !has_partner && !selected.channel.is_computed();
             let mut card_unit = String::new();
 
             // Get display name
@@ -140,11 +158,18 @@ impl UltraLogApp {
                 max_record,
                 min_time,
                 max_time,
+                file_index: selected.file_index,
+                tag,
+                source,
+                not_in_b,
+                has_partner,
             });
         }
 
         let mut channel_to_remove: Option<usize> = None;
-        let mut jump_to: Option<(usize, f64)> = None; // (record, time)
+        let mut pair_to_remove: Option<usize> = None;
+        // (file, record in that file, time in that file's own time)
+        let mut jump_to: Option<(usize, usize, f64)> = None;
 
         egui::ScrollArea::horizontal().show(ui, |ui| {
             ui.horizontal_top(|ui| {
@@ -184,18 +209,51 @@ impl UltraLogApp {
                                         )
                                         .on_hover_text("Computed channel (formula-based)");
                                     }
+                                    if let Some(tag) = card.tag {
+                                        ui.label(
+                                            egui::RichText::new(tag)
+                                                .text_style(fonts::text_style(style::DATA))
+                                                .color(t.ink_muted),
+                                        )
+                                        .on_hover_text(
+                                            card.source.as_deref().unwrap_or(&card.display_name),
+                                        );
+                                    }
                                     ui.label(
                                         egui::RichText::new(&card.display_name)
                                             .text_style(egui::TextStyle::Heading)
                                             .color(t.ink),
                                     );
                                     ui.add_space(space::SPACE_4);
+                                    if card.has_partner
+                                        && components::icon_button(
+                                            ui,
+                                            icon::TRASH,
+                                            t!("compare.remove_pair"),
+                                        )
+                                        .clicked()
+                                    {
+                                        pair_to_remove = Some(i);
+                                    }
                                     if components::icon_button(ui, icon::X, "Remove channel")
                                         .clicked()
                                     {
                                         channel_to_remove = Some(i);
                                     }
                                 });
+                                if let Some(source) = &card.source {
+                                    ui.label(
+                                        egui::RichText::new(source)
+                                            .text_style(fonts::text_style(style::DATA_SM))
+                                            .color(t.ink_subtle),
+                                    );
+                                } else if card.not_in_b {
+                                    ui.label(
+                                        egui::RichText::new(t!("compare.not_in_b"))
+                                            .text_style(fonts::text_style(style::DATA_SM))
+                                            .color(t.ink_subtle),
+                                    );
+                                }
 
                                 for (label, value, record, time, hint) in [
                                     (
@@ -236,7 +294,7 @@ impl UltraLogApp {
                                             && components::icon_button(ui, icon::CARET_RIGHT, hint)
                                                 .clicked()
                                         {
-                                            jump_to = Some((record, time));
+                                            jump_to = Some((card.file_index, record, time));
                                         }
                                     });
                                 }
@@ -265,7 +323,8 @@ impl UltraLogApp {
         });
 
         // Handle jump to min/max
-        if let Some((record, time)) = jump_to {
+        if let Some((file_index, record, time)) = jump_to {
+            let (time, record) = self.cursor_for_file_sample(file_index, record, time);
             self.set_cursor_time(Some(time));
             self.set_cursor_record(Some(record));
             // Request the chart to center on this time
@@ -275,7 +334,9 @@ impl UltraLogApp {
             self.last_frame_time = None;
         }
 
-        if let Some(index) = channel_to_remove {
+        if let Some(index) = pair_to_remove {
+            self.remove_pair(index);
+        } else if let Some(index) = channel_to_remove {
             self.remove_channel(index);
         }
 
