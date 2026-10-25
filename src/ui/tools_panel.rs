@@ -133,9 +133,12 @@ impl UltraLogApp {
                     }
                     if let Some(status) = status {
                         ui.label(
-                            egui::RichText::new(status)
-                                .small()
-                                .color(self.tokens.success),
+                            egui::RichText::new(format!(
+                                "{} {status}",
+                                crate::ui::components::Status::Success.icon()
+                            ))
+                            .small()
+                            .color(self.tokens.success),
                         );
                     }
                 });

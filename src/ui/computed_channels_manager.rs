@@ -399,9 +399,12 @@ impl UltraLogApp {
 
                                     if let Some(error) = &channel.error {
                                         ui.label(
-                                            egui::RichText::new(error)
-                                                .small()
-                                                .color(self.tokens.danger),
+                                            egui::RichText::new(format!(
+                                                "{} {error}",
+                                                crate::ui::components::Status::Danger.icon()
+                                            ))
+                                            .small()
+                                            .color(self.tokens.danger),
                                         );
                                     }
 

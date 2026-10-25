@@ -696,7 +696,8 @@ impl UltraLogApp {
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new(format!(
-                            "\u{2713} {}",
+                            "{} {}",
+                            crate::ui::components::Status::Success.icon(),
                             t!("settings.update_available", version = &info.new_version)
                         ))
                         .small()

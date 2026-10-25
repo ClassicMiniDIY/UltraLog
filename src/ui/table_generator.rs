@@ -183,7 +183,8 @@ impl UltraLogApp {
                         ui.add_space(12.0);
                         ui.label(
                             egui::RichText::new(format!(
-                                "{}: {}",
+                                "{} {}: {}",
+                                crate::ui::components::Status::Warning.icon(),
                                 report.log_name,
                                 report.summary()
                             ))
@@ -199,7 +200,13 @@ impl UltraLogApp {
                     }
                     if let Some(err) = self.table_generator.last_error.get(&kind) {
                         ui.add_space(8.0);
-                        ui.label(egui::RichText::new(err).color(self.tokens.danger));
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} {err}",
+                                crate::ui::components::Status::Danger.icon()
+                            ))
+                            .color(self.tokens.danger),
+                        );
                     }
                 }
                 ui.add_space(30.0);
@@ -441,9 +448,13 @@ impl UltraLogApp {
                         .small()
                         .color(self.tokens.ink_subtle)
                 } else {
-                    egui::RichText::new(t!("table_gen.invalid_axis"))
-                        .small()
-                        .color(self.tokens.danger)
+                    egui::RichText::new(format!(
+                        "{} {}",
+                        crate::ui::components::Status::Danger.icon(),
+                        t!("table_gen.invalid_axis")
+                    ))
+                    .small()
+                    .color(self.tokens.danger)
                 });
             });
             let resp = ui.add(
@@ -580,14 +591,24 @@ impl UltraLogApp {
             if !missing.is_empty() {
                 let names: Vec<&str> = missing.iter().map(|r| r.label()).collect();
                 ui.label(
-                    egui::RichText::new(t!("table_gen.missing_roles", roles = names.join(", ")))
-                        .small()
-                        .color(self.tokens.danger),
+                    egui::RichText::new(format!(
+                        "{} {}",
+                        crate::ui::components::Status::Danger.icon(),
+                        t!("table_gen.missing_roles", roles = names.join(", "))
+                    ))
+                    .small()
+                    .color(self.tokens.danger),
                 );
             }
         });
         if let Some(err) = self.table_generator.last_error.get(&kind) {
-            ui.label(egui::RichText::new(err).color(self.tokens.danger));
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {err}",
+                    crate::ui::components::Status::Danger.icon()
+                ))
+                .color(self.tokens.danger),
+            );
         }
 
         // Deferred actions that need `&mut self` outside the borrows above.
@@ -796,7 +817,14 @@ impl UltraLogApp {
         ui.add_space(4.0);
         let decimals = measures[measure_idx].decimals;
         if accepted == 0 {
-            ui.label(egui::RichText::new(t!("table_gen.no_events")).color(self.tokens.warning));
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {}",
+                    crate::ui::components::Status::Warning.icon(),
+                    t!("table_gen.no_events")
+                ))
+                .color(self.tokens.warning),
+            );
         } else {
             let title = measures[measure_idx].label.to_string();
             self.render_table_heatmap(ui, &grid, decimals, &title);

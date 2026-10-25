@@ -164,9 +164,13 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             ui.label(
-                egui::RichText::new(t!("update.download_complete"))
-                    .heading()
-                    .color(self.tokens.success),
+                egui::RichText::new(format!(
+                    "{} {}",
+                    crate::ui::components::Status::Success.icon(),
+                    t!("update.download_complete")
+                ))
+                .heading()
+                .color(self.tokens.success),
             );
 
             ui.add_space(15.0);
@@ -223,9 +227,13 @@ impl UltraLogApp {
             ui.add_space(20.0);
 
             ui.label(
-                egui::RichText::new(t!("update.update_error"))
-                    .heading()
-                    .color(self.tokens.danger),
+                egui::RichText::new(format!(
+                    "{} {}",
+                    crate::ui::components::Status::Danger.icon(),
+                    t!("update.update_error")
+                ))
+                .heading()
+                .color(self.tokens.danger),
             );
 
             ui.add_space(15.0);
