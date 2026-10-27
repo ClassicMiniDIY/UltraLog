@@ -152,6 +152,10 @@ impl UltraLogApp {
             // The hover readout draws its own time line; egui_plot's crosshair adds a y line,
             // which means nothing on the normalized axis.
             .show_crosshair(!self.hover_readout)
+            // egui_plot's hover dot and coordinate label snap to the nearest 2-D sample, at a
+            // different time than the readout line, and cost a scan of every point.
+            .show_x(!self.hover_readout)
+            .show_y(!self.hover_readout)
             .show_grid([show_grid, show_grid])
             .grid_color(grid_color)
             .allow_zoom([true, false]) // Only allow X-axis zoom
@@ -535,6 +539,10 @@ impl UltraLogApp {
             // The hover readout draws its own time line; egui_plot's crosshair adds a y line,
             // which means nothing on the normalized axis.
             .show_crosshair(!self.hover_readout)
+            // egui_plot's hover dot and coordinate label snap to the nearest 2-D sample, at a
+            // different time than the readout line, and cost a scan of every point.
+            .show_x(!self.hover_readout)
+            .show_y(!self.hover_readout)
             .show_grid([show_grid, show_grid])
             .grid_color(grid_color)
             .allow_zoom([true, false])
@@ -856,7 +864,7 @@ impl UltraLogApp {
         if style.cvd_like {
             plot_style::direct_labels(ui, &response.transform, rows, points);
         }
-        let hovered = plot_style::legend_overlay(
+        let (hovered, legend_rect) = plot_style::legend_overlay(
             ui,
             plot_rect,
             style,
@@ -865,24 +873,29 @@ impl UltraLogApp {
             plot_id,
         );
         // The hover readout (issue #98): values at the pointer, beside the cursor legend. Off
-        // while panning, picking an alignment point or over the legend itself.
+        // while panning and over the legend; only the line while picking an alignment point.
         if self.hover_readout
-            && hovered.is_none()
-            && !self.picking_alignment()
             && !response.response.dragged()
-            && let Some(point) = response.inner
-            && let Some(pointer) = ui.ctx().pointer_hover_pos()
             && response.response.hovered()
+            && let Some(pointer) = ui.ctx().pointer_hover_pos()
+            && !legend_rect.is_some_and(|r| r.contains(pointer))
         {
-            let hover_rows = self.series_rows_at(channels, Some(point.x));
-            plot_style::hover_readout(
-                ui,
-                plot_rect,
-                style,
-                &hover_rows,
-                &Self::format_time(point.x),
-                pointer,
-            );
+            if self.picking_alignment() {
+                plot_style::hover_line(ui, plot_rect, style, pointer);
+            } else if hovered.is_none() {
+                // This frame's transform: `response.inner` (pointer_coordinate) uses last
+                // frame's, which lags during cursor-tracking playback and zoom.
+                let time = response.transform.value_from_position(pointer).x;
+                let hover_rows = self.series_rows_at(channels, Some(time));
+                plot_style::hover_readout(
+                    ui,
+                    plot_rect,
+                    style,
+                    &hover_rows,
+                    &Self::format_time(time),
+                    pointer,
+                );
+            }
         }
         if hovered != style.solo {
             ui.ctx().request_repaint();
