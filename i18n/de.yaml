@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "Mausrad zoomt direkt in das Diagramm, anstatt es zu verschieben"
   show_grid: "Gitter anzeigen"
   show_grid_desc: "Gitter im Hintergrund anzeichnen"
+  hover_readout: "Werte am Mauszeiger"
+  hover_readout_desc: "Zeigt eine Linie und den Wert jedes Kanals dort, wo die Maus im Diagramm steht"
   grid_opacity: "Deckkraft:"
   field_names: "Feldnamen"
   field_normalization: "Feldnormalisierung"

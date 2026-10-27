@@ -93,6 +93,8 @@ settings:
   scroll_to_zoom_desc: "ماؤس وہیل براہ راست چارٹ کو بڑھاتا ہے بجائے پیننگ کے"
   show_grid: "گرڈ دکھائیں"
   show_grid_desc: "چار्ट کی پس منظر کی شبکہ کھینچیں"
+  hover_readout: "پوائنٹر پر قدریں"
+  hover_readout_desc: "چارٹ پر جہاں ماؤس ہے وہاں ایک لکیر اور ہر چینل کی قدر دکھائیں"
   grid_opacity: "شفافیت:"
   field_names: "فیلڈ کے نام"
   field_normalization: "فیلڈ نارملائزیشن"

@@ -135,6 +135,8 @@ pub struct UltraLogApp {
     pub(crate) scroll_to_zoom: bool,
     /// When true, draw the chart background grid
     pub(crate) show_grid: bool,
+    /// When true, the chart shows a line and a value box at the mouse pointer
+    pub(crate) hover_readout: bool,
     /// Grid line opacity (0..=255) used as the alpha of the base grid color
     pub(crate) grid_opacity: u8,
     // === Unit Preferences ===
@@ -278,6 +280,7 @@ impl Default for UltraLogApp {
             initial_view_seconds: 60.0, // Start with 60 second view
             scroll_to_zoom: false,
             show_grid: true,
+            hover_readout: true,
             grid_opacity: 255,
             unit_preferences: UnitPreferences::default(),
             font_scale: FontScale::default(),
@@ -340,6 +343,7 @@ impl UltraLogApp {
             language: user_settings.language,
             scroll_to_zoom: user_settings.scroll_to_zoom,
             show_grid: user_settings.show_grid,
+            hover_readout: user_settings.hover_readout,
             grid_opacity: user_settings.grid_opacity,
             unit_preferences: user_settings.unit_preferences.clone(),
             font_scale: user_settings.font_scale,
@@ -2632,6 +2636,7 @@ impl eframe::App for UltraLogApp {
             language: self.language,
             scroll_to_zoom: self.scroll_to_zoom,
             show_grid: self.show_grid,
+            hover_readout: self.hover_readout,
             grid_opacity: self.grid_opacity,
             unit_preferences: self.unit_preferences.clone(),
             font_scale: self.font_scale,

@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "A roda do rato amplia o gráfico diretamente em vez de fazer pan"
   show_grid: "Mostrar Grelha"
   show_grid_desc: "Desenhar a grelha de fundo do gráfico"
+  hover_readout: "Valores no ponteiro"
+  hover_readout_desc: "Mostra uma linha e o valor de cada canal onde o rato aponta no gráfico"
   grid_opacity: "Opacidade:"
   field_names: "Nomes dos Campos"
   field_normalization: "Normalização de Campos"

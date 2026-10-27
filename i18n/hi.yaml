@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "माउस व्हील सीधे चार्ट को ज़ूम करता है, पैन करने के बजाय"
   show_grid: "ग्रिड दिखाएं"
   show_grid_desc: "चार्ट पृष्ठभूमि ग्रिड बनाएं"
+  hover_readout: "पॉइंटर पर मान"
+  hover_readout_desc: "चार्ट पर जहाँ माउस है वहाँ एक रेखा और हर चैनल का मान दिखाएँ"
   grid_opacity: "अस्पष्टता:"
   field_names: "फ़ील्ड नाम"
   field_normalization: "फ़ील्ड नॉर्मलाइज़ेशन"

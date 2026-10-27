@@ -70,6 +70,8 @@ settings:
   scroll_to_zoom_desc: "La rueda de desplazamiento amplía el gráfico directamente en lugar de desplazarse"
   show_grid: "Mostrar cuadrícula"
   show_grid_desc: "Mostrar la cuadrícula de fondo del gráfico"
+  hover_readout: "Valores en el puntero"
+  hover_readout_desc: "Muestra una línea y el valor de cada canal donde apunta el ratón en el gráfico"
   grid_opacity: "Opacidad:"
   field_names: "Nombres de Campos"
   field_normalization: "Normalizacion de Campos"

@@ -314,6 +314,23 @@ impl UltraLogApp {
 
             ui.add_space(8.0);
 
+            // Values at the mouse pointer (issue #98)
+            let old_hover_readout = self.hover_readout;
+            components::checkbox(ui, &mut self.hover_readout, t!("settings.hover_readout"));
+            ui.label(
+                egui::RichText::new(t!("settings.hover_readout_desc"))
+                    .small()
+                    .color(self.tokens.ink_subtle),
+            );
+            if self.hover_readout != old_hover_readout {
+                self.user_settings.hover_readout = self.hover_readout;
+                if let Err(e) = self.user_settings.save() {
+                    self.show_toast_error(&t!("toast.failed_to_save", error = e));
+                }
+            }
+
+            ui.add_space(8.0);
+
             // Chart grid
             let old_show_grid = self.show_grid;
             components::checkbox(ui, &mut self.show_grid, t!("settings.show_grid"));

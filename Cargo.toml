@@ -1,6 +1,6 @@
 [package]
 name = "ultralog"
-version = "3.0.0"
+version = "3.1.0"
 edition = "2024"
 # egui/eframe 0.36 is the binding constraint on the minimum supported Rust
 # version; edition 2024 itself only needs 1.85.

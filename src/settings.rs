@@ -26,6 +26,10 @@ pub struct UserSettings {
     /// When true, draw the chart background grid
     #[serde(default = "default_show_grid")]
     pub show_grid: bool,
+    /// When true, the chart shows a line and a value box at the mouse pointer (issue #98).
+    /// On by default, also for settings files from before it existed.
+    #[serde(default = "default_hover_readout")]
+    pub hover_readout: bool,
     /// Grid line opacity, 0..=255. Modulates the base grid color's alpha
     /// before egui_plot's distance-based fade
     #[serde(default = "default_grid_opacity")]
@@ -106,6 +110,10 @@ fn default_show_grid() -> bool {
     true
 }
 
+fn default_hover_readout() -> bool {
+    true
+}
+
 fn default_grid_opacity() -> u8 {
     255
 }
@@ -129,6 +137,7 @@ impl Default for UserSettings {
             language: Language::default(),
             scroll_to_zoom: false,
             show_grid: default_show_grid(),
+            hover_readout: default_hover_readout(),
             grid_opacity: default_grid_opacity(),
             unit_preferences: UnitPreferences::default(),
             font_scale: FontScale::default(),

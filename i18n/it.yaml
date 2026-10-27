@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "La rotella del mouse ingrandisce il grafico direttamente invece di scorrere"
   show_grid: "Mostra griglia"
   show_grid_desc: "Disegna la griglia di sfondo del grafico"
+  hover_readout: "Valori al puntatore"
+  hover_readout_desc: "Mostra una linea e il valore di ogni canale dove punta il mouse sul grafico"
   grid_opacity: "Opacità:"
   field_names: "Nomi dei Campi"
   field_normalization: "Normalizzazione Campi"

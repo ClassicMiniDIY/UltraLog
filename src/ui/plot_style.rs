@@ -8,6 +8,8 @@
 //! - Legend: a floating `plot_legend_bg` box (top-right; top-left plus direct end labels when the
 //!   palette is color-blind safe) with the Cursor row first, then swatch, name and live value in
 //!   mono. Hovering a row solos that series.
+//! - Hover readout: under the mouse pointer a hairline and a box with every series' value at that
+//!   time (issue #98), beside the cursor legend, which keeps the clicked point.
 
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Id, Pos2, Rect, Sense, Stroke, Ui, pos2, vec2,
@@ -175,7 +177,8 @@ fn legend_fit(max_rows: usize, series: usize, cursor_rows: usize) -> (usize, usi
 }
 
 /// Paint the floating legend over `plot_rect` and return the row the pointer is on, if any
-/// (used to solo that series next frame). `cursor` is the formatted cursor time.
+/// (used to solo that series next frame), and the legend's rect (the hover readout stays off
+/// it). `cursor` is the formatted cursor time.
 pub fn legend_overlay(
     ui: &Ui,
     plot_rect: Rect,
@@ -183,7 +186,7 @@ pub fn legend_overlay(
     rows: &[SeriesRow],
     cursor: Option<String>,
     id: Id,
-) -> Option<usize> {
+) -> (Option<usize>, Option<Rect>) {
     let t = style.tokens;
     let name_font = fonts::text_style(style::LABEL).resolve(ui.style());
     let value_font = fonts::text_style(style::DATA).resolve(ui.style());
@@ -222,7 +225,7 @@ pub fn legend_overlay(
     let count = cursor_rows + shown + usize::from(hidden > 0);
     if count > max_rows {
         // Not even the cursor row and a "+N" row fit.
-        return None;
+        return (None, None);
     }
     let height = pad * 2.0 + row_h * count as f32 - space::SPACE_2;
     let origin = if style.cvd_like {
@@ -232,7 +235,7 @@ pub fn legend_overlay(
     };
     let rect = Rect::from_min_size(origin, vec2(width, height));
     if !plot_rect.contains_rect(rect) {
-        return None;
+        return (None, None);
     }
 
     let painter = ui.painter().with_clip_rect(plot_rect);
@@ -325,7 +328,7 @@ pub fn legend_overlay(
             t.ink_subtle,
         );
     }
-    hovered
+    (hovered, Some(rect))
 }
 
 /// The legend / channel-card swatch: a short line in the series colour, dashed or dotted to
@@ -409,9 +412,198 @@ pub fn solo_memory(ctx: &egui::Context, id: Id, update: Option<Option<usize>>) -
     }
 }
 
+/// Gap between the mouse pointer and the hover readout box.
+const READOUT_OFFSET: f32 = 14.0;
+
+/// Where the hover readout box of `size` goes: below-right of the pointer, flipped left or up
+/// when it would leave the plot, and kept inside the plot.
+fn readout_origin(pointer: Pos2, size: egui::Vec2, plot: Rect) -> Pos2 {
+    let mut x = pointer.x + READOUT_OFFSET;
+    if x + size.x > plot.right() {
+        x = pointer.x - READOUT_OFFSET - size.x;
+    }
+    let mut y = pointer.y + READOUT_OFFSET;
+    if y + size.y > plot.bottom() {
+        y = pointer.y - READOUT_OFFSET - size.y;
+    }
+    pos2(
+        x.clamp(plot.left(), (plot.right() - size.x).max(plot.left())),
+        y.clamp(plot.top(), (plot.bottom() - size.y).max(plot.top())),
+    )
+}
+
+/// The hover readout's hairline alone: a full-height line at the pointer. Also drawn while
+/// Align at cursor waits for its click, when the box is off.
+pub fn hover_line(ui: &Ui, plot_rect: Rect, style: &PlotStyle<'_>, pointer: Pos2) {
+    let area = plot_rect.intersect(ui.clip_rect());
+    if !area.contains(pointer) {
+        return;
+    }
+    ui.painter().with_clip_rect(area).line_segment(
+        [
+            pos2(pointer.x, plot_rect.top()),
+            pos2(pointer.x, plot_rect.bottom()),
+        ],
+        Stroke::new(stroke::STROKE_HAIRLINE, style.tokens.ink_subtle),
+    );
+}
+
+/// The hover readout (issue #98): a hairline at the pointer and, beside it, a box with the time
+/// and every series' value there (`rows` come from `series_rows_at` for the hover time). A
+/// series with no data at that time (log B outside its span) shows a dash.
+pub fn hover_readout(
+    ui: &Ui,
+    plot_rect: Rect,
+    style: &PlotStyle<'_>,
+    rows: &[SeriesRow],
+    time: &str,
+    pointer: Pos2,
+) {
+    // Place and flip inside the part of the plot that is on screen: a stacked plot can be
+    // partly scrolled out of its ScrollArea.
+    let area = plot_rect.intersect(ui.clip_rect());
+    if rows.is_empty() || !area.contains(pointer) {
+        return;
+    }
+    let t = style.tokens;
+    let painter = ui.painter().with_clip_rect(area);
+    hover_line(ui, plot_rect, style, pointer);
+
+    let name_font = fonts::text_style(style::LABEL).resolve(ui.style());
+    let value_font = fonts::text_style(style::DATA).resolve(ui.style());
+    let row_h = (name_font.size.max(value_font.size) + space::SPACE_2).round();
+    let swatch_w = 14.0;
+    let measure = |text: &str, font: &FontId| {
+        ui.painter()
+            .layout_no_wrap(text.to_owned(), font.clone(), t.ink)
+            .size()
+            .x
+    };
+    let dash = "\u{2013}";
+    let mut name_w: f32 = 0.0;
+    let mut value_w = measure(time, &value_font);
+    let mut tag_w: f32 = 0.0;
+    for row in rows {
+        name_w = name_w.max(measure(&row.name, &name_font));
+        value_w = value_w.max(measure(row.value.as_deref().unwrap_or(dash), &value_font));
+        if let Some(tag) = row.tag {
+            tag_w = tag_w.max(measure(tag, &value_font) + space::SPACE_2);
+        }
+    }
+    let pad = space::SPACE_2 + 2.0;
+    let width = pad + swatch_w + space::SPACE_2 + tag_w + name_w + space::SPACE_6 + value_w + pad;
+    // A short plot lists the rows that fit and a "+N" row for the rest, like the legend.
+    let max_rows = ((area.height() - 2.0 * pad + space::SPACE_2) / row_h)
+        .floor()
+        .max(0.0) as usize;
+    let (shown, hidden) = legend_fit(max_rows, rows.len(), 1);
+    let count = 1 + shown + usize::from(hidden > 0);
+    if count > max_rows {
+        return;
+    }
+    let height = pad * 2.0 + row_h * count as f32 - space::SPACE_2;
+    let origin = readout_origin(pointer, vec2(width, height), area);
+    let rect = Rect::from_min_size(origin, vec2(width, height));
+    painter.rect(
+        rect,
+        CornerRadius::same(radius::RADIUS_MD),
+        t.plot_legend_bg,
+        Stroke::new(stroke::STROKE_HAIRLINE, t.line),
+        egui::StrokeKind::Inside,
+    );
+
+    let swatch_x = rect.left() + pad;
+    let name_x = swatch_x + swatch_w + space::SPACE_2;
+    let value_x = rect.right() - pad;
+    let mut y = rect.top() + pad;
+    let cy = y + row_h / 2.0 - space::SPACE_1;
+    painter.text(
+        pos2(value_x, cy),
+        Align2::RIGHT_CENTER,
+        time,
+        value_font.clone(),
+        t.ink_muted,
+    );
+    y += row_h;
+    for row in rows.iter().take(shown) {
+        let cy = y + row_h / 2.0 - space::SPACE_1;
+        swatch(
+            &painter,
+            pos2(swatch_x, cy),
+            swatch_w,
+            row.color,
+            row.stroke,
+        );
+        if let Some(tag) = row.tag {
+            painter.text(
+                pos2(name_x, cy),
+                Align2::LEFT_CENTER,
+                tag,
+                value_font.clone(),
+                t.ink_muted,
+            );
+        }
+        painter.text(
+            pos2(name_x + tag_w, cy),
+            Align2::LEFT_CENTER,
+            &row.name,
+            name_font.clone(),
+            t.ink,
+        );
+        let (value, color) = match &row.value {
+            Some(v) => (v.as_str(), t.ink),
+            None => (dash, t.ink_subtle),
+        };
+        painter.text(
+            pos2(value_x, cy),
+            Align2::RIGHT_CENTER,
+            value,
+            value_font.clone(),
+            color,
+        );
+        y += row_h;
+    }
+    if hidden > 0 {
+        painter.text(
+            pos2(name_x, y + row_h / 2.0 - space::SPACE_1),
+            Align2::LEFT_CENTER,
+            format!("+{hidden}"),
+            value_font,
+            t.ink_subtle,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::legend_fit;
+    use super::{legend_fit, readout_origin};
+    use eframe::egui::{Rect, pos2, vec2};
+
+    #[test]
+    fn the_readout_stays_inside_the_plot() {
+        let plot = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 400.0));
+        let size = vec2(200.0, 100.0);
+        // Room below-right: there.
+        assert_eq!(
+            readout_origin(pos2(100.0, 100.0), size, plot),
+            pos2(114.0, 114.0)
+        );
+        // Near the right edge: flips left of the pointer.
+        assert_eq!(
+            readout_origin(pos2(700.0, 100.0), size, plot),
+            pos2(486.0, 114.0)
+        );
+        // Near the bottom: flips above the pointer.
+        assert_eq!(
+            readout_origin(pos2(100.0, 390.0), size, plot),
+            pos2(114.0, 276.0)
+        );
+        // A box larger than the plot pins to the top-left.
+        assert_eq!(
+            readout_origin(pos2(10.0, 10.0), vec2(900.0, 500.0), plot),
+            pos2(0.0, 0.0)
+        );
+    }
 
     #[test]
     fn legend_keeps_the_rows_that_fit_and_counts_the_rest() {

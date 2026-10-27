@@ -672,7 +672,7 @@ preferences convert them.
 
 ### Settings Persistence Contract
 
-`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `ultra_intensity`, `high_contrast`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, `custom_normalizations`, and the Track Map preferences (`tile_provider`, `tile_cache_max_mb`, `tiles_enabled`, `tile_opacity`, `tile_grayscale`, `tile_privacy_notice_seen`, `hidden_widgets`), and `export` (the ExportDialog's last format and theme per format).
+`UserSettings` (`src/settings.rs`) is a `Serialize`/`Deserialize` struct persisted as JSON at `{app_data_dir}/UltraLog/settings.json` (or `.../ultralog/settings.json` on Linux). It currently covers: `language`, `scroll_to_zoom`, `show_grid`, `hover_readout` (default on), `grid_opacity`, `unit_preferences`, `font_scale`, `color_blind_mode`, `ultra_intensity`, `high_contrast`, `field_normalization`, `cursor_tracking`, `auto_check_updates`, `custom_normalizations`, and the Track Map preferences (`tile_provider`, `tile_cache_max_mb`, `tiles_enabled`, `tile_opacity`, `tile_grayscale`, `tile_privacy_notice_seen`, `hidden_widgets`), and `export` (the ExportDialog's last format and theme per format).
 
 - **Load** - `UltraLogApp::new` calls `UserSettings::load()` and copies each field into the corresponding live `UltraLogApp` field (e.g. `app.color_blind_mode = user_settings.color_blind_mode`).
 - **Save** - `UltraLogApp` implements `eframe::App::save`, which eframe calls on its auto-save interval (~30s) and again at shutdown. `save()` rebuilds a `UserSettings` from the current live fields, and only writes to disk if it differs from the last-loaded/saved value.
@@ -877,6 +877,7 @@ ColorScale, and the footer (ultralog.co · version · export date).
 - **Playback** - Play through log data at 0.25x to 8x speed
 - **Cursor Tracking** - Lock view to follow cursor during playback/scrubbing
 - **Min/Max Legend** - Shows peak values for each channel
+- **Hover Readout** - A hairline and a value box at the mouse pointer with every series' value there (issue #98 follow-up), beside the cursor legend; `plot_style::hover_readout`, rows from `series_rows_at`, so log B and R4 apply. It turns off egui_plot's crosshair (`show_crosshair(!hover_readout)`); Settings → Display → Values at the pointer
 - **Initial Zoom** - Charts start zoomed to first 60 seconds for better initial view
 - **Multi-File Tabs** - Chrome-style tabs for working with multiple log files simultaneously
 - **Internationalization** - `rust-i18n`-backed language selection (`src/i18n.rs`)

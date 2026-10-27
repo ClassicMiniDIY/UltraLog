@@ -6,7 +6,7 @@ A high-performance, cross-platform ECU log viewer written in Rust.
 
 ![CI](https://github.com/ClassicMiniDIY/UltraLog/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Version](https://img.shields.io/badge/version-3.0.0-green.svg)
+![Version](https://img.shields.io/badge/version-3.1.0-green.svg)
 
 ---
 
@@ -47,6 +47,7 @@ UltraLog is an **independent, open-source** desktop application designed for aut
 - **Normalized display** - All channels scaled 0-1 for easy comparison regardless of original units
 - **Min/Max legend** - Peak values displayed for each channel at a glance
 - **Real-time cursor values** - Legend shows live values at cursor position with proper units
+- **Values at the pointer** - Move the mouse over the chart for a line and a box with every channel's value at that point, without clicking (turn it off in Settings → Display)
 - **High-performance rendering** - LTTB (Largest Triangle Three Buckets) algorithm reduces millions of points to 2,000 while preserving visual fidelity
 - **Stacked plot areas** - Split the chart into up to 10 independent vertically-stacked panels, each with its own Y-axis and channel set — ideal for comparing channels with wildly different scales
 

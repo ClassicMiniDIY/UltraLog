@@ -346,6 +346,16 @@ fn test_settings_from_before_3_0_open_at_stealth() {
 }
 
 #[test]
+fn test_hover_readout_is_on_by_default_and_for_old_files() {
+    assert!(UserSettings::default().hover_readout);
+    let json = r#"{"version":1,"language":"English"}"#;
+    let settings: UserSettings = serde_json::from_str(json).unwrap();
+    assert!(settings.hover_readout);
+    let off: UserSettings = serde_json::from_str(r#"{"version":1,"hover_readout":false}"#).unwrap();
+    assert!(!off.hover_readout);
+}
+
+#[test]
 fn test_settings_default_theme_fields() {
     let settings = UserSettings::default();
     assert_eq!(settings.ultra_intensity, 0);

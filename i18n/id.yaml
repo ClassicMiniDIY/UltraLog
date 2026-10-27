@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "Roda mouse memperbesar grafik secara langsung daripada menggeser"
   show_grid: "Tampilkan Kisi"
   show_grid_desc: "Gambar kisi latar belakang bagan"
+  hover_readout: "Nilai di penunjuk"
+  hover_readout_desc: "Tampilkan garis dan nilai setiap kanal di tempat mouse menunjuk pada grafik"
   grid_opacity: "Opacity:"
   field_names: "Nama Field"
   field_normalization: "Normalisasi Field"
