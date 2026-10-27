@@ -70,6 +70,8 @@ settings:
   scroll_to_zoom_desc: "A roda do mouse amplia o gráfico diretamente em vez de fazer pan"
   show_grid: "Mostrar Grade"
   show_grid_desc: "Desenhar a grade de fundo do gráfico"
+  hover_readout: "Valores no ponteiro"
+  hover_readout_desc: "Mostra uma linha e o valor de cada canal onde o mouse aponta no gráfico"
   grid_opacity: "Opacidade:"
   field_names: "Nomes dos Campos"
   field_normalization: "Normalização de Campos"

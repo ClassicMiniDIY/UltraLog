@@ -646,11 +646,6 @@ impl PlotArea {
             collapsed: false,
         }
     }
-
-    /// Get the number of channels in this plot area
-    pub fn channel_count(&self) -> usize {
-        self.channel_indices.len()
-    }
 }
 
 // ============================================================================

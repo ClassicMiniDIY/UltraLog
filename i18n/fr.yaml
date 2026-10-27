@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "La molette de la souris zoome le graphique directement au lieu de faire defiler"
   show_grid: "Afficher la grille"
   show_grid_desc: "Afficher la grille de fond du graphique"
+  hover_readout: "Valeurs sous le pointeur"
+  hover_readout_desc: "Affiche une ligne et la valeur de chaque canal là où pointe la souris sur le graphique"
   grid_opacity: "Opacité :"
   field_names: "Noms des champs"
   field_normalization: "Normalisation des champs"

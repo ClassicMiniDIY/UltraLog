@@ -70,6 +70,8 @@ settings:
   scroll_to_zoom_desc: "鼠标滚轮直接缩放图表，而不是平移"
   show_grid: "显示网格"
   show_grid_desc: "绘制图表背景网格"
+  hover_readout: "指针处的数值"
+  hover_readout_desc: "在图表上鼠标所指的位置显示一条线和每个通道的数值"
   grid_opacity: "不透明度:"
   field_names: "字段名称"
   field_normalization: "字段标准化"

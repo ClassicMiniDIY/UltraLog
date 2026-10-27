@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "মাউস হুইল সরাসরি চার্টকে জুম করে প্যানিং এর পরিবর্তে"
   show_grid: "গ্রিড দেখান"
   show_grid_desc: "চার্ট পটভূমি গ্রিড আঁকুন"
+  hover_readout: "পয়েন্টারে মান"
+  hover_readout_desc: "চার্টে মাউস যেখানে আছে সেখানে একটি রেখা এবং প্রতিটি চ্যানেলের মান দেখান"
   grid_opacity: "স্বচ্ছতা:"
   field_names: "ফিল্ড নাম"
   field_normalization: "ফিল্ড নরমালাইজেশন"

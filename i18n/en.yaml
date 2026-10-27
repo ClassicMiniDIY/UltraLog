@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "Scroll wheel zooms the chart directly instead of panning"
   show_grid: "Show grid"
   show_grid_desc: "Draw the chart background grid"
+  hover_readout: "Values at the pointer"
+  hover_readout_desc: "Show a line and every channel's value where the mouse points on the chart"
   grid_opacity: "Opacity"
   field_names: "Field Names"
   field_normalization: "Field normalization"

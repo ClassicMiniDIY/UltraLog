@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "عجلة الماوس تكبر المخطط مباشرة بدلاً من الإزاحة"
   show_grid: "إظهار الشبكة"
   show_grid_desc: "رسم شبكة الخلفية للرسم البياني"
+  hover_readout: "القيم عند المؤشر"
+  hover_readout_desc: "اعرض خطاً وقيمة كل قناة حيث تشير الفأرة على الرسم البياني"
   grid_opacity: "الشفافية:"
   field_names: "أسماء الحقول"
   field_normalization: "توحيد الحقول"

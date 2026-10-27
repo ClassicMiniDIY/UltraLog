@@ -149,6 +149,9 @@ impl UltraLogApp {
         let plot = Plot::new("log_chart")
             .y_axis_label("") // Hide Y axis label since values are normalized
             .show_axes([true, false]) // Show X axis (time), hide Y axis (normalized 0-1)
+            // The hover readout draws its own time line; egui_plot's crosshair adds a y line,
+            // which means nothing on the normalized axis.
+            .show_crosshair(!self.hover_readout)
             .show_grid([show_grid, show_grid])
             .grid_color(grid_color)
             .allow_zoom([true, false]) // Only allow X-axis zoom
@@ -273,6 +276,7 @@ impl UltraLogApp {
             chart_points,
             cursor_time,
             plot_id,
+            &selected_channels,
         );
 
         // Detect user interaction with chart (drag, zoom, scroll)
@@ -528,6 +532,9 @@ impl UltraLogApp {
             .height(height)
             .y_axis_label("")
             .show_axes([true, false])
+            // The hover readout draws its own time line; egui_plot's crosshair adds a y line,
+            // which means nothing on the normalized axis.
+            .show_crosshair(!self.hover_readout)
             .show_grid([show_grid, show_grid])
             .grid_color(grid_color)
             .allow_zoom([true, false])
@@ -608,6 +615,7 @@ impl UltraLogApp {
             chart_points,
             cursor_time,
             plot_id,
+            channels,
         );
 
         // Detect interaction
@@ -698,15 +706,16 @@ impl UltraLogApp {
                 .color(self.tokens.ink),
         );
 
-        // Channel count
+        // Channel count: a compare pair counts as one (R2)
+        let units = self
+            .active_tab
+            .map_or(plot_area.channel_indices.len(), |idx| {
+                self.tabs[idx].channel_units(&plot_area.channel_indices)
+            });
         ui.label(
-            egui::RichText::new(format!(
-                "({}/{})",
-                plot_area.channel_count(),
-                10 // MAX_CHANNELS_PER_PLOT
-            ))
-            .text_style(fonts::text_style(style::DATA_SM))
-            .color(self.tokens.ink_subtle),
+            egui::RichText::new(format!("({units}/{})", crate::state::MAX_CHANNELS_PER_PLOT))
+                .text_style(fonts::text_style(style::DATA_SM))
+                .color(self.tokens.ink_subtle),
         );
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -782,7 +791,13 @@ impl UltraLogApp {
     /// Legend / line rows for `channels`: normalized name, value at the cursor (converted to the
     /// user's units, mono column), and the series colour and stroke.
     fn series_rows(&self, channels: &[SelectedChannel]) -> Vec<SeriesRow> {
-        let cursor_time = self.get_cursor_time();
+        self.series_rows_at(channels, self.get_cursor_time())
+    }
+
+    /// Legend rows with each channel's value at tab time `time` (the cursor for the legend, the
+    /// pointer for the hover readout).
+    fn series_rows_at(&self, channels: &[SelectedChannel], time: Option<f64>) -> Vec<SeriesRow> {
+        let cursor_time = time;
         channels
             .iter()
             .map(|selected| {
@@ -835,6 +850,7 @@ impl UltraLogApp {
         points: &[Option<Vec<[f64; 2]>>],
         cursor_time: Option<f64>,
         plot_id: egui::Id,
+        channels: &[SelectedChannel],
     ) {
         let plot_rect = *response.transform.frame();
         if style.cvd_like {
@@ -848,6 +864,26 @@ impl UltraLogApp {
             cursor_time.map(Self::format_time),
             plot_id,
         );
+        // The hover readout (issue #98): values at the pointer, beside the cursor legend. Off
+        // while panning, picking an alignment point or over the legend itself.
+        if self.hover_readout
+            && hovered.is_none()
+            && !self.picking_alignment()
+            && !response.response.dragged()
+            && let Some(point) = response.inner
+            && let Some(pointer) = ui.ctx().pointer_hover_pos()
+            && response.response.hovered()
+        {
+            let hover_rows = self.series_rows_at(channels, Some(point.x));
+            plot_style::hover_readout(
+                ui,
+                plot_rect,
+                style,
+                &hover_rows,
+                &Self::format_time(point.x),
+                pointer,
+            );
+        }
         if hovered != style.solo {
             ui.ctx().request_repaint();
         }
@@ -1215,6 +1251,23 @@ mod tests {
             assert!((q[0] - p[0] - 0.01).abs() < 1e-9);
             assert_eq!(p[1], q[1]);
         }
+    }
+
+    #[test]
+    fn hover_rows_read_the_pointer_time_not_the_cursor() {
+        let mut app = comparing_app();
+        app.set_compare_offset(0, -5.0);
+        app.tabs[0].cursor_time = Some(10.0);
+        let channels = app.tabs[0].selected_channels.clone();
+        // The cursor legend stays at 10 s; the pointer at 4 s reads A at 4 s and B at 9 s.
+        let cursor = app.series_rows(&channels);
+        let hover = app.series_rows_at(&channels, Some(4.0));
+        assert_eq!(cursor[0].value.as_deref(), Some("0.75"));
+        assert_eq!(hover[0].value.as_deref(), Some("0.30"));
+        assert_eq!(hover[1].value.as_deref(), Some("0.81"));
+        assert_eq!(hover[1].tag, Some("B"));
+        // Past log B's end (file time 25 s > 20 s): a dash, not a stale value.
+        assert_eq!(app.series_rows_at(&channels, Some(19.5))[1].value, None);
     }
 
     #[test]

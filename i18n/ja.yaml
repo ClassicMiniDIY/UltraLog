@@ -92,6 +92,8 @@ settings:
   scroll_to_zoom_desc: "マウスホイールでチャートを直接ズームします（パンの代わりに）"
   show_grid: "グリッドを表示"
   show_grid_desc: "チャートの背景グリッドを描画"
+  hover_readout: "ポインター位置の値"
+  hover_readout_desc: "チャート上でマウスが指す位置に線と各チャンネルの値を表示します"
   grid_opacity: "不透明度:"
   field_names: "フィールド名"
   field_normalization: "フィールド正規化"
