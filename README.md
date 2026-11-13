@@ -250,27 +250,28 @@ Configurable units for 8 measurement categories:
 
 Download the latest release for your platform from the [Releases](https://github.com/ClassicMiniDIY/UltraLog/releases) page:
 
-| Platform            | Download                      | Notes              |
-| ------------------- | ----------------------------- | ------------------ |
-| Windows x64         | `ultralog-windows.zip`        | Windows 10/11      |
-| macOS Intel         | `ultralog-macos-intel.tar.gz` | macOS 10.15+       |
-| macOS Apple Silicon | `ultralog-macos-arm64.tar.gz` | M1/M2/M3/M4 Macs   |
-| Linux x64           | `ultralog-linux.tar.gz`       | Most distributions |
+| Platform            | Download                   | Notes              |
+| ------------------- | -------------------------- | ------------------ |
+| Windows x64         | `ultralog-windows.zip`     | Windows 10/11      |
+| macOS Intel         | `ultralog-macos-intel.dmg` | macOS 10.15+       |
+| macOS Apple Silicon | `ultralog-macos-arm64.dmg` | M1/M2/M3/M4 Macs   |
+| Linux x64           | `ultralog-linux.tar.gz`    | Most distributions |
 
 **Windows:**
 1. Download and extract `ultralog-windows.zip`
-2. Run `ultralog-windows.exe`
+2. Run `ultralog.exe` (releases up to 3.1.0 named it `ultralog-windows.exe`)
 3. You may see a SmartScreen warning on first run - click "More info" → "Run anyway"
 
 **macOS:**
-1. Download the appropriate `.tar.gz` for your Mac
-2. Extract: `tar -xzf ultralog-macos-*.tar.gz`
-3. On first run, right-click the file and select "Open" to bypass Gatekeeper
-4. Or remove quarantine attribute: `xattr -d com.apple.quarantine ultralog-macos-*`
+1. Download the `.dmg` for your Mac
+2. Open it and drag UltraLog to your Applications folder
+3. Launch UltraLog from Applications. Releases are signed and notarized, so Gatekeeper does not block them
 
 **Linux:**
 1. Download and extract: `tar -xzf ultralog-linux.tar.gz`
-2. Run: `./ultralog-linux`
+2. Run: `./ultralog` (releases up to 3.1.0 named it `ultralog-linux`)
+
+Later updates install from inside the app (Help → Check for Updates), which keeps the file name you use.
 
 ### Building from Source
 

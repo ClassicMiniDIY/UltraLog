@@ -91,11 +91,14 @@ jobs:
       - name: Package Linux binary
         run: |
           mkdir -p output
-          cp target/x86_64-unknown-linux-gnu/release/ultralog output/ultralog-linux
-          chmod +x output/ultralog-linux
+          # The binary inside the archive is named `ultralog`: the in-app updater
+          # (src/updater.rs, UPDATE_BINARY_NAMES) looks for that name. Keep the asset
+          # name `ultralog-linux*.tar.gz` unchanged - Platform::asset_name matches it.
+          cp target/x86_64-unknown-linux-gnu/release/ultralog output/ultralog
+          chmod +x output/ultralog
           cd output
-          tar -czvf ultralog-linux${{ needs.check-tag.outputs.suffix }}.tar.gz ultralog-linux
-          rm ultralog-linux
+          tar -czvf ultralog-linux${{ needs.check-tag.outputs.suffix }}.tar.gz ultralog
+          rm ultralog
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -124,9 +127,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path output
-          Copy-Item "target/x86_64-pc-windows-msvc/release/ultralog.exe" -Destination "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.exe"
-          Compress-Archive -Path "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.exe" -DestinationPath "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.zip"
-          Remove-Item "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.exe"
+          # The binary inside the archive is named `ultralog.exe`: the in-app updater
+          # (src/updater.rs, UPDATE_BINARY_NAMES) looks for that name. Keep the asset
+          # name `ultralog-windows*.zip` unchanged - Platform::asset_name matches it.
+          New-Item -ItemType Directory -Force -Path staging
+          Copy-Item "target/x86_64-pc-windows-msvc/release/ultralog.exe" -Destination "staging/ultralog.exe"
+          Compress-Archive -Path "staging/ultralog.exe" -DestinationPath "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.zip"
+          Remove-Item -Recurse "staging"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -429,12 +436,12 @@ jobs:
             ### Windows
             1. Download `ultralog-windows-beta.zip`
             2. Extract the zip file
-            3. Run `ultralog-windows-beta.exe`
+            3. Run `ultralog.exe`
 
             ### Linux
             1. Download `ultralog-linux-beta.tar.gz`
             2. Extract: `tar -xzf ultralog-linux-beta.tar.gz`
-            3. Run: `./ultralog-linux`
+            3. Run: `./ultralog`
 
             ---
 

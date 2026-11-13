@@ -749,6 +749,29 @@ in `UserSettings`.
   no values outside its span. `deselect_all_channels` keeps log B. `set_time_range` writes the
   tab's range directly, so the next compare or offset change replaces it with the data range.
 
+### Auto-Update Archive Contract (src/updater.rs, .github/workflows/release.yml)
+
+The in-app updater downloads the release asset named by `Platform::asset_name`
+(`ultralog-windows.zip`, `ultralog-linux.tar.gz`, `ultralog-macos-{intel,arm64}.dmg`) and, on
+Windows and Linux, extracts it and swaps the binary through a helper script. Two files must agree:
+
+- **Asset names are fixed.** Every installed copy matches them by exact name; renaming an asset
+  breaks auto-update for all of them.
+- **The binary inside the archive is `ultralog.exe` / `ultralog`** (since 3.1.1). Up to 3.1.0,
+  `release.yml` packaged `ultralog-windows.exe` / `ultralog-linux`, while the updater looked for
+  `ultralog.exe` / `ultralog`, so auto-install on Windows and Linux always failed with "Could not
+  find ...". The updater now accepts both sets (`update_binary_names`, exact match,
+  case-insensitive on Windows), and installs up to 3.1.0 find the new inside name.
+- **The helper scripts wait for the app's PID, never an image name.** Users run the binary under
+  the name they extracted or renamed (`ultralog-windows.exe`, `ultralog-linux`, ...), and the
+  script copies onto `current_exe`, so that name is kept. A name-based wait (`tasklist ...
+  ultralog.exe`, `pgrep -x ultralog`) did not wait at all and copied onto a running binary
+  (Windows: locked file; Linux: ETXTBSY). The Windows copy retries for 10 s for the same reason.
+- macOS opens the DMG for a manual drag-install; there is nothing to extract.
+- `install_windows` / `install_linux` are behind `#[cfg]` and CI lints on Linux only, so the
+  Windows path is first compiled by the release workflow. The name matching and the script text
+  are pure functions with tests (`updater::tests`) that run on every host.
+
 ### Map Tile Fetching Contract (src/tiles.rs)
 
 The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.
