@@ -10,7 +10,7 @@ use axum::Router;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolResult, ContentBlock, ErrorCode, ErrorData as McpError, Implementation,
-    ProtocolVersion, ServerCapabilities, ServerInfo,
+    ProtocolVersion, ServerCapabilities, ServerConfig,
 };
 use rmcp::schemars::JsonSchema;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
@@ -850,12 +850,12 @@ impl UltraLogMcpServer {
 
 #[tool_handler]
 impl ServerHandler for UltraLogMcpServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         tracing::info!("get_info called - returning server capabilities");
         // `ServerInfo` and `Implementation` are `#[non_exhaustive]` in rmcp 3.x,
         // so they must be built through their constructors rather than a struct
         // literal.
-        let mut info = ServerInfo::new(ServerCapabilities::builder().enable_tools().build());
+        let mut info = ServerConfig::new(ServerCapabilities::builder().enable_tools().build());
         info.protocol_version = ProtocolVersion::V_2024_11_05;
         info.server_info = Implementation::new("ultralog", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(

@@ -15,7 +15,7 @@ const REPOSITORY: &str = "https://github.com/ClassicMiniDIY/UltraLog";
 
 /// The dark lockup as a texture, uploaded once per context.
 fn lockup_texture(ctx: &egui::Context) -> egui::TextureHandle {
-    let id = egui::Id::new("about_lockup_texture");
+    let id = egui::Id::unique("about_lockup_texture");
     if let Some(tex) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return tex;
     }
@@ -41,7 +41,7 @@ impl UltraLogApp {
             crate::updater::UpdateState::Checking | crate::updater::UpdateState::Downloading
         );
         let response = components::window(t!("about.title"))
-            .id(egui::Id::new("about_window"))
+            .id(egui::Id::unique("about_window"))
             .open(&mut open)
             .resizable(false)
             .collapsible(false)

@@ -1370,8 +1370,11 @@ impl UltraLogApp {
         if (y_title_display != y_channel_name || y_title_display.contains('\n'))
             && let Some(rect) = combined_rect
         {
-            let y_title_response =
-                ui.interact(rect, ui.id().with("y_title_tooltip"), egui::Sense::hover());
+            let y_title_response = ui.interact(
+                rect,
+                ui.scope_id().with("y_title_tooltip"),
+                egui::Sense::hover(),
+            );
             y_title_response.on_hover_text(&y_channel_name);
         }
 
@@ -1404,7 +1407,7 @@ impl UltraLogApp {
         if x_title_truncated != x_channel_name {
             let x_title_response = ui.interact(
                 x_title_rect,
-                ui.id().with("x_title_tooltip"),
+                ui.scope_id().with("x_title_tooltip"),
                 egui::Sense::hover(),
             );
             x_title_response.on_hover_text(&x_channel_name);

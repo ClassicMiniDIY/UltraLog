@@ -374,7 +374,7 @@ pub fn current(ctx: &egui::Context) -> Tokens {
 }
 
 fn current_id() -> egui::Id {
-    egui::Id::new("ultralog_theme_tokens")
+    egui::Id::unique("ultralog_theme_tokens")
 }
 
 // ---------- interpolation ----------

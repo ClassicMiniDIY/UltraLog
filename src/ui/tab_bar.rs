@@ -146,7 +146,7 @@ impl UltraLogApp {
                             vec2(CLOSE_SIZE, CLOSE_SIZE),
                         );
                         let close_response = ui
-                            .interact(close, ui.id().with(("tab_close", i)), Sense::click())
+                            .interact(close, ui.scope_id().with(("tab_close", i)), Sense::click())
                             .on_hover_text("Close");
                         let painter = ui.painter();
                         if close_response.hovered() {

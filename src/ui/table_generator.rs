@@ -336,7 +336,7 @@ impl UltraLogApp {
             if ui.small_button(t!("table_gen.auto_detect")).clicked() {
                 // Handled below (needs &mut self).
                 ui.ctx()
-                    .data_mut(|d| d.insert_temp(egui::Id::new("table_gen_redetect"), true));
+                    .data_mut(|d| d.insert_temp(egui::Id::unique("table_gen_redetect"), true));
             }
         });
         egui::Grid::new(format!("table_gen_roles_{}", kind.id()))
@@ -419,7 +419,7 @@ impl UltraLogApp {
                 if lk != state.mapping.load_kind {
                     state.mapping.load_kind = lk;
                     ui.ctx()
-                        .data_mut(|d| d.insert_temp(egui::Id::new("table_gen_reaxis"), true));
+                        .data_mut(|d| d.insert_temp(egui::Id::unique("table_gen_reaxis"), true));
                 }
             });
         }
@@ -430,7 +430,7 @@ impl UltraLogApp {
             ui.label(egui::RichText::new(t!("table_gen.axes")).strong());
             if ui.small_button(t!("table_gen.reset_axes")).clicked() {
                 ui.ctx()
-                    .data_mut(|d| d.insert_temp(egui::Id::new("table_gen_reaxis"), true));
+                    .data_mut(|d| d.insert_temp(egui::Id::unique("table_gen_reaxis"), true));
             }
         });
         for (i, (text, axis)) in [
@@ -614,11 +614,11 @@ impl UltraLogApp {
         // Deferred actions that need `&mut self` outside the borrows above.
         let redetect = ui
             .ctx()
-            .data_mut(|d| d.remove_temp::<bool>(egui::Id::new("table_gen_redetect")))
+            .data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("table_gen_redetect")))
             .unwrap_or(false);
         let reaxis = ui
             .ctx()
-            .data_mut(|d| d.remove_temp::<bool>(egui::Id::new("table_gen_reaxis")))
+            .data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("table_gen_reaxis")))
             .unwrap_or(false);
         if redetect {
             self.suggest_table_mapping(kind, file_index, false);

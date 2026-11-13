@@ -381,7 +381,7 @@ fn constant(name: &str) -> Option<f64> {
         "pi" => std::f64::consts::PI,
         "e" => std::f64::consts::E,
         "tau" => std::f64::consts::TAU,
-        "phi" => 1.618_033_988_749_895_f64,
+        "phi" => std::f64::consts::GOLDEN_RATIO,
         _ => return None,
     })
 }
@@ -693,7 +693,7 @@ mod tests {
         assert_eq!(eval("pi"), std::f64::consts::PI);
         assert_eq!(eval("e"), std::f64::consts::E);
         assert_eq!(eval("tau"), std::f64::consts::TAU);
-        assert!((eval("phi") - 1.618033988749895).abs() < 1e-12);
+        assert_eq!(eval("phi"), std::f64::consts::GOLDEN_RATIO);
     }
 
     #[test]

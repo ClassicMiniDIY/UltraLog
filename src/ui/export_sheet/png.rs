@@ -46,7 +46,7 @@ impl PngCanvas {
         self.ctx.render(&mut pixmap, &mut Resources::new());
         let data = pixmap.data_as_u8_slice();
         let mut out = RgbaImage::new(self.width as u32, self.height as u32);
-        for (px, chunk) in out.pixels_mut().zip(data.chunks_exact(4)) {
+        for (px, chunk) in out.pixels_mut().zip(data.as_chunks::<4>().0) {
             let a = chunk[3];
             let un = |c: u8| {
                 if a == 0 {

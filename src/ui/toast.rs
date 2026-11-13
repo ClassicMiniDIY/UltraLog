@@ -25,7 +25,7 @@ impl UltraLogApp {
                 let accent = toast_type.accent(&t);
                 let shadow = ctx.global_style().visuals.popup_shadow;
 
-                egui::Area::new(egui::Id::new("toast"))
+                egui::Area::new(egui::Id::unique("toast"))
                     .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-margin, -margin))
                     // Above windows and not interactable, so a toast never takes Esc or clicks
                     // from the window under it.

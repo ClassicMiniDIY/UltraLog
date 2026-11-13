@@ -24,17 +24,16 @@ path = "src/bin/test_parser.rs"
 
 [dependencies]
 # GUI Framework
-eframe = { version = "0.36.1", default-features = false, features = [
+eframe = { version = "0.37.0", default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",
     "x11",
     "wayland",
 ] }
-egui_plot = "0.37.0"
+egui_plot = "0.38.0"
 # Phosphor icons (regular outline; fill for transport and the favourite star)
 egui-phosphor = { version = "0.14", features = ["fill"] }
-egui_extras = { version = "0.36.1", features = ["image"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -45,25 +44,22 @@ serde_json = "1.0"
 serde_norway = "0.9.42"
 
 # Parsing
-regex = "1.13"
+regex = "1.13.1"
 strum = { version = "0.28", features = ["derive"] }
 rayon = "1.12"  # Parallel iteration for parsing
 
 # Platform-specific directories
-dirs = "6.0"
+dirs = "7.0"
 
 # File handling
-rfd = "0.17"  # Native file dialogs
+rfd = "0.18"  # Native file dialogs
 open = "5"    # Open URLs in default browser
 memmap2 = "0.9"  # Memory-mapped file loading for large files
 encoding_rs = "0.8"  # Character encoding detection and conversion (UTF-16, etc.)
 
 # Auto-update
-ureq = { version = "3.4", features = ["json"] }  # Minimal HTTP client
+ureq = { version = "3.5", features = ["json"] }  # Minimal HTTP client
 semver = "1.0"  # Version comparison
-zip = "8.6"     # ZIP extraction for Windows updates
-flate2 = "1.1"  # Gzip decompression for Linux updates
-tar = "0.4"     # Tar archive extraction for Linux updates
 
 # Image loading (for app icon, PNG export, and map tiles – Esri serves JPEG)
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
@@ -73,11 +69,10 @@ printpdf = "0.12"
 # Export rasterizing: glyph outlines (skrifa) filled as paths by vello_cpu for PNG text.
 # Same versions epaint already builds; vello_cpu without its glyph-atlas "text" feature.
 skrifa = "0.44"
-vello_cpu = { version = "0.1", default-features = false, features = ["std", "u8_pipeline"] }
+vello_cpu = { version = "0.2", default-features = false, features = ["std", "u8_pipeline"] }
 
 # Error handling
-thiserror = "2.0.20"
-anyhow = "1.0"
+thiserror = "2.0.21"
 
 # Internationalization
 rust-i18n = "4.2"
@@ -91,13 +86,22 @@ uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4.45", features = ["serde"] }
 
 # Clipboard support for histogram copy/paste
-arboard = "3.6"
+arboard = "3.7"
 
 # MCP (Model Context Protocol) server for Claude Desktop integration
-rmcp = { version = "3.1", features = ["server", "transport-streamable-http-server", "macros"] }
+rmcp = { version = "3.10", features = ["server", "transport-streamable-http-server", "macros"] }
 tokio = { version = "1", features = ["full"] }
 axum = "0.8"
-schemars = "1.0"
+schemars = "1.2"
+
+# Windows-only: ZIP extraction for auto-updates (install_windows in src/updater.rs)
+[target.'cfg(windows)'.dependencies]
+zip = "9.5"
+
+# Linux-only: tar.gz extraction for auto-updates (install_linux in src/updater.rs)
+[target.'cfg(target_os = "linux")'.dependencies]
+flate2 = "1.1"
+tar = "0.4"
 
 # Windows-specific: embed icon and manifest
 [target.'cfg(windows)'.build-dependencies]
@@ -105,7 +109,7 @@ winresource = "0.1"
 
 # macOS-specific: set app name in dock
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6.4"
+objc2 = "0.6.5"
 objc2-foundation = "0.3.2"
 
 [dev-dependencies]
