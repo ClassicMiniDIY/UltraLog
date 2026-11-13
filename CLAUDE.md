@@ -749,6 +749,48 @@ in `UserSettings`.
   no values outside its span. `deselect_all_channels` keeps log B. `set_time_range` writes the
   tab's range directly, so the next compare or offset change replaces it with the data range.
 
+### Auto-Update Archive Contract (src/updater.rs, .github/workflows/release.yml)
+
+The in-app updater downloads the release asset named by `Platform::asset_name`
+(`ultralog-windows.zip`, `ultralog-linux.tar.gz`, `ultralog-macos-{intel,arm64}.dmg`) and, on
+Windows and Linux, extracts it and swaps the binary through a helper script. Two files must agree:
+
+- **Asset names are fixed.** Every installed copy matches them by exact name; renaming an asset
+  breaks auto-update for all of them.
+- **The binary inside the archive is `ultralog.exe` on Windows (since 3.1.1) and
+  `ultralog-linux` on Linux.** Up to 3.1.0 the zip held `ultralog-windows.exe`, while the updater
+  looked for `ultralog.exe` / `ultralog`, so auto-install on Windows and Linux always failed with
+  "Could not find ...". The updater now accepts the old and new names (`update_binary_names`, exact
+  match, case-insensitive on Windows).
+- **What that means for installs at 3.1.0 or older (old updater code):**
+  - Windows: it now finds `ultralog.exe`. Its script waits by image name `ultralog.exe`, which
+    never matches an app run as `ultralog-windows.exe`, so it copies once after `timeout /t 1`
+    with no retry. That works if the app has exited by then; else "Update failed!" in a minimized
+    window, and the user installs by hand once.
+  - Linux: the Linux inner name stays `ultralog-linux` **on purpose**. Renaming it to `ultralog`
+    would let the old updater find it, but its `pgrep -x ultralog` wait does not match
+    `ultralog-linux`, so it copies onto the running binary (ETXTBSY), reports success (it tests
+    the `chmod` status) and relaunches the old version: a silent update loop. Keeping the name
+    keeps the old, clear "Could not find" error. Linux users at 3.1.0 or older install 3.1.1 by
+    hand once; say so in the release notes.
+- **The helper scripts wait for the app's PID, never an image name.** Users run the binary under
+  the name they extracted or renamed (`ultralog-windows.exe`, `ultralog-linux`, ...), and the
+  script copies onto `current_exe`, so that name is kept. The Windows wait gives up after 60 s
+  (a reused PID); the copy then retries 10 times, about 9 s, for a file Windows still holds.
+- **Paths never go into script text.** Windows gets them in `ULTRALOG_UPDATE_NEW_EXE` /
+  `ULTRALOG_UPDATE_TARGET_EXE` (cmd.exe reads a batch file in the OEM code page, so a UTF-8
+  `C:\Users\José\...` would break, and `%` would expand); Linux gets them as `$1` / `$2`.
+- **Linux swaps atomically** (copy to `TARGET.new`, then `mv`) and relaunches the app whether or
+  not the swap worked. The swap needs write access to the binary's directory (`/usr/local/bin`
+  installs update by hand).
+- macOS opens the DMG for a manual drag-install; there is nothing to extract.
+- `install_windows` / `install_linux` are behind `#[cfg]` and CI lints on Linux only, so the
+  Windows path is first compiled by the release workflow. The name matching and the script text
+  are pure functions with tests (`updater::tests`) that run on every host; on Unix one test runs
+  the real Linux script against a fake app.
+- Known gap: extraction uses the fixed `{temp}/ultralog-update` directory, which another user on a
+  shared Linux host could create first. A unique temp directory would close it.
+
 ### Map Tile Fetching Contract (src/tiles.rs)
 
 The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.

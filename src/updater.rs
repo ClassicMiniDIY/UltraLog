@@ -292,6 +292,164 @@ pub enum InstallResult {
     Error(String),
 }
 
+/// File names the installer accepts for the new binary inside a downloaded archive.
+///
+/// `release.yml` packages `ultralog.exe` in the Windows zip (since 3.1.1; up to 3.1.0 it was
+/// `ultralog-windows.exe`) and `ultralog-linux` in the Linux tarball. The Linux name stays on
+/// purpose: the 3.1.0 updater finds a binary named `ultralog`, but its helper script cannot wait
+/// for an app run as `ultralog-linux`, so it would copy onto the running binary, fail, and relaunch
+/// the old version in a loop with no error. See the Auto-Update Archive Contract in CLAUDE.md.
+/// Matching is exact (case-insensitive on Windows): a looser rule could pick up an unrelated
+/// file left in the extraction directory.
+#[cfg(any(target_os = "windows", target_os = "linux", test))]
+fn update_binary_names(platform: Platform) -> &'static [&'static str] {
+    match platform {
+        Platform::WindowsX64 => &[
+            "ultralog.exe",
+            "ultralog-windows.exe",
+            "ultralog-windows-beta.exe",
+        ],
+        Platform::LinuxX64 => &["ultralog-linux", "ultralog-linux-beta", "ultralog"],
+        Platform::MacOSIntel | Platform::MacOSArm => &[],
+    }
+}
+
+/// Windows file names are case-insensitive; Linux ones are not.
+#[cfg(any(target_os = "windows", target_os = "linux", test))]
+fn name_matches(file_name: &str, accepted: &str, platform: Platform) -> bool {
+    match platform {
+        Platform::WindowsX64 => file_name.eq_ignore_ascii_case(accepted),
+        _ => file_name == accepted,
+    }
+}
+
+#[cfg(test)]
+fn is_update_binary_name(file_name: &str, platform: Platform) -> bool {
+    update_binary_names(platform)
+        .iter()
+        .any(|n| name_matches(file_name, n, platform))
+}
+
+/// Find the new binary in an extraction directory: the directory itself first, then up to
+/// two levels of subdirectories. The first accepted name in `update_binary_names` order wins
+/// within one directory, so the packaged name beats a stray file with an older name.
+#[cfg(any(target_os = "windows", target_os = "linux", test))]
+fn find_update_binary(dir: &std::path::Path, platform: Platform) -> Option<PathBuf> {
+    fn search(dir: &std::path::Path, platform: Platform, depth: u8) -> Option<PathBuf> {
+        let entries: Vec<_> = std::fs::read_dir(dir)
+            .ok()?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .collect();
+        for name in update_binary_names(platform) {
+            if let Some(found) = entries.iter().find(|p| {
+                p.is_file()
+                    && p.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| name_matches(n, name, platform))
+            }) {
+                return Some(found.clone());
+            }
+        }
+        if depth == 0 {
+            return None;
+        }
+        let mut dirs: Vec<_> = entries.into_iter().filter(|p| p.is_dir()).collect();
+        dirs.sort();
+        dirs.iter().find_map(|d| search(d, platform, depth - 1))
+    }
+    search(dir, platform, 2)
+}
+
+/// Environment variables that carry the paths into the Windows update script.
+#[cfg(any(target_os = "windows", test))]
+const WIN_ENV_NEW_EXE: &str = "ULTRALOG_UPDATE_NEW_EXE";
+#[cfg(any(target_os = "windows", test))]
+const WIN_ENV_TARGET_EXE: &str = "ULTRALOG_UPDATE_TARGET_EXE";
+
+/// Batch script that waits for this process to exit, copies the new binary over the old one and
+/// restarts it.
+///
+/// - It waits by PID, not by image name: users run the binary under whatever name they extracted
+///   or renamed it to. The wait gives up after 60 s (a reused PID must not block it forever); the
+///   copy retries cover a target that is still locked.
+/// - The paths arrive in environment variables (`WIN_ENV_*`), never in the script text: cmd.exe
+///   reads a batch file in the OEM code page, so a UTF-8 path such as `C:\Users\José\...` would
+///   turn into mojibake, and a `%` in a path would be expanded.
+#[cfg(any(target_os = "windows", test))]
+fn windows_update_script(pid: u32) -> String {
+    format!(
+        r#"@echo off
+echo UltraLog Updater
+echo Waiting for application to close...
+set waits=0
+:wait
+timeout /t 1 /nobreak >nul
+set /a waits+=1
+if %waits% GEQ 60 goto update
+tasklist /FI "PID eq {pid}" /NH 2>NUL | find "{pid}" >NUL
+if "%ERRORLEVEL%"=="0" goto wait
+
+:update
+echo Updating UltraLog...
+set tries=0
+:copy
+copy /Y "%{new}%" "%{target}%" >NUL
+if not errorlevel 1 goto done
+set /a tries+=1
+if %tries% GEQ 10 (
+    echo Update failed! Please try again or download manually.
+    pause
+    exit /b 1
+)
+timeout /t 1 /nobreak >nul
+goto copy
+
+:done
+echo Update complete! Starting UltraLog...
+start "" "%{target}%"
+del "%~f0"
+"#,
+        new = WIN_ENV_NEW_EXE,
+        target = WIN_ENV_TARGET_EXE,
+    )
+}
+
+/// Shell script, run as `bash script NEW_EXE TARGET_EXE`, that waits for this process (by PID) to
+/// exit, swaps the new binary in and starts the app again.
+///
+/// - The paths are arguments, never script text, so `$`, backticks or quotes in a path are safe.
+/// - The swap is copy-to-`TARGET.new` then `mv`: atomic, no ETXTBSY, and a failed copy (full
+///   disk, no write access to the directory) leaves the old binary intact.
+/// - The app is relaunched either way, so a failed update still leaves UltraLog running.
+#[cfg(any(target_os = "linux", test))]
+fn linux_update_script(pid: u32) -> String {
+    format!(
+        r#"#!/bin/bash
+NEW_EXE="$1"
+TARGET_EXE="$2"
+echo "UltraLog Updater"
+echo "Waiting for application to close..."
+
+# Wait for the application (this PID) to exit
+while kill -0 {pid} 2>/dev/null; do
+    sleep 1
+done
+
+echo "Updating UltraLog..."
+if cp "$NEW_EXE" "$TARGET_EXE.new" && chmod +x "$TARGET_EXE.new" && mv -f "$TARGET_EXE.new" "$TARGET_EXE"; then
+    echo "Update complete! Starting UltraLog..."
+else
+    rm -f "$TARGET_EXE.new"
+    echo "Update failed! Please try again or download manually."
+fi
+nohup "$TARGET_EXE" > /dev/null 2>&1 &
+
+rm -- "$0"
+"#
+    )
+}
+
 /// Prepare and execute the update installation.
 /// On Windows/Linux: Extracts the archive and creates an update script.
 /// On macOS: Opens the DMG for manual installation.
@@ -317,11 +475,6 @@ fn install_windows(archive_path: &std::path::Path) -> InstallResult {
     let current_exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => return InstallResult::Error(format!("Failed to get current exe path: {}", e)),
-    };
-
-    let exe_dir = match current_exe.parent() {
-        Some(d) => d,
-        None => return InstallResult::Error("Failed to get exe directory".to_string()),
     };
 
     // Create extraction directory in temp
@@ -376,62 +529,20 @@ fn install_windows(archive_path: &std::path::Path) -> InstallResult {
     }
 
     // Find the new executable in extracted files
-    let new_exe = extract_dir.join("ultralog.exe");
-    if !new_exe.exists() {
-        // Try looking in a subdirectory
-        let entries: Vec<_> = std::fs::read_dir(&extract_dir)
-            .ok()
-            .map(|rd| rd.filter_map(|e| e.ok()).collect())
-            .unwrap_or_default();
-
-        for entry in entries {
-            let path = entry.path();
-            if path.is_dir() {
-                let nested_exe = path.join("ultralog.exe");
-                if nested_exe.exists() {
-                    return create_windows_updater_script(&nested_exe, &current_exe, exe_dir);
-                }
-            }
-        }
+    let Some(new_exe) = find_update_binary(&extract_dir, Platform::WindowsX64) else {
         return InstallResult::Error("Could not find ultralog.exe in extracted files".to_string());
-    }
+    };
 
-    create_windows_updater_script(&new_exe, &current_exe, exe_dir)
+    create_windows_updater_script(&new_exe, &current_exe)
 }
 
 #[cfg(target_os = "windows")]
 fn create_windows_updater_script(
     new_exe: &std::path::Path,
     current_exe: &std::path::Path,
-    exe_dir: &std::path::Path,
 ) -> InstallResult {
     let script_path = std::env::temp_dir().join("ultralog_update.bat");
-
-    // Create batch script that waits for the app to close, then replaces files
-    let script_content = format!(
-        r#"@echo off
-echo UltraLog Updater
-echo Waiting for application to close...
-:wait
-timeout /t 1 /nobreak >nul
-tasklist /FI "IMAGENAME eq ultralog.exe" 2>NUL | find /I /N "ultralog.exe">NUL
-if "%ERRORLEVEL%"=="0" goto wait
-
-echo Updating UltraLog...
-copy /Y "{new_exe}" "{target_exe}"
-if errorlevel 1 (
-    echo Update failed! Please try again or download manually.
-    pause
-    exit /b 1
-)
-
-echo Update complete! Starting UltraLog...
-start "" "{target_exe}"
-del "%~f0"
-"#,
-        new_exe = new_exe.display(),
-        target_exe = current_exe.display(),
-    );
+    let script_content = windows_update_script(std::process::id());
 
     if let Err(e) = std::fs::write(&script_path, script_content) {
         return InstallResult::Error(format!("Failed to create update script: {}", e));
@@ -440,6 +551,8 @@ del "%~f0"
     // Start the update script
     match std::process::Command::new("cmd")
         .args(["/C", "start", "", "/MIN", script_path.to_str().unwrap_or("")])
+        .env(WIN_ENV_NEW_EXE, new_exe)
+        .env(WIN_ENV_TARGET_EXE, current_exe)
         .spawn()
     {
         Ok(_) => InstallResult::ReadyToRestart {
@@ -490,44 +603,15 @@ fn install_linux(archive_path: &std::path::Path) -> InstallResult {
     }
 
     // Find the new executable
-    let new_exe = find_executable_in_dir(&extract_dir, "ultralog");
-    let new_exe = match new_exe {
-        Some(p) => p,
-        None => {
-            return InstallResult::Error(
-                "Could not find ultralog executable in extracted files".to_string(),
-            );
-        }
+    let Some(new_exe) = find_update_binary(&extract_dir, Platform::LinuxX64) else {
+        return InstallResult::Error(
+            "Could not find ultralog executable in extracted files".to_string(),
+        );
     };
 
     // Create shell script to replace the executable
     let script_path = temp_dir.join("ultralog_update.sh");
-    let script_content = format!(
-        r#"#!/bin/bash
-echo "UltraLog Updater"
-echo "Waiting for application to close..."
-
-# Wait for the application to exit
-while pgrep -x "ultralog" > /dev/null; do
-    sleep 1
-done
-
-echo "Updating UltraLog..."
-cp "{new_exe}" "{target_exe}"
-chmod +x "{target_exe}"
-
-if [ $? -eq 0 ]; then
-    echo "Update complete! Starting UltraLog..."
-    nohup "{target_exe}" > /dev/null 2>&1 &
-else
-    echo "Update failed! Please try again or download manually."
-fi
-
-rm -- "$0"
-"#,
-        new_exe = new_exe.display(),
-        target_exe = current_exe.display(),
-    );
+    let script_content = linux_update_script(std::process::id());
 
     if let Err(e) = std::fs::write(&script_path, &script_content) {
         return InstallResult::Error(format!("Failed to create update script: {}", e));
@@ -543,6 +627,8 @@ rm -- "$0"
     // Start the update script
     match std::process::Command::new("bash")
         .arg(&script_path)
+        .arg(&new_exe)
+        .arg(&current_exe)
         .spawn()
     {
         Ok(_) => InstallResult::ReadyToRestart {
@@ -555,30 +641,6 @@ rm -- "$0"
 #[cfg(not(target_os = "linux"))]
 fn install_linux(_archive_path: &std::path::Path) -> InstallResult {
     InstallResult::Error("Linux installation not supported on this platform".to_string())
-}
-
-#[cfg(target_os = "linux")]
-fn find_executable_in_dir(dir: &std::path::Path, name: &str) -> Option<PathBuf> {
-    // First check directly in the directory
-    let direct = dir.join(name);
-    if direct.exists() && direct.is_file() {
-        return Some(direct);
-    }
-
-    // Check subdirectories
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if path.is_dir() {
-                if let Some(found) = find_executable_in_dir(&path, name) {
-                    return Some(found);
-                }
-            } else if path.file_name().map(|n| n == name).unwrap_or(false) {
-                return Some(path);
-            }
-        }
-    }
-    None
 }
 
 /// macOS: Open the DMG for manual installation
@@ -625,5 +687,183 @@ mod tests {
         );
         assert_eq!(Platform::MacOSArm.asset_name(), "ultralog-macos-arm64.dmg");
         assert_eq!(Platform::LinuxX64.asset_name(), "ultralog-linux.tar.gz");
+    }
+
+    /// A unique scratch directory under the system temp dir, removed on drop.
+    struct ScratchDir(PathBuf);
+
+    impl ScratchDir {
+        fn new(tag: &str) -> Self {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let dir = std::env::temp_dir().join(format!(
+                "ultralog-updater-test-{tag}-{}-{nanos}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            ScratchDir(dir)
+        }
+
+        fn touch(&self, rel: &str) -> PathBuf {
+            let path = self.0.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, b"binary").unwrap();
+            path
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn test_update_binary_names_cover_release_packaging() {
+        // What release.yml packages now, and what it packaged up to 3.1.0 (stable and beta).
+        for name in [
+            "ultralog.exe",
+            "ultralog-windows.exe",
+            "ultralog-windows-beta.exe",
+            "UltraLog.EXE",
+        ] {
+            assert!(is_update_binary_name(name, Platform::WindowsX64), "{name}");
+        }
+        for name in ["ultralog", "ultralog-linux", "ultralog-linux-beta"] {
+            assert!(is_update_binary_name(name, Platform::LinuxX64), "{name}");
+        }
+    }
+
+    #[test]
+    fn test_update_binary_names_reject_other_files() {
+        for name in [
+            "ultralog-windows.zip",
+            "ultralog",
+            "readme.txt",
+            "ultralog.exe.bak",
+        ] {
+            assert!(!is_update_binary_name(name, Platform::WindowsX64), "{name}");
+        }
+        for name in [
+            "ultralog-linux.tar.gz",
+            "ultralog.exe",
+            "UltraLog",
+            "ultralog-update.sh",
+        ] {
+            assert!(!is_update_binary_name(name, Platform::LinuxX64), "{name}");
+        }
+        assert!(!is_update_binary_name("ultralog", Platform::MacOSArm));
+    }
+
+    #[test]
+    fn test_find_update_binary_new_and_legacy_layouts() {
+        let new_win = ScratchDir::new("win-new");
+        let exe = new_win.touch("ultralog.exe");
+        assert_eq!(
+            find_update_binary(&new_win.0, Platform::WindowsX64),
+            Some(exe)
+        );
+
+        // The 3.1.0 zip: one entry named ultralog-windows.exe, which the old lookup missed.
+        let legacy_win = ScratchDir::new("win-legacy");
+        let exe = legacy_win.touch("ultralog-windows.exe");
+        assert_eq!(
+            find_update_binary(&legacy_win.0, Platform::WindowsX64),
+            Some(exe)
+        );
+
+        let legacy_linux = ScratchDir::new("linux-legacy");
+        let bin = legacy_linux.touch("ultralog-linux");
+        assert_eq!(
+            find_update_binary(&legacy_linux.0, Platform::LinuxX64),
+            Some(bin)
+        );
+    }
+
+    #[test]
+    fn test_find_update_binary_prefers_canonical_name_and_searches_subdirs() {
+        let both = ScratchDir::new("both");
+        both.touch("ultralog-windows.exe");
+        let canonical = both.touch("ultralog.exe");
+        assert_eq!(
+            find_update_binary(&both.0, Platform::WindowsX64),
+            Some(canonical)
+        );
+
+        let nested = ScratchDir::new("nested");
+        nested.touch("README.txt");
+        let bin = nested.touch("ultralog-3.1.1/ultralog");
+        assert_eq!(find_update_binary(&nested.0, Platform::LinuxX64), Some(bin));
+
+        let empty = ScratchDir::new("empty");
+        empty.touch("notes.txt");
+        assert_eq!(find_update_binary(&empty.0, Platform::LinuxX64), None);
+    }
+
+    #[test]
+    fn test_windows_script_waits_for_pid_and_reads_paths_from_env() {
+        let bat = windows_update_script(4242);
+        assert!(bat.contains(r#"tasklist /FI "PID eq 4242""#));
+        assert!(!bat.contains("IMAGENAME"));
+        assert!(bat.contains("if %waits% GEQ 60 goto update"));
+        assert!(bat.contains(&format!(
+            r#"copy /Y "%{WIN_ENV_NEW_EXE}%" "%{WIN_ENV_TARGET_EXE}%""#
+        )));
+        assert!(bat.contains(&format!(r#"start "" "%{WIN_ENV_TARGET_EXE}%""#)));
+        // cmd.exe reads the file in the OEM code page: keep the script itself ASCII.
+        assert!(bat.is_ascii());
+    }
+
+    #[test]
+    fn test_linux_script_waits_for_pid_and_swaps_atomically() {
+        let sh = linux_update_script(4242);
+        assert!(sh.contains("while kill -0 4242 2>/dev/null"));
+        assert!(!sh.contains("pgrep"));
+        assert!(sh.contains(r#"NEW_EXE="$1""#) && sh.contains(r#"TARGET_EXE="$2""#));
+        assert!(sh.contains(
+            r#"if cp "$NEW_EXE" "$TARGET_EXE.new" && chmod +x "$TARGET_EXE.new" && mv -f "$TARGET_EXE.new" "$TARGET_EXE"; then"#
+        ));
+        // Relaunch outside the if: a failed update still leaves the app running.
+        let relaunch = sh.find(r#"nohup "$TARGET_EXE""#).unwrap();
+        assert!(relaunch > sh.find("fi\n").unwrap());
+    }
+
+    /// Runs the real Linux script against a fake app: it must wait for the PID, swap the binary
+    /// and leave no `.new` behind. Unix only (needs bash, sleep, kill).
+    #[cfg(unix)]
+    #[test]
+    fn test_linux_script_swaps_binary_after_pid_exits() {
+        let dir = ScratchDir::new("script-run");
+        let new_exe = dir.touch("new/ultralog-linux");
+        std::fs::write(&new_exe, b"new").unwrap();
+        let target = dir.touch("install dir/ultralog $weird");
+        std::fs::write(&target, b"old").unwrap();
+
+        // The fake app is reaped on its own thread: an unreaped child stays a zombie, and
+        // `kill -0` succeeds on a zombie, so the script would wait forever.
+        let mut app = std::process::Command::new("sleep")
+            .arg("1")
+            .spawn()
+            .unwrap();
+        let pid = app.id();
+        let reaper = std::thread::spawn(move || app.wait());
+        // The script relaunches TARGET; make it a harmless shell script.
+        std::fs::write(&new_exe, b"#!/bin/sh\nexit 0\n").unwrap();
+        let script = dir.0.join("update.sh");
+        std::fs::write(&script, linux_update_script(pid)).unwrap();
+        let status = std::process::Command::new("bash")
+            .arg(&script)
+            .arg(&new_exe)
+            .arg(&target)
+            .stdout(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        let _ = reaper.join();
+        assert!(status.success());
+        assert_eq!(std::fs::read(&target).unwrap(), b"#!/bin/sh\nexit 0\n");
+        assert!(!dir.0.join("install dir/ultralog $weird.new").exists());
+        assert!(!script.exists(), "script removes itself");
     }
 }

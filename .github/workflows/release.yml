@@ -91,6 +91,11 @@ jobs:
       - name: Package Linux binary
         run: |
           mkdir -p output
+          # Keep the binary inside the archive named `ultralog-linux` and the asset name
+          # `ultralog-linux*.tar.gz` (Platform::asset_name). Do not rename the inner binary to
+          # `ultralog`: the 3.1.0 updater would find it but cannot wait for an app run as
+          # `ultralog-linux`, so it would loop on the old version without an error. See the
+          # Auto-Update Archive Contract in CLAUDE.md and update_binary_names in src/updater.rs.
           cp target/x86_64-unknown-linux-gnu/release/ultralog output/ultralog-linux
           chmod +x output/ultralog-linux
           cd output
@@ -124,9 +129,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path output
-          Copy-Item "target/x86_64-pc-windows-msvc/release/ultralog.exe" -Destination "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.exe"
-          Compress-Archive -Path "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.exe" -DestinationPath "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.zip"
-          Remove-Item "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.exe"
+          # The binary inside the archive is named `ultralog.exe`, the name the 3.1.0 updater
+          # looks for (src/updater.rs, update_binary_names, accepts it and the old name). Keep
+          # the asset name `ultralog-windows*.zip` unchanged - Platform::asset_name matches it.
+          New-Item -ItemType Directory -Force -Path staging
+          Copy-Item "target/x86_64-pc-windows-msvc/release/ultralog.exe" -Destination "staging/ultralog.exe"
+          Compress-Archive -Path "staging/ultralog.exe" -DestinationPath "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.zip"
+          Remove-Item -Recurse "staging"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -429,7 +438,7 @@ jobs:
             ### Windows
             1. Download `ultralog-windows-beta.zip`
             2. Extract the zip file
-            3. Run `ultralog-windows-beta.exe`
+            3. Run `ultralog.exe`
 
             ### Linux
             1. Download `ultralog-linux-beta.tar.gz`
