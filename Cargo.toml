@@ -69,8 +69,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 printpdf = "0.12"
 # Export rasterizing: glyph outlines (skrifa) filled as paths by vello_cpu for PNG text.
 # Same versions epaint already builds; vello_cpu without its glyph-atlas "text" feature.
-skrifa = "0.44"
-vello_cpu = { version = "0.2", default-features = false, features = ["std", "u8_pipeline"] }
+skrifa = "0.49"
+vello_cpu = { version = "0.3", default-features = false, features = ["std", "u8_pipeline"] }
 
 # Error handling
 thiserror = "2.0.21"
