@@ -2847,17 +2847,14 @@ impl eframe::App for UltraLogApp {
                                 .clamp(0.2, 0.7);
                             let max_panel_w = (avail_w * 0.7).max(260.0);
                             let panel_w = (avail_w * frac).clamp(260.0, max_panel_w);
-                            let panel = egui::Panel::right(egui::Id::unique((
-                                "ultralog_data_panel",
-                                tab_id,
-                            )))
-                            .resizable(true)
-                            .default_size(panel_w)
-                            .min_size(260.0)
-                            .max_size(max_panel_w)
-                            .show(ui, |ui| {
-                                self.render_data_panel(ui);
-                            });
+                            let panel = egui::Panel::right(("ultralog_data_panel", tab_id))
+                                .resizable(true)
+                                .default_size(panel_w)
+                                .min_size(260.0)
+                                .max_size(max_panel_w)
+                                .show(ui, |ui| {
+                                    self.render_data_panel(ui);
+                                });
                             if avail_w > 0.0 {
                                 self.tabs[tab_idx].data_panel_state.split_fraction =
                                     (panel.response.rect.width() / avail_w).clamp(0.2, 0.7);

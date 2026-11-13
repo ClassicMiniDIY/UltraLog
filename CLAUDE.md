@@ -39,9 +39,13 @@ sorts imports with the 2024 style ordering. CI installs the latest stable toolch
 (`dtolnay/rust-toolchain@stable`), so a new Rust release can add lints that fail
 `clippy -D warnings` with no code change here.
 
-**egui 0.37 renames:** `Id::new` is deprecated; use `Id::unique` (same hash, so persisted
-ids do not move) for a root id and `IdSalt::new` for a local salt. `Ui::id` is `Ui::scope_id`,
-and `WidgetType` is `egui::Role` (accesskit).
+**egui 0.37 renames:** `Id::new` is deprecated; use `Id::unique` (same hash as the old
+`Id::new`) for a root id such as a `Window::id`, `Area::new` or temp-data key, and
+`IdSalt::new` for a local salt. `Panel::left/right/..` and egui_plot's `Plot::new` now take a
+*salt* that is combined with the parent `Ui::scope_id`, so pass the salt itself
+(`Panel::right(("ultralog_data_panel", tab_id))`), never an `Id`. That change moved the
+persisted panel keys once, in 3.1.1: a dragged side-panel width reset to the default on the
+first launch. `Ui::id` is `Ui::scope_id`, and `WidgetType` is `egui::Role` (accesskit).
 
 ```bash
 # Development build
