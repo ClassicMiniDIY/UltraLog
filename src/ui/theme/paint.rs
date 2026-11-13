@@ -88,7 +88,7 @@ const KEYBOARD_FOCUS: &str = "ultralog_keyboard_focus";
 /// The ring shows only after the keyboard moved focus (Tab, arrows) or on a text field, and
 /// hides again on the next pointer press, so a click never leaves a ring behind.
 pub fn keyboard_focus_ring(ctx: &egui::Context, t: &Tokens, high_contrast: bool) {
-    let id = egui::Id::new(KEYBOARD_FOCUS);
+    let id = egui::Id::unique(KEYBOARD_FOCUS);
     let (tabbed, pressed) = ctx.input(|i| {
         (
             i.key_pressed(egui::Key::Tab)
@@ -117,7 +117,7 @@ pub fn keyboard_focus_ring(ctx: &egui::Context, t: &Tokens, high_contrast: bool)
     }
     let painter = ctx.layer_painter(egui::LayerId::new(
         egui::Order::Foreground,
-        egui::Id::new("ultralog_focus_ring"),
+        egui::Id::unique("ultralog_focus_ring"),
     ));
     let painter = painter.with_clip_rect(response.interact_rect.expand(8.0));
     focus_ring(

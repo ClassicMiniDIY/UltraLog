@@ -70,7 +70,7 @@ fn theme_card(ui: &mut egui::Ui, theme: ExportTheme, selected: bool, width: f32)
         ExportTheme::Graphite => (t!("export.graphite"), t!("export.graphite_desc")),
     };
     response.widget_info(|| {
-        egui::WidgetInfo::selected(egui::WidgetType::RadioButton, true, selected, name.as_ref())
+        egui::WidgetInfo::selected(egui::Role::RadioButton, true, selected, name.as_ref())
     });
 
     let painter = ui.painter();
@@ -123,7 +123,7 @@ impl UltraLogApp {
         let mut action = None;
         let mut choice = self.export_choice;
         let response = components::window(self.export_dialog_title())
-            .id(egui::Id::new("export_dialog"))
+            .id(egui::Id::unique("export_dialog"))
             .open(&mut open)
             .resizable(false)
             .collapsible(false)

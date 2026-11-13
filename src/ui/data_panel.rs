@@ -305,9 +305,7 @@ fn icon_button(
     draw_icon: fn(&egui::Painter, egui::Rect, egui::Color32),
 ) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::click());
-    resp.widget_info(|| {
-        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
-    });
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label));
     let visuals = ui.visuals();
     let painter = ui.painter();
     if resp.hovered() {

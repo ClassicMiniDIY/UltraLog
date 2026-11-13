@@ -125,7 +125,7 @@ impl UltraLogApp {
         let scroll_to_zoom = self.scroll_to_zoom;
         let show_grid = self.show_grid;
         let grid_color = grid_color_with_opacity(self.tokens.plot_grid_major, self.grid_opacity);
-        let plot_id = egui::Id::new("log_chart");
+        let plot_id = egui::Id::unique("log_chart");
         let tokens = self.tokens;
         let style = PlotStyle {
             tokens: &tokens,
@@ -523,7 +523,7 @@ impl UltraLogApp {
 
         let show_grid = self.show_grid;
         let grid_color = grid_color_with_opacity(self.tokens.plot_grid_major, self.grid_opacity);
-        let plot_id = egui::Id::new(("plot_area", plot_area_id));
+        let plot_id = egui::Id::unique(("plot_area", plot_area_id));
         let tokens = self.tokens;
         let style = PlotStyle {
             tokens: &tokens,

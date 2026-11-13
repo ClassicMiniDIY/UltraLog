@@ -32,10 +32,20 @@ UltraLog is a high-performance ECU (Engine Control Unit) log viewer written in p
 ## Build Commands
 
 The crate is on **edition 2024** with `rust-version = "1.95"`. The MSRV is set by
-egui/eframe 0.36, not by the edition (2024 itself only needs 1.85) — so bumping
+egui/eframe 0.37, not by the edition (2024 itself only needs 1.85) — so bumping
 egui is what moves it. Edition 2024 means let-chains (`if a && let Some(b) = ..`)
 are available and clippy's `collapsible_if` will ask for them, and that rustfmt
-sorts imports with the 2024 style ordering.
+sorts imports with the 2024 style ordering. CI installs the latest stable toolchain
+(`dtolnay/rust-toolchain@stable`), so a new Rust release can add lints that fail
+`clippy -D warnings` with no code change here.
+
+**egui 0.37 renames:** `Id::new` is deprecated; use `Id::unique` (same hash as the old
+`Id::new`) for a root id such as a `Window::id`, `Area::new` or temp-data key, and
+`IdSalt::new` for a local salt. `Panel::left/right/..` and egui_plot's `Plot::new` now take a
+*salt* that is combined with the parent `Ui::scope_id`, so pass the salt itself
+(`Panel::right(("ultralog_data_panel", tab_id))`), never an `Id`. That change moved the
+persisted panel keys once, in 3.1.1: a dragged side-panel width reset to the default on the
+first launch. `Ui::id` is `Ui::scope_id`, and `WidgetType` is `egui::Role` (accesskit).
 
 ```bash
 # Development build
@@ -901,13 +911,18 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
 
 ## Key Dependencies
 
-- **eframe/egui** (0.36) - Native GUI framework
-- **egui_plot** (0.37) - Charting/plotting
-- **rfd** (0.17) - Native file dialogs
+- **eframe/egui** (0.37) - Native GUI framework
+- **egui_plot** (0.38) - Charting/plotting
+- **egui-phosphor** (0.14) - Phosphor icon font bytes and codepoint constants. 0.14 still
+  requires egui 0.36, so the lock holds a second egui 0.36 (with its epaint and vello_cpu 0.1)
+  that only egui-phosphor links. No egui type crosses that boundary (the app reads
+  `Variant::font_bytes()` and `&str` constants only), so it is build time, not behavior.
+  Drop the duplicate when egui-phosphor ships an egui 0.37 release (amPerl/egui-phosphor#49).
+- **rfd** (0.18) - Native file dialogs
 - **open** (5) - Cross-platform URL/email opening
 - **strum** (0.28) - Enum string conversion for channel types
 - **regex** (1.13) - Log file parsing
-- **ureq** (3.4) - HTTP client for auto-updates and OpenECU Alliance API
+- **ureq** (3.5) - HTTP client for auto-updates and OpenECU Alliance API
   - **TLS trusts `webpki-roots`, not the OS store** - ureq's rustls backend uses the root list
     compiled into the binary. When a CA is distrusted (eMudhra, 2026-10: `webpki-roots` 1.0.10
     dropped `emSign ECC Root CA - G3`), OS updates do not reach UltraLog users. Bump
@@ -919,23 +934,24 @@ Handled in `UltraLogApp::handle_keyboard_shortcuts` (`src/app.rs`); ignored whil
   Do not go back to `serde_yml` or `serde_yaml`.
 - **printpdf** (0.12) - PDF generation
 - **image** (0.25) - PNG encoding
-- **skrifa** (0.44) / **vello_cpu** (0.1) - PNG export text and shapes: skrifa reads glyph outlines from the bundled fonts, vello_cpu fills them as paths (its glyph-atlas `text` feature is off)
+- **skrifa** (0.44) / **vello_cpu** (0.2) - PNG export text and shapes: skrifa reads glyph outlines from the bundled fonts, vello_cpu fills them as paths (its glyph-atlas `text` feature is off). Keep both on the versions epaint builds (`cargo tree -i skrifa`), not the newest on crates.io, or the build compiles two copies
 - **memmap2** (0.9) - Memory-mapped file loading for large files
 - **rayon** (1.12) - Parallel iteration for parsing
-- **dirs** (6.0) - Cross-platform app data directory detection for cache and settings
-- **rmcp** (3.1) - MCP server implementation (`src/mcp/`), used with `axum` as the HTTP transport.
+- **dirs** (7.0) - Cross-platform app data directory detection for cache and settings. 7.0 moved only `preference_dir` on Windows; the app uses `config_dir` and `data_dir`, so do not switch to `preference_dir` without a migration from the old location
+- **rmcp** (3.10) - MCP server implementation (`src/mcp/`), used with `axum` as the HTTP transport.
   3.x fixes a DNS-rebinding hole in the streamable-HTTP transport; its `StreamableHttpService`
   config defaults `allowed_hosts` to localhost/127.0.0.1/::1, so keep passing `Default::default()`
   rather than clearing it.
 - **tokio** (1) - Async runtime backing the MCP server
 - **axum** (0.8) - HTTP server framework for the embedded MCP endpoint
-- **schemars** (1.0) - JSON schema generation for MCP tool definitions
-- **arboard** (3.6) - Clipboard support (histogram copy/paste)
+- **schemars** (1.2) - JSON schema generation for MCP tool definitions
+- **arboard** (3.7) - Clipboard support (histogram copy/paste)
 - **rust-i18n** (4.2) - Internationalization / locale strings
 - **uuid** (1.0) - Anonymous user ID generation for analytics
 - **chrono** (0.4) - Date/time parsing (Locomotive, Woolich timestamps)
 - **encoding_rs** (0.8) - Character encoding detection/conversion (e.g., UTF-16 BlueDriver exports)
-- **thiserror** / **anyhow** - Error handling
+- **thiserror** (2.0) - Error handling (parsers return `Box<dyn Error>`; `anyhow` was never used and was removed in 3.1.1)
+- **zip** (9.5, Windows only) / **flate2** + **tar** (Linux only) - auto-update archive extraction. They are target-specific dependencies matching the `#[cfg]` on `install_windows` / `install_linux` in `src/updater.rs`. CI lints on Linux only, so a zip API break shows first in the Windows job of `release.yml`
 - **tracing** / **tracing-subscriber** - Structured logging
 
 Computed-channel formula evaluation is handled by the built-in `src/expression/engine.rs` (no external crate — do not re-add meval or an expression-evaluator dependency; meval was removed because it was unmaintained and its `nom` 1.2.4 transitive dep will be rejected by future Rust).

@@ -613,7 +613,7 @@ impl UltraLogApp {
                                 let header_text = format!("{} ({plot_units}/10)", plot_area.name);
 
                                 // Collapsing state
-                                let id = ui.id().with(plot_id);
+                                let id = ui.scope_id().with(plot_id);
                                 let mut open = ui.data(|d| d.get_temp::<bool>(id).unwrap_or(true));
 
                                 // Arrow icon (custom drawn triangle)
@@ -826,8 +826,10 @@ impl UltraLogApp {
                         };
 
                         // Make channel draggable
-                        let id =
-                            egui::Id::new(format!("drag_channel_{}_{}", file_index, channel_index));
+                        let id = egui::Id::unique(format!(
+                            "drag_channel_{}_{}",
+                            file_index, channel_index
+                        ));
                         let response = ui
                             .scope(|ui| {
                                 ui.dnd_drag_source(id, (file_index, channel_index), |ui| {

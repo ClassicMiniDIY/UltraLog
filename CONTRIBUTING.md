@@ -70,7 +70,7 @@ Before contributing, ensure you have:
        libatk1.0-dev \
        libcairo2-dev \
        libpango1.0-dev \
-       libgdk-pixbuf2.0-dev
+       libgdk-pixbuf-2.0-dev
    ```
 
    **macOS:**
@@ -295,7 +295,7 @@ cargo clippy -- -D warnings
 
 ### Error Handling
 
-- Use `anyhow` for error propagation in parsers
+- Parsers return `Result<Log, Box<dyn Error>>` (the `Parseable` trait)
 - Use `thiserror` for custom error types
 - Provide helpful error messages
 - Handle errors gracefully in UI (toast notifications)
