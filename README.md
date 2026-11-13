@@ -269,9 +269,9 @@ Download the latest release for your platform from the [Releases](https://github
 
 **Linux:**
 1. Download and extract: `tar -xzf ultralog-linux.tar.gz`
-2. Run: `./ultralog` (releases up to 3.1.0 named it `ultralog-linux`)
+2. Run: `./ultralog-linux`
 
-Later updates install from inside the app (Help → Check for Updates), which keeps the file name you use.
+On Windows and Linux, later updates install from inside the app (Help → Check for Updates) and keep the file name you use. On macOS the app opens the new DMG for you to drag to Applications.
 
 ### Building from Source
 

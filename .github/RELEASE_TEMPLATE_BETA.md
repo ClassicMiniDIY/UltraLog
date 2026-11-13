@@ -19,7 +19,7 @@ Please report any issues you encounter on [GitHub Issues](https://github.com/Cla
 ### Windows
 1. Download `ultralog-windows-beta.zip`
 2. Extract the zip file
-3. Run `ultralog-windows-beta.exe`
+3. Run `ultralog.exe`
 
 ### Linux
 1. Download `ultralog-linux-beta.tar.gz`

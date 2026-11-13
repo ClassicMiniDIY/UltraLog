@@ -331,10 +331,10 @@ build_windows() {
     cargo xwin build --release --target x86_64-pc-windows-msvc
     print_success "Windows build complete"
 
-    # Package
+    # Package: the binary inside the zip is ultralog.exe (Auto-Update Archive Contract, CLAUDE.md)
     mkdir -p "$OUTPUT_DIR"
-    cp "$PROJECT_DIR/target/x86_64-pc-windows-msvc/release/ultralog.exe" "$OUTPUT_DIR/ultralog-windows.exe"
-    (cd "$OUTPUT_DIR" && zip ultralog-windows.zip ultralog-windows.exe && rm ultralog-windows.exe)
+    cp "$PROJECT_DIR/target/x86_64-pc-windows-msvc/release/ultralog.exe" "$OUTPUT_DIR/ultralog.exe"
+    (cd "$OUTPUT_DIR" && zip ultralog-windows.zip ultralog.exe && rm ultralog.exe)
     print_success "Packaged: $OUTPUT_DIR/ultralog-windows.zip"
 }
 

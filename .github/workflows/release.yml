@@ -91,14 +91,16 @@ jobs:
       - name: Package Linux binary
         run: |
           mkdir -p output
-          # The binary inside the archive is named `ultralog`: the in-app updater
-          # (src/updater.rs, UPDATE_BINARY_NAMES) looks for that name. Keep the asset
-          # name `ultralog-linux*.tar.gz` unchanged - Platform::asset_name matches it.
-          cp target/x86_64-unknown-linux-gnu/release/ultralog output/ultralog
-          chmod +x output/ultralog
+          # Keep the binary inside the archive named `ultralog-linux` and the asset name
+          # `ultralog-linux*.tar.gz` (Platform::asset_name). Do not rename the inner binary to
+          # `ultralog`: the 3.1.0 updater would find it but cannot wait for an app run as
+          # `ultralog-linux`, so it would loop on the old version without an error. See the
+          # Auto-Update Archive Contract in CLAUDE.md and update_binary_names in src/updater.rs.
+          cp target/x86_64-unknown-linux-gnu/release/ultralog output/ultralog-linux
+          chmod +x output/ultralog-linux
           cd output
-          tar -czvf ultralog-linux${{ needs.check-tag.outputs.suffix }}.tar.gz ultralog
-          rm ultralog
+          tar -czvf ultralog-linux${{ needs.check-tag.outputs.suffix }}.tar.gz ultralog-linux
+          rm ultralog-linux
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -127,9 +129,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path output
-          # The binary inside the archive is named `ultralog.exe`: the in-app updater
-          # (src/updater.rs, UPDATE_BINARY_NAMES) looks for that name. Keep the asset
-          # name `ultralog-windows*.zip` unchanged - Platform::asset_name matches it.
+          # The binary inside the archive is named `ultralog.exe`, the name the 3.1.0 updater
+          # looks for (src/updater.rs, update_binary_names, accepts it and the old name). Keep
+          # the asset name `ultralog-windows*.zip` unchanged - Platform::asset_name matches it.
           New-Item -ItemType Directory -Force -Path staging
           Copy-Item "target/x86_64-pc-windows-msvc/release/ultralog.exe" -Destination "staging/ultralog.exe"
           Compress-Archive -Path "staging/ultralog.exe" -DestinationPath "output/ultralog-windows${{ needs.check-tag.outputs.suffix }}.zip"
@@ -441,7 +443,7 @@ jobs:
             ### Linux
             1. Download `ultralog-linux-beta.tar.gz`
             2. Extract: `tar -xzf ultralog-linux-beta.tar.gz`
-            3. Run: `./ultralog`
+            3. Run: `./ultralog-linux`
 
             ---
 

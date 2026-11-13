@@ -10,7 +10,7 @@
 ### Windows
 1. Download `ultralog-windows.zip`
 2. Extract the zip file
-3. Run `ultralog-windows.exe`
+3. Run `ultralog.exe`
 
 ### Linux
 1. Download `ultralog-linux.tar.gz`
