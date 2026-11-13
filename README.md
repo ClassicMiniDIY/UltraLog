@@ -294,7 +294,7 @@ sudo apt-get install -y \
     libatk1.0-dev \
     libcairo2-dev \
     libpango1.0-dev \
-    libgdk-pixbuf2.0-dev
+    libgdk-pixbuf-2.0-dev
 ```
 
 **macOS Dependencies:**
