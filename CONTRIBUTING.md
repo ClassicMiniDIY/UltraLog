@@ -295,7 +295,7 @@ cargo clippy -- -D warnings
 
 ### Error Handling
 
-- Use `anyhow` for error propagation in parsers
+- Parsers return `Result<Log, Box<dyn Error>>` (the `Parseable` trait)
 - Use `thiserror` for custom error types
 - Provide helpful error messages
 - Handle errors gracefully in UI (toast notifications)

@@ -632,15 +632,15 @@ The Analysis Tools panel provides built-in signal processing and statistical ana
 | Component        | Technology                                                                                                     |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
 | Language         | Rust (Edition 2024, MSRV 1.95)                                                                                            |
-| GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.36 |
-| Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.37                                   |
-| File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.17                                                                  |
+| GUI Framework    | [eframe](https://github.com/emilk/egui/tree/master/crates/eframe) / [egui](https://github.com/emilk/egui) 0.37 |
+| Charting         | [egui_plot](https://github.com/emilk/egui/tree/master/crates/egui_plot) 0.38                                   |
+| File Dialogs     | [rfd](https://github.com/PolyMeilex/rfd) 0.18                                                                  |
 | Image Processing | [image](https://github.com/image-rs/image) 0.25                                                                |
 | PDF Generation   | [printpdf](https://github.com/fschutt/printpdf) 0.12                                                            |
-| Export rendering | [vello_cpu](https://github.com/linebender/vello) 0.1 / [skrifa](https://github.com/googlefonts/fontations) 0.44 |
+| Export rendering | [vello_cpu](https://github.com/linebender/vello) 0.2 / [skrifa](https://github.com/googlefonts/fontations) 0.44 |
 | Icons            | [Phosphor](https://phosphoricons.com) via egui-phosphor 0.14                                                   |
 | Serialization    | serde / serde_json 1.0                                                                                         |
-| Error Handling   | thiserror 2.0 / anyhow 1.0                                                                                     |
+| Error Handling   | thiserror 2.0                                                                                                  |
 | Logging          | tracing / tracing-subscriber 0.3                                                                               |
 
 ---
