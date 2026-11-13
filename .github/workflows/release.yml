@@ -11,6 +11,11 @@ on:
         required: false
         type: string
 
+# Least privilege: the build jobs only read the repository. The release job below raises
+# this to contents: write to create the GitHub release.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1

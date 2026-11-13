@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, dev]
 
+# Least privilege: no job writes to the repository. rust-cache uses the Actions cache
+# service, which does not need a GITHUB_TOKEN scope.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
