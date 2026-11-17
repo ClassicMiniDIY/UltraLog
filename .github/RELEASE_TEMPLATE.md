@@ -13,6 +13,8 @@
 3. Run `ultralog.exe`
 
 ### Linux
+Requires glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+).
+
 1. Download `ultralog-linux.tar.gz`
 2. Extract: `tar -xzf ultralog-linux.tar.gz`
 3. Run: `./ultralog-linux`

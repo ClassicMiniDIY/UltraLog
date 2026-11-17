@@ -57,8 +57,18 @@ jobs:
   build-linux:
     name: Build Linux
     needs: check-tag
-    runs-on: ubuntu-latest
+    # Pinned on purpose, never `ubuntu-latest`: the binary needs the glibc of the image it was
+    # built on. 3.1.1 was built on ubuntu-latest after it moved to 26.04 and required glibc 2.43,
+    # so it would not start on Ubuntu 24.04 or older (issue #113). 24.04 gives a glibc 2.35
+    # floor (Ubuntu 22.04+, Debian 12+). The "Check glibc floor" step below enforces it.
+    # See docs/plans/2026-11-17-linux-glibc-floor.md before changing this or GLIBC_FLOOR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      # Highest glibc symbol version the released binary may require.
+      GLIBC_FLOOR: "2.35"
+      # Oldest distro image the binary is load-tested on (its glibc must equal GLIBC_FLOOR).
+      GLIBC_FLOOR_IMAGE: ubuntu:22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -92,6 +102,40 @@ jobs:
 
       - name: Build release binary
         run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      # Fail the release if any strong (non-weak) symbol needs a glibc newer than GLIBC_FLOOR.
+      # Weak references (Rust std's optional pidfd_* at GLIBC_2.39) do not stop the binary
+      # loading on an older glibc, so they are ignored.
+      - name: Check glibc floor
+        run: |
+          BIN=target/x86_64-unknown-linux-gnu/release/ultralog
+          NEED=$(objdump -T "$BIN" \
+            | awk '$2 != "w" && match($0, /GLIBC_[0-9.]+/) { print substr($0, RSTART+6, RLENGTH-6) }' \
+            | sort -V | tail -1)
+          echo "Highest glibc required by strong symbols: $NEED (floor $GLIBC_FLOOR)"
+          if [ -z "$NEED" ]; then
+            echo "::error::Found no versioned glibc symbols in $BIN; the check is broken"
+            exit 1
+          fi
+          if [ "$(printf '%s\n%s\n' "$NEED" "$GLIBC_FLOOR" | sort -V | tail -1)" != "$GLIBC_FLOOR" ]; then
+            echo "::error::ultralog-linux needs glibc $NEED, above the supported floor $GLIBC_FLOOR. Was the runner image changed? See docs/plans/2026-11-17-linux-glibc-floor.md"
+            objdump -T "$BIN" | awk '$2 != "w"' | grep -F "(GLIBC_$NEED)"
+            exit 1
+          fi
+
+      # Load the binary with the real dynamic loader on the oldest supported distro. This also
+      # catches a missing shared library (X11, Wayland, GL and xkbcommon are dlopen'ed today, so
+      # the binary only needs libc, libm and libgcc_s).
+      - name: Load test on oldest supported distro
+        run: |
+          OUT=$(docker run --rm \
+            -v "$PWD/target/x86_64-unknown-linux-gnu/release/ultralog:/ultralog:ro" \
+            "$GLIBC_FLOOR_IMAGE" ldd /ultralog 2>&1)
+          echo "$OUT"
+          if echo "$OUT" | grep -q "not found"; then
+            echo "::error::ultralog-linux does not load on $GLIBC_FLOOR_IMAGE"
+            exit 1
+          fi
 
       - name: Package Linux binary
         run: |
@@ -446,6 +490,8 @@ jobs:
             3. Run `ultralog.exe`
 
             ### Linux
+            Requires glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+).
+
             1. Download `ultralog-linux-beta.tar.gz`
             2. Extract: `tar -xzf ultralog-linux-beta.tar.gz`
             3. Run: `./ultralog-linux`
