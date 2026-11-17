@@ -25,6 +25,12 @@ write on `ultralog-site` only). That is needed because a release created with `G
 starts no other workflow, so `release: published` never fires for releases from `release.yml`.
 Wiki edits go live with the site's next build (daily, or on any dispatch).
 
+**Release notes:** write a release's own notes in `.github/release-notes/<tag>.md` (e.g.
+`v3.2.0.md`) before pushing the tag. The *Assemble release notes* step in `release.yml` puts that
+file above the install steps of `.github/RELEASE_TEMPLATE.md`, and GitHub appends the generated
+PR list. Without the file the release body is the install template only (prereleases use the
+inline beta body).
+
 ## Project Overview
 
 UltraLog is a high-performance ECU (Engine Control Unit) log viewer written in pure Rust. It parses log files from automotive ECUs (Haltech, ECUMaster, RomRaider, Speeduino, rusEFI, AiM, Link, etc.) and displays channel data as interactive time-series graphs with support for computed/virtual channels derived from mathematical formulas.
