@@ -36,7 +36,7 @@ does not stop the program from loading, so they do not raise the floor.
 
 ## Plan
 
-### Phase 1: hotfix, ship as 3.1.2 (recommended now)
+### Phase 1: hotfix (shipped in 3.2.0, together with #114)
 
 1. **Pin the runner.** In `release.yml` `build-linux`, change `runs-on: ubuntu-latest` to
    `runs-on: ubuntu-24.04`, with a comment explaining the glibc floor and pointing to this doc.
@@ -70,11 +70,11 @@ does not stop the program from loading, so they do not raise the floor.
    section of `CLAUDE.md` (runner pinned on purpose; the gate; how to raise the floor). Add
    "Requires glibc 2.35+ (Ubuntu 22.04 or newer)" to the Linux install instructions in the wiki
    (`Installation` / `User-Guide`) and to the release-notes template in `release.yml`.
-5. **Release notes for 3.1.2.** Linux users who downloaded 3.1.1 on a distro older than 26.04
-   never got it to start, so no updater ran. They install 3.1.2 by hand. Users still on 3.1.0
+5. **Release notes for 3.2.0.** Linux users who downloaded 3.1.1 on a distro older than 26.04
+   never got it to start, so no updater ran. They install 3.2.0 by hand. Users still on 3.1.0
    install by hand anyway (the old Linux updater cannot find the binary; see the contract).
    Users on 26.04 who run 3.1.1 auto-update normally.
-6. **Close #113** with a comment that links the release, once 3.1.2 is published.
+6. **Close #113** (closed by the merge of #115; link the 3.2.0 release on it once published).
 
 Verification before tagging: run the workflow with `workflow_dispatch` (beta suffix), download
 the artifact and confirm `objdump -T … | grep GLIBC_2.4` prints nothing.
