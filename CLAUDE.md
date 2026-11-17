@@ -794,7 +794,7 @@ Windows and Linux, extracts it and swaps the binary through a helper script. Two
 
 **Linux glibc floor (issue #113):** a Linux binary needs the glibc of the image that built it.
 3.1.1 was built on `ubuntu-latest` after it moved to 26.04, needed `atan2f@GLIBC_2.43`, and would
-not start on Ubuntu 24.04 or older. Since 3.1.2 `build-linux` in `release.yml` is pinned to
+not start on Ubuntu 24.04 or older. Since 3.2.0 `build-linux` in `release.yml` is pinned to
 `ubuntu-24.04` (floor glibc 2.35: Ubuntu 22.04+, Debian 12+), and two steps guard it: *Check
 glibc floor* fails the release if any strong symbol in `objdump -T` needs a version above
 `GLIBC_FLOOR` (weak ones, such as std's `pidfd_*` at 2.39, are ignored), and *Load test on oldest
