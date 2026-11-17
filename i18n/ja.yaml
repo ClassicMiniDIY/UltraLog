@@ -323,8 +323,18 @@ scatter:
   y_axis: "Y軸:"
   z_axis: "Z軸:"
   hits: "ヒット数"
-  hits_label: "ヒット数:"
-  remove: "X"
+  select_axes: "X軸とY軸を選択してください"
+  no_data: "表示するデータがありません"
+  mixed_lengths: "これらのチャンネルは長さが異なるため、一緒にプロットできません"
+  select: "選択..."
+  left_plot: "左のプロット"
+  right_plot: "右のプロット"
+  cell_value: "セルの値"
+  stat_mean: "平均"
+  stat_min: "最小"
+  stat_max: "最大"
+  z_auto_range: "カラー範囲を自動設定"
+  clear_point: "選択した点をクリア"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

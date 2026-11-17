@@ -8,13 +8,14 @@
 //! - ActiveTool enum
 
 use std::path::PathBuf;
+use ultralog::analysis::scatter::ZStat;
 use ultralog::parsers::Channel;
 use ultralog::parsers::haltech::{ChannelType, HaltechChannel};
 use ultralog::parsers::types::{EcuType, Log, Value};
 use ultralog::state::{
     ActiveTool, CacheKey, HistogramConfig, HistogramGridSize, HistogramMode, HistogramState,
     LoadResult, LoadedFile, LoadingState, MAX_CHANNELS, MAX_CHART_POINTS, SUPPORTED_EXTENSIONS,
-    ScatterPlotConfig, ScatterPlotState, SelectedChannel, SelectedHeatmapPoint,
+    ScatterPlotConfig, ScatterPlotState, ScatterZ, SelectedChannel, SelectedHeatmapPoint,
     SelectedHistogramCell, Tab, ToastType, next_color_index,
 };
 use ultralog::ui::theme::tokens as ultralog_theme;
@@ -337,7 +338,8 @@ fn test_scatter_plot_config_default() {
     assert!(config.file_index.is_none());
     assert!(config.x_channel.is_none());
     assert!(config.y_channel.is_none());
-    assert!(config.z_channel.is_none());
+    assert_eq!(config.z, ScatterZ::Hits);
+    assert!(config.z_range.is_none());
     assert!(config.selected_point.is_none());
 }
 
@@ -347,14 +349,52 @@ fn test_scatter_plot_config_with_values() {
         file_index: Some(0),
         x_channel: Some(1),
         y_channel: Some(2),
-        z_channel: Some(3),
+        z: ScatterZ::Channel {
+            index: 3,
+            stat: ZStat::Max,
+        },
         ..Default::default()
     };
 
     assert_eq!(config.file_index, Some(0));
     assert_eq!(config.x_channel, Some(1));
     assert_eq!(config.y_channel, Some(2));
-    assert_eq!(config.z_channel, Some(3));
+    assert_eq!(config.z.channel(), Some(3));
+}
+
+#[test]
+fn test_scatter_plot_config_remap_after_channel_removed() {
+    let mut config = ScatterPlotConfig {
+        x_channel: Some(1),
+        y_channel: Some(6),
+        z: ScatterZ::Channel {
+            index: 5,
+            stat: ZStat::Min,
+        },
+        z_range: Some((10.0, 16.0)),
+        selected_point: Some(SelectedHeatmapPoint::default()),
+        ..Default::default()
+    };
+
+    // Removing channel 4 shifts the later selections down one.
+    config.remap_after_channel_removed(4);
+    assert_eq!(config.x_channel, Some(1));
+    assert_eq!(config.y_channel, Some(5));
+    assert_eq!(
+        config.z,
+        ScatterZ::Channel {
+            index: 4,
+            stat: ZStat::Min
+        }
+    );
+    assert_eq!(config.z_range, Some((10.0, 16.0)));
+    assert!(config.selected_point.is_none());
+
+    // Removing the Z channel itself falls back to hit count and drops its range.
+    config.remap_after_channel_removed(4);
+    assert_eq!(config.z, ScatterZ::Hits);
+    assert!(config.z_range.is_none());
+    assert_eq!(config.y_channel, Some(4));
 }
 
 // ============================================
@@ -400,6 +440,7 @@ fn test_selected_heatmap_point_clone() {
         x_value: 1.5,
         y_value: 2.5,
         hits: 100,
+        z: Some((14.7, 3)),
     };
 
     let cloned = point.clone();
@@ -407,6 +448,7 @@ fn test_selected_heatmap_point_clone() {
     assert_eq!(cloned.x_value, 1.5);
     assert_eq!(cloned.y_value, 2.5);
     assert_eq!(cloned.hits, 100);
+    assert_eq!(cloned.z, Some((14.7, 3)));
 }
 
 // ============================================

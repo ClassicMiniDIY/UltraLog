@@ -324,8 +324,18 @@ scatter:
   y_axis: "Y محور:"
   z_axis: "Z محور:"
   hits: "ہٹس"
-  hits_label: "ہٹس:"
-  remove: "X"
+  select_axes: "X اور Y محور منتخب کریں"
+  no_data: "پلاٹ کرنے کے لیے کوئی ڈیٹا نہیں"
+  mixed_lengths: "ان چینلز کی لمبائی مختلف ہے، اس لیے انہیں ایک ساتھ پلاٹ نہیں کیا جا سکتا"
+  select: "منتخب کریں..."
+  left_plot: "بائیں پلاٹ"
+  right_plot: "دائیں پلاٹ"
+  cell_value: "سیل کی قدر"
+  stat_mean: "اوسط"
+  stat_min: "کم از کم"
+  stat_max: "زیادہ سے زیادہ"
+  z_auto_range: "خودکار رنگ کی حد"
+  clear_point: "منتخب نقطہ صاف کریں"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

@@ -348,6 +348,16 @@ pub struct ShowScatterPlotRequest {
     pub x_channel: String,
     #[schemars(description = "Channel for Y axis")]
     pub y_channel: String,
+    #[schemars(
+        description = "Optional channel that colours each cell (e.g. AFR over RPM x Boost). Omit to colour by hit count."
+    )]
+    #[serde(default)]
+    pub z_channel: Option<String>,
+    #[schemars(
+        description = "Statistic of the Z channel's samples in each cell: mean (default), min or max. For AFR or lambda, min is the richest reading and max the leanest."
+    )]
+    #[serde(default)]
+    pub z_stat: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -813,7 +823,7 @@ impl UltraLogMcpServer {
     }
 
     #[tool(
-        description = "Switch to scatter plot view to visualize correlation between two channels."
+        description = "Switch to scatter plot view to visualize correlation between two channels, optionally coloured by a third channel (z_channel) instead of hit count."
     )]
     async fn show_scatter_plot(
         &self,
@@ -824,6 +834,8 @@ impl UltraLogMcpServer {
                 file_id: req.file_id,
                 x_channel: req.x_channel,
                 y_channel: req.y_channel,
+                z_channel: req.z_channel,
+                z_stat: req.z_stat,
             })
             .await?
         {

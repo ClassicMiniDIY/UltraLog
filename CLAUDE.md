@@ -104,6 +104,7 @@ src/
 │   ├── afr.rs         # AFR/Lambda analysis (fuel trim drift CUSUM, rich/lean zones)
 │   ├── derived.rs      # Derived metrics (Volumetric Efficiency, injector duty cycle, ...)
 │   ├── filters.rs      # Signal-processing filters (moving average, etc.)
+│   ├── scatter.rs      # Scatter Plot binning (bin_scatter): hits + per-cell Z mean/min/max, shared by screen and export
 │   ├── statistics.rs   # Descriptive statistics and correlation analysis
 │   └── tables/         # Table generators (issues #3, #4) — see Table Generators below
 │       ├── mod.rs          # TableAnalyzer trait, TableEvent/RejectReason/RunReport, TableAccumulator
@@ -180,7 +181,7 @@ src/
     │   ├── tokens.rs                 # GENERATED from design/tokens/tokens.json — never edit by hand
     │   └── codegen.rs                # tokens.json -> tokens.rs generator (cargo run --example gen_theme)
     ├── tool_switcher.rs              # Switch between the five tools (ActiveTool::ALL)
-    ├── scatter_plot.rs               # XY scatter plot visualization
+    ├── scatter_plot.rs               # XY scatter plot: hits or a Z channel (mean/min/max) per cell, ZScale
     ├── histogram.rs                  # 2D histogram/heatmap view for channel distributions
     ├── export.rs                     # Builds the ExportSheet per tool; file export and Copy image
     ├── export_dialog.rs              # ExportDialog: format, Paper/Graphite, Copy image / Export
@@ -430,7 +431,7 @@ UI rendering is split into focused modules that implement methods on `UltraLogAp
 - **`toast.rs`** - Toast notification overlay for user feedback
 - **`tab_bar.rs`** - Chrome-style tabs for multi-file support
 - **`tool_switcher.rs`** - Switch between the five tools in `ActiveTool::ALL` (Log Viewer, Scatter Plot, Histogram, Lambda Delay, Accel Enrichment)
-- **`scatter_plot.rs`** - XY scatter plot for channel correlation analysis
+- **`scatter_plot.rs`** - XY scatter plot for channel correlation analysis. Cells are coloured by hit count or, per plot, by the mean / min / max of a Z channel (issue #114), with an auto or fixed colour range; the X/Y/Z pickers list computed channels too
 - **`histogram.rs`** - 2D histogram/heatmap view of channel distributions, with configurable cell coloring (average Z-value or hit count)
 - **`export.rs`** / **`export_dialog.rs`** / **`export_sheet/`** - the ExportDialog and the one ExportSheet layout every PNG/PDF export uses (see the Export Contract)
 - **`normalization_editor.rs`** - Dialog for creating custom field name mappings
@@ -695,9 +696,9 @@ Several `UltraLogApp` fields cache expensive per-file, per-channel computations 
 
 - **`downsample_cache`** (`(file_index, channel_index) -> (DownsampleViewKey, Vec<[f64; 2]>)`) - LTTB-downsampled chart points, tagged with the view key (zoom/bucket state) they were computed for. Read/written in `src/ui/chart.rs`.
 - **`minmax_cache`** (`CacheKey -> (f64, f64)`) - Per-channel min/max for the legend overlay.
-- **`scatter_histogram_cache`** (keyed by `(file, x_channel, y_channel)`) - Precomputed 2D histogram buckets for the scatter/heatmap view (`src/ui/scatter_plot.rs`).
+- **`scatter_histogram_cache`** (keyed by `ScatterCacheKey { file, x, y, z }`) - binned `ScatterGrid`s (or the `ScatterError` that refused one) for the scatter view (`src/ui/scatter_plot.rs`). The Z statistic and colour range are applied at draw time, so they are not in the key. Cleared when it reaches `SCATTER_CACHE_MAX_ENTRIES` (a 512² grid with Z planes is ~5 MiB).
 
-**Load-bearing invariant:** these caches are keyed by index (file index / channel index), not by identity. Any code path that mutates or reindexes channel data — removing a file, or removing/editing a computed channel (which shifts later computed channels' indices down) — **must clear the relevant caches**, or stale entries will silently render the wrong data against a different channel's index. See `remove_computed_channel` and the file-removal path in `src/app.rs` for the current call sites (`self.downsample_cache.clear()`, `self.minmax_cache.clear()`, `self.scatter_histogram_cache.clear()`).
+**Load-bearing invariant:** these caches are keyed by index (file index / channel index), not by identity. Any code path that mutates or reindexes channel data — removing a file, or removing/editing a computed channel (which shifts later computed channels' indices down) — **must clear the relevant caches**, or stale entries will silently render the wrong data against a different channel's index. See `remove_computed_channel` and the file-removal path in `src/app.rs`, and `handle_delete_computed_channel` in `src/ipc/handler.rs`, for the current call sites (`self.downsample_cache.clear()`, `self.minmax_cache.clear()`, `self.scatter_histogram_cache.clear()`). Both computed-channel removals also call `remap_scatter_after_computed_removed`, because scatter selections (X, Y, Z) are channel indices too: a selection of the removed channel is cleared (Z falls back to Hits) and later indices shift down (`ScatterPlotConfig::remap_after_channel_removed`).
 
 A cache that holds derived **colours** has a second key: `UltraLogApp::theme_generation`, which
 increments on every theme install. The Track Map's coloured-polyline cache stores it
@@ -895,6 +896,12 @@ ColorScale, and the footer (ultralog.co · version · export date).
   (`fonts::export_cjk_face`, any UI language), so Arabic prints unjoined. A character no face has
   prints as `?`, never `.notdef`: printpdf's `.notdef` width differs from skrifa's and shifted the
   text after it.
+- **The scatter export bins like the screen.** `scatter_grid` calls the same
+  `UltraLogApp::build_scatter_grid` / `analysis::scatter::bin_scatter` as the view (at the
+  coarser `SCATTER_BINS`) and the same `scatter_plot::z_scale` (diverging only when the Z range
+  spans zero, a fixed range when one is set). When the grids' ColorScales differ (one plot by hit
+  count, one by a Z channel) each grid gets its own scale under its column; identical scales are
+  drawn once.
 - **Exported scales match the screen.** The table export picks the diverging map for values on
   both sides of zero exactly as `render_table_tool_view` does, and only lambda-deviation measures
   (`MeasureSpec::lean_is_positive`) get the rich · target · lean labels; PW step does not.
@@ -920,7 +927,7 @@ ColorScale, and the footer (ultralog.co · version · export date).
 - **Claude Desktop / MCP Integration** - Embedded MCP server (`src/mcp/`) lets Claude control the running app over `http://localhost:52385/mcp` — select channels, add computed channels, query log data
 - **Unit Preferences** - Users can select display units for temperature, pressure, speed, distance, fuel economy, volume, flow rate, and acceleration
 - **Field Normalization** - Maps ECU-specific channel names to standardized names for cross-ECU comparison
-- **Scatter Plot Tool** - XY scatter plot for analyzing channel correlations
+- **Scatter Plot Tool** - XY scatter plot for analyzing channel correlations; colour each cell by hit count or by the mean, min or max of a third channel (e.g. AFR over RPM × MAP, issue #114), also settable through MCP `show_scatter_plot` (`z_channel`, `z_stat`)
 - **Histogram Tool** - 2D heatmap view of channel distributions
 - **Export Options** - Export the chart, scatter plots, histogram or a tuning table as PNG or PDF on the Paper or Graphite sheet, or copy it as an image for pasting
 - **Log Compare** - Overlay a second log in the same tab (issue #98): channels pair by name, log B is dashed in its pair's colour on a shared scale, with a time offset, Align at cursor, A/B tags and compare-aware exports (see the Log Compare Contract)

@@ -323,8 +323,18 @@ scatter:
   y_axis: "Y-Achse:"
   z_axis: "Z-Achse:"
   hits: "Treffer"
-  hits_label: "Treffer:"
-  remove: "X"
+  select_axes: "X- und Y-Achse auswählen"
+  no_data: "Keine Daten zum Darstellen"
+  mixed_lengths: "Diese Kanäle haben unterschiedliche Längen und können nicht zusammen dargestellt werden"
+  select: "Auswählen..."
+  left_plot: "Linkes Diagramm"
+  right_plot: "Rechtes Diagramm"
+  cell_value: "Zellwert"
+  stat_mean: "Mittelwert"
+  stat_min: "Min"
+  stat_max: "Max"
+  z_auto_range: "Automatischer Farbbereich"
+  clear_point: "Ausgewählten Punkt löschen"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

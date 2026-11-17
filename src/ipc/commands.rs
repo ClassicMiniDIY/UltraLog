@@ -151,6 +151,12 @@ pub enum IpcCommand {
         file_id: String,
         x_channel: String,
         y_channel: String,
+        /// Channel that colours the cells (issue #114). `None` colours by hit count.
+        #[serde(default)]
+        z_channel: Option<String>,
+        /// Statistic of the Z samples in each cell: `mean` (default), `min` or `max`.
+        #[serde(default)]
+        z_stat: Option<String>,
     },
 
     /// Switch back to time series chart view

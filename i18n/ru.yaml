@@ -323,8 +323,18 @@ scatter:
   y_axis: "Ось Y:"
   z_axis: "Ось Z:"
   hits: "Попадания"
-  hits_label: "Попаданий:"
-  remove: "X"
+  select_axes: "Выберите оси X и Y"
+  no_data: "Нет данных для отображения"
+  mixed_lengths: "Эти каналы разной длины и не могут быть построены вместе"
+  select: "Выбрать..."
+  left_plot: "Левый график"
+  right_plot: "Правый график"
+  cell_value: "Значение ячейки"
+  stat_mean: "Среднее"
+  stat_min: "Мин"
+  stat_max: "Макс"
+  z_auto_range: "Автоматический диапазон цветов"
+  clear_point: "Сбросить выбранную точку"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

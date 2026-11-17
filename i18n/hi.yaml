@@ -323,8 +323,18 @@ scatter:
   y_axis: "Y अक्ष:"
   z_axis: "Z अक्ष:"
   hits: "हिट्स"
-  hits_label: "हिट्स:"
-  remove: "X"
+  select_axes: "X और Y अक्ष चुनें"
+  no_data: "प्लॉट करने के लिए कोई डेटा नहीं"
+  mixed_lengths: "इन चैनलों की लंबाई अलग है, इसलिए इन्हें एक साथ प्लॉट नहीं किया जा सकता"
+  select: "चुनें..."
+  left_plot: "बायाँ प्लॉट"
+  right_plot: "दायाँ प्लॉट"
+  cell_value: "सेल मान"
+  stat_mean: "औसत"
+  stat_min: "न्यूनतम"
+  stat_max: "अधिकतम"
+  z_auto_range: "स्वचालित रंग सीमा"
+  clear_point: "चयनित बिंदु हटाएँ"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

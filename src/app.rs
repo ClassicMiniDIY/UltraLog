@@ -2193,6 +2193,30 @@ impl UltraLogApp {
             .push(computed);
     }
 
+    /// After computed channel `computed_idx` of file `file_idx` is removed, fix every scatter
+    /// plot that reads that file (its channel indices shift down one past the removed one).
+    pub(crate) fn remap_scatter_after_computed_removed(
+        &mut self,
+        file_idx: usize,
+        computed_idx: usize,
+    ) {
+        let Some(file) = self.files.get(file_idx) else {
+            return;
+        };
+        let removed = file.log.channels.len() + computed_idx;
+        for tab in &mut self.tabs {
+            let tab_file = tab.file_index;
+            for config in [
+                &mut tab.scatter_plot_state.left,
+                &mut tab.scatter_plot_state.right,
+            ] {
+                if config.file_index.unwrap_or(tab_file) == file_idx {
+                    config.remap_after_channel_removed(removed);
+                }
+            }
+        }
+    }
+
     /// Remove a computed channel from the active file
     pub fn remove_computed_channel(&mut self, index: usize) {
         if let Some(tab_idx) = self.active_tab {
@@ -2201,10 +2225,12 @@ impl UltraLogApp {
                 && index < channels.len()
             {
                 channels.remove(index);
-                // Later computed channels shift down one index, so
-                // cached downsampled points and min/max no longer line up.
+                self.remap_scatter_after_computed_removed(file_idx, index);
+                // Later computed channels shift down one index, so cached
+                // downsampled points, min/max and scatter grids no longer line up.
                 self.downsample_cache.clear();
                 self.minmax_cache.clear();
+                self.scatter_histogram_cache.clear();
             }
         }
     }
@@ -2911,6 +2937,58 @@ mod tests {
             times,
         };
         LoadedFile::new(PathBuf::from(name), name.to_string(), EcuType::Aim, log)
+    }
+
+    #[test]
+    fn removing_a_computed_channel_clears_scatter_grids_and_remaps_selections() {
+        use crate::analysis::scatter::ZStat;
+        use crate::computed::{ComputedChannel, ComputedChannelTemplate};
+        use crate::state::{ScatterCacheKey, ScatterZ};
+
+        let mut app = UltraLogApp::default();
+        app.files.push(file_with_times(
+            "a.csv",
+            (0..10).map(|i| i as f64).collect(),
+        ));
+        app.tabs.push(Tab::new(0, "a.csv".to_string()));
+        app.active_tab = Some(0);
+        for name in ["first", "second"] {
+            let mut c = ComputedChannel::from_template(ComputedChannelTemplate::new(
+                name.into(),
+                "RPM".into(),
+                String::new(),
+                String::new(),
+            ));
+            c.cached_data = Some(vec![0.0; 10]);
+            app.add_computed_channel(c);
+        }
+        // Channel 0 is RPM; computed channels are 1 ("first") and 2 ("second").
+        let left = &mut app.tabs[0].scatter_plot_state.left;
+        left.x_channel = Some(0);
+        left.y_channel = Some(2);
+        left.z = ScatterZ::Channel {
+            index: 1,
+            stat: ZStat::Max,
+        };
+        let key = ScatterCacheKey {
+            file: 0,
+            x: 0,
+            y: 2,
+            z: Some(1),
+        };
+        let grid = app.build_scatter_grid(0, 0, 2, Some(1), 8);
+        app.scatter_histogram_cache.insert(key, grid);
+
+        app.remove_computed_channel(0);
+
+        assert!(app.scatter_histogram_cache.is_empty());
+        let left = &app.tabs[0].scatter_plot_state.left;
+        assert_eq!(left.y_channel, Some(1), "\"second\" moved down to index 1");
+        assert_eq!(
+            left.z,
+            ScatterZ::Hits,
+            "the removed Z channel falls back to hits"
+        );
     }
 
     #[test]

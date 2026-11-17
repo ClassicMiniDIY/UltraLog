@@ -323,8 +323,18 @@ scatter:
   y_axis: "Asse Y:"
   z_axis: "Asse Z:"
   hits: "Occorrenze"
-  hits_label: "Occorrenze:"
-  remove: "X"
+  select_axes: "Seleziona gli assi X e Y"
+  no_data: "Nessun dato da visualizzare"
+  mixed_lengths: "Questi canali hanno lunghezze diverse e non possono essere tracciati insieme"
+  select: "Seleziona..."
+  left_plot: "Grafico sinistro"
+  right_plot: "Grafico destro"
+  cell_value: "Valore cella"
+  stat_mean: "Media"
+  stat_min: "Min"
+  stat_max: "Max"
+  z_auto_range: "Intervallo colori automatico"
+  clear_point: "Cancella punto selezionato"
 
 # Histogram (src/ui/histogram.rs)
 histogram:
