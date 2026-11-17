@@ -301,8 +301,18 @@ scatter:
   y_axis: "Eje Y:"
   z_axis: "Eje Z:"
   hits: "Impactos"
-  hits_label: "Impactos:"
-  remove: "X"
+  select_axes: "Selecciona los ejes X e Y"
+  no_data: "No hay datos para mostrar"
+  mixed_lengths: "Estos canales tienen longitudes distintas y no se pueden representar juntos"
+  select: "Seleccionar..."
+  left_plot: "Gráfico izquierdo"
+  right_plot: "Gráfico derecho"
+  cell_value: "Valor de celda"
+  stat_mean: "Media"
+  stat_min: "Mín"
+  stat_max: "Máx"
+  z_auto_range: "Rango de color automático"
+  clear_point: "Borrar punto seleccionado"
 
 # Histograma (src/ui/histogram.rs)
 histogram:

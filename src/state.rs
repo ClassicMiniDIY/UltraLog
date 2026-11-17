@@ -209,20 +209,28 @@ pub struct CacheKey {
 pub type DownsampleCache =
     std::collections::HashMap<(usize, usize, usize), (DownsampleViewKey, Vec<[f64; 2]>)>;
 
-/// Precomputed 2D histogram for the scatter-plot heatmap. Channel data is
-/// immutable once a file is loaded, so this only needs rebuilding when the
-/// axis selection changes (cache is cleared on file removal).
-pub struct ScatterHistogram {
-    pub bins: Vec<Vec<u32>>,
-    pub max_hits: u32,
-    pub x_min: f64,
-    pub x_max: f64,
-    pub y_min: f64,
-    pub y_max: f64,
+/// Which binned scatter grid a cache entry holds: file, X, Y and the Z channel (if any).
+/// Channel data is immutable once a file is loaded, so an entry only needs rebuilding when the
+/// selection changes. The Z statistic and colour range are applied at draw time, not here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ScatterCacheKey {
+    pub file: usize,
+    pub x: usize,
+    pub y: usize,
+    pub z: Option<usize>,
 }
 
-/// Scatter heatmap cache keyed by (file_index, x_channel, y_channel)
-pub type ScatterHistogramCache = std::collections::HashMap<(usize, usize, usize), ScatterHistogram>;
+/// Binned scatter grids (or why one could not be built), keyed by [`ScatterCacheKey`].
+/// Indices, not identities: cleared on file removal and on computed-channel removal (see the
+/// Chart/Scatter Cache Invalidation Contract in CLAUDE.md).
+pub type ScatterHistogramCache = std::collections::HashMap<
+    ScatterCacheKey,
+    Result<crate::analysis::scatter::ScatterGrid, crate::analysis::scatter::ScatterError>,
+>;
+
+/// Entries kept in [`ScatterHistogramCache`] before it is cleared. A 512² grid with Z
+/// statistics is about 5 MiB, and each tab shows two plots.
+pub const SCATTER_CACHE_MAX_ENTRIES: usize = 8;
 
 /// Identifies which viewport a cached set of downsampled chart points was
 /// computed for. The bucketed downsampler anchors bucket boundaries at
@@ -377,6 +385,32 @@ pub struct SelectedHeatmapPoint {
     pub y_value: f64,
     /// Hit count at this point
     pub hits: u32,
+    /// The cell's Z statistic and how many Z samples it summarises, when the plot is coloured
+    /// by a Z channel and the cell holds one.
+    pub z: Option<(f32, u32)>,
+}
+
+/// What colours a scatter plot's cells (issue #114).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ScatterZ {
+    /// Sample count per cell (log scale).
+    #[default]
+    Hits,
+    /// A statistic of another channel's samples in each cell.
+    Channel {
+        index: usize,
+        stat: crate::analysis::scatter::ZStat,
+    },
+}
+
+impl ScatterZ {
+    /// The Z channel index, if the plot is coloured by a channel.
+    pub fn channel(&self) -> Option<usize> {
+        match self {
+            ScatterZ::Hits => None,
+            ScatterZ::Channel { index, .. } => Some(*index),
+        }
+    }
 }
 
 /// Configuration for a single scatter plot panel
@@ -388,10 +422,40 @@ pub struct ScatterPlotConfig {
     pub x_channel: Option<usize>,
     /// Channel index for Y axis
     pub y_channel: Option<usize>,
-    /// Channel index for Z axis (color coding)
-    pub z_channel: Option<usize>,
+    /// What colours the cells: hit count or a Z channel statistic
+    pub z: ScatterZ,
+    /// Fixed colour range for a Z channel. `None` = auto from the populated cells
+    pub z_range: Option<(f64, f64)>,
     /// Currently selected point (persisted on click)
     pub selected_point: Option<SelectedHeatmapPoint>,
+}
+
+impl ScatterPlotConfig {
+    /// Fix the channel indices after the channel at `removed` (a computed channel of this
+    /// plot's file) is deleted: a selection of that channel is cleared (Z falls back to Hits)
+    /// and later indices shift down one, so the plot never silently shows another channel.
+    pub fn remap_after_channel_removed(&mut self, removed: usize) {
+        let remap = |idx: Option<usize>| match idx {
+            Some(i) if i == removed => None,
+            Some(i) if i > removed => Some(i - 1),
+            other => other,
+        };
+        let before = (self.x_channel, self.y_channel, self.z);
+        self.x_channel = remap(self.x_channel);
+        self.y_channel = remap(self.y_channel);
+        if let ScatterZ::Channel { index, stat } = self.z {
+            self.z = match remap(Some(index)) {
+                Some(index) => ScatterZ::Channel { index, stat },
+                None => {
+                    self.z_range = None;
+                    ScatterZ::Hits
+                }
+            };
+        }
+        if (self.x_channel, self.y_channel, self.z) != before {
+            self.selected_point = None;
+        }
+    }
 }
 
 /// State for the scatter plot view (dual plots)

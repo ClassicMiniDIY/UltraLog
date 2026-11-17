@@ -4,10 +4,11 @@
 
 use std::path::PathBuf;
 
+use crate::analysis::scatter::ZStat;
 use crate::app::UltraLogApp;
 use crate::computed::{ComputedChannel, ComputedChannelTemplate};
 use crate::expression;
-use crate::state::ActiveTool;
+use crate::state::{ActiveTool, ScatterZ};
 
 use super::commands::*;
 
@@ -98,7 +99,15 @@ impl UltraLogApp {
                 file_id,
                 x_channel,
                 y_channel,
-            } => self.handle_show_scatter_plot(&file_id, &x_channel, &y_channel),
+                z_channel,
+                z_stat,
+            } => self.handle_show_scatter_plot(
+                &file_id,
+                &x_channel,
+                &y_channel,
+                z_channel.as_deref(),
+                z_stat.as_deref(),
+            ),
 
             IpcCommand::ShowChart => self.handle_show_chart(),
         }
@@ -574,10 +583,12 @@ impl UltraLogApp {
                     .position(|c| c.name().eq_ignore_ascii_case(name))
             {
                 computed.remove(pos);
-                // Later computed channels shift down one index, so
-                // cached downsampled points and min/max no longer line up.
+                self.remap_scatter_after_computed_removed(file_idx, pos);
+                // Later computed channels shift down one index, so cached
+                // downsampled points, min/max and scatter grids no longer line up.
                 self.downsample_cache.clear();
                 self.minmax_cache.clear();
+                self.scatter_histogram_cache.clear();
             }
         }
 
@@ -816,25 +827,56 @@ impl UltraLogApp {
         file_id: &str,
         x_channel: &str,
         y_channel: &str,
+        z_channel: Option<&str>,
+        z_stat: Option<&str>,
     ) -> IpcResponse {
         let file_idx = match file_id.parse::<usize>() {
             Ok(idx) if idx < self.files.len() => idx,
             _ => return IpcResponse::error(format!("Invalid file ID: {}", file_id)),
         };
 
-        // Find channel indices first (while we only have immutable borrow)
+        // Find channel indices first (while we only have immutable borrow). Computed channels
+        // follow the log's own channels, as in the scatter plot's channel lists.
         let file = &self.files[file_idx];
+        let base = file.log.channels.len();
+        let computed = self.file_computed_channels.get(&file_idx);
         let find = |name: &str| {
             file.log
                 .channels
                 .iter()
                 .position(|c| c.name().eq_ignore_ascii_case(name))
+                .or_else(|| {
+                    computed?
+                        .iter()
+                        .position(|c| c.name().eq_ignore_ascii_case(name))
+                        .map(|i| base + i)
+                })
         };
         let Some(x) = find(x_channel) else {
             return IpcResponse::error(format!("Channel not found: {}", x_channel));
         };
         let Some(y) = find(y_channel) else {
             return IpcResponse::error(format!("Channel not found: {}", y_channel));
+        };
+        let stat = match z_stat.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+            None | Some("mean") => ZStat::Mean,
+            Some("min") => ZStat::Min,
+            Some("max") => ZStat::Max,
+            Some(other) => {
+                return IpcResponse::error(format!(
+                    "Invalid z_stat: {other} (expected mean, min or max)"
+                ));
+            }
+        };
+        let z = match z_channel {
+            None if z_stat.is_some() => {
+                return IpcResponse::error("z_stat needs a z_channel".to_string());
+            }
+            None => ScatterZ::Hits,
+            Some(name) => match find(name) {
+                Some(index) => ScatterZ::Channel { index, stat },
+                None => return IpcResponse::error(format!("Channel not found: {}", name)),
+            },
         };
 
         // Scatter state lives on the tab, and the indices belong to this file,
@@ -845,6 +887,11 @@ impl UltraLogApp {
         if let Some(state) = self.get_scatter_plot_state_mut() {
             state.left.x_channel = Some(x);
             state.left.y_channel = Some(y);
+            if state.left.z != z {
+                state.left.z_range = None;
+            }
+            state.left.z = z;
+            state.left.selected_point = None;
         }
 
         IpcResponse::ok()
@@ -1145,7 +1192,7 @@ mod tests {
         // The other file's tab is active, as after loading a second log.
         app.active_tab = Some(1);
 
-        let response = app.handle_show_scatter_plot("0", "RPM", "MAP");
+        let response = app.handle_show_scatter_plot("0", "RPM", "MAP", None, None);
 
         assert!(matches!(response, IpcResponse::Ok(_)));
         assert_eq!(app.active_tab, Some(0));
@@ -1161,9 +1208,55 @@ mod tests {
         app.tabs.push(Tab::new(0, "a.xrk".to_string()));
         app.active_tab = Some(0);
 
-        let response = app.handle_show_scatter_plot("0", "RPM", "Boost");
+        let response = app.handle_show_scatter_plot("0", "RPM", "Boost", None, None);
 
         assert!(matches!(response, IpcResponse::Error { .. }));
         assert_eq!(app.tabs[0].scatter_plot_state.left.x_channel, None);
+    }
+
+    #[test]
+    fn show_scatter_plot_sets_z_channel_and_stat() {
+        let mut app = UltraLogApp::default();
+        app.files
+            .push(file_with_channels("a.xrk", &["RPM", "Boost", "AFR"]));
+        app.tabs.push(Tab::new(0, "a.xrk".to_string()));
+        app.active_tab = Some(0);
+
+        let response = app.handle_show_scatter_plot("0", "RPM", "Boost", Some("afr"), Some("Max"));
+        assert!(matches!(response, IpcResponse::Ok(_)));
+        assert_eq!(
+            app.tabs[0].scatter_plot_state.left.z,
+            ScatterZ::Channel {
+                index: 2,
+                stat: ZStat::Max
+            }
+        );
+
+        // Without z_channel the plot goes back to hit count.
+        let response = app.handle_show_scatter_plot("0", "RPM", "Boost", None, None);
+        assert!(matches!(response, IpcResponse::Ok(_)));
+        assert_eq!(app.tabs[0].scatter_plot_state.left.z, ScatterZ::Hits);
+    }
+
+    #[test]
+    fn show_scatter_plot_rejects_bad_z_arguments() {
+        let mut app = UltraLogApp::default();
+        app.files
+            .push(file_with_channels("a.xrk", &["RPM", "Boost", "AFR"]));
+        app.tabs.push(Tab::new(0, "a.xrk".to_string()));
+        app.active_tab = Some(0);
+
+        for (z, stat) in [
+            (Some("Lambda"), None),
+            (Some("AFR"), Some("median")),
+            (None, Some("min")),
+        ] {
+            let response = app.handle_show_scatter_plot("0", "RPM", "Boost", z, stat);
+            assert!(
+                matches!(response, IpcResponse::Error { .. }),
+                "{z:?} {stat:?}"
+            );
+        }
+        assert_eq!(app.tabs[0].scatter_plot_state.left.z, ScatterZ::Hits);
     }
 }

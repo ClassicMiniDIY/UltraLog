@@ -8,15 +8,16 @@ use std::path::Path;
 
 use rust_i18n::t;
 
-use crate::analysis::tables::binning::uniform_bin;
+use crate::analysis::tables::binning::{finite_bounds, uniform_bin};
 use crate::analytics;
 use crate::app::UltraLogApp;
 use crate::normalize::normalize_channel_name_with_custom;
-use crate::state::{ActiveTool, HistogramMode, ScatterPlotConfig};
+use crate::state::{ActiveTool, HistogramMode, ScatterPlotConfig, ScatterZ};
 use crate::ui::export_sheet::{
     self, Body, ChartModel, ExportFormat, GridModel, SeriesModel, Sheet,
 };
 use crate::ui::heatmap::MapKind;
+use crate::ui::scatter_plot::z_scale;
 use crate::ui::theme::ExportTheme;
 
 /// Points per series on an exported chart (LTTB keeps peaks and dropouts).
@@ -75,17 +76,6 @@ pub(crate) fn group_thousands(n: usize) -> String {
     out
 }
 
-/// Finite min and max of `values`, or `None` when there are none.
-fn finite_bounds(values: &[f64]) -> Option<(f64, f64)> {
-    let mut lo = f64::INFINITY;
-    let mut hi = f64::NEG_INFINITY;
-    for &v in values.iter().filter(|v| v.is_finite()) {
-        lo = lo.min(v);
-        hi = hi.max(v);
-    }
-    (lo <= hi).then_some((lo, hi))
-}
-
 /// A value on the chart's 0..=1 scale for a channel spanning `lo..=hi`. A constant channel
 /// sits at mid-height, as `chart.rs` draws it, not on the bottom border.
 fn normalize_like_chart(v: f64, lo: f64, hi: f64) -> f64 {
@@ -140,7 +130,7 @@ fn nonzero(range: f64) -> f64 {
 
 impl UltraLogApp {
     /// The display name of a channel (normalized when field normalization is on).
-    fn export_channel_name(&self, file_idx: usize, channel_idx: usize) -> String {
+    pub(crate) fn export_channel_name(&self, file_idx: usize, channel_idx: usize) -> String {
         let name = self.get_channel_name(file_idx, channel_idx);
         if self.field_normalization {
             normalize_channel_name_with_custom(&name, Some(&self.custom_normalizations))
@@ -569,59 +559,83 @@ impl UltraLogApp {
         })
     }
 
+    /// One scatter plot as a density map (or a Z-channel map), binned by the same
+    /// `bin_scatter` as the screen at the export's coarser `SCATTER_BINS`, with the same colour
+    /// scale rule (`scatter_plot::z_scale`).
     fn scatter_grid(&self, config: &ScatterPlotConfig, fallback: usize) -> Option<GridModel> {
         let file_idx = config.file_index.unwrap_or(fallback);
         let (x_idx, y_idx) = (config.x_channel?, config.y_channel?);
         if file_idx >= self.files.len() {
             return None;
         }
-        let x = self.get_channel_data(file_idx, x_idx);
-        let y = self.get_channel_data(file_idx, y_idx);
-        if x.is_empty() || x.len() != y.len() {
-            return None;
-        }
-        let (x_min, x_max) = finite_bounds(&x)?;
-        let (y_min, y_max) = finite_bounds(&y)?;
-        let (x_range, y_range) = (nonzero(x_max - x_min), nonzero(y_max - y_min));
-        let n = SCATTER_BINS;
-        let mut hits = vec![vec![0u32; n]; n];
-        for (&xv, &yv) in x.iter().zip(&y) {
-            if xv.is_finite() && yv.is_finite() {
-                hits[uniform_bin(yv, y_min, y_range, n)][uniform_bin(xv, x_min, x_range, n)] += 1;
-            }
-        }
-        let max = hits.iter().flatten().copied().max().unwrap_or(0);
-        let norm = hits
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .map(|&h| {
-                        (h > 0).then(|| {
-                            if max > 1 {
-                                ((h as f64).ln() / (max as f64).ln()) as f32
-                            } else {
-                                1.0
+        let grid = self
+            .build_scatter_grid(file_idx, x_idx, y_idx, config.z.channel(), SCATTER_BINS)
+            .ok()?;
+        let n = grid.bins;
+        let scale = z_scale(&grid, config);
+        let norm = (0..n)
+            .map(|y| {
+                (0..n)
+                    .map(|x| {
+                        let idx = grid.index(x, y);
+                        let hits = grid.hits[idx];
+                        if hits == 0 {
+                            return None;
+                        }
+                        match (config.z, scale) {
+                            (ScatterZ::Channel { stat, .. }, Some(scale)) => {
+                                grid.z_value(idx, stat).map(|(v, _)| scale.norm(v as f64))
                             }
-                        })
+                            (ScatterZ::Channel { .. }, None) => None,
+                            (ScatterZ::Hits, _) if grid.max_hits > 1 => {
+                                Some(((hits as f64).ln() / (grid.max_hits as f64).ln()) as f32)
+                            }
+                            (ScatterZ::Hits, _) => Some(1.0),
+                        }
                     })
                     .collect()
             })
             .collect();
+        let (kind, scale_title, scale_min, scale_max) = match (config.z, scale) {
+            (ScatterZ::Channel { .. }, Some(scale)) => {
+                let (lo, hi) = scale.end_labels();
+                (scale.kind, self.scatter_z_label(config, file_idx), lo, hi)
+            }
+            (ScatterZ::Channel { .. }, None) => (
+                MapKind::Sequential,
+                self.scatter_z_label(config, file_idx),
+                String::new(),
+                String::new(),
+            ),
+            (ScatterZ::Hits, _) => (
+                MapKind::Sequential,
+                t!("histogram.scale_hits").to_string(),
+                "1".into(),
+                grid.max_hits.to_string(),
+            ),
+        };
         let x_title = self.export_channel_name(file_idx, x_idx);
         let y_title = self.export_channel_name(file_idx, y_idx);
+        let caption = match config.z {
+            ScatterZ::Hits => format!("{y_title} vs {x_title}"),
+            ScatterZ::Channel { .. } => format!(
+                "{y_title} vs {x_title} \u{00B7} {}",
+                self.scatter_z_label(config, file_idx)
+            ),
+        };
         Some(GridModel {
-            caption: Some(format!("{y_title} vs {x_title}")),
+            caption: Some(caption),
             x_title,
             y_title,
-            x_ticks: even_ticks(x_min, x_range, 4),
-            y_ticks: even_ticks(y_min, y_range, 4),
+            x_ticks: even_ticks(grid.x_min, grid.x_range(), 4),
+            y_ticks: even_ticks(grid.y_min, grid.y_range(), 4),
             norm,
             labels: Vec::new(),
             counts: None,
-            kind: MapKind::Sequential,
-            scale_title: t!("histogram.scale_hits").to_string(),
-            scale_min: "1".into(),
-            scale_max: max.to_string(),
+            kind,
+            scale_title,
+            scale_min,
+            scale_max,
             rich_lean: false,
             dense: true,
         })
@@ -678,6 +692,115 @@ mod tests {
             EcuType::Aim,
             log,
         )
+    }
+
+    /// "RPM", "MAP" and `z_name` at 10 Hz over 10 s; Z = `z(t)`.
+    fn scatter_file(z_name: &str, z: impl Fn(f64) -> f64) -> crate::state::LoadedFile {
+        use crate::parsers::aim::AimChannel;
+        use crate::parsers::types::Meta;
+        use crate::parsers::{Channel, EcuType, Log, Value};
+        let times: Vec<f64> = (0..=100).map(|i| i as f64 * 0.1).collect();
+        let log = Log {
+            meta: Meta::Empty,
+            channels: ["RPM", "MAP", z_name]
+                .iter()
+                .map(|n| {
+                    Channel::Aim(AimChannel {
+                        name: n.to_string(),
+                        unit: String::new(),
+                    })
+                })
+                .collect(),
+            data: times
+                .iter()
+                .map(|&t| {
+                    vec![
+                        Value::Float(1000.0 + 500.0 * t),
+                        Value::Float(30.0 + 10.0 * t),
+                        Value::Float(z(t)),
+                    ]
+                })
+                .collect(),
+            times,
+        };
+        crate::state::LoadedFile::new(
+            std::path::PathBuf::from("scatter.csv"),
+            "scatter.csv".to_string(),
+            EcuType::Aim,
+            log,
+        )
+    }
+
+    fn scatter_app(z_name: &str, z: impl Fn(f64) -> f64, mode: ScatterZ) -> UltraLogApp {
+        let mut app = UltraLogApp::default();
+        app.files.push(scatter_file(z_name, z));
+        app.tabs
+            .push(crate::state::Tab::new(0, "scatter.csv".to_string()));
+        app.active_tab = Some(0);
+        let left = &mut app.tabs[0].scatter_plot_state.left;
+        left.x_channel = Some(0);
+        left.y_channel = Some(1);
+        left.z = mode;
+        app
+    }
+
+    fn only_grid(app: &UltraLogApp) -> GridModel {
+        match app.scatter_sheet().unwrap().body {
+            Body::Grids(mut grids) => {
+                assert_eq!(grids.len(), 1);
+                grids.remove(0)
+            }
+            _ => panic!("scatter exports grids"),
+        }
+    }
+
+    #[test]
+    fn scatter_export_hits_mode_is_a_density_map() {
+        let app = scatter_app("AFR", |_| 14.7, ScatterZ::Hits);
+        let grid = only_grid(&app);
+        assert_eq!(grid.kind, MapKind::Sequential);
+        assert_eq!(grid.scale_min, "1");
+        assert_eq!(grid.caption.as_deref(), Some("MAP vs RPM"));
+    }
+
+    #[test]
+    fn scatter_export_colours_by_z_channel() {
+        let z = ScatterZ::Channel {
+            index: 2,
+            stat: crate::analysis::scatter::ZStat::Max,
+        };
+        let app = scatter_app("AFR", |t| 11.0 + 0.5 * t, z);
+        let grid = only_grid(&app);
+        assert_eq!(grid.kind, MapKind::Sequential);
+        assert!(grid.scale_title.starts_with("AFR"), "{}", grid.scale_title);
+        // Max per cell: the first cell holds 11.00 and 11.05, so the scale starts at 11.05.
+        assert_eq!(
+            (grid.scale_min.as_str(), grid.scale_max.as_str()),
+            ("11.05", "16.00")
+        );
+        // The richest cell (lowest AFR) is at the start of the pull: bottom-left, value 0.
+        let first = grid
+            .norm
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .fold(f32::MAX, f32::min);
+        assert_eq!(first, 0.0);
+        assert!(grid.caption.unwrap().contains("AFR"));
+    }
+
+    #[test]
+    fn scatter_export_uses_diverging_map_across_zero() {
+        let z = ScatterZ::Channel {
+            index: 2,
+            stat: crate::analysis::scatter::ZStat::Mean,
+        };
+        let app = scatter_app("Lambda error", |t| (t - 5.0) / 50.0, z);
+        let grid = only_grid(&app);
+        assert_eq!(grid.kind, MapKind::Diverging);
+        assert!(grid.scale_min.starts_with('\u{2212}'));
+        assert!(grid.scale_max.starts_with('+'));
     }
 
     #[test]

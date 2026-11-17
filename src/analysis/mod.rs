@@ -13,6 +13,7 @@
 pub mod afr;
 pub mod derived;
 pub mod filters;
+pub mod scatter;
 pub mod statistics;
 pub mod tables;
 

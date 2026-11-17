@@ -323,8 +323,18 @@ scatter:
   y_axis: "Eixo Y:"
   z_axis: "Eixo Z:"
   hits: "Ocorrências"
-  hits_label: "Ocorrências:"
-  remove: "X"
+  select_axes: "Selecione os eixos X e Y"
+  no_data: "Sem dados para apresentar"
+  mixed_lengths: "Estes canais têm comprimentos diferentes e não podem ser representados em conjunto"
+  select: "Selecionar..."
+  left_plot: "Gráfico esquerdo"
+  right_plot: "Gráfico direito"
+  cell_value: "Valor da célula"
+  stat_mean: "Média"
+  stat_min: "Mín"
+  stat_max: "Máx"
+  z_auto_range: "Intervalo de cores automático"
+  clear_point: "Limpar ponto selecionado"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

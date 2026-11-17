@@ -29,6 +29,17 @@ pub fn uniform_bin(value: f64, min: f64, range: f64, n: usize) -> usize {
     ((normalized * n as f32).floor() as usize).min(n - 1)
 }
 
+/// Finite min and max of `values`, or `None` when there are none.
+pub fn finite_bounds(values: &[f64]) -> Option<(f64, f64)> {
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    for &v in values.iter().filter(|v| v.is_finite()) {
+        lo = lo.min(v);
+        hi = hi.max(v);
+    }
+    (lo <= hi).then_some((lo, hi))
+}
+
 /// One table axis.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AxisSpec {

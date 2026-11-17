@@ -323,8 +323,18 @@ scatter:
   y_axis: "المحور العمودي:"
   z_axis: "المحور Z:"
   hits: "الإصابات"
-  hits_label: "الإصابات:"
-  remove: "X"
+  select_axes: "اختر المحورين الأفقي والعمودي"
+  no_data: "لا توجد بيانات للعرض"
+  mixed_lengths: "أطوال هذه القنوات مختلفة ولا يمكن رسمها معًا"
+  select: "اختر..."
+  left_plot: "المخطط الأيسر"
+  right_plot: "المخطط الأيمن"
+  cell_value: "قيمة الخلية"
+  stat_mean: "المتوسط"
+  stat_min: "الأدنى"
+  stat_max: "الأعلى"
+  z_auto_range: "نطاق ألوان تلقائي"
+  clear_point: "مسح النقطة المحددة"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

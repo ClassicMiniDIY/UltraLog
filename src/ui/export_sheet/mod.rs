@@ -316,25 +316,51 @@ fn draw_sheet(c: &mut dyn Canvas, sheet: &Sheet, theme: ExportTheme, page: Rect,
             draw_series_legend(c, chart, &legend, &t, pos2(body.left(), legend_y))
         }
         Body::Grids(grids) => {
-            if let Some(g) = grids.first() {
-                draw_color_scale(c, g, &t, pos2(body.left(), legend_y));
+            // One ColorScale when every grid shares it; otherwise each grid gets its own under
+            // its column (two scatter plots, one by hit count and one by a Z channel, #114).
+            let shared = grids.windows(2).all(|w| same_scale(&w[0], &w[1]));
+            if shared {
+                if let Some(g) = grids.first() {
+                    draw_color_scale(c, g, &t, pos2(body.left(), legend_y));
+                }
+            } else {
+                for (g, col) in grids.iter().zip(grid_columns(body, grids.len())) {
+                    draw_color_scale(c, g, &t, pos2(col.left(), legend_y));
+                }
             }
         }
     }
+}
+
+/// Whether two grids would draw the same ColorScale.
+fn same_scale(a: &GridModel, b: &GridModel) -> bool {
+    a.kind == b.kind
+        && a.scale_title == b.scale_title
+        && a.scale_min == b.scale_min
+        && a.scale_max == b.scale_max
+        && a.rich_lean == b.rich_lean
+}
+
+/// `n` equal side-by-side columns across `rect`, 24 pt apart.
+fn grid_columns(rect: Rect, n: usize) -> Vec<Rect> {
+    let count = n.max(1) as f32;
+    let gap = 24.0;
+    let w = (rect.width() - gap * (count - 1.0)) / count;
+    (0..n)
+        .map(|i| {
+            Rect::from_min_size(
+                rect.left_top() + vec2((w + gap) * i as f32, 0.0),
+                vec2(w, rect.height()),
+            )
+        })
+        .collect()
 }
 
 fn draw_body(c: &mut dyn Canvas, body: &Body, t: &Tokens, rect: Rect) {
     match body {
         Body::Chart(chart) => draw_chart(c, chart, t, rect),
         Body::Grids(grids) => {
-            let n = grids.len().max(1) as f32;
-            let gap = 24.0;
-            let w = (rect.width() - gap * (n - 1.0)) / n;
-            for (i, g) in grids.iter().enumerate() {
-                let r = Rect::from_min_size(
-                    rect.left_top() + vec2((w + gap) * i as f32, 0.0),
-                    vec2(w, rect.height()),
-                );
+            for (g, r) in grids.iter().zip(grid_columns(rect, grids.len())) {
                 draw_grid(c, g, t, r);
             }
         }

@@ -323,8 +323,18 @@ scatter:
   y_axis: "Y অক্ষ:"
   z_axis: "Z অক্ষ:"
   hits: "হিট"
-  hits_label: "হিট:"
-  remove: "X"
+  select_axes: "X এবং Y অক্ষ নির্বাচন করুন"
+  no_data: "প্লট করার মতো কোনো ডেটা নেই"
+  mixed_lengths: "এই চ্যানেলগুলোর দৈর্ঘ্য ভিন্ন, তাই একসাথে প্লট করা যায় না"
+  select: "নির্বাচন করুন..."
+  left_plot: "বাম প্লট"
+  right_plot: "ডান প্লট"
+  cell_value: "সেলের মান"
+  stat_mean: "গড়"
+  stat_min: "সর্বনিম্ন"
+  stat_max: "সর্বোচ্চ"
+  z_auto_range: "স্বয়ংক্রিয় রঙের পরিসর"
+  clear_point: "নির্বাচিত বিন্দু মুছুন"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

@@ -301,8 +301,18 @@ scatter:
   y_axis: "Y 轴:"
   z_axis: "Z 轴:"
   hits: "命中"
-  hits_label: "命中:"
-  remove: "X"
+  select_axes: "请选择 X 轴和 Y 轴"
+  no_data: "没有可绘制的数据"
+  mixed_lengths: "这些通道长度不同，无法一起绘制"
+  select: "选择..."
+  left_plot: "左侧图表"
+  right_plot: "右侧图表"
+  cell_value: "单元格值"
+  stat_mean: "平均值"
+  stat_min: "最小值"
+  stat_max: "最大值"
+  z_auto_range: "自动颜色范围"
+  clear_point: "清除所选点"
 
 # 直方图 (src/ui/histogram.rs)
 histogram:

@@ -323,8 +323,18 @@ scatter:
   y_axis: "Sumbu Y:"
   z_axis: "Sumbu Z:"
   hits: "Hit"
-  hits_label: "Hit:"
-  remove: "X"
+  select_axes: "Pilih sumbu X dan Y"
+  no_data: "Tidak ada data untuk ditampilkan"
+  mixed_lengths: "Kanal-kanal ini memiliki panjang berbeda dan tidak dapat diplot bersama"
+  select: "Pilih..."
+  left_plot: "Plot kiri"
+  right_plot: "Plot kanan"
+  cell_value: "Nilai sel"
+  stat_mean: "Rata-rata"
+  stat_min: "Min"
+  stat_max: "Maks"
+  z_auto_range: "Rentang warna otomatis"
+  clear_point: "Hapus titik terpilih"
 
 # Histogram (src/ui/histogram.rs)
 histogram:

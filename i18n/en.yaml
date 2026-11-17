@@ -323,8 +323,18 @@ scatter:
   y_axis: "Y Axis:"
   z_axis: "Z Axis:"
   hits: "Hits"
-  hits_label: "Hits:"
-  remove: "X"
+  select_axes: "Select X and Y axes"
+  no_data: "No data to plot"
+  mixed_lengths: "These channels have different lengths and cannot be plotted together"
+  select: "Select..."
+  left_plot: "Left plot"
+  right_plot: "Right plot"
+  cell_value: "Cell value"
+  stat_mean: "Mean"
+  stat_min: "Min"
+  stat_max: "Max"
+  z_auto_range: "Auto color range"
+  clear_point: "Clear selected point"
 
 # Histogram (src/ui/histogram.rs)
 histogram:
