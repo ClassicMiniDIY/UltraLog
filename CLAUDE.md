@@ -791,6 +791,19 @@ Windows and Linux, extracts it and swaps the binary through a helper script. Two
 - Known gap: extraction uses the fixed `{temp}/ultralog-update` directory, which another user on a
   shared Linux host could create first. A unique temp directory would close it.
 
+**Linux glibc floor (issue #113):** a Linux binary needs the glibc of the image that built it.
+3.1.1 was built on `ubuntu-latest` after it moved to 26.04, needed `atan2f@GLIBC_2.43`, and would
+not start on Ubuntu 24.04 or older. Since 3.1.2 `build-linux` in `release.yml` is pinned to
+`ubuntu-24.04` (floor glibc 2.35: Ubuntu 22.04+, Debian 12+), and two steps guard it: *Check
+glibc floor* fails the release if any strong symbol in `objdump -T` needs a version above
+`GLIBC_FLOOR` (weak ones, such as std's `pidfd_*` at 2.39, are ignored), and *Load test on oldest
+supported distro* runs `ldd` in `GLIBC_FLOOR_IMAGE` (`ubuntu:22.04`). Never move that job back to
+`ubuntu-latest`. Raising the floor is a deliberate change to `GLIBC_FLOOR`, `GLIBC_FLOOR_IMAGE`
+and the release notes' "Requires glibc" line together. The way to lower the floor or leave the
+runner images behind (`cargo-zigbuild` against `x86_64-unknown-linux-gnu.2.31`) is in
+`docs/plans/2026-11-17-linux-glibc-floor.md`. This matters more now that the Linux updater really
+installs: a build that cannot load would replace a working binary.
+
 ### Map Tile Fetching Contract (src/tiles.rs)
 
 The Track Map widget can draw map tile backgrounds. Tiles are **opt-in** (off by default) and only two hardcoded HTTPS providers exist: Esri World Imagery and OpenStreetMap. Requests carry integer tile coordinates plus the UltraLog User-Agent, nothing else. The first time a user enables tiles, a one-time toast (`tile_privacy_notice_seen`) notes that the track's approximate location is shared with the provider.
