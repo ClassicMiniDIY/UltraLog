@@ -804,7 +804,9 @@ not start on Ubuntu 24.04 or older. Since 3.2.0 `build-linux` in `release.yml` i
 `ubuntu-24.04` (floor glibc 2.35: Ubuntu 22.04+, Debian 12+), and two steps guard it: *Check
 glibc floor* fails the release if any strong symbol in `objdump -T` needs a version above
 `GLIBC_FLOOR` (weak ones, such as std's `pidfd_*` at 2.39, are ignored), and *Load test on oldest
-supported distro* runs `ldd` in `GLIBC_FLOOR_IMAGE` (`ubuntu:22.04`). Never move that job back to
+supported distro* runs `ldd` in `GLIBC_FLOOR_IMAGE` (`ubuntu:22.04`) and fails on any `not found`
+except `weak version` notes, which `ldd` prints for those same optional symbols but the loader
+ignores (the first v3.2.0 tag run failed on exactly that). Never move that job back to
 `ubuntu-latest`. Raising the floor is a deliberate change to `GLIBC_FLOOR`, `GLIBC_FLOOR_IMAGE`
 and the release notes' "Requires glibc" line together. The way to lower the floor or leave the
 runner images behind (`cargo-zigbuild` against `x86_64-unknown-linux-gnu.2.31`) is in

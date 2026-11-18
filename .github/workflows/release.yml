@@ -132,7 +132,10 @@ jobs:
             -v "$PWD/target/x86_64-unknown-linux-gnu/release/ultralog:/ultralog:ro" \
             "$GLIBC_FLOOR_IMAGE" ldd /ultralog 2>&1)
           echo "$OUT"
-          if echo "$OUT" | grep -q "not found"; then
+          # ldd also reports a missing *weak* version ("weak version `GLIBC_2.39' not found",
+          # Rust std's optional pidfd_*). The loader does not fail on those, so only a missing
+          # library or a missing non-weak version fails the load test.
+          if echo "$OUT" | grep "not found" | grep -qv "weak version"; then
             echo "::error::ultralog-linux does not load on $GLIBC_FLOOR_IMAGE"
             exit 1
           fi
