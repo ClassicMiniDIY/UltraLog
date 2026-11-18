@@ -436,6 +436,24 @@ jobs:
           echo "Artifacts structure:"
           ls -laR artifacts/
 
+      # The release body is this release's own notes, when .github/release-notes/<tag>.md exists,
+      # followed by the install steps in RELEASE_TEMPLATE.md. Write the notes file before tagging,
+      # so the release goes out complete and is not edited by hand afterwards.
+      - name: Assemble release notes
+        env:
+          TAG: ${{ steps.tag.outputs.TAG }}
+        run: |
+          NOTES=".github/release-notes/${TAG}.md"
+          {
+            if [ -f "$NOTES" ]; then
+              cat "$NOTES"
+              printf '\n'
+            else
+              echo "No $NOTES; the release body is the install template only." >&2
+            fi
+            cat .github/RELEASE_TEMPLATE.md
+          } > release-body.md
+
       - name: Create stable release
         if: needs.check-tag.outputs.is_prerelease == 'false'
         uses: softprops/action-gh-release@v3
@@ -448,7 +466,7 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          body_path: .github/RELEASE_TEMPLATE.md
+          body_path: release-body.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
