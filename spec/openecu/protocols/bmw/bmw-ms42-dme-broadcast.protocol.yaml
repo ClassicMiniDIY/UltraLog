@@ -1,0 +1,762 @@
+# OpenECU Alliance Protocol Definition
+# BMW Siemens MS42 DME CAN Broadcast (E46 chassis)
+#
+# Documentation source: MS4X Wiki, "Siemens MS42 CAN Bus"
+#   https://www.ms4x.net/index.php?title=Siemens_MS42_CAN_Bus
+#
+# READ THIS BEFORE TRUSTING DME1:
+# The MS4X wiki page for MS42 states, in its own words, that the DME1 0x316
+# layout was copied from the MS43 page and still has to be verified. It also
+# publishes DME1 with no scaling factors at all. Every DME1 signal in this file
+# therefore carries a `disputed` note recording that conflict. The byte order
+# of DME1 bytes 6 and 7 is the one place where the two pages actively disagree:
+# MS42 documents byte 6 as TQI_MAF_CAN and byte 7 as the AMT error bitfield,
+# while MS43 documents the reverse. This file follows the MS42 page.
+#
+# OTHER NOTES:
+# - The E46 powertrain bus runs at 500 kbit/s with 11-bit identifiers.
+# - MS42 transmits three frames: DME1 0x316, DME2 0x329 and DME4 0x545. It has
+#   no DME3 0x338 (that frame is MS43, Alpina Roadster only).
+# - MS42 RECEIVES 0x43F (EGS1), 0x613/0x615 (instrument cluster) and
+#   0x153/0x1F3 (ASC traction control). Those payloads are not published by the
+#   source and are not described here.
+# - Torque values are percentages of C_TQ_STND, the calibrated standard torque
+#   constant in the binary, not Nm. They cannot be converted without reading
+#   C_TQ_STND out of the specific calibration, so they carry no canonical id.
+
+openecualliance: '1.0'
+type: protocol
+
+id: bmw-ms42-dme-broadcast
+name: 'BMW Siemens MS42 DME CAN Broadcast'
+version: '1.0.0'
+vendor: bmw
+description: |
+  Factory CAN broadcast frames transmitted by the Siemens MS42 engine control
+  unit fitted to the BMW M52TU engine (E46 3-series, E39 5-series, Z3,
+  roughly 1998-2001).
+
+  MS42 is the predecessor to MS43 and shares its frame identifiers, but its
+  published documentation is materially weaker: the MS4X wiki flags the DME1
+  0x316 layout as copied from MS43 and unverified, and gives no scaling
+  factors for the torque or engine-speed fields. Where a factor was needed it
+  has been taken from the better-documented MS43 page and the signal is
+  marked `disputed` so the borrowing is visible rather than implied.
+
+  Three frames are transmitted, all on the 500 kbit/s powertrain bus:
+    0x316 DME1 - engine speed, torque model, error flags  (10 ms, unverified)
+    0x329 DME2 - coolant temperature, ambient pressure, pedal        (10 ms)
+    0x545 DME4 - fuel consumption and cluster tell-tales             (10 ms)
+
+  If you need a Siemens BMW DME definition you can rely on, use the MS43 one.
+
+website: 'https://www.ms4x.net'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: false
+
+messages:
+  # ==========================================================================
+  # DME1 0x316 - UNVERIFIED. See the file header.
+  # ==========================================================================
+  - id: 0x316
+    name: 'DME1'
+    description: >-
+      Engine speed, torque model and DME error flags. The source documents this
+      frame as copied from MS43 and not yet verified against an MS42 bus.
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: DME1
+    signals:
+      - name: 'LV_SWI_IGK'
+        description: 'Ignition key voltage state (terminal 15)'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        disputed: 'MS4X wiki states the MS42 DME1 layout was copied from MS43 and is unverified'
+        values:
+          '0': 'terminal 15 off detected'
+          '1': 'terminal 15 on detected'
+
+      - name: 'LV_F_N_ENG'
+        description: 'Crankshaft sensor error state'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        disputed: 'MS4X wiki states the MS42 DME1 layout was copied from MS43 and is unverified'
+        values:
+          '0': 'no CRK error present'
+          '1': 'CRK error present'
+
+      - name: 'LV_ACK_TCS'
+        description: 'Traction control (ASC1) message acknowledge'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        disputed: 'MS4X wiki states the MS42 DME1 layout was copied from MS43 and is unverified'
+        values:
+          '0': 'ASC1 not received within 500 ms, or it contains a plausibility error'
+          '1': 'ASC1 received within 500 ms with no plausibility error'
+
+      - name: 'LV_ERR_GC'
+        description: 'Gear change error state'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        disputed: 'MS4X wiki states the MS42 DME1 layout was copied from MS43 and is unverified'
+        values:
+          '0': 'gear change not or only partly possible'
+          '1': 'gear change possible'
+
+      - name: 'SF_TQD'
+        description: 'Charge intervention state'
+        start_bit: 4
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        disputed: 'MS4X wiki states the MS42 DME1 layout was copied from MS43 and is unverified'
+        values:
+          '0': 'intervention can be performed completely, or no ASC requirement'
+          '1': 'intervention incomplete - ignition retard limit reached'
+          '2': 'intervention incomplete - charge actuators fully closed'
+          '3': 'limited vehicle dynamics active (MTC/ISA error)'
+
+      - name: 'Reserved B0.6'
+        start_bit: 6
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LV_F_SUB_TQI'
+        description: 'Mass airflow meter error state'
+        start_bit: 7
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        disputed: 'MS4X wiki states the MS42 DME1 layout was copied from MS43 and is unverified'
+        values:
+          '0': 'MAF ok'
+          '1': 'MAF error present'
+
+      - name: 'TQI_TQR_CAN'
+        description: >-
+          Indexed engine torque as a percentage of C_TQ_STND, including
+          ASR/MSR/ETCU/LIM/AMT/gear intervention
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+        disputed: 'The MS42 page publishes no scaling factor; 0.390625 is taken from the MS43 page'
+
+      - name: 'N_ENG'
+        id: rpm
+        category: engine
+        description: 'Engine speed'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.15625
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 10240
+        disputed: >-
+          The MS42 page gives only the 16-bit assembly (MSB * 256 + LSB) and no
+          scaling factor. The 0.15625 factor is taken from the MS43 page, where
+          the same field is documented as ((MSB * 256) + LSB) * 0.15625.
+
+      - name: 'TQI_CAN'
+        description: >-
+          Indicated engine torque as a percentage of C_TQ_STND, from pedal
+          value, speed, air mass, intake and coolant temperature, ignition
+          angle and purge control
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+        disputed: 'The MS42 page publishes no scaling factor; 0.390625 is taken from the MS43 page'
+
+      - name: 'TQ_LOSS_CAN'
+        description: >-
+          Engine torque loss as a percentage of C_TQ_STND, from engine
+          friction, the AC compressor and electrical consumers
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+        disputed: 'The MS42 page publishes no scaling factor; 0.390625 is taken from the MS43 page'
+
+      - name: 'TQI_MAF_CAN'
+        description: >-
+          Theoretical engine torque after charge intervention as a percentage
+          of C_TQ_STND, from mass airflow and ignition angle
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+        disputed: >-
+          The MS42 page places TQI_MAF_CAN in byte 6 and the AMT error bitfield
+          in byte 7; the MS43 page documents the two the other way round. This
+          file follows the MS42 page. The MS42 page also publishes no scaling
+          factor; 0.390625 is taken from the MS43 page.
+
+      - name: 'ERR_AMT_CAN'
+        description: 'Automated manual transmission error state'
+        start_bit: 56
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        disputed: >-
+          The MS42 page places this bitfield in byte 7 bits 0-1; the MS43 page
+          places it in byte 6 bits 6-7. This file follows the MS42 page.
+
+      - name: 'Reserved B7.2-7'
+        start_bit: 58
+        length: 6
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # DME2 0x329 - temperature, ambient pressure, pedal and driver switches
+  # ==========================================================================
+  - id: 0x329
+    name: 'DME2'
+    description: 'Coolant temperature, ambient pressure, accelerator pedal and driver switch states'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: DME2
+    signals:
+      - name: 'MUX_INFO'
+        description: 'Multiplexed payload selected by MUX_CODE'
+        start_bit: 0
+        length: 6
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: >-
+          MUX_CODE 0 carries CAN_LEVEL, 2 carries OBD_STEUER and 3 carries
+          MD_NORM, C_TQ_STND rescaled from 0-1023 Nm to 0-1008 Nm in 16 Nm steps
+
+      - name: 'MUX_CODE'
+        description: 'Selects which value MUX_INFO carries in this frame'
+        start_bit: 6
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'CAN_LEVEL'
+          '2': 'OBD_STEUER'
+          '3': 'MD_NORM'
+
+      - name: 'TEMP_ENG'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.75
+        offset: -48
+        unit: 'celsius'
+        min: -48
+        max: 142.5
+        comment: 'y = x * 0.75 - 48. Init value 0xFF'
+
+      - name: 'AMP_CAN'
+        id: barometric_pressure
+        category: pressure
+        description: 'Ambient (barometric) pressure'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 2
+        offset: 598
+        unit: 'mbar'
+        min: 600
+        max: 1106
+        to_canonical:
+          scale: 0.1
+          offset: 0
+        comment: 'y = x * 2 + 598 mbar (hPa). 0x00 is the init value and 0xFF is the error value'
+
+      - name: 'LV_SWI_CLU'
+        id: clutch_switch
+        category: status
+        description: 'Clutch switch state'
+        start_bit: 24
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        values:
+          '0': 'released'
+          '1': 'depressed'
+
+      - name: 'LV_LEVEL_IS'
+        description: 'Idle regulator state'
+        start_bit: 25
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'idle above threshold'
+          '1': 'idle below threshold'
+
+      - name: 'LV_ACK_CRU_AD_ECU'
+        description: 'Acknowledge of the ACC1 message'
+        start_bit: 26
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'not acknowledged'
+          '1': 'acknowledged'
+
+      - name: 'LV_ERU_CAN'
+        id: engine_running
+        category: status
+        description: 'Engine running state'
+        start_bit: 27
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        values:
+          '0': 'engine stopped'
+          '1': 'engine running'
+
+      - name: 'B3.4 unknown'
+        description: 'Purpose not established by the source documentation'
+        start_bit: 28
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: 'The MS4X wiki lists this bit as "(STATE_CRU_CAN)???" - unresolved, not padding'
+
+      - name: 'STATE_MSW_CAN'
+        description: 'Cruise control stalk button state'
+        start_bit: 29
+        length: 3
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no button pressed (init)'
+          '1': 'set / acceleration (tip-up)'
+          '2': 'deceleration (tip-down)'
+          '3': 'resume'
+          '4': 'deactivate'
+          '7': 'error condition'
+
+      - name: 'TPS_VIRT_CRU_CAN'
+        description: 'Virtual cruise control throttle demand'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+        disputed: 'The MS42 page publishes no scaling factor; 0.390625 is taken from the MS43 page'
+
+      - name: 'TPS_CAN'
+        id: pedal_position
+        category: engine
+        description: 'Accelerator pedal position as a percentage of PVS_MAX'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.2
+        comment: 'y = x / 2.56, published on the MS42 page as such'
+
+      - name: 'LV_BS'
+        id: brake_switch
+        category: status
+        description: 'Brake switch state'
+        start_bit: 48
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        values:
+          '0': 'brake not actuated'
+          '1': 'brake actuated'
+
+      - name: 'LV_ERR_BS'
+        description: 'Brake switch system fault'
+        start_bit: 49
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'brake switch system ok'
+          '1': 'brake switch system faulty'
+
+      - name: 'LV_KD_CAN'
+        description: 'Kick down state'
+        start_bit: 50
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'kick down not active'
+          '1': 'kick down active'
+
+      - name: 'STATE_CRU_CAN'
+        description: 'Cruise control state'
+        start_bit: 51
+        length: 3
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'cruise inactive'
+          '1': 'active, constant drive (or tip-up / tip-down)'
+          '3': 'active, resume'
+          '5': 'active, set / acceleration'
+          '7': 'active, deceleration'
+
+      - name: 'REQ_SHIFTLOCK'
+        description: 'Shift lock request'
+        start_bit: 54
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no actuation active'
+          '3': 'ISA, MTC or N_SP_IS actuation active'
+
+      - name: 'Reserved B7'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # DME4 0x545 - fuel consumption and cluster tell-tales
+  # ==========================================================================
+  - id: 0x545
+    name: 'DME4'
+    description: 'Fuel consumption counter and instrument cluster tell-tales'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: DME4
+    signals:
+      - name: 'Reserved B0.0'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LV_MIL'
+        id: check_engine_light
+        category: status
+        description: 'Malfunction indicator lamp (check engine light)'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+
+      - name: 'Reserved B0.2'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LV_MAIN_SWI_CRU'
+        description: 'Cruise control main switch state'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'LV_ETC_DIAG'
+        description: 'EML (electronic throttle) warning lamp'
+        start_bit: 4
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B0.5-7'
+        start_bit: 5
+        length: 3
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+        comment: 'MS43 uses bit 6 here for the fuel cap lamp; the MS42 page lists all three as unused'
+
+      - name: 'FCO'
+        description: 'Fuel consumption counter sent to the instrument cluster'
+        start_bit: 8
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: >-
+          The MS4X wiki documents the LSB/MSB byte order but publishes no
+          scaling factor or unit, so the raw counter is exposed unscaled
+
+      - name: 'Oil level error lamp (M5 cluster)'
+        description: 'Oil level error LED, M5 cluster'
+        start_bit: 24
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Oil level warning lamp'
+        description: 'Oil level warning LED, all other clusters'
+        start_bit: 25
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Oil level error lamp 2 (M5 cluster)'
+        description: 'Second oil level error LED, M5 cluster'
+        start_bit: 26
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'LV_TEMP_ENG'
+        id: overheat_warning
+        category: status
+        description: 'Coolant overheating warning lamp'
+        start_bit: 27
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+
+      - name: 'Warm-up LEDs'
+        description: 'M-cluster warm-up LED bar'
+        start_bit: 28
+        length: 3
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B3.7'
+        start_bit: 31
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+        comment: 'MS43 uses this bit for the upshift indicator; the MS42 page lists it as unused'
+
+      - name: 'Reserved B4-B7'
+        start_bit: 32
+        length: 32
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+        comment: >-
+          MS43 carries oil temperature in byte 4 and oil level in byte 6 here.
+          The MS42 page lists bytes 4 to 7 as unused, so no oil temperature is
+          published on the MS42 bus.
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'CC-BY-SA-4.0'
+  source_url: 'https://www.ms4x.net/index.php?title=Siemens_MS42_CAN_Bus'
+  tested_with:
+    - 'BMW M52TU (E46 320i/323i/328i, E39 520i/523i/528i, Z3)'
+  compatible_tools:
+    - 'TunerPro RT'
+  known_issues:
+    - >-
+      The DME1 0x316 layout is flagged as unverified by the MS4X wiki itself,
+      which states the values were copied from the MS43 page. Every DME1 signal
+      carries a `disputed` note recording that.
+    - >-
+      The MS42 page publishes no scaling factors. Factors used here come from
+      the MS43 page, and each borrowed factor is marked `disputed`.
+    - >-
+      MS42 and MS43 disagree on the contents of DME1 bytes 6 and 7. This file
+      follows the MS42 page (byte 6 TQI_MAF_CAN, byte 7 AMT error bitfield).
+    - >-
+      Torque signals are percentages of the calibration constant C_TQ_STND, not
+      Nm, so they carry no canonical id.
+    - >-
+      Unlike MS43, MS42 publishes no oil temperature. DME4 bytes 4 to 7 are
+      unused.
+  changelog:
+    - version: '1.0.0'
+      date: '2026-08-25'
+      changes:
+        - 'Initial MS42 DME broadcast definition: DME1 0x316, DME2 0x329, DME4 0x545'
+        - 'DME1 signals marked disputed: the source documents the layout as an unverified copy of MS43'

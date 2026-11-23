@@ -1,0 +1,679 @@
+# OpenECU Alliance Adapter Specification
+# BMW Siemens MS4x RomRaider CSV Log
+#
+# Channel names come from the community RomRaider logger definition for the
+# Siemens MS43 DME:
+#   https://github.com/ba114/Siemens-MS43
+# which is itself a port of the MS4X project's TunerPro definitions
+# (https://www.ms4x.net). RomRaider writes CSV headers as
+# "<parameter name> (<selected unit>)", so the source_names below are the
+# parameter names from that definition with the unit variant this adapter
+# expects appended.
+#
+# UNIT SELECTION MATTERS. Several parameters offer more than one conversion in
+# the logger definition, and RomRaider writes whichever one was selected when
+# the log was recorded. Where a parameter offers a conversion that is already
+# in the canonical unit, this adapter matches that variant only. See
+# metadata.known_issues for the parameters where that bites.
+
+openecualliance: '1.0'
+id: bmw-ms4x-romraider-csv
+name: 'BMW Siemens MS4x RomRaider CSV Log'
+version: '1.0.0'
+vendor: bmw
+description: |
+  CSV logs recorded with RomRaider against a Siemens MS43 DME (BMW M54), using
+  the community MS43 logger definition and a K-line interface.
+
+  Format characteristics:
+  - Comma delimited, first row is the header, data starts on the second row
+  - First column is Time in milliseconds
+  - Column names are "<parameter> (<unit>)", for example "Engine Speed (RPM)"
+  - Parameter names are BMW/Siemens internal names, not Subaru ones, so this
+    is a separate adapter from the Subaru-oriented romraider-csv adapter
+  - Switch parameters are prefixed "xSW - " and log as On/Off
+  - Raw sensor voltages are prefixed "zVDC "
+
+  The definition targets MS43 software versions 7551615, 7519308 and 7545150.
+  MS42 uses different variable addresses and is not covered by that logger
+  definition.
+
+website: 'https://www.romraider.com'
+
+file_format:
+  type: csv
+  extensions: ['.csv']
+  encoding: utf-8
+  delimiter: ','
+  header_row: 0
+  data_start_row: 1
+  timestamp_column: 'Time'
+  timestamp_unit: milliseconds
+
+channels:
+  # --- engine ---------------------------------------------------------------
+  - id: rpm
+    name: 'Engine Speed'
+    description: 'Engine speed'
+    category: engine
+    data_type: float
+    unit: 'rpm'
+    min: 0
+    max: 8000
+    precision: 0
+    source_names:
+      - 'Engine Speed (RPM)'
+      - 'Engine Speed'
+
+  - id: cylinder_air_mass
+    name: 'Engine Load'
+    description: 'Air mass per cylinder per stroke (STATUS_LAST)'
+    category: engine
+    data_type: float
+    unit: 'mg/stroke'
+    min: 0
+    max: 1389
+    precision: 2
+    to_canonical:
+      scale: 1
+      offset: 0
+    source_names:
+      - 'Engine Load (mg/stroke)'
+      - 'Engine Load'
+    # mg/stroke is mg of air per cylinder per intake stroke, which is the same
+    # quantity the canonical channel carries; only the label differs.
+
+  - id: maf
+    name: 'Mass Airflow'
+    description: 'Mass airflow measured by the hot-film meter'
+    category: engine
+    data_type: float
+    unit: 'g/s'
+    min: 0
+    max: 400
+    precision: 2
+    source_names:
+      - 'Mass Airflow (g/sec)'
+
+  # --- fuel -----------------------------------------------------------------
+  - id: pulse_width
+    name: 'Fuel Injector Pulse Width'
+    description: 'Injector pulse width'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    min: 0
+    max: 50
+    precision: 2
+    source_names:
+      - 'Fuel Injector Pulse Width (ms)'
+      - 'Fuel Injector Pulse Width'
+
+  - id: fuel_trim_short_bank_1
+    name: 'Lambda Integrator - Bank 1'
+    description: 'Short-term (integral) lambda correction, bank 1'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    min: -50
+    max: 50
+    precision: 2
+    source_names:
+      - 'Lambda Integrator - Bank 1 (%)'
+      - 'Lambda Integrator - Bank 1'
+
+  - id: fuel_trim_short_bank_2
+    name: 'Lambda Integrator - Bank 2'
+    description: 'Short-term (integral) lambda correction, bank 2'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    min: -50
+    max: 50
+    precision: 2
+    source_names:
+      - 'Lambda Integrator - Bank 2 (%)'
+      - 'Lambda Integrator - Bank 2'
+
+  - id: fuel_trim_long_bank_1
+    name: 'Lambda Multiplicative Adaptation - Bank 1'
+    description: 'Long-term multiplicative lambda adaptation, bank 1'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    min: -50
+    max: 50
+    precision: 2
+    source_names:
+      - 'Lambda Multiplicative Adaptation - Bank 1 (%)'
+      - 'Lambda Multiplicative Adaptation - Bank 1'
+
+  - id: fuel_trim_long_bank_2
+    name: 'Lambda Multiplicative Adaptation - Bank 2'
+    description: 'Long-term multiplicative lambda adaptation, bank 2'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    min: -50
+    max: 50
+    precision: 2
+    source_names:
+      - 'Lambda Multiplicative Adaptation - Bank 2 (%)'
+      - 'Lambda Multiplicative Adaptation - Bank 2'
+
+  # --- ignition -------------------------------------------------------------
+  - id: ignition_advance_cyl_1
+    name: 'Ignition Angle - Cyl 1'
+    description: 'Ignition advance, cylinder 1'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'Ignition Angle - Cyl 1 (° CRK)'
+      - 'Ignition Angle - Cyl 1'
+
+  - id: ignition_advance_cyl_2
+    name: 'Ignition Angle - Cyl 2'
+    description: 'Ignition advance, cylinder 2'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'Ignition Angle - Cyl 2 (° CRK)'
+      - 'Ignition Angle - Cyl 2'
+
+  - id: ignition_advance_cyl_3
+    name: 'Ignition Angle - Cyl 3'
+    description: 'Ignition advance, cylinder 3'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'Ignition Angle - Cyl 3 (° CRK)'
+      - 'Ignition Angle - Cyl 3'
+
+  - id: ignition_advance_cyl_4
+    name: 'Ignition Angle - Cyl 4'
+    description: 'Ignition advance, cylinder 4'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'Ignition Angle - Cyl 4 (° CRK)'
+      - 'Ignition Angle - Cyl 4'
+
+  - id: ignition_advance_cyl_5
+    name: 'Ignition Angle - Cyl 5'
+    description: 'Ignition advance, cylinder 5'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'Ignition Angle - Cyl 5 (° CRK)'
+      - 'Ignition Angle - Cyl 5'
+
+  - id: ignition_advance_cyl_6
+    name: 'Ignition Angle - Cyl 6'
+    description: 'Ignition advance, cylinder 6'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'Ignition Angle - Cyl 6 (° CRK)'
+      - 'Ignition Angle - Cyl 6'
+
+  - id: knock_retard
+    name: 'Knock'
+    description: 'Knock-driven ignition correction (Knock1_6)'
+    category: correction
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 20
+    precision: 2
+    source_names:
+      - 'Knock (° Cor)'
+      - 'Knock'
+
+  - id: knock_level_1
+    name: 'Knock Sensor 1 Volts'
+    description: 'Knock sensor 1 raw voltage'
+    category: ignition
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'Knock Sensor 1 Volts (VDC)'
+      - 'Knock Sensor 1 Volts'
+
+  - id: knock_level_2
+    name: 'Knock Sensor 2 Volts'
+    description: 'Knock sensor 2 raw voltage'
+    category: ignition
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'Knock Sensor 2 Volts (VDC)'
+      - 'Knock Sensor 2 Volts'
+
+  # --- valvetrain -----------------------------------------------------------
+  - id: vvt_intake
+    name: 'VANOS Intake'
+    description: 'Intake camshaft (VANOS) position'
+    category: engine
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 80
+    precision: 2
+    source_names:
+      - 'VANOS Intake (° CRK)'
+      - 'VANOS Intake'
+
+  - id: vvt_exhaust
+    name: 'VANOS Exhaust'
+    description: 'Exhaust camshaft (VANOS) position'
+    category: engine
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 80
+    precision: 2
+    source_names:
+      - 'VANOS Exhaust (° CRK)'
+      - 'VANOS Exhaust'
+
+  # --- temperature ----------------------------------------------------------
+  - id: coolant_temp
+    name: 'Coolant Temperature'
+    description: 'Engine coolant temperature'
+    category: temperature
+    data_type: float
+    unit: 'celsius'
+    min: -48
+    max: 150
+    precision: 1
+    source_names:
+      - 'Coolant Temperature (°C)'
+      - 'Coolant Temperature'
+
+  - id: iat
+    name: 'Intake Air Temperature'
+    description: 'Intake air temperature'
+    category: temperature
+    data_type: float
+    unit: 'celsius'
+    min: -48
+    max: 150
+    precision: 1
+    source_names:
+      - 'Intake Air Temperature (°C)'
+      - 'Intake Air Temperature'
+
+  - id: oil_temp
+    name: 'Oil Temperature'
+    description: 'Engine oil temperature'
+    category: temperature
+    data_type: float
+    unit: 'celsius'
+    min: -48
+    max: 206
+    precision: 1
+    source_names:
+      - 'Oil Temperature (°C)'
+      - 'Oil Temperature'
+
+  # --- pressure -------------------------------------------------------------
+  - id: map
+    name: 'Calculated MAP'
+    description: 'Manifold absolute pressure calculated by the DME (OV_MAP)'
+    category: pressure
+    data_type: float
+    unit: 'mbar'
+    min: 0
+    max: 2000
+    precision: 2
+    to_canonical:
+      scale: 0.1
+      offset: 0
+    source_names:
+      - 'Calculated MAP (hPa)'
+    # The logger definition labels this hPa, which is the same unit as mbar.
+
+  - id: barometric_pressure
+    name: 'Atmospheric Pressure'
+    description: 'Ambient barometric pressure'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    min: 50
+    max: 115
+    precision: 2
+    source_names:
+      - 'Atmospheric Pressure (kPa)'
+
+  # --- electrical -----------------------------------------------------------
+  - id: battery_voltage
+    name: 'Battery Voltage'
+    description: 'Battery voltage measured by the DME'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 20
+    precision: 2
+    source_names:
+      - 'Battery Voltage (VDC)'
+      - 'Battery Voltage'
+
+  - id: maf_voltage
+    name: 'Mass Airflow Volts'
+    description: 'Mass airflow meter raw voltage'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'Mass Airflow Volts (VDC)'
+      - 'Mass Airflow Volts'
+
+  - id: tps_voltage
+    name: 'Throttle Position Volts'
+    description: 'Throttle position sensor raw voltage'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'zVDC Throttle Position Volts (VDC)'
+      - 'zVDC Throttle Position Volts'
+
+  - id: tps_sub_voltage
+    name: 'Throttle Plausibility Volts'
+    description: 'Second throttle position sensor track, used for plausibility'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'zVDC Throttle Plausibility Volts (VDC)'
+      - 'zVDC Throttle Plausibility Volts'
+
+  - id: ap_main_voltage
+    name: 'Accelerator Pedal Request Volts'
+    description: 'Accelerator pedal sensor main track voltage'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'zVDC Accelerator Pedal Request Volts (VDC)'
+      - 'zVDC Accelerator Pedal Request Volts'
+
+  - id: ap_sub_voltage
+    name: 'Accelerator Pedal Plausibility Volts'
+    description: 'Accelerator pedal sensor second track, used for plausibility'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'zVDC Accelerator Pedal Plausibility Volts (VDC)'
+      - 'zVDC Accelerator Pedal Plausibility Volts'
+
+  - id: o2_voltage_front_1
+    name: 'Front O2 - Bank 1 Volts'
+    description: 'Upstream oxygen sensor voltage, bank 1'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'Front O2 - Bank 1 Volts (VDC)'
+      - 'Front O2 - Bank 1 Volts'
+
+  - id: o2_voltage_front_2
+    name: 'Front O2 - Bank 2 Volts'
+    description: 'Upstream oxygen sensor voltage, bank 2'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'Front O2 - Bank 2 Volts (VDC)'
+      - 'Front O2 - Bank 2 Volts'
+
+  - id: o2_voltage_rear
+    name: 'Rear O2 - Bank 1 Volts'
+    description: 'Downstream (post-catalyst) oxygen sensor voltage, bank 1'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'Rear O2 - Bank 1 Volts (VDC)'
+      - 'Rear O2 - Bank 1 Volts'
+
+  # --- vehicle --------------------------------------------------------------
+  - id: vehicle_speed
+    name: 'Vehicle Speed'
+    description: 'Vehicle speed reported to the DME'
+    category: speed
+    data_type: float
+    unit: 'kph'
+    min: 0
+    max: 300
+    precision: 0
+    source_names:
+      - 'Vehicle Speed (km/h)'
+      - 'Vehicle Speed'
+
+  - id: gear
+    name: 'Gear'
+    description: 'Engaged gear'
+    category: drivetrain
+    data_type: int
+    unit: 'gear'
+    min: 0
+    max: 6
+    precision: 0
+    source_names:
+      - 'Gear (#)'
+      - 'Gear'
+
+  # --- status switches ------------------------------------------------------
+  - id: clutch_switch
+    name: 'Clutch Switch'
+    description: 'Clutch pedal switch'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Clutch (On/Off)'
+      - 'xSW - Clutch'
+
+  - id: brake_switch
+    name: 'Brake Light Switch'
+    description: 'Brake light switch'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Brake Light (On/Off)'
+      - 'xSW - Brake Light'
+
+  - id: ac_relay
+    name: 'AC Compressor'
+    description: 'Air conditioning compressor engaged'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Air Conditioner Compressor (On/Off)'
+      - 'xSW - Air Conditioner Compressor'
+
+  - id: ac_request
+    name: 'AC Request'
+    description: 'Air conditioning requested'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Air Conditioner (On/Off)'
+      - 'xSW - Air Conditioner'
+
+  - id: overrun_active
+    name: 'Overrun Fuel Cut'
+    description: 'Overrun (deceleration) fuel cut active'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Overrun Fuel Cut (On/Off)'
+      - 'xSW - Overrun Fuel Cut'
+
+  - id: closed_loop_active
+    name: 'Lambda Control Bank 1'
+    description: 'Closed-loop lambda control active on bank 1'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Lambda Control Bank 1 (On/Off)'
+      - 'xSW - Lambda Control Bank 1'
+
+  - id: starter_signal
+    name: 'Engine Start State'
+    description: 'Engine in the start (cranking) state'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Engine Start State (On/Off)'
+      - 'xSW - Engine Start State'
+
+  - id: fuel_pump_relay
+    name: 'Fuel Pump Relay'
+    description: 'Fuel pump relay energised'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Fuel Pump Relay (On/Off)'
+      - 'xSW - Fuel Pump Relay'
+
+  - id: check_engine_light
+    name: 'Check Engine Light'
+    description: 'Malfunction indicator lamp on'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Check Engine Light (On/Off)'
+      - 'xSW - Check Engine Light'
+
+  - id: overheat_warning
+    name: 'Overheating Light'
+    description: 'Coolant overheating warning lamp on'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - Overheating Light (On/Off)'
+      - 'xSW - Overheating Light'
+
+  - id: traction_control_active
+    name: 'ASC/DSC Torque Intervention'
+    description: 'Traction or stability control requesting a torque intervention'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'xSW - ASC/DSC Torque Intervention (On/Off)'
+      - 'xSW - ASC/DSC Torque Intervention'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'GPL-3.0'
+  repository: 'https://github.com/ba114/Siemens-MS43'
+  tested_with:
+    - 'RomRaider 0.9.4 or newer'
+    - 'MS43 software 7551615, 7519308, 7545150'
+    - 'BMW M54B30 / M54B25'
+  known_issues:
+    - >-
+      Throttle Position and Accelerator Position are deliberately NOT mapped.
+      The logger definition reports both on a 0-120 "°TPS" scale with no
+      published relationship to percent of travel, and inventing a conversion
+      would make the spec lie about the file. Add them once a full-scale
+      reference is confirmed.
+    - >-
+      Mass Airflow offers both g/sec and kg/h conversions. Only the g/sec
+      variant is matched, because it is already the canonical unit. A log
+      recorded with kg/h selected produces the header
+      "Mass Airflow (kg/h)" and is not picked up; multiply by 0.2778 to convert.
+    - >-
+      Calculated MAP offers hPa and psi conversions. Only the hPa variant is
+      matched. Atmospheric Pressure offers hPa, kPa, psi and inHg; only the
+      kPa variant is matched, because kPa is already the canonical unit.
+      Vehicle Speed offers km/h and mph; only km/h is matched.
+    - >-
+      The O2 sensor parameters also offer an "AFR" conversion derived from a
+      narrowband sensor voltage. That curve is not a real wideband measurement,
+      so only the VDC variant is mapped.
+    - >-
+      Lambda Additive Adaptation (bank 1 and 2) is logged in ms or µs of
+      injector time. There is no canonical additive-trim channel, so it is not
+      mapped.
+    - >-
+      The logger definition exposes no idle-target parameter, so there is no
+      idle_target_rpm channel here. The MS43 DME does publish a target idle
+      speed on CAN - see RPM_IDLG_TAR in the bmw-e8x-e9x-powertrain protocol
+      for the equivalent field on the later platform.
+    - >-
+      This definition targets MS43 only. MS42 uses different variable addresses
+      and is not covered.
+  changelog:
+    - version: '1.0.0'
+      date: '2026-08-25'
+      changes:
+        - 'Initial MS4x RomRaider CSV adapter with 46 channels from the community MS43 logger definition'

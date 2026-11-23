@@ -1,0 +1,2338 @@
+# OpenECU Alliance Protocol Definition
+# AEM Infinity ECU CAN Broadcast Protocol (AEMNET)
+#
+# Based on AEM Infinity CAN protocol documentation and AEMNET specifications.
+# The AEM Infinity series ECUs broadcast real-time engine data over CAN bus
+# using 29-bit extended identifiers at 500kbit/s.
+#
+# IMPORTANT NOTES:
+# - Uses 29-bit extended CAN IDs (CAN 2.0B)
+# - Little-endian byte order (Intel format)
+# - Base address is configurable in AEM software (default 0x01F0A000)
+# - Messages broadcast at various rates depending on data type
+
+openecualliance: '1.0'
+type: protocol
+
+id: aem-infinity-broadcast
+name: 'AEM Infinity CAN Broadcast Protocol'
+version: '1.1.0'
+vendor: aem
+description: |
+  Official CAN broadcast protocol for AEM Infinity series ECUs.
+  This protocol outputs real-time engine data for integration with data loggers,
+  dashboards, and other CAN-enabled devices via the AEMNET protocol.
+
+  Protocol uses 29-bit extended identifiers at 500kbit/s with little-endian encoding.
+  The base CAN address is configurable but defaults to 0x01F0A000.
+  Message IDs are offsets from this base address.
+
+  Compatible with AEM Infinity-6, Infinity-8, Infinity-10, and Infinity-12 ECUs.
+
+website: 'https://www.aemelectronics.com/products/engine-management-system/infinity-ecu'
+
+branding:
+  logo: aem-logo.svg
+  icon: aem-icon.svg
+  color_primary: '#E31837'
+  color_secondary: '#000000'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: true
+
+messages:
+  # ============================================================================
+  # HIGH FREQUENCY MESSAGES (100Hz / 10ms)
+  # ============================================================================
+
+  # Base + 0x00 - Core Engine Data 1
+  - id: 0x01F0A000
+    name: 'Engine Data 1'
+    description: 'RPM, engine load, throttle position, coolant temperature'
+    length: 8
+    interval_ms: 10
+    transmitter: ECU
+    signals:
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'Engine rotational speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 20000
+
+      - name: 'Engine_Load'
+        id: load
+        category: engine
+        description: 'Calculated engine load'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 500
+
+      - name: 'Throttle_Position'
+        id: tps
+        category: engine
+        description: 'Throttle position sensor'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Coolant_Temperature'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -40
+        max: 200
+
+  # Base + 0x01 - Core Engine Data 2
+  - id: 0x01F0A001
+    name: 'Engine Data 2'
+    description: 'Intake air temperature, MAP, battery voltage, fuel pressure'
+    length: 8
+    interval_ms: 10
+    transmitter: ECU
+    signals:
+      - name: 'Intake_Air_Temperature'
+        id: iat
+        category: temperature
+        description: 'Intake air temperature'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -40
+        max: 200
+
+      - name: 'Manifold_Pressure'
+        id: map
+        category: pressure
+        description: 'Manifold absolute pressure'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 400
+        comment: 'Absolute pressure'
+
+      - name: 'Battery_Voltage'
+        id: battery_voltage
+        category: electrical
+        description: 'System battery voltage'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'V'
+        min: 0
+        max: 20
+
+      - name: 'Fuel_Pressure'
+        id: fuel_pressure
+        category: pressure
+        description: 'Fuel rail pressure'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 1000
+        comment: 'Gauge pressure'
+
+  # Base + 0x02 - Fuel and Ignition
+  - id: 0x01F0A002
+    name: 'Fuel and Ignition'
+    description: 'Injector pulse width, ignition timing, AFR target, AFR measured'
+    length: 8
+    interval_ms: 10
+    transmitter: ECU
+    signals:
+      - name: 'Injector_Pulse_Width'
+        id: pulse_width
+        category: fuel
+        description: 'Primary injector pulse width'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+        min: 0
+        max: 65
+
+      - name: 'Ignition_Timing'
+        id: ignition_advance
+        category: ignition
+        description: 'Ignition timing advance'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -20
+        max: 60
+        comment: 'BTDC'
+
+      - name: 'AFR_Target'
+        id: afr_target
+        category: fuel
+        description: 'Target air-fuel ratio'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'AFR'
+        min: 8
+        max: 20
+
+      - name: 'AFR_1'
+        id: afr_1
+        category: fuel
+        description: 'Measured air-fuel ratio (wideband 1)'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'AFR'
+        min: 8
+        max: 20
+
+  # Base + 0x03 - AFR and Lambda
+  - id: 0x01F0A003
+    name: 'AFR and Lambda'
+    description: 'AFR sensors 2-4 and lambda values'
+    length: 8
+    interval_ms: 10
+    transmitter: ECU
+    signals:
+      - name: 'AFR_2'
+        id: afr_2
+        category: fuel
+        description: 'Measured air-fuel ratio (wideband 2)'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'AFR'
+        min: 8
+        max: 20
+
+      - name: 'Lambda_1'
+        id: lambda
+        category: fuel
+        description: 'Lambda value sensor 1'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0.5
+        max: 1.5
+
+      - name: 'Lambda_2'
+        id: lambda_2
+        category: fuel
+        description: 'Lambda value sensor 2'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0.5
+        max: 1.5
+
+      - name: 'Lambda_Target'
+        id: lambda_target
+        category: fuel
+        description: 'Target lambda value'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0.5
+        max: 1.5
+
+  # Base + 0x04 - Injector Duty Cycles
+  - id: 0x01F0A004
+    name: 'Injector Duty Cycles'
+    description: 'Injector duty cycles for banks 1 and 2'
+    length: 8
+    interval_ms: 10
+    transmitter: ECU
+    signals:
+      - name: 'Injector_Duty_Cycle_1'
+        vendor_specific: true
+        description: 'Injector duty cycle bank 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Injector_Duty_Cycle_2'
+        id: injector_duty_2
+        category: engine
+        description: 'Injector duty cycle bank 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Injector_Duty_Cycle_Staged'
+        vendor_specific: true
+        description: 'Staged injector duty cycle'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'VE'
+        id: ve
+        category: fuel
+        description: 'Volumetric efficiency'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 200
+
+  # Base + 0x05 - Vehicle Speed and Position
+  - id: 0x01F0A005
+    name: 'Vehicle Speed and Position'
+    description: 'Vehicle speed, gear position, accelerator pedal position'
+    length: 8
+    interval_ms: 10
+    transmitter: ECU
+    signals:
+      - name: 'Vehicle_Speed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 400
+
+      - name: 'Gear'
+        id: gear
+        category: drivetrain
+        description: 'Current gear position'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: -1
+        max: 8
+        comment: '-1=Reverse, 0=Neutral, 1-8=Gears'
+
+      - name: 'Accelerator_Pedal_Position'
+        id: pedal_position
+        category: engine
+        description: 'Accelerator pedal position'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Driveshaft_Speed'
+        vendor_specific: true
+        description: 'Driveshaft rotational speed'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 15000
+
+      - name: 'Wheel_Speed_Avg'
+        vendor_specific: true
+        description: 'Average wheel speed'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 400
+
+  # ============================================================================
+  # MEDIUM FREQUENCY MESSAGES (50Hz / 20ms)
+  # ============================================================================
+
+  # Base + 0x06 - Boost Control
+  - id: 0x01F0A006
+    name: 'Boost Control'
+    description: 'Boost pressure control data'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Boost_Target'
+        id: boost_target
+        category: pressure
+        description: 'Target boost pressure'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 400
+        comment: 'Absolute pressure'
+
+      - name: 'Boost_Duty_Cycle'
+        id: boost_duty
+        category: pressure
+        description: 'Boost solenoid duty cycle'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Wastegate_Position'
+        id: wastegate_position
+        category: engine
+        description: 'Wastegate position (if electronic)'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Boost_Error'
+        id: boost_error
+        category: pressure
+        description: 'Boost control error'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: -100
+        max: 100
+
+  # Base + 0x07 - Knock Control
+  - id: 0x01F0A007
+    name: 'Knock Control'
+    description: 'Knock sensor data and retard'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Knock_Level_1'
+        id: knock_level_1
+        category: ignition
+        description: 'Knock sensor 1 level'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'V'
+        min: 0
+        max: 5
+
+      - name: 'Knock_Level_2'
+        id: knock_level_2
+        category: ignition
+        description: 'Knock sensor 2 level'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'V'
+        min: 0
+        max: 5
+
+      - name: 'Knock_Retard'
+        id: knock_retard
+        category: correction
+        description: 'Knock-induced timing retard'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: 0
+        max: 30
+
+      - name: 'Knock_Count'
+        id: knock_count
+        category: ignition
+        description: 'Knock event counter'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 65535
+
+  # Base + 0x08 - Cam Control
+  - id: 0x01F0A008
+    name: 'Cam Control'
+    description: 'Variable cam timing control data'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Intake_Cam_Angle_1'
+        id: vvt_intake
+        category: engine
+        description: 'Intake cam angle bank 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+      - name: 'Intake_Cam_Angle_2'
+        id: vvt_intake_bank2_actual
+        category: engine
+        description: 'Intake cam angle bank 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+      - name: 'Exhaust_Cam_Angle_1'
+        id: vvt_exhaust
+        category: engine
+        description: 'Exhaust cam angle bank 1'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+      - name: 'Exhaust_Cam_Angle_2'
+        id: vvt_exhaust_bank2_actual
+        category: engine
+        description: 'Exhaust cam angle bank 2'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+  # Base + 0x09 - Cam Targets
+  - id: 0x01F0A009
+    name: 'Cam Targets'
+    description: 'Variable cam timing target positions'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Intake_Cam_Target_1'
+        vendor_specific: true
+        description: 'Intake cam target bank 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+      - name: 'Intake_Cam_Target_2'
+        vendor_specific: true
+        description: 'Intake cam target bank 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+      - name: 'Exhaust_Cam_Target_1'
+        vendor_specific: true
+        description: 'Exhaust cam target bank 1'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+      - name: 'Exhaust_Cam_Target_2'
+        vendor_specific: true
+        description: 'Exhaust cam target bank 2'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -50
+        max: 50
+
+  # Base + 0x0A - Wheel Speeds
+  - id: 0x01F0A00A
+    name: 'Wheel Speeds'
+    description: 'Individual wheel speed sensors'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Wheel_Speed_FL'
+        id: wheel_speed_fl
+        category: speed
+        description: 'Front left wheel speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 400
+
+      - name: 'Wheel_Speed_FR'
+        id: wheel_speed_fr
+        category: speed
+        description: 'Front right wheel speed'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 400
+
+      - name: 'Wheel_Speed_RL'
+        id: wheel_speed_rl
+        category: speed
+        description: 'Rear left wheel speed'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 400
+
+      - name: 'Wheel_Speed_RR'
+        id: wheel_speed_rr
+        category: speed
+        description: 'Rear right wheel speed'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 400
+
+  # Base + 0x0B - Traction Control
+  - id: 0x01F0A00B
+    name: 'Traction Control'
+    description: 'Traction and launch control data'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Wheel_Slip'
+        id: traction_slip
+        category: traction
+        description: 'Wheel slip percentage'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -100
+        max: 100
+
+      - name: 'Traction_Control_Active'
+        id: traction_control_active
+        category: status
+        description: 'Traction control active flag'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Active'
+
+      - name: 'Launch_Control_Active'
+        id: launch_control_active
+        category: status
+        description: 'Launch control active flag'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Active'
+
+      - name: 'Traction_Ignition_Cut'
+        vendor_specific: true
+        description: 'Traction control ignition cut'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: 0
+        max: 50
+
+      - name: 'Traction_Fuel_Cut'
+        vendor_specific: true
+        description: 'Traction control fuel cut percentage'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+  # Base + 0x0C - Rev Limiter
+  - id: 0x01F0A00C
+    name: 'Rev Limiter'
+    description: 'Rev limiter and engine protection data'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Rev_Limit'
+        vendor_specific: true
+        description: 'Current rev limit'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 20000
+
+      - name: 'Rev_Limiter_Active'
+        id: rev_limiter_active
+        category: status
+        description: 'Rev limiter active flag'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Active'
+
+      - name: 'Engine_Protection_Active'
+        id: engine_protection_active
+        category: status
+        description: 'Engine protection active flag'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Active'
+
+      - name: 'Flat_Shift_Active'
+        id: flat_shift_active
+        category: status
+        description: 'Flat shift active flag'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Active'
+
+      - name: 'Anti_Lag_Active'
+        id: antilag_active
+        category: status
+        description: 'Anti-lag active flag'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Active'
+
+  # ============================================================================
+  # LOW FREQUENCY MESSAGES (20Hz / 50ms)
+  # ============================================================================
+
+  # Base + 0x0D - Oil and Fuel Temperatures
+  - id: 0x01F0A00D
+    name: 'Oil and Fuel Temperatures'
+    description: 'Oil temperature, fuel temperature, oil pressure'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Oil_Temperature'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -40
+        max: 200
+
+      - name: 'Fuel_Temperature'
+        id: fuel_temp
+        category: temperature
+        description: 'Fuel temperature'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -40
+        max: 150
+
+      - name: 'Oil_Pressure'
+        id: oil_pressure
+        category: pressure
+        description: 'Engine oil pressure'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 1000
+        comment: 'Gauge pressure'
+
+      - name: 'Fuel_Level'
+        id: fuel_level
+        category: fuel
+        description: 'Fuel tank level'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+  # Base + 0x0E - EGT Sensors 1-4
+  - id: 0x01F0A00E
+    name: 'EGT Sensors 1-4'
+    description: 'Exhaust gas temperatures 1-4'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'EGT_1'
+        id: egt_1
+        category: temperature
+        description: 'EGT sensor 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_2'
+        id: egt_2
+        category: temperature
+        description: 'EGT sensor 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_3'
+        id: egt_3
+        category: temperature
+        description: 'EGT sensor 3'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_4'
+        id: egt_4
+        category: temperature
+        description: 'EGT sensor 4'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+  # Base + 0x0F - EGT Sensors 5-8
+  - id: 0x01F0A00F
+    name: 'EGT Sensors 5-8'
+    description: 'Exhaust gas temperatures 5-8'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'EGT_5'
+        id: egt_5
+        category: temperature
+        description: 'EGT sensor 5'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_6'
+        id: egt_6
+        category: temperature
+        description: 'EGT sensor 6'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_7'
+        id: egt_7
+        category: temperature
+        description: 'EGT sensor 7'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_8'
+        id: egt_8
+        category: temperature
+        description: 'EGT sensor 8'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+  # Base + 0x10 - EGT Sensors 9-12
+  - id: 0x01F0A010
+    name: 'EGT Sensors 9-12'
+    description: 'Exhaust gas temperatures 9-12'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'EGT_9'
+        id: egt_9
+        category: temperature
+        description: 'EGT sensor 9'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_10'
+        id: egt_10
+        category: temperature
+        description: 'EGT sensor 10'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_11'
+        id: egt_11
+        category: temperature
+        description: 'EGT sensor 11'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+      - name: 'EGT_12'
+        id: egt_12
+        category: temperature
+        description: 'EGT sensor 12'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1200
+
+  # Base + 0x11 - Fuel Economy
+  - id: 0x01F0A011
+    name: 'Fuel Economy'
+    description: 'Fuel consumption and economy data'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Fuel_Flow'
+        id: fuel_flow
+        category: fuel
+        description: 'Fuel flow rate'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'cc/min'
+        min: 0
+        max: 6000
+
+      - name: 'Fuel_Economy'
+        id: fuel_economy
+        category: fuel
+        description: 'Instantaneous fuel economy'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'L/100km'
+        min: 0
+        max: 100
+
+      - name: 'Fuel_Used'
+        id: fuel_used
+        category: fuel
+        description: 'Total fuel used (trip)'
+        start_bit: 32
+        length: 32
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'cc'
+        min: 0
+        max: 4294967295
+
+  # Base + 0x12 - Fuel Trims
+  - id: 0x01F0A012
+    name: 'Fuel Trims'
+    description: 'Short and long term fuel trims'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Short_Term_Fuel_Trim_1'
+        vendor_specific: true
+        description: 'Short term fuel trim bank 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -50
+        max: 50
+
+      - name: 'Short_Term_Fuel_Trim_2'
+        vendor_specific: true
+        description: 'Short term fuel trim bank 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -50
+        max: 50
+
+      - name: 'Long_Term_Fuel_Trim_1'
+        vendor_specific: true
+        description: 'Long term fuel trim bank 1'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -50
+        max: 50
+
+      - name: 'Long_Term_Fuel_Trim_2'
+        vendor_specific: true
+        description: 'Long term fuel trim bank 2'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -50
+        max: 50
+
+  # Base + 0x13 - Idle Control
+  - id: 0x01F0A013
+    name: 'Idle Control'
+    description: 'Idle air control valve and idle data'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Idle_Valve_Position'
+        vendor_specific: true
+        description: 'Idle air control valve position'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Target_Idle_RPM'
+        vendor_specific: true
+        description: 'Target idle RPM'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 3000
+
+      - name: 'Idle_Error'
+        vendor_specific: true
+        description: 'Idle RPM error'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: -1000
+        max: 1000
+
+      - name: 'Idle_Ignition_Correction'
+        vendor_specific: true
+        description: 'Idle ignition timing correction'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -20
+        max: 20
+
+  # Base + 0x14 - DBW Throttle Control
+  - id: 0x01F0A014
+    name: 'DBW Throttle Control'
+    description: 'Drive-by-wire throttle control data'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'DBW_Target_Position'
+        id: etb_target
+        category: engine
+        description: 'Target throttle position'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'DBW_Actual_Position'
+        id: etb_position
+        category: engine
+        description: 'Actual throttle position'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'DBW_Duty_Cycle'
+        id: dbw_duty_cycle
+        category: engine
+        description: 'Throttle motor duty cycle'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -100
+        max: 100
+
+      - name: 'APP_1'
+        id: ap_main
+        category: engine
+        description: 'Accelerator pedal position sensor 1'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'APP_2'
+        id: ap_sub
+        category: engine
+        description: 'Accelerator pedal position sensor 2'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+  # ============================================================================
+  # SLOW FREQUENCY MESSAGES (10Hz / 100ms)
+  # ============================================================================
+
+  # Base + 0x15 - Barometric and Ambient
+  - id: 0x01F0A015
+    name: 'Barometric and Ambient'
+    description: 'Barometric pressure and ambient conditions'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Barometric_Pressure'
+        id: barometric_pressure
+        category: pressure
+        description: 'Barometric (atmospheric) pressure'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 60
+        max: 110
+
+      - name: 'Ambient_Temperature'
+        id: ambient_temp
+        category: temperature
+        description: 'Ambient air temperature'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -40
+        max: 60
+
+      - name: 'Air_Density_Correction'
+        vendor_specific: true
+        description: 'Air density correction factor'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 70
+        max: 130
+
+      - name: 'Ethanol_Content'
+        id: flex_ethanol
+        category: fuel
+        description: 'Ethanol fuel content'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+  # Base + 0x16 - Analog Inputs 1-4
+  - id: 0x01F0A016
+    name: 'Analog Inputs 1-4'
+    description: 'User-configurable analog input channels 1-4'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Analog_Input_1'
+        id: analog_input_1
+        category: electrical
+        description: 'Analog input 1 (user configured)'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+        comment: 'Raw voltage, scaling depends on sensor configuration'
+
+      - name: 'Analog_Input_2'
+        id: analog_input_2
+        category: electrical
+        description: 'Analog input 2 (user configured)'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_3'
+        id: analog_input_3
+        category: electrical
+        description: 'Analog input 3 (user configured)'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_4'
+        id: analog_input_4
+        category: electrical
+        description: 'Analog input 4 (user configured)'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+  # Base + 0x17 - Analog Inputs 5-8
+  - id: 0x01F0A017
+    name: 'Analog Inputs 5-8'
+    description: 'User-configurable analog input channels 5-8'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Analog_Input_5'
+        id: analog_input_5
+        category: electrical
+        description: 'Analog input 5 (user configured)'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_6'
+        id: analog_input_6
+        category: electrical
+        description: 'Analog input 6 (user configured)'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_7'
+        id: analog_input_7
+        category: electrical
+        description: 'Analog input 7 (user configured)'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_8'
+        id: analog_input_8
+        category: electrical
+        description: 'Analog input 8 (user configured)'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+  # Base + 0x18 - Digital Inputs
+  - id: 0x01F0A018
+    name: 'Digital Inputs'
+    description: 'Digital input states'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Digital_Input_1'
+        id: digital_input_1
+        category: status
+        description: 'Digital input 1 state'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Low, 1=High'
+
+      - name: 'Digital_Input_2'
+        id: digital_input_2
+        category: status
+        description: 'Digital input 2 state'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Digital_Input_3'
+        id: digital_input_3
+        category: status
+        description: 'Digital input 3 state'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Digital_Input_4'
+        id: digital_input_4
+        category: status
+        description: 'Digital input 4 state'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Digital_Input_5'
+        id: digital_input_5
+        category: status
+        description: 'Digital input 5 state'
+        start_bit: 4
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Digital_Input_6'
+        id: digital_input_6
+        category: status
+        description: 'Digital input 6 state'
+        start_bit: 5
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Digital_Input_7'
+        id: digital_input_7
+        category: status
+        description: 'Digital input 7 state'
+        start_bit: 6
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Digital_Input_8'
+        id: digital_input_8
+        category: status
+        description: 'Digital input 8 state'
+        start_bit: 7
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Clutch_Switch'
+        id: clutch_switch
+        category: status
+        description: 'Clutch switch state'
+        start_bit: 8
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Brake_Switch'
+        id: brake_switch
+        category: status
+        description: 'Brake switch state'
+        start_bit: 9
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'AC_Request'
+        id: ac_request
+        category: status
+        description: 'A/C request switch'
+        start_bit: 10
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Starter_Signal'
+        id: starter_signal
+        category: status
+        description: 'Starter signal active'
+        start_bit: 11
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+  # Base + 0x19 - Digital Outputs
+  - id: 0x01F0A019
+    name: 'Digital Outputs'
+    description: 'Digital output states'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Fuel_Pump_Relay'
+        id: fuel_pump_relay
+        category: status
+        description: 'Fuel pump relay state'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'Fan_Relay_1'
+        id: fan_relay_1
+        category: status
+        description: 'Fan relay 1 state'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Fan_Relay_2'
+        id: fan_relay_2
+        category: status
+        description: 'Fan relay 2 state'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'AC_Relay'
+        id: ac_relay
+        category: status
+        description: 'A/C clutch relay state'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Check_Engine_Light'
+        id: check_engine_light
+        category: status
+        description: 'Check engine light state'
+        start_bit: 4
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Shift_Light'
+        id: shift_light
+        category: status
+        description: 'Shift light state'
+        start_bit: 5
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Nitrous_Stage_1'
+        id: nitrous_stage_1_active
+        category: status
+        description: 'Nitrous stage 1 output'
+        start_bit: 6
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Nitrous_Stage_2'
+        id: nitrous_stage_2_active
+        category: status
+        description: 'Nitrous stage 2 output'
+        start_bit: 7
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+  # Base + 0x1A - Engine Runtime
+  - id: 0x01F0A01A
+    name: 'Engine Runtime'
+    description: 'Engine run time and trigger information'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Engine_Run_Time'
+        vendor_specific: true
+        description: 'Engine run time since start'
+        start_bit: 0
+        length: 32
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 's'
+        min: 0
+        max: 4294967
+
+      - name: 'Trigger_Error_Count'
+        id: trigger_error_counter
+        category: system
+        description: 'Trigger error counter'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 65535
+
+      - name: 'Sync_Status'
+        vendor_specific: true
+        description: 'Engine sync status'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Lost, 1=Synced'
+
+      - name: 'ECU_Internal_Temp'
+        vendor_specific: true
+        description: 'ECU internal temperature'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -40
+        max: 120
+
+  # ============================================================================
+  # VERY SLOW MESSAGES (2Hz / 500ms)
+  # ============================================================================
+
+  # Base + 0x1B - Nitrous Control
+  - id: 0x01F0A01B
+    name: 'Nitrous Control'
+    description: 'Nitrous oxide injection system data'
+    length: 8
+    interval_ms: 500
+    transmitter: ECU
+    signals:
+      - name: 'Nitrous_Bottle_Pressure'
+        id: nitrous_bottle_pressure
+        category: pressure
+        description: 'Nitrous bottle pressure'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 10000
+
+      - name: 'Nitrous_Stage_1_Duty'
+        vendor_specific: true
+        description: 'Nitrous stage 1 duty cycle'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Nitrous_Stage_2_Duty'
+        vendor_specific: true
+        description: 'Nitrous stage 2 duty cycle'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Nitrous_Armed'
+        id: nitrous_armed
+        category: status
+        description: 'Nitrous system armed status'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Disarmed, 1=Armed'
+
+      - name: 'Nitrous_Active'
+        id: nitrous_stage_1_active
+        category: status
+        description: 'Nitrous injection active'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+  # Base + 0x1C - GPS Data
+  - id: 0x01F0A01C
+    name: 'GPS Data'
+    description: 'GPS position and speed data'
+    length: 8
+    interval_ms: 500
+    transmitter: ECU
+    signals:
+      - name: 'GPS_Speed'
+        id: gps_speed
+        category: speed
+        description: 'GPS-derived speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 400
+
+      - name: 'GPS_Heading'
+        id: gps_heading
+        category: position
+        description: 'GPS heading'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: 0
+        max: 360
+
+      - name: 'GPS_Altitude'
+        id: gps_altitude
+        category: position
+        description: 'GPS altitude'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'm'
+        min: -500
+        max: 10000
+
+      - name: 'GPS_Satellites'
+        id: gps_satellites
+        category: system
+        description: 'Number of GPS satellites'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 24
+
+      - name: 'GPS_Fix_Quality'
+        vendor_specific: true
+        description: 'GPS fix quality'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=No fix, 1=GPS, 2=DGPS'
+
+  # Base + 0x1D - Transmission Data
+  - id: 0x01F0A01D
+    name: 'Transmission Data'
+    description: 'Automatic transmission control data'
+    length: 8
+    interval_ms: 500
+    transmitter: ECU
+    signals:
+      - name: 'Trans_Temperature'
+        vendor_specific: true
+        description: 'Transmission fluid temperature'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -40
+        max: 200
+
+      - name: 'Trans_Line_Pressure'
+        vendor_specific: true
+        description: 'Transmission line pressure'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3000
+
+      - name: 'Torque_Converter_Slip'
+        vendor_specific: true
+        description: 'Torque converter slip'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: -5000
+        max: 5000
+
+      - name: 'Current_Gear_Ratio'
+        id: gear_ratio
+        category: drivetrain
+        description: 'Current gear ratio'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: ''
+        min: 0
+        max: 10
+
+  # Base + 0x1E - Diagnostic Trouble Codes
+  - id: 0x01F0A01E
+    name: 'Diagnostic Trouble Codes'
+    description: 'Active and stored DTC information'
+    length: 8
+    interval_ms: 500
+    transmitter: ECU
+    signals:
+      - name: 'Active_DTC_Count'
+        id: error_count
+        category: system
+        description: 'Number of active DTCs'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 255
+
+      - name: 'Stored_DTC_Count'
+        vendor_specific: true
+        description: 'Number of stored DTCs'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 255
+
+      - name: 'Last_DTC_Code'
+        vendor_specific: true
+        description: 'Last triggered DTC code'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'AEM internal DTC code'
+
+      - name: 'Engine_Protection_Status'
+        id: engine_protection_active
+        category: status
+        description: 'Engine protection status bitmap'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Bitmap of active protections'
+
+# Enumerations for special values
+enums:
+  - name: 'GearPosition'
+    description: 'Gear position values'
+    values:
+      '-1': 'Reverse'
+      '0': 'Neutral'
+      '1': '1st Gear'
+      '2': '2nd Gear'
+      '3': '3rd Gear'
+      '4': '4th Gear'
+      '5': '5th Gear'
+      '6': '6th Gear'
+      '7': '7th Gear'
+      '8': '8th Gear'
+
+  - name: 'GPSFixQuality'
+    description: 'GPS fix quality values'
+    values:
+      '0': 'No Fix'
+      '1': 'GPS Fix'
+      '2': 'DGPS Fix'
+
+  - name: 'EngineProtection'
+    description: 'Engine protection reasons (bitmap)'
+    values:
+      '0x0001': 'Coolant Over-Temperature'
+      '0x0002': 'Oil Pressure Low'
+      '0x0004': 'Fuel Pressure Low'
+      '0x0008': 'Oil Temperature High'
+      '0x0010': 'EGT Over-Temperature'
+      '0x0020': 'MAP Limit'
+      '0x0040': 'Boost Limit'
+      '0x0080': 'AFR Lean Limit'
+      '0x0100': 'Knock Limit'
+      '0x0200': 'Battery Voltage Low'
+
+  - name: 'SyncStatus'
+    description: 'Engine synchronization status'
+    values:
+      '0': 'Lost Sync'
+      '1': 'Synced'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  source_url: 'https://www.aemelectronics.com/'
+  tested_with:
+    - 'AEM Infinity-6'
+    - 'AEM Infinity-8'
+    - 'AEM Infinity-10'
+    - 'AEM Infinity-12'
+  compatible_tools:
+    - 'CANalyzer'
+    - 'PCAN-View'
+    - 'SavvyCAN'
+    - 'BusMaster'
+    - 'RaceChrono'
+    - 'AiM data loggers'
+    - 'MoTeC C1 series'
+    - 'AEM CD-7/CD-5 Dash'
+  known_issues:
+    - 'Base CAN address is configurable in AEM software (default 0x01F0A000)'
+    - 'Not all messages broadcast if features not enabled in ECU'
+    - 'Message rates may vary based on ECU configuration'
+    - 'Some channels only available on specific Infinity models'
+    - 'GPS data requires external AEMNET GPS module'
+    - 'EGT channels require optional EGT module'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add canonical channel ids and categories to signals, drawn from the registry
+          in specs/channels.yaml. 110 of 141 signals (78%) now carry one, so a CAN
+          measurement can be matched to the same measurement read from a log file.
+          Before this, no protocol signal carried an id at all.'
+        - 'Account for the rest explicitly instead of leaving them silent: 31 marked
+          vendor_specific (a real measurement with no canonical equivalent) and 0
+          marked reserved (padding or diagnostic transport framing, which carry no
+          measurement).'
+    - version: '1.0.0'
+      date: '2026-01-07'
+      changes:
+        - 'Initial release based on AEM Infinity CAN protocol specifications'
+        - 'Added core engine data (RPM, MAP, TPS, temperatures)'
+        - 'Added fuel and ignition data (pulse width, timing, AFR)'
+        - 'Added lambda/wideband sensor channels'
+        - 'Added boost control signals'
+        - 'Added knock sensor data'
+        - 'Added variable cam timing signals'
+        - 'Added wheel speed sensors'
+        - 'Added traction and launch control data'
+        - 'Added EGT sensors (up to 12 channels)'
+        - 'Added fuel economy and flow data'
+        - 'Added idle control signals'
+        - 'Added DBW throttle control'
+        - 'Added analog and digital I/O channels'
+        - 'Added nitrous control signals'
+        - 'Added GPS data (with external module)'
+        - 'Added transmission control data'
+        - 'Added diagnostic trouble code information'
+
+# AEM-specific notes
+x_aem:
+  ecu_series:
+    - model: 'Infinity-6'
+      cylinders: 'Up to 6'
+      injectors: 6
+      ignition_outputs: 6
+    - model: 'Infinity-8'
+      cylinders: 'Up to 8'
+      injectors: 8
+      ignition_outputs: 8
+    - model: 'Infinity-10'
+      cylinders: 'Up to 10'
+      injectors: 10
+      ignition_outputs: 10
+    - model: 'Infinity-12'
+      cylinders: 'Up to 12'
+      injectors: 12
+      ignition_outputs: 12
+  protocol_notes: |
+    This protocol is for the AEM Infinity series ECUs using AEMNET CAN protocol.
+
+    Important characteristics:
+    - 29-bit extended CAN identifiers (CAN 2.0B)
+    - 500 kbit/s baud rate
+    - Little-endian (Intel) byte order
+    - Base address configurable (default 0x01F0A000)
+    - Message IDs are sequential offsets from base address
+
+    AEMNET is AEM's proprietary CAN protocol used for communication between
+    AEM devices including ECUs, displays (CD-5, CD-7), GPS modules, and
+    wideband controllers.
+
+    The CAN base address can be configured in AEMTuner software under
+    CAN Configuration settings. When integrating with third-party devices,
+    ensure the base address matches on both devices.
+
+    For detailed protocol information or custom CAN configurations,
+    contact AEM technical support.

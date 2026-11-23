@@ -1,0 +1,1303 @@
+# OpenECU Alliance Protocol Definition
+# Speeduino ECU CAN Broadcast Protocol
+#
+# Speeduino is an open-source ECU project that supports CAN bus broadcasting
+# on STM32 and Teensy MCUs with native CAN hardware.
+#
+# IMPORTANT NOTES:
+# - Requires STM32 or Teensy MCU with native CAN support (not available on Arduino Mega)
+# - Speeduino can broadcast in multiple protocols: Haltech, BMW, VAG
+# - This specification documents the Haltech-compatible broadcast mode
+# - OBD2 support is also available via standard PIDs
+# - Source: https://github.com/speeduino/speeduino/blob/master/speeduino/comms_CAN.cpp
+
+openecualliance: '1.0'
+type: protocol
+
+id: speeduino-broadcast
+name: 'Speeduino CAN Broadcast Protocol'
+version: '1.1.0'
+vendor: speeduino
+description: |
+  CAN broadcast protocol for Speeduino open-source ECU when configured for
+  Haltech-compatible CAN output mode. This protocol outputs real-time engine
+  data for integration with data loggers, dashboards, and other CAN devices.
+
+  Speeduino supports multiple CAN broadcast protocols:
+  - Haltech (this specification)
+  - BMW DME (for e46/e39/e38 instrument clusters)
+  - VAG (for VW/Audi instrument clusters)
+
+  Protocol uses 11-bit identifiers at 500kbit/s with big-endian encoding.
+  Requires STM32 or Teensy MCU with native CAN hardware support.
+
+website: 'https://speeduino.com'
+
+branding:
+  logo: speeduino-logo.png
+  icon: speeduino-icon.png
+  color_primary: '#1E90FF'
+  color_secondary: '#2C3E50'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: false
+
+messages:
+  # ============================================================================
+  # HIGH FREQUENCY MESSAGES (50Hz) - Haltech Compatible
+  # ============================================================================
+
+  # 0x360 - Core Engine Data (50Hz)
+  - id: 0x360
+    name: 'Engine Data 1'
+    description: 'RPM, manifold pressure, throttle position, coolant pressure'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'Engine rotational speed'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 65535
+
+      - name: 'Manifold_Pressure'
+        id: map
+        category: pressure
+        description: 'Manifold absolute pressure'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 6553.5
+        comment: 'MAP * 10, divide by 10 for kPa'
+
+      - name: 'Throttle_Position'
+        id: tps
+        category: engine
+        description: 'Throttle position sensor'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+        comment: 'TPS * 5 (TPS stored in 0.5% increments)'
+
+      - name: 'Coolant_Pressure'
+        id: coolant_pressure
+        category: pressure
+        description: 'Coolant system pressure (not implemented in Speeduino)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -101.3
+        unit: 'kPa'
+        min: -101.3
+        max: 6452.2
+        comment: 'Always 0x0000 - not supported'
+
+  # 0x361 - Pressure Data (50Hz)
+  - id: 0x361
+    name: 'Pressure Data'
+    description: 'Fuel pressure, oil pressure, engine load, wastegate pressure'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Fuel_Pressure'
+        id: fuel_pressure
+        category: pressure
+        description: 'Fuel rail pressure'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -101.3
+        unit: 'kPa'
+        comment: 'Converted from PSI: (PSI * 6.894 / 10) + 1013'
+
+      - name: 'Oil_Pressure'
+        id: oil_pressure
+        category: pressure
+        description: 'Engine oil pressure'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -101.3
+        unit: 'kPa'
+        comment: 'Converted from PSI: (PSI * 6.894 / 10) + 1013'
+
+      - name: 'Fuel_Load'
+        id: fuel_load
+        category: fuel
+        description: 'Current fuel load value'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: 'fuelLoad * 10'
+
+      - name: 'Wastegate_Pressure'
+        id: wastegate_pressure
+        category: pressure
+        description: 'Wastegate actuator pressure (not implemented)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -101.3
+        unit: 'kPa'
+        comment: 'Always 0x0000 - not supported'
+
+  # 0x362 - Injection and Ignition (50Hz)
+  - id: 0x362
+    name: 'Injection and Ignition'
+    description: 'Injector duty cycles and ignition timing'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Injection_Stage_1_Duty_Cycle'
+        id: duty_cycle
+        category: fuel
+        description: 'Primary injector duty cycle'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: 'Calculated from PW1, nSquirts, revolutionTime'
+
+      - name: 'Injection_Stage_2_Duty_Cycle'
+        id: injector_duty_2
+        category: engine
+        description: 'Secondary injector duty cycle (staging)'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: 'Always 0x0000 - not yet implemented'
+
+      - name: 'Ignition_Advance'
+        id: ignition_advance
+        category: ignition
+        description: 'Current ignition timing advance'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        comment: 'advance * 10, negative values indicate retard'
+
+      - name: 'Unused'
+        reserved: true
+        description: 'Unused bytes'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x0000'
+
+  # 0x364 - Pulse Widths (50Hz)
+  - id: 0x364
+    name: 'Injector Pulse Widths'
+    description: 'Individual injector pulse widths for channels 1-4'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Pulse_Width_1'
+        id: pulse_width
+        category: fuel
+        description: 'Injector 1 pulse width'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+        comment: 'PW1 in microseconds, divide by 1000 for ms'
+
+      - name: 'Pulse_Width_2'
+        id: pulse_width_2
+        category: fuel
+        description: 'Injector 2 pulse width'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_3'
+        id: pulse_width_3
+        category: fuel
+        description: 'Injector 3 pulse width'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_4'
+        id: pulse_width_4
+        category: fuel
+        description: 'Injector 4 pulse width'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+  # ============================================================================
+  # MEDIUM FREQUENCY MESSAGES (15-20Hz)
+  # ============================================================================
+
+  # 0x368 - Wideband Lambda (15Hz - Speeduino uses 15Hz instead of Haltech's 20Hz)
+  - id: 0x368
+    name: 'Wideband Lambda'
+    description: 'Wideband oxygen sensor lambda values 1-4'
+    length: 8
+    interval_ms: 67
+    transmitter: ECU
+    signals:
+      - name: 'Lambda_1'
+        id: lambda
+        category: fuel
+        description: 'Primary wideband lambda sensor'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        comment: '(O2 * 1000) / stoich'
+
+      - name: 'Lambda_2'
+        id: lambda_2
+        category: fuel
+        description: 'Secondary wideband lambda sensor'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        comment: '(O2_2 * 1000) / stoich'
+
+      - name: 'Lambda_3'
+        id: lambda_3
+        category: fuel
+        description: 'Wideband lambda sensor 3 (not implemented)'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        comment: 'Always 0x0000'
+
+      - name: 'Lambda_4'
+        id: lambda_4
+        category: fuel
+        description: 'Wideband lambda sensor 4 (not implemented)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        comment: 'Always 0x0000'
+
+  # 0x369 - Trigger Diagnostics (15Hz)
+  - id: 0x369
+    name: 'Trigger Diagnostics'
+    description: 'Trigger system diagnostic counters (not fully implemented)'
+    length: 8
+    interval_ms: 67
+    transmitter: ECU
+    signals:
+      - name: 'Trigger_Error_Count'
+        id: trigger_error_counter
+        category: system
+        description: 'Trigger system error count'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Not currently implemented in Speeduino'
+
+      - name: 'Trigger_Counter'
+        id: trigger_counter
+        category: system
+        description: 'Trigger pulse count'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Not currently implemented in Speeduino'
+
+      - name: 'Unused'
+        reserved: true
+        description: 'Reserved bytes'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Sync_Level'
+        id: sync_level
+        category: system
+        description: 'Trigger synchronization level'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Not currently implemented in Speeduino'
+
+  # 0x370 - Vehicle Speed and Cam Angles (15Hz)
+  - id: 0x370
+    name: 'Speed and Cam Angles'
+    description: 'Vehicle speed, gear position, and VVT cam angles'
+    length: 8
+    interval_ms: 67
+    transmitter: ECU
+    signals:
+      - name: 'Vehicle_Speed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle speed'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        comment: 'VSS * 10'
+
+      - name: 'Reserved'
+        reserved: true
+        description: 'Reserved byte'
+        start_bit: 16
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x00'
+
+      - name: 'Gear'
+        id: gear
+        category: drivetrain
+        description: 'Current gear position'
+        start_bit: 24
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Calculated from VSS'
+
+      - name: 'VVT1_Angle'
+        id: vvt_intake
+        category: engine
+        description: 'VVT intake cam angle bank 1'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        comment: 'vvt1Angle * 10'
+
+      - name: 'VVT2_Angle'
+        id: vvt_intake_bank2_actual
+        category: engine
+        description: 'VVT intake cam angle bank 2'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        comment: 'vvt2Angle * 10'
+
+  # ============================================================================
+  # LOW FREQUENCY MESSAGES (10Hz)
+  # ============================================================================
+
+  # 0x372 - Electrical and Boost (10Hz)
+  - id: 0x372
+    name: 'Electrical and Boost'
+    description: 'Battery voltage, target boost, barometric pressure'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Battery_Voltage_High'
+        id: battery_voltage
+        category: electrical
+        description: 'Battery voltage high byte (unused)'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x00 (max voltage is 25.5V)'
+
+      - name: 'Battery_Voltage'
+        id: battery_voltage
+        category: electrical
+        description: 'System battery voltage'
+        start_bit: 8
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'V'
+        min: 0
+        max: 25.5
+        comment: 'battery10 value (already multiplied by 10)'
+
+      - name: 'Unused_1'
+        reserved: true
+        description: 'Unused bytes'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x0000'
+
+      - name: 'Target_Boost'
+        id: boost_target
+        category: pressure
+        description: 'Target boost pressure'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        comment: 'boostTarget * 10'
+
+      - name: 'Barometric_Pressure'
+        id: barometric_pressure
+        category: pressure
+        description: 'Atmospheric pressure (absolute)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        comment: 'baro * 10'
+
+  # 0x3E0 - Core Temperatures (10Hz)
+  - id: 0x3E0
+    name: 'Core Temperatures'
+    description: 'Coolant, intake air, fuel, and oil temperatures'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Coolant_Temperature'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'K'
+        comment: '(coolant + 273) * 10 for Kelvin'
+
+      - name: 'Air_Temperature'
+        id: iat
+        category: temperature
+        description: 'Intake air temperature'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'K'
+        comment: '(IAT + 273) * 10 for Kelvin'
+
+      - name: 'Fuel_Temperature'
+        id: fuel_temp
+        category: temperature
+        description: 'Fuel temperature'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'K'
+        comment: '(fuelTemp + 273) * 10 for Kelvin'
+
+      - name: 'Oil_Temperature'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature (not implemented)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'K'
+        comment: 'Always 0x0000 - not supported'
+
+  # ============================================================================
+  # BMW DME PROTOCOL MESSAGES (Optional - when BMW mode selected)
+  # ============================================================================
+
+  # 0x316 - BMW DME1 (30Hz) - Optional, only when BMW protocol selected
+  - id: 0x316
+    name: 'BMW DME1'
+    description: 'BMW E46/E39/E38 instrument cluster RPM and torque message (only broadcast when BMW protocol selected)'
+    length: 8
+    interval_ms: 33
+    transmitter: ECU
+    signals:
+      - name: 'Status_Bitfield'
+        reserved: true
+        description: 'Status bits: Bit0=Terminal15, Bit2=ASC1 received'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Usually 0x05'
+
+      - name: 'Indexed_Engine_Torque'
+        id: torque_actual
+        category: engine
+        description: 'Indexed engine torque percentage'
+        start_bit: 8
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: '%'
+
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'Engine RPM'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.15625
+        offset: 0
+        unit: 'rpm'
+        comment: 'RPM * 6.4 (or RPM * 64 / 10)'
+
+      - name: 'Indicated_Engine_Torque'
+        id: torque_indicated
+        category: engine
+        description: 'Indicated engine torque percentage'
+        start_bit: 32
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: '%'
+
+      - name: 'Engine_Torque_Loss'
+        id: torque_loss
+        category: engine
+        description: 'Engine torque loss due to friction/accessories'
+        start_bit: 40
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: '%'
+
+      - name: 'Unused'
+        reserved: true
+        description: 'Unused byte'
+        start_bit: 48
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Theoretical_Engine_Torque'
+        id: torque_theoretical
+        category: engine
+        description: 'Theoretical engine torque after charge intervention'
+        start_bit: 56
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: '%'
+
+  # 0x329 - BMW DME2 (30Hz) - Optional, only when BMW protocol selected
+  - id: 0x329
+    name: 'BMW DME2'
+    description: 'BMW E46/E39/E38 instrument cluster temperature and TPS (only broadcast when BMW protocol selected)'
+    length: 8
+    interval_ms: 33
+    transmitter: ECU
+    signals:
+      - name: 'Multiplexed_Info'
+        reserved: true
+        description: 'Multiplexed information byte'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Usually 0x11'
+
+      - name: 'Coolant_Temperature'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 8
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.75
+        offset: -36.28
+        unit: 'C'
+        comment: '(coolant + 48.373) * 4 / 3'
+
+      - name: 'Barometric_Pressure'
+        id: barometric_pressure
+        category: pressure
+        description: 'Barometric pressure'
+        start_bit: 16
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'kPa'
+
+      - name: 'Status_Bitfield'
+        reserved: true
+        description: 'Status bits: Bit0=Clutch, Bit3=Engine running'
+        start_bit: 24
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Usually 0x08'
+
+      - name: 'TPS_Virtual_Cruise'
+        id: tps
+        category: engine
+        description: 'Virtual TPS for cruise control'
+        start_bit: 32
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: '%'
+        comment: 'Not used - 0x00'
+
+      - name: 'Throttle_Position'
+        id: tps
+        category: engine
+        description: 'Throttle position'
+        start_bit: 40
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.392
+        offset: 0
+        unit: '%'
+        comment: 'TPS mapped from 0-200 to 1-254'
+
+      - name: 'Brake_Status'
+        id: brake_switch
+        category: status
+        description: 'Brake system status bitfield'
+        start_bit: 48
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0x00'
+
+      - name: 'Unused'
+        reserved: true
+        description: 'Unused byte'
+        start_bit: 56
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+  # 0x545 - BMW DME4 (10Hz) - Optional, only when BMW protocol selected
+  - id: 0x545
+    name: 'BMW DME4'
+    description: 'BMW E46/E39/E38 fuel consumption and warning lights (only broadcast when BMW protocol selected)'
+    length: 5
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Warning_Lights'
+        reserved: true
+        description: 'Warning light bitfield: Bit1=CEL, Bit3=Cruise, Bit4=EML'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Usually 0x00'
+
+      - name: 'Fuel_Consumption'
+        id: fuel_flow
+        category: fuel
+        description: 'Fuel consumption'
+        start_bit: 8
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Not implemented - 0x0000'
+
+      - name: 'Overheat_Warning'
+        id: overheat_warning
+        category: status
+        description: 'Overheat warning status'
+        start_bit: 24
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0x08 if coolant > 120C, else 0x00'
+
+      - name: 'Oil_Temperature'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature indicator'
+        start_bit: 32
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Usually 0x7E'
+
+  # ============================================================================
+  # VAG PROTOCOL MESSAGES (Optional - when VAG mode selected)
+  # ============================================================================
+
+  # 0x280 - VAG RPM (30Hz) - Optional, only when VAG protocol selected
+  - id: 0x280
+    name: 'VAG RPM'
+    description: 'VW/Audi instrument cluster RPM message (only broadcast when VAG protocol selected)'
+    length: 8
+    interval_ms: 33
+    transmitter: ECU
+    signals:
+      - name: 'Prefix_1'
+        reserved: true
+        description: 'Message prefix byte 1'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x49'
+
+      - name: 'Prefix_2'
+        reserved: true
+        description: 'Message prefix byte 2'
+        start_bit: 8
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x0E'
+
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'Engine RPM'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.25
+        offset: 0
+        unit: 'rpm'
+        comment: 'RPM * 4'
+
+      - name: 'Suffix_1'
+        reserved: true
+        description: 'Message suffix byte 1'
+        start_bit: 32
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x0E'
+
+      - name: 'Suffix_2'
+        reserved: true
+        description: 'Message suffix byte 2'
+        start_bit: 40
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x00'
+
+      - name: 'Suffix_3'
+        reserved: true
+        description: 'Message suffix byte 3'
+        start_bit: 48
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x1B'
+
+      - name: 'Suffix_4'
+        reserved: true
+        description: 'Message suffix byte 4'
+        start_bit: 56
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x0E'
+
+  # 0x5A0 - VAG VSS (30Hz) - Optional, only when VAG protocol selected
+  - id: 0x5A0
+    name: 'VAG Vehicle Speed'
+    description: 'VW/Audi instrument cluster vehicle speed message (only broadcast when VAG protocol selected)'
+    length: 8
+    interval_ms: 33
+    transmitter: ECU
+    signals:
+      - name: 'Prefix'
+        reserved: true
+        description: 'Message prefix'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0xFF'
+
+      - name: 'Vehicle_Speed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle speed'
+        start_bit: 8
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.0075
+        offset: 0
+        unit: 'km/h'
+        comment: 'VSS * 133'
+
+      - name: 'Unused_1'
+        reserved: true
+        description: 'Unused bytes'
+        start_bit: 24
+        length: 32
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0x00000000'
+
+      - name: 'Suffix'
+        reserved: true
+        description: 'Message suffix'
+        start_bit: 56
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Always 0xAD'
+
+  # ============================================================================
+  # OBD2 COMPATIBLE MESSAGES (Request/Response)
+  # ============================================================================
+
+  # 0x7DF - OBD2 Broadcast Request (Received by Speeduino)
+  - id: 0x7DF
+    name: 'OBD2 Broadcast Request'
+    description: 'OBD2 broadcast request address (functional addressing) - standard OBD2 broadcast address for service requests'
+    length: 8
+    transmitter: Tester
+    signals:
+      - name: 'Data_Length'
+        reserved: true
+        description: 'Number of additional data bytes'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Service_ID'
+        reserved: true
+        description: 'OBD2 service mode (01=current data, 09=vehicle info, 22=custom)'
+        start_bit: 8
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'PID'
+        reserved: true
+        description: 'Parameter ID being requested'
+        start_bit: 16
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Data'
+        reserved: true
+        description: 'Additional request data'
+        start_bit: 24
+        length: 40
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+  # 0x7E8 - OBD2 Response (Sent by Speeduino)
+  - id: 0x7E8
+    name: 'OBD2 Response'
+    description: 'OBD2 response from ECU - standard OBD2 response address'
+    length: 8
+    transmitter: ECU
+    signals:
+      - name: 'Data_Length'
+        reserved: true
+        description: 'Number of additional data bytes'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Response_Service_ID'
+        reserved: true
+        description: 'Response service ID (request service + 0x40)'
+        start_bit: 8
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'PID'
+        reserved: true
+        description: 'Parameter ID being responded to'
+        start_bit: 16
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Data'
+        reserved: true
+        description: 'Response data bytes'
+        start_bit: 24
+        length: 40
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+# Enumerations for special values
+enums:
+  - name: 'CANBroadcastProtocol'
+    description: 'Available CAN broadcast protocol options'
+    values:
+      '0': 'Off'
+      '1': 'BMW'
+      '2': 'VAG'
+      '3': 'Haltech'
+
+  - name: 'CanWBOType'
+    description: 'CAN Wideband O2 sensor types'
+    values:
+      '0': 'Disabled'
+      '1': 'rusEFI'
+      '2': 'AEM X-Series'
+
+  - name: 'OBD2Modes'
+    description: 'Supported OBD2 service modes'
+    values:
+      '0x01': 'Show Current Data'
+      '0x09': 'Vehicle Information'
+      '0x22': 'Custom Mode (Non-standard)'
+
+  - name: 'SupportedOBD2PIDs_Mode1'
+    description: 'Supported OBD2 Mode 1 PIDs'
+    values:
+      '0x00': 'PIDs Supported 01-20'
+      '0x05': 'Engine Coolant Temperature'
+      '0x0A': 'Fuel Pressure'
+      '0x0B': 'MAP'
+      '0x0C': 'Engine RPM'
+      '0x0D': 'Vehicle Speed'
+      '0x0E': 'Timing Advance'
+      '0x0F': 'Intake Air Temperature'
+      '0x11': 'Throttle Position'
+      '0x13': 'O2 Sensors Present'
+      '0x1C': 'OBD Standards'
+      '0x20': 'PIDs Supported 21-40'
+      '0x24': 'O2 Sensor 1 (Fuel/Air Ratio)'
+      '0x25': 'O2 Sensor 2 (Fuel/Air Ratio)'
+      '0x33': 'Barometric Pressure'
+      '0x40': 'PIDs Supported 41-60'
+      '0x42': 'Control Module Voltage'
+      '0x46': 'Ambient Air Temperature'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  source_url: 'https://github.com/speeduino/speeduino/blob/master/speeduino/comms_CAN.cpp'
+  tested_with:
+    - 'Speeduino 202xxx firmware'
+    - 'Speeduino Teensy 3.5/3.6/4.1'
+    - 'Speeduino STM32F407'
+  compatible_tools:
+    - 'CANalyzer'
+    - 'PCAN-View'
+    - 'SavvyCAN'
+    - 'BusMaster'
+    - 'RaceChrono'
+    - 'Haltech iC-7'
+    - 'Haltech iC-10'
+    - 'BMW OEM Cluster (E46/E39/E38)'
+    - 'VAG/VW OEM Cluster'
+  known_issues:
+    - 'CAN requires Teensy or STM32 MCU - not available on Arduino Mega'
+    - 'Some signals like staging duty cycle are not yet implemented'
+    - 'Temperature encoding differs from native Haltech (Speeduino uses C+273 instead of deciKelvin)'
+    - 'Trigger diagnostics message (0x369) is not fully implemented'
+    - 'Oil temperature not supported'
+    - 'Coolant pressure not supported'
+    - 'Wastegate pressure not supported'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add canonical channel ids and categories to signals, drawn from the registry
+          in specs/channels.yaml. 49 of 76 signals (64%) now carry one, so a CAN
+          measurement can be matched to the same measurement read from a log file.
+          Before this, no protocol signal carried an id at all.'
+        - 'Account for the rest explicitly instead of leaving them silent: 0 marked
+          vendor_specific (a real measurement with no canonical equivalent) and 27
+          marked reserved (padding or diagnostic transport framing, which carry no
+          measurement).'
+    - version: '1.0.0'
+      date: '2025-01-07'
+      changes:
+        - 'Initial release based on Speeduino comms_CAN.cpp source code'
+        - 'Documented Haltech-compatible broadcast messages (0x360-0x3E0)'
+        - 'Added BMW DME protocol messages (0x316, 0x329, 0x545)'
+        - 'Added VAG protocol messages (0x280, 0x5A0)'
+        - 'Documented OBD2 support (0x7DF, 0x7E8)'
+        - 'Added supported OBD2 PIDs list'
+
+# Speeduino-specific extensions
+x_speeduino:
+  mcu_requirements:
+    - 'Teensy 3.5'
+    - 'Teensy 3.6'
+    - 'Teensy 4.1'
+    - 'STM32F407 (Black F407VE/ZE)'
+    - 'STM32F411 (Black Pill)'
+  firmware_notes: |
+    CAN bus functionality requires a microcontroller with native CAN hardware.
+    The Arduino Mega 2560 does NOT support CAN.
+
+    CAN broadcast protocol is selected in TunerStudio:
+    - Settings -> Accessories -> CAN Broadcast Protocol
+
+    Available options:
+    - Off: No CAN broadcasting
+    - BMW: For E46/E39/E38 OEM instrument clusters
+    - VAG: For VW/Audi OEM instrument clusters
+    - Haltech: For Haltech dashes and third-party loggers
+
+    CAN wideband input is configured separately:
+    - Settings -> Accessories -> CAN Wideband
+
+    Supported CAN wideband controllers:
+    - rusEFI CAN Wideband (0xEF50000 extended, 0x190/0x192 standard)
+    - AEM X-Series 30-0300 (0x180)
+
+  obd2_notes: |
+    OBD2 support allows connection of standard scan tools and gauges.
+    Default ECU address is configurable in TunerStudio.
+
+    Response address: configPage9.obd_address + 0x108 (typically 0x7E8)
+    Request address: configPage9.obd_address + 0x100 (typically 0x7E0) or 0x7DF broadcast
+
+    Supported OBD2 services:
+    - Service 0x01: Real-time data stream
+    - Service 0x09: Vehicle information (VIN - not fully implemented)
+    - Service 0x22: Custom data (manufacturer specific)
+
+  broadcast_frequencies:
+    haltech_50hz:
+      - 0x360
+      - 0x361
+      - 0x362
+      - 0x364
+    haltech_15hz:
+      - 0x368
+      - 0x369
+      - 0x370
+    haltech_10hz:
+      - 0x372
+      - 0x3E0
+    bmw_30hz:
+      - 0x316
+      - 0x329
+    bmw_10hz:
+      - 0x545
+    vag_30hz:
+      - 0x280
+      - 0x5A0

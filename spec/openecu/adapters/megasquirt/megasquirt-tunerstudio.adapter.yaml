@@ -1,0 +1,380 @@
+# OpenECU Alliance Adapter Specification
+# MegaSquirt / TunerStudio CSV Datalog Format
+
+openecualliance: '1.0'
+id: megasquirt-tunerstudio
+name: 'MegaSquirt TunerStudio Datalog'
+version: '1.1.0'
+vendor: megasquirt
+description: |
+  CSV datalog files exported from TunerStudio for MegaSquirt ECUs
+  (MS1, MS2, MS3, MS3Pro) and compatible systems like Honda Tuning Studio.
+
+  Format characteristics:
+  - 4 metadata header lines (export label, tune file, frame count, duration)
+  - Column header line with units in parentheses (e.g., "MAP(mBar)")
+  - Comma-delimited data rows
+  - "Frame" and "Duration" are the first two columns (index and time in seconds)
+  - Boolean values in some columns (e.g., MIL = "ON"/"OFF")
+  - First row may have anomalous Duration timestamp (ECU uptime at log start)
+website: 'https://www.tunerstudio.com'
+branding:
+  logo: megasquirt-logo.png
+  icon: megasquirt-icon.png
+  color_primary: '#1A1A2E'
+  color_secondary: '#E94560'
+
+file_format:
+  type: csv
+  extensions: ['.csv']
+  encoding: utf-8
+  delimiter: ','
+  header_rows: 4
+  column_header_row: 4
+  data_start_row: 5
+  timestamp_column: 'Duration'
+  timestamp_unit: seconds
+  detection:
+    first_line_starts_with: 'Tune Datalog export'
+
+channels:
+  # Engine Core
+  - id: rpm
+    name: 'Engine RPM'
+    description: 'Engine speed from crankshaft sensor'
+    category: engine
+    data_type: float
+    unit: rpm
+    min: 0
+    max: 15000
+    precision: 0
+    source_names:
+      - 'RPM'
+
+  - id: tps
+    name: 'Throttle Position'
+    description: 'Throttle position sensor percentage'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'TPS'
+      - 'TPS(%)'
+
+  - id: tps_voltage
+    name: 'TPS Voltage'
+    description: 'Raw throttle position sensor voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'TPS Voltage'
+      - 'TPS Voltage(v)'
+
+  - id: map
+    name: 'Manifold Pressure'
+    description: 'Manifold absolute pressure'
+    category: pressure
+    data_type: float
+    unit: mbar
+    # mbar -> kpa (canonical)
+    to_canonical:
+      scale: 0.1
+      offset: 0
+    min: 0
+    max: 4000
+    precision: 0
+    source_names:
+      - 'MAP'
+      - 'MAP(mBar)'
+
+  - id: map_voltage
+    name: 'MAP Voltage'
+    description: 'Raw MAP sensor voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'MAP Voltage'
+      - 'MAP Voltage(v)'
+
+  - id: boost
+    name: 'Boost Pressure'
+    description: 'Boost pressure (gauge)'
+    category: pressure
+    data_type: float
+    unit: psi
+    # psi -> kpa (canonical)
+    to_canonical:
+      scale: 6.89475729
+      offset: 0
+    min: -15
+    max: 50
+    precision: 1
+    source_names:
+      - 'Boost'
+      - 'Boost(psi)'
+
+  - id: baro
+    name: 'Barometric Pressure'
+    description: 'Atmospheric / barometric pressure'
+    category: pressure
+    data_type: float
+    unit: mbar
+    # mbar -> kpa (canonical)
+    to_canonical:
+      scale: 0.1
+      offset: 0
+    min: 800
+    max: 1100
+    precision: 0
+    source_names:
+      - 'PA'
+      - 'PA(mBar)'
+      - 'Barometric Pressure'
+
+  # Fuel System
+  - id: injector_pw
+    name: 'Injector Pulse Width'
+    description: 'Fuel injector on-time per cycle'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    min: 0
+    max: 50
+    precision: 2
+    source_names:
+      - 'INJ Duration'
+      - 'INJ Duration(ms)'
+      - 'Pulse Width'
+      - 'PW'
+
+  - id: injector_duty
+    name: 'Injector Duty Cycle'
+    description: 'Fuel injector duty cycle percentage'
+    category: fuel
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'INJ Duty'
+      - 'INJ Duty(%)'
+      - 'Duty Cycle'
+
+  - id: fuel_value
+    name: 'Fuel Value'
+    description: 'Fuel enrichment / VE lookup value'
+    category: fuel
+    data_type: float
+    unit: ''
+    min: 0
+    max: 255
+    precision: 2
+    source_names:
+      - 'Fuel Value'
+
+  - id: afr
+    name: 'Air-Fuel Ratio'
+    description: 'Measured or target air-fuel ratio'
+    category: fuel
+    data_type: float
+    unit: afr
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'A/F Ratio'
+      - 'AFR'
+      - 'AFR(AFR)'
+
+  # Ignition System
+  - id: ignition_table
+    name: 'Ignition Table'
+    description: 'Base ignition timing from table lookup'
+    category: ignition
+    data_type: float
+    unit: degrees
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'IGN Table'
+      - 'IGN Table(degrees)'
+
+  - id: ignition_advance
+    name: 'Ignition Timing'
+    description: 'Final ignition timing with corrections applied'
+    category: ignition
+    data_type: float
+    unit: degrees
+    min: -20
+    max: 60
+    precision: 2
+    source_names:
+      - 'IGN Final'
+      - 'IGN Final(degrees)'
+      - 'Ignition Advance'
+      - 'Spark Advance'
+
+  # Temperature Sensors
+  - id: coolant_temp
+    name: 'Coolant Temperature'
+    description: 'Engine coolant temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 150
+    precision: 0
+    source_names:
+      - 'ECT'
+      - 'ECT(C)'
+      - 'Coolant Temperature'
+      - 'CLT'
+
+  - id: iat
+    name: 'Intake Air Temperature'
+    description: 'Intake air temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 100
+    precision: 0
+    source_names:
+      - 'IAT'
+      - 'IAT(C)'
+      - 'Intake Air Temperature'
+
+  # Electrical
+  - id: battery_voltage
+    name: 'Battery Voltage'
+    description: 'System battery voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 20
+    precision: 2
+    source_names:
+      - 'BAT Voltage'
+      - 'BAT Voltage(v)'
+      - 'Battery Voltage'
+
+  - id: eld_voltage
+    name: 'ELD Voltage'
+    description: 'Electrical load detector voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'ELD Voltage'
+      - 'ELD Voltage(v)'
+
+  # Speed / Drivetrain
+  - id: vehicle_speed
+    name: 'Vehicle Speed'
+    description: 'Vehicle ground speed'
+    category: speed
+    data_type: float
+    unit: 'kph'
+    min: 0
+    max: 300
+    precision: 0
+    source_names:
+      - 'VSS'
+      - 'VSS(kmh)'
+      - 'Vehicle Speed'
+
+  - id: gear
+    name: 'Gear Position'
+    description: 'Current gear'
+    category: drivetrain
+    data_type: int
+    unit: gear
+    min: 0
+    max: 6
+    precision: 0
+    source_names:
+      - 'Gear'
+
+  # Diagnostics
+  - id: mil
+    name: 'MIL'
+    description: 'Malfunction indicator lamp status (ON/OFF)'
+    category: diagnostics
+    data_type: bool
+    unit: ''
+    min: 0
+    max: 1
+    precision: 0
+    source_names:
+      - 'MIL'
+
+  # Analog Inputs
+  - id: analog_d14
+    name: 'Analog D14'
+    description: 'Analog input D14 voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'D14'
+      - 'D14(v)'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  tested_with:
+    - 'MegaSquirt MS2 V3.0'
+    - 'MegaSquirt MS3 V0.6'
+    - 'MegaSquirt MS3-Pro'
+    - 'Honda Tuning Studio'
+  known_issues:
+    - 'First data row Duration may contain ECU uptime instead of log-relative time'
+    - 'Boolean columns (MIL) contain text ON/OFF instead of numeric values'
+    - 'Channel names and count vary based on TunerStudio dashboard configuration'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add mbar -> kpa conversions for map and baro, and psi -> kpa for boost.'
+        - 'Normalise unit spellings: ''ms'' -> ''milliseconds'', ''km/h'' -> ''kph''.'
+        - 'Declare ''to_canonical'' scale/offset on channels whose log unit differs from
+          the canonical unit in specs/channels.yaml. The log unit is unchanged — it
+          still describes the file — but a consumer can now normalise without knowing
+          the vendor.'
+    - version: '1.0.0'
+      date: '2026-02-22'
+      changes:
+        - 'Initial release'
+        - 'Support for TunerStudio CSV datalog format'
+        - 'Compatible with MegaSquirt and Honda Tuning Studio'
+
+# MegaSquirt/TunerStudio-specific extensions
+x_megasquirt:
+  compatible_software:
+    - 'TunerStudio MS'
+    - 'TunerStudio Lite'
+    - 'Honda Tuning Studio'
+    - 'MegaLogViewer'
+  boolean_text_values: true
+  anomalous_first_row: true
+  detection_header: 'Tune Datalog export'

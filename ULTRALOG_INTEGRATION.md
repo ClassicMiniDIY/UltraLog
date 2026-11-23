@@ -1,6 +1,13 @@
-# UltraLog Integration with OpenECU Alliance Specs
+# UltraLog Integration with the OpenECU Spec Corpus
 
-This document describes how UltraLog integrates with OpenECU Alliance adapter specifications for channel normalization and metadata.
+This document describes how UltraLog uses the OpenECU adapter and protocol specifications for channel normalization and metadata.
+
+> **Stale sections (2026-11-22).** The OpenECU Alliance was retired: `oecua.org`, its REST
+> API and the `OpenECUAlliance` / `OECUASpecs` repositories are gone or archived. The corpus
+> is now vendored in this repository at `spec/openecu/` and UltraLog owns it — see CLAUDE.md
+> "OpenECU spec corpus". The spec-source and "Adding New Specs" sections below are corrected.
+> Every section describing the **API tier, background refresh or disk cache still describes
+> code that is being removed**; treat it as history until that change lands.
 
 ## Implementation Status
 
@@ -86,10 +93,14 @@ src/
 └── parsers/
     └── types.rs         # Channel type enhanced with spec metadata methods
 
-spec/OECUASpecs/         # Git submodule: github.com/ClassicMiniDIY/OECUASpecs
-├── adapters/            # Log file format adapters (8 specs)
-└── protocols/           # CAN bus protocol definitions (9 specs)
-build.rs                 # Auto-downloads specs if submodule missing
+spec/openecu/            # Vendored corpus, tracked in this repo (no upstream)
+├── adapters/            # Log file format adapters (10 specs)
+├── protocols/           # CAN bus protocol definitions (12 specs)
+├── channels.yaml        # Canonical channel registry (466 channels) — source of truth
+├── SPECIFICATION.md     # Generated from channels.yaml — never hand-edit
+└── assets/              # Vendor logos, icons and banners referenced by `branding`
+build.rs                 # Downloads nothing; just a rerun-if-changed on spec/openecu
+tests/spec_corpus.rs     # Validates the corpus against the registry and the serde types
 
 Cache locations:
 - Linux: ~/.local/share/UltraLog/oecua_specs/
@@ -135,23 +146,19 @@ UltraLog uses a **three-tier fallback system** for loading adapter and protocol 
 - **Auto-updating** - Latest specs fetched in background
 - **Cache efficiency** - 24-hour staleness threshold reduces API load
 
-### 1. Spec Source: GitHub Submodule
+### 1. Spec Source: Vendored in This Repository
 
-Adapter specs come from the [OECUASpecs](https://github.com/ClassicMiniDIY/OECUASpecs) repository as a git submodule:
+The corpus lives at `spec/openecu/` and is tracked in git. A plain clone builds offline:
 
 ```bash
-# Clone with submodules
-git clone --recursive https://github.com/ClassicMiniDIY/UltraLog.git
-
-# Or initialize after cloning
-git submodule update --init
+git clone https://github.com/ClassicMiniDIY/UltraLog.git
+cargo build
 ```
 
-The `build.rs` script ensures specs are available:
-
-1. Checks if submodule is initialized
-2. If not, attempts `git submodule update --init`
-3. If git fails, downloads specs directly from GitHub raw content
+It was never a git submodule. Until 2026-11-22 `build.rs` downloaded 18 files from
+`raw.githubusercontent.com/ClassicMiniDIY/OECUASpecs` into a **gitignored**
+`spec/OECUASpecs/`, so a clean clone could not build without network access to a repository
+that is now archived. `build.rs` no longer downloads anything.
 
 ### 2. Runtime Spec Loading with Fallback
 
@@ -162,8 +169,8 @@ Adapter specs are loaded at runtime via a fallback chain:
 
 // Embedded YAML as compile-time fallback
 const HALTECH_NSP_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/haltech/haltech-nsp.adapter.yaml");
-// ... 7 more adapters
+    include_str!("../../spec/openecu/adapters/haltech/haltech-nsp.adapter.yaml");
+// ... 9 more adapters
 
 // Load with cache -> embedded fallback
 fn load_adapters_with_fallback() -> Vec<AdapterSpec> {
@@ -555,24 +562,31 @@ use ultralog::normalize::{
 
 ## Adding New Specs
 
-1. Add adapter YAML to [OECUASpecs](https://github.com/ClassicMiniDIY/OECUASpecs) repo
-2. Update submodule: `git submodule update --remote`
+1. Add the adapter YAML under `spec/openecu/adapters/<vendor>/` in this repo
+2. Add its channel IDs to `spec/openecu/channels.yaml` if any are new, keeping category
+   and canonical unit consistent — `cargo test --test spec_corpus` fails otherwise
 3. Add `include_str!` in `src/adapters/registry.rs`
-4. Add to `EMBEDDED_ADAPTERS` array
-5. Add download URL to `build.rs` `ADAPTER_SPECS` array
+4. Add it to the **front** of the `EMBEDDED_ADAPTERS` array, unless you have checked its
+   `source_names` for collisions with the adapters already there: the array's order decides
+   which adapter wins a contested name (CLAUDE.md "Source-name collisions")
+5. Run `cargo test --test spec_corpus` — it fails if the file is not embedded, and
+   validates the spec against the registry
 6. Rebuild UltraLog
+
+`build.rs` needs no change; there is no download list any more.
 
 Example adding a new adapter:
 
 ```rust
 // src/adapters/registry.rs
 const NEW_ADAPTER_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/newvendor/newformat.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/newvendor/newformat.adapter.yaml");
 
 static EMBEDDED_ADAPTERS: &[&str] = &[
+    NEW_ADAPTER_YAML,  // Add at the FRONT: see CLAUDE.md "Source-name collisions"
+    BMW_MS4X_ADAPTER_YAML,
     HALTECH_NSP_YAML,
     // ... existing adapters ...
-    NEW_ADAPTER_YAML,  // Add here
 ];
 ```
 

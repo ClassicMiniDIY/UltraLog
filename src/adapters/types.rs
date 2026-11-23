@@ -4,7 +4,7 @@
 //! adapter YAML files that define ECU log format specifications.
 //!
 //! **Load-bearing:** the same structs deserialize two different casings. The
-//! embedded YAML from `ClassicMiniDIY/OECUASpecs` uses snake_case field names,
+//! embedded YAML from `spec/openecu` uses snake_case field names,
 //! while the `openecualliance.org` JSON API serves the same data camelCased
 //! (`data_type` vs `dataType`, `start_bit` vs `startBit`). Every multi-word
 //! field therefore carries a camelCase `#[serde(alias = ...)]`. Drop one and
@@ -172,9 +172,31 @@ pub struct ChannelSpec {
     /// Formula to convert from source to canonical unit
     #[serde(default)]
     pub conversion: Option<String>,
+    /// Linear conversion from this channel's log unit to the canonical unit in
+    /// `spec/openecu/channels.yaml`: `canonical = raw * scale + offset`. Present
+    /// whenever `unit` differs from the canonical unit — `unit` describes what the
+    /// log file actually contains and is never rewritten to look canonical.
+    ///
+    /// 30 channels across nine of the ten adapters declare this (`link-llg` has
+    /// none). NOTHING APPLIES IT YET: `conversion` and `source_unit` are likewise
+    /// never read, so UltraLog currently displays raw log units throughout.
+    /// Deserializing it here stops the corpus losing the data; wiring it into the
+    /// parsers changes displayed values and needs its own change.
+    #[serde(default, alias = "toCanonical")]
+    pub to_canonical: Option<UnitConversion>,
     /// Searchable tags
     #[serde(default)]
     pub tags: Option<Vec<String>>,
+}
+
+/// Linear conversion to a channel's canonical unit: `canonical = raw * scale + offset`.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+pub struct UnitConversion {
+    /// Multiplier applied to the raw logged value
+    pub scale: f64,
+    /// Constant added after scaling
+    #[serde(default)]
+    pub offset: f64,
 }
 
 /// Channel categories
@@ -446,6 +468,12 @@ pub struct SignalSpec {
     /// Maximum physical value
     #[serde(default)]
     pub max: Option<f64>,
+    /// Linear conversion from this signal's `unit` to the canonical unit for its channel
+    /// id: `canonical = raw * scale + offset`. Five BMW signals declare it (ambient
+    /// pressure in mbar, two mass figures). Same mandate and same unapplied state as
+    /// [`ChannelSpec::to_canonical`].
+    #[serde(default, alias = "toCanonical")]
+    pub to_canonical: Option<UnitConversion>,
     /// Reference to an enum definition for discrete values
     #[serde(default, alias = "enumRef")]
     pub enum_ref: Option<String>,

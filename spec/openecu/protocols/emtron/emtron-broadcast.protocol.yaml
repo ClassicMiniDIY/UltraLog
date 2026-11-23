@@ -1,0 +1,1091 @@
+# OpenECU Alliance Protocol Definition
+# Emtron ECU CAN Broadcast Protocol (Predefined Tx Dataset 1)
+#
+# Sources:
+# - https://wiki.autosportlabs.com/Emtron
+# - https://gaugeart.com/instructions/emtron-ecu-can-telemetry-setup/
+# - https://manuals.hgmelectronics.com/CS3M/connecting-compushift-to-emtron
+# - https://forum.realdash.net/t/help-with-emtron-ecu-description-file/1071
+# - Racelogic Emtron Predefined Tx Dataset 1 documentation
+#
+# IMPORTANT NOTES:
+# - Emtron CAN output is configurable via Emtune software
+# - This represents "Emtron Display Tx Set 1" predefined configuration
+# - Default CAN Base Address: 1250 (0x4E2)
+# - All data is 16-bit little endian (low byte first)
+# - Sequential addressing mode (11-bit CAN IDs)
+# - 10 messages, 40 parameters total
+
+openecualliance: '1.0'
+type: protocol
+
+id: emtron-broadcast
+name: 'Emtron CAN Broadcast Protocol'
+version: '1.1.0'
+vendor: emtron
+description: |
+  CAN broadcast protocol for Emtron ECUs (KV8, KV12, KV16 series).
+  This protocol represents the "Emtron Display Tx Set 1" predefined configuration
+  which outputs real-time engine data for integration with data loggers,
+  dashboards, and other CAN-enabled devices.
+
+  Protocol uses 11-bit identifiers at 1Mb/second with little-endian encoding.
+  All parameters are 16-bit values transmitted low byte first.
+  Temperature values require conversion: Celsius = value * 0.1 - 50
+  Pressure values are typically in kPa with 0.1 scaling.
+
+website: 'https://emtron.world/'
+
+branding:
+  # Note: Emtron logo not yet available - emtron.com.au website was down
+  # logo: emtron-logo.png
+  # icon: emtron-icon.png
+  color_primary: '#E31837'
+  color_secondary: '#000000'
+
+protocol:
+  type: can
+  baudrate: 1000000
+  extended_id: false
+  byte_order: little_endian
+
+messages:
+  # ============================================================================
+  # MESSAGE 1 (0x4E2 / 1250) - Core Engine Data
+  # ============================================================================
+
+  - id: 0x4E2
+    name: 'Engine Data 1'
+    description: 'RPM, manifold pressure, coolant temperature, intake air temperature'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'Engine rotational speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 65535
+
+      - name: 'Manifold_Pressure'
+        id: map
+        category: pressure
+        description: 'Engine manifold pressure (absolute)'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 6553.5
+        comment: 'Absolute pressure in kPa'
+
+      - name: 'Coolant_Temperature'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -50
+        unit: 'C'
+        min: -50
+        max: 6503.5
+        comment: 'Celsius = value * 0.1 - 50'
+
+      - name: 'Air_Temperature'
+        id: iat
+        category: temperature
+        description: 'Intake air temperature'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -50
+        unit: 'C'
+        min: -50
+        max: 6503.5
+        comment: 'Celsius = value * 0.1 - 50'
+
+  # ============================================================================
+  # MESSAGE 2 (0x4E3 / 1251) - Throttle and Electrical
+  # ============================================================================
+
+  - id: 0x4E3
+    name: 'Throttle and Electrical'
+    description: 'Throttle position, estimated charge temp, gear, battery voltage'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Throttle_Position'
+        id: tps
+        category: engine
+        description: 'Throttle position sensor'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -100
+        unit: '%'
+        min: 0
+        max: 100
+        comment: 'TPS = value * 0.1 - 100; 1000 = 0%, 2000 = 100%'
+
+      - name: 'Estimated_Charge_Temperature'
+        vendor_specific: true
+        description: 'Estimated air charge temperature'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -50
+        unit: 'C'
+        min: -50
+        max: 6503.5
+        comment: 'Celsius = value * 0.1 - 50'
+
+      - name: 'Gear'
+        id: gear
+        category: drivetrain
+        description: 'Current gear position'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: -1
+        max: 10
+        comment: '0=Neutral, -1=Reverse, 1-10=Forward gears'
+
+      - name: 'Battery_Voltage'
+        id: battery_voltage
+        category: electrical
+        description: 'System battery voltage'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'V'
+        min: 0
+        max: 655.35
+
+  # ============================================================================
+  # MESSAGE 3 (0x4E4 / 1252) - Oil and Fuel Pressures/Temperatures
+  # ============================================================================
+
+  - id: 0x4E4
+    name: 'Oil and Fuel Data'
+    description: 'Oil pressure, oil temperature, fuel pressure, fuel temperature'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Oil_Pressure'
+        id: oil_pressure
+        category: pressure
+        description: 'Engine oil pressure'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 6553.5
+
+      - name: 'Oil_Temperature'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -50
+        unit: 'C'
+        min: -50
+        max: 6503.5
+        comment: 'Celsius = value * 0.1 - 50'
+
+      - name: 'Fuel_Pressure'
+        id: fuel_pressure
+        category: pressure
+        description: 'Fuel rail pressure'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 6553.5
+
+      - name: 'Fuel_Temperature'
+        id: fuel_temp
+        category: temperature
+        description: 'Fuel temperature'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -50
+        unit: 'C'
+        min: -50
+        max: 6503.5
+        comment: 'Celsius = value * 0.1 - 50'
+
+  # ============================================================================
+  # MESSAGE 4 (0x4E5 / 1253) - Lambda and Ignition
+  # ============================================================================
+
+  - id: 0x4E5
+    name: 'Lambda and Ignition'
+    description: 'Lambda values and ignition timing'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Lambda_1'
+        id: lambda
+        category: fuel
+        description: 'Wideband lambda sensor 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 65.535
+        comment: 'Lambda = value * 0.001'
+
+      - name: 'Lambda_2'
+        id: lambda_2
+        category: fuel
+        description: 'Wideband lambda sensor 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 65.535
+
+      - name: 'Ignition_Angle'
+        id: ignition_advance
+        category: ignition
+        description: 'Ignition timing angle'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: -100
+        unit: 'deg'
+        min: -100
+        max: 6453.5
+        comment: 'Degrees = value * 0.1 - 100'
+
+      - name: 'Target_Lambda'
+        id: lambda_target
+        category: fuel
+        description: 'Target lambda value'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 65.535
+
+  # ============================================================================
+  # MESSAGE 5 (0x4E6 / 1254) - Injection Data
+  # ============================================================================
+
+  - id: 0x4E6
+    name: 'Injection Data'
+    description: 'Injector duty cycle and pulse width'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Injector_Duty_Cycle'
+        id: duty_cycle
+        category: fuel
+        description: 'Injector duty cycle'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Injector_Pulse_Width'
+        id: pulse_width
+        category: fuel
+        description: 'Injector pulse width'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+        min: 0
+        max: 65.535
+
+      - name: 'Fuel_Used'
+        id: fuel_used
+        category: fuel
+        description: 'Total fuel consumption'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'L'
+        min: 0
+        max: 6553.5
+
+      - name: 'Fuel_Consumption'
+        id: fuel_flow
+        category: fuel
+        description: 'Instantaneous fuel consumption rate'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'L/h'
+        min: 0
+        max: 6553.5
+
+  # ============================================================================
+  # MESSAGE 6 (0x4E7 / 1255) - Speed and Position Data
+  # ============================================================================
+
+  - id: 0x4E7
+    name: 'Speed and Position'
+    description: 'Vehicle speed, wheel speeds, accelerator position'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Vehicle_Speed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 6553.5
+
+      - name: 'Wheel_Speed'
+        vendor_specific: true
+        description: 'Wheel speed'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 6553.5
+
+      - name: 'Accelerator_Position'
+        id: pedal_position
+        category: engine
+        description: 'Accelerator pedal position'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Throttle_Position_2'
+        vendor_specific: true
+        description: 'Secondary throttle position'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+  # ============================================================================
+  # MESSAGE 7 (0x4E8 / 1256) - Boost Control
+  # ============================================================================
+
+  - id: 0x4E8
+    name: 'Boost Control'
+    description: 'Boost pressure targets and solenoid duty'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Boost_Target'
+        id: boost_target
+        category: pressure
+        description: 'Target boost pressure'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 6553.5
+
+      - name: 'Boost_Solenoid_Duty'
+        id: boost_duty
+        category: pressure
+        description: 'Boost control solenoid duty cycle'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Wastegate_Position'
+        id: wastegate_position
+        category: engine
+        description: 'Wastegate position'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Barometric_Pressure'
+        id: barometric_pressure
+        category: pressure
+        description: 'Atmospheric/barometric pressure'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 6553.5
+
+  # ============================================================================
+  # MESSAGE 8 (0x4E9 / 1257) - EGT and Knock
+  # ============================================================================
+
+  - id: 0x4E9
+    name: 'EGT and Knock'
+    description: 'Exhaust gas temperatures and knock sensor data'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'EGT_1'
+        id: egt_1
+        category: temperature
+        description: 'Exhaust gas temperature sensor 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 6553.5
+
+      - name: 'EGT_2'
+        id: egt_2
+        category: temperature
+        description: 'Exhaust gas temperature sensor 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 6553.5
+
+      - name: 'Knock_Level'
+        id: knock_level
+        category: ignition
+        description: 'Knock sensor level'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: ''
+        min: 0
+        max: 655.35
+
+      - name: 'Knock_Retard'
+        id: knock_retard
+        category: correction
+        description: 'Knock-induced timing retard'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+  # ============================================================================
+  # MESSAGE 9 (0x4EA / 1258) - VVT and Cam
+  # ============================================================================
+
+  - id: 0x4EA
+    name: 'VVT and Cam'
+    description: 'Variable valve timing positions'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Intake_Cam_Angle_1'
+        id: vvt_intake
+        category: engine
+        description: 'Intake cam angle bank 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Exhaust_Cam_Angle_1'
+        id: vvt_exhaust
+        category: engine
+        description: 'Exhaust cam angle bank 1'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Intake_Cam_Angle_2'
+        id: vvt_intake_bank2_actual
+        category: engine
+        description: 'Intake cam angle bank 2'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Exhaust_Cam_Angle_2'
+        id: vvt_exhaust_bank2_actual
+        category: engine
+        description: 'Exhaust cam angle bank 2'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+  # ============================================================================
+  # MESSAGE 10 (0x4EB / 1259) - Status and Switches
+  # ============================================================================
+
+  - id: 0x4EB
+    name: 'Status and Switches'
+    description: 'Engine status flags and switch states'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Engine_Running'
+        id: engine_running
+        category: status
+        description: 'Engine running status'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Running'
+
+      - name: 'Rev_Limiter_Active'
+        id: rev_limiter_active
+        category: status
+        description: 'Rev limiter active flag'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+      - name: 'Launch_Control_Active'
+        id: launch_control_active
+        category: status
+        description: 'Launch control active flag'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+      - name: 'Traction_Control_Active'
+        id: traction_control_active
+        category: status
+        description: 'Traction control active flag'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+      - name: 'Flat_Shift_Active'
+        id: flat_shift_active
+        category: status
+        description: 'Flat shift active flag'
+        start_bit: 4
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+      - name: 'Closed_Loop_Active'
+        id: closed_loop_active
+        category: status
+        description: 'Closed loop fuel control active'
+        start_bit: 5
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Open Loop, 1=Closed Loop'
+
+      - name: 'Engine_Protection_Active'
+        id: engine_protection_active
+        category: status
+        description: 'Engine protection mode active'
+        start_bit: 6
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Normal, 1=Protection Active'
+
+      - name: 'Nitrous_Armed'
+        id: nitrous_armed
+        category: status
+        description: 'Nitrous system armed'
+        start_bit: 7
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Disarmed, 1=Armed'
+
+      - name: 'RPM_Limit'
+        id: rev_limit_rpm
+        category: engine
+        description: 'Current RPM limit'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 65535
+
+      - name: 'Boost_Limit'
+        id: boost_limit
+        category: pressure
+        description: 'Current boost limit'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 6553.5
+
+      - name: 'Fuel_Cut_Percentage'
+        vendor_specific: true
+        description: 'Fuel cut percentage'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+  # ============================================================================
+  # COMPUSHIFT INTEGRATION MESSAGES (0x546-0x548)
+  # Reference: https://manuals.hgmelectronics.com/CS3M/connecting-compushift-to-emtron
+  # ============================================================================
+
+  - id: 0x546
+    name: 'COMPUSHIFT Engine Data'
+    description: 'Engine data for transmission control integration'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Engine_Speed_CS'
+        vendor_specific: true
+        description: 'Engine speed for COMPUSHIFT'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+
+      - name: 'MAP_CS'
+        vendor_specific: true
+        description: 'Manifold pressure for COMPUSHIFT'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+
+      - name: 'Engine_Torque'
+        vendor_specific: true
+        description: 'Engine torque output'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'Nm'
+
+      - name: 'Throttle_Area_Demand'
+        vendor_specific: true
+        description: 'Throttle area demand percentage'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+
+  - id: 0x547
+    name: 'COMPUSHIFT Temperature and Shift'
+    description: 'Temperature and shift status for transmission control'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Engine_Coolant_Temp_CS'
+        vendor_specific: true
+        description: 'Coolant temperature for COMPUSHIFT'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -40
+        unit: 'C'
+        comment: 'Celsius = value * 0.1 - 40'
+
+      - name: 'Engine_Torque_Uncorrected'
+        vendor_specific: true
+        description: 'Uncorrected engine torque'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'Nm'
+
+      - name: 'Upshift_Status'
+        vendor_specific: true
+        description: 'Upshift request status'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+      - name: 'Downshift_Status'
+        vendor_specific: true
+        description: 'Downshift request status'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+  - id: 0x548
+    name: 'COMPUSHIFT Switch Status'
+    description: 'Switch status for transmission control'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Upshift_Switch'
+        vendor_specific: true
+        description: 'Upshift paddle/button state'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Released, 1=Pressed'
+
+      - name: 'Downshift_Switch'
+        vendor_specific: true
+        description: 'Downshift paddle/button state'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Released, 1=Pressed'
+
+      - name: 'Shift_Hold'
+        vendor_specific: true
+        description: 'Shift hold switch state'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Released, 1=Pressed'
+
+# Enumerations for special values
+enums:
+  - name: 'GearPosition'
+    description: 'Gear position values'
+    values:
+      '-1': 'Reverse'
+      '0': 'Neutral'
+      '1': '1st Gear'
+      '2': '2nd Gear'
+      '3': '3rd Gear'
+      '4': '4th Gear'
+      '5': '5th Gear'
+      '6': '6th Gear'
+      '7': '7th Gear'
+      '8': '8th Gear'
+
+  - name: 'EngineStatus'
+    description: 'Engine status flags'
+    values:
+      '0': 'Off'
+      '1': 'Running'
+
+  - name: 'ControlStatus'
+    description: 'Control system status'
+    values:
+      '0': 'Inactive'
+      '1': 'Active'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  source_urls:
+    - 'https://wiki.autosportlabs.com/Emtron'
+    - 'https://gaugeart.com/instructions/emtron-ecu-can-telemetry-setup/'
+    - 'https://manuals.hgmelectronics.com/CS3M/connecting-compushift-to-emtron'
+    - 'https://forum.realdash.net/t/help-with-emtron-ecu-description-file/1071'
+  tested_with:
+    - 'Emtron KV8'
+    - 'Emtron KV12'
+    - 'Emtron KV16'
+    - 'Emtron KV16M'
+  compatible_tools:
+    - 'Emtune'
+    - 'RaceCapture/Pro'
+    - 'AiM data loggers'
+    - 'Plex SDM'
+    - 'COMPUSHIFT'
+    - 'RealDash'
+    - 'gaugeART'
+  known_issues:
+    - 'CAN message IDs and content are fully configurable in Emtune software'
+    - "This protocol represents 'Emtron Display Tx Set 1' default configuration"
+    - 'Users may have custom configurations with different addresses/parameters'
+    - 'Temperature encoding uses offset of -50 for most values'
+    - 'TPS and ignition timing use offset of -100'
+    - 'All data is 16-bit little endian (low byte first)'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add canonical channel ids and categories to signals, drawn from the registry
+          in specs/channels.yaml. 43 of 58 signals (74%) now carry one, so a CAN
+          measurement can be matched to the same measurement read from a log file.
+          Before this, no protocol signal carried an id at all.'
+        - 'Account for the rest explicitly instead of leaving them silent: 15 marked
+          vendor_specific (a real measurement with no canonical equivalent) and 0
+          marked reserved (padding or diagnostic transport framing, which carry no
+          measurement).'
+    - version: '1.0.0'
+      date: '2025-01-07'
+      changes:
+        - 'Initial release based on public documentation'
+        - 'Added core engine data (RPM, MAP, temperatures)'
+        - 'Added throttle, gear, and electrical data'
+        - 'Added oil and fuel pressure/temperature'
+        - 'Added lambda and ignition timing'
+        - 'Added injection data (duty cycle, pulse width)'
+        - 'Added speed and position data'
+        - 'Added boost control signals'
+        - 'Added EGT and knock sensor data'
+        - 'Added VVT/cam angle data'
+        - 'Added status flags and switches'
+        - 'Added COMPUSHIFT integration messages (0x546-0x548)'
+
+# Emtron-specific notes
+x_emtron:
+  ecu_models:
+    - name: 'KV8'
+      description: '8-cylinder support, 32MB logging, DBW, dual lambda'
+    - name: 'KV12'
+      description: '12-cylinder support, 4-channel DBW, expanded I/O'
+    - name: 'KV16'
+      description: '16-cylinder support, full feature set'
+    - name: 'KV16M'
+      description: 'Motorsport variant with enhanced features'
+  software:
+    name: 'Emtune'
+    description: 'PC-based tuning and configuration software'
+  can_configuration:
+    note: |
+      The Emtron CAN output is fully configurable via Emtune software.
+      This protocol represents the default "Emtron Display Tx Set 1" configuration.
+
+      To configure CAN output in Emtune:
+      1. Go to Config -> Communications -> CAN Bus 1/2
+      2. Set CAN Baud Rate to 1Mbps (default)
+      3. Select DATA Set: "Emtron Display Tx Set 1"
+      4. Set CAN Base Address: 1250 (0x4E2)
+      5. Set Addressing Mode: Sequential (11-bit)
+      6. Set Direction: Transmit
+      7. Set Transmit Rate: 20Hz or 50Hz
+
+      Custom configurations can use different addresses and parameters.
+      Contact Emtron support for advanced CAN bus configuration assistance.
+  data_format:
+    encoding: '16-bit little endian (low byte first)'
+    temperature_formula: 'Celsius = value * 0.1 - 50'
+    tps_formula: 'TPS% = value * 0.1 - 100'
+    lambda_formula: 'Lambda = value * 0.001'
+    pressure_formula: 'kPa = value * 0.1'

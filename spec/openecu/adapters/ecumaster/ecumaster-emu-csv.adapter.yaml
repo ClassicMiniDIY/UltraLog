@@ -1,0 +1,551 @@
+# OpenECU Alliance Adapter Specification
+# ECUMaster EMU Pro/Black CSV Export
+
+openecualliance: '1.0'
+id: ecumaster-emu-csv
+name: 'ECUMaster EMU CSV Export'
+version: '1.1.0'
+vendor: ecumaster
+description: |
+  CSV log files exported from ECUMaster EMU Pro and EMU Black ECUs.
+
+  Format characteristics:
+  - Semicolon (;) or tab delimited
+  - First column is TIME (in seconds)
+  - Channel names use path-style notation (e.g., "engine/rpm", "sensors/tps1")
+  - Sparse data with empty cells (previous value should be held)
+website: 'https://www.ecumaster.com'
+branding:
+  logo: ecumaster-logo.svg
+  icon: ecumaster-icon.svg
+  banner: ecumaster-banner.png
+  color_primary: '#8D7507'
+  color_secondary: '#020202'
+
+file_format:
+  type: csv
+  extensions: ['.csv', '.log']
+  encoding: utf-8
+  delimiter: ';' # Can also be tab
+  header_row: 0
+  data_start_row: 1
+  timestamp_column: 'TIME'
+  timestamp_unit: seconds
+
+channels:
+  # Engine Core
+  - id: rpm
+    name: 'Engine RPM'
+    description: 'Engine crankshaft rotational speed'
+    category: engine
+    data_type: float
+    unit: rpm
+    min: 0
+    max: 20000
+    precision: 0
+    source_names:
+      - 'engine/rpm'
+      - 'rpm'
+      - 'RPM'
+      - 'engineRpm'
+
+  - id: tps
+    name: 'Throttle Position'
+    description: 'Main throttle position sensor'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'sensors/tps1'
+      - 'sensors/tps'
+      - 'tps1'
+      - 'tps'
+      - 'throttle/position'
+
+  - id: tps_2
+    name: 'Throttle Position 2'
+    description: 'Secondary throttle position sensor'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'sensors/tps2'
+      - 'tps2'
+
+  - id: map
+    name: 'Manifold Pressure'
+    description: 'Manifold absolute pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'sensors/map'
+      - 'map'
+      - 'manifold/pressure'
+
+  - id: boost
+    name: 'Boost Pressure'
+    description: 'Boost pressure (gauge)'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: -100
+    max: 300
+    precision: 1
+    source_names:
+      - 'boost'
+      - 'boost/pressure'
+      - 'boostPressure'
+
+  - id: barometric
+    name: 'Barometric Pressure'
+    description: 'Atmospheric pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 80
+    max: 110
+    precision: 1
+    source_names:
+      - 'sensors/baro'
+      - 'baro'
+      - 'barometric'
+
+  # Fuel System
+  - id: lambda
+    name: 'Lambda'
+    description: 'Lambda value from wideband O2'
+    category: fuel
+    data_type: float
+    unit: lambda
+    min: 0.6
+    max: 1.5
+    precision: 3
+    source_names:
+      - 'sensors/lambda1'
+      - 'sensors/lambda'
+      - 'lambda1'
+      - 'lambda'
+      - 'wideband/lambda'
+
+  - id: lambda_2
+    name: 'Lambda 2'
+    description: 'Lambda value from second wideband O2'
+    category: fuel
+    data_type: float
+    unit: lambda
+    min: 0.6
+    max: 1.5
+    precision: 3
+    source_names:
+      - 'sensors/lambda2'
+      - 'lambda2'
+
+  - id: afr
+    name: 'Air-Fuel Ratio'
+    description: 'Calculated AFR from lambda'
+    category: fuel
+    data_type: float
+    unit: afr
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'afr'
+      - 'sensors/afr'
+      - 'airFuelRatio'
+
+  - id: lambda_target
+    name: 'Lambda Target'
+    description: 'Target lambda from ECU tuning'
+    category: fuel
+    data_type: float
+    unit: lambda
+    min: 0.6
+    max: 1.5
+    precision: 3
+    source_names:
+      - 'fuel/lambdaTarget'
+      - 'lambdaTarget'
+      - 'targetLambda'
+
+  - id: fuel_pressure
+    name: 'Fuel Pressure'
+    description: 'Fuel rail pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 1000
+    precision: 0
+    source_names:
+      - 'sensors/fuelPressure'
+      - 'fuelPressure'
+      - 'fuel/pressure'
+
+  - id: duty_cycle
+    name: 'Injector Duty Cycle'
+    description: 'Fuel injector duty cycle'
+    category: fuel
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'fuel/injectorDuty'
+      - 'injectorDuty'
+      - 'dutyCycle'
+      - 'duty'
+
+  - id: pulse_width
+    name: 'Injector Pulse Width'
+    description: 'Fuel injector pulse width'
+    category: fuel
+    data_type: float
+    unit: milliseconds
+    min: 0
+    max: 50
+    precision: 2
+    source_names:
+      - 'fuel/injectorPW'
+      - 'injectorPW'
+      - 'pulseWidth'
+      - 'pw'
+
+  - id: fuel_flow
+    name: 'Fuel Flow Rate'
+    description: 'Instantaneous fuel flow rate'
+    category: fuel
+    data_type: float
+    unit: cc/min
+    # cc/min -> l/h (canonical)
+    to_canonical:
+      scale: 0.06
+      offset: 0
+    min: 0
+    max: 10000
+    precision: 0
+    source_names:
+      - 'fuel/flow'
+      - 'fuelFlow'
+      - 'flowRate'
+
+  # Ignition System
+  - id: ignition_advance
+    name: 'Ignition Advance'
+    description: 'Spark timing advance'
+    category: ignition
+    data_type: float
+    unit: degrees
+    min: -20
+    max: 60
+    precision: 1
+    source_names:
+      - 'ignition/angle'
+      - 'ignitionAngle'
+      - 'timing'
+      - 'sparkAdvance'
+
+  - id: dwell
+    name: 'Ignition Dwell'
+    description: 'Coil dwell time'
+    category: ignition
+    data_type: float
+    unit: milliseconds
+    min: 0
+    max: 10
+    precision: 2
+    source_names:
+      - 'ignition/dwell'
+      - 'dwell'
+      - 'coilDwell'
+
+  - id: knock_level
+    name: 'Knock Level'
+    description: 'Knock sensor signal level'
+    category: ignition
+    data_type: float
+    unit: volts
+    min: 0
+    max: 5
+    precision: 2
+    source_names:
+      - 'knock/level'
+      - 'knockLevel'
+      - 'knock'
+
+  - id: knock_retard
+    name: 'Knock Retard'
+    description: 'Timing retard from knock detection'
+    category: correction
+    data_type: float
+    unit: degrees
+    min: 0
+    max: 20
+    precision: 1
+    source_names:
+      - 'knock/retard'
+      - 'knockRetard'
+      - 'knockCorrection'
+
+  # Temperature Sensors
+  - id: coolant_temp
+    name: 'Coolant Temperature'
+    description: 'Engine coolant temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 150
+    precision: 1
+    source_names:
+      - 'sensors/coolantTemp'
+      - 'coolantTemp'
+      - 'ect'
+      - 'coolant'
+      - 'engineTemp'
+
+  - id: iat
+    name: 'Intake Air Temperature'
+    description: 'Intake air temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 100
+    precision: 1
+    source_names:
+      - 'sensors/iat'
+      - 'iat'
+      - 'intakeAirTemp'
+      - 'airTemp'
+
+  - id: oil_temp
+    name: 'Oil Temperature'
+    description: 'Engine oil temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 180
+    precision: 1
+    source_names:
+      - 'sensors/oilTemp'
+      - 'oilTemp'
+      - 'oil/temperature'
+
+  - id: fuel_temp
+    name: 'Fuel Temperature'
+    description: 'Fuel temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 100
+    precision: 1
+    source_names:
+      - 'sensors/fuelTemp'
+      - 'fuelTemp'
+      - 'fuel/temperature'
+
+  # Pressure Sensors
+  - id: oil_pressure
+    name: 'Oil Pressure'
+    description: 'Engine oil pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 1000
+    precision: 0
+    source_names:
+      - 'sensors/oilPressure'
+      - 'oilPressure'
+      - 'oil/pressure'
+
+  # Electrical
+  - id: battery_voltage
+    name: 'Battery Voltage'
+    description: 'System battery voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 20
+    precision: 2
+    source_names:
+      - 'sensors/batteryVoltage'
+      - 'batteryVoltage'
+      - 'battery'
+      - 'vbat'
+      - 'voltage'
+
+  # Speed & Position
+  - id: vehicle_speed
+    name: 'Vehicle Speed'
+    description: 'Vehicle ground speed'
+    category: speed
+    data_type: float
+    unit: kph
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'speed'
+      - 'vehicleSpeed'
+      - 'vss'
+
+  - id: gear
+    name: 'Gear Position'
+    description: 'Current gear'
+    category: drivetrain
+    data_type: int
+    unit: gear
+    min: 0
+    max: 8
+    precision: 0
+    source_names:
+      - 'gear'
+      - 'gearPosition'
+      - 'currentGear'
+
+  # VVT/Cam
+  - id: vvt_intake
+    name: 'VVT Intake Position'
+    description: 'Variable valve timing intake cam position'
+    category: engine
+    data_type: float
+    unit: degrees
+    min: -50
+    max: 50
+    precision: 1
+    source_names:
+      - 'vvt/intakeAngle'
+      - 'vvtIntake'
+      - 'cam/intakePosition'
+
+  - id: vvt_exhaust
+    name: 'VVT Exhaust Position'
+    description: 'Variable valve timing exhaust cam position'
+    category: engine
+    data_type: float
+    unit: degrees
+    min: -50
+    max: 50
+    precision: 1
+    source_names:
+      - 'vvt/exhaustAngle'
+      - 'vvtExhaust'
+      - 'cam/exhaustPosition'
+
+  # DBW (Drive By Wire)
+  - id: dbw_target
+    name: 'DBW Target'
+    description: 'Drive-by-wire throttle target position'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'dbw/target'
+      - 'dbwTarget'
+      - 'throttleTarget'
+
+  - id: dbw_position
+    name: 'DBW Position'
+    description: 'Drive-by-wire throttle actual position'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'dbw/position'
+      - 'dbwPosition'
+      - 'throttlePosition'
+
+  # Corrections
+  - id: fuel_correction
+    name: 'Fuel Correction'
+    description: 'Active fuel correction percentage'
+    category: correction
+    data_type: float
+    unit: percent
+    min: -50
+    max: 50
+    precision: 1
+    source_names:
+      - 'fuel/correction'
+      - 'fuelCorrection'
+      - 'fuelTrim'
+
+  # Torque
+  - id: torque_requested
+    name: 'Torque Requested'
+    description: 'Requested torque from torque management'
+    category: engine
+    data_type: float
+    unit: nm
+    min: 0
+    max: 1000
+    precision: 0
+    source_names:
+      - 'torqueEstimation/torqueRequested'
+      - 'torqueRequested'
+      - 'requestedTorque'
+
+  # System
+  - id: time
+    name: 'Time'
+    description: 'Log timestamp in seconds'
+    category: system
+    data_type: float
+    unit: seconds
+    precision: 3
+    source_names:
+      - 'TIME'
+      - 'time'
+      - 'timestamp'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  tested_with:
+    - 'ECUMaster EMU Pro'
+    - 'ECUMaster EMU Black'
+  known_issues:
+    - 'Sparse data requires holding previous values for empty cells'
+    - 'Delimiter may be semicolon or tab depending on export settings'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add cc/min -> l/h conversion for fuel_flow.'
+        - 'Declare ''to_canonical'' scale/offset on channels whose log unit differs from
+          the canonical unit in specs/channels.yaml. The log unit is unchanged — it
+          still describes the file — but a consumer can now normalise without knowing
+          the vendor.'
+    - version: '1.0.0'
+      date: '2025-01-04'
+      changes:
+        - 'Initial release'
+        - 'Support for path-style channel names'
+
+# ECUMaster-specific extensions
+x_ecumaster:
+  path_style_names: true
+  sparse_data_handling: 'hold_previous'
+  alternate_delimiter: "\t"

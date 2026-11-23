@@ -36,4 +36,5 @@ pub use registry::{
 pub use types::{
     AdapterSpec, ByteOrder, ChannelCategory, ChannelSpec, DataType, EnumSpec, FileFormatSpec,
     MessageSpec, ProtocolInfo, ProtocolSpec, ProtocolType, SignalDataType, SignalSpec,
+    UnitConversion,
 };
