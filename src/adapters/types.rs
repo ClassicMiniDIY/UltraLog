@@ -177,11 +177,11 @@ pub struct ChannelSpec {
     /// whenever `unit` differs from the canonical unit — `unit` describes what the
     /// log file actually contains and is never rewritten to look canonical.
     ///
-    /// 36 channels across every adapter declare this. NOTHING APPLIES IT YET:
-    /// `conversion` and `source_unit` are likewise never read, so UltraLog
-    /// currently displays raw log units throughout. Deserializing it here stops
-    /// the corpus losing the data; wiring it into the parsers changes displayed
-    /// values and needs its own change.
+    /// 30 channels across nine of the ten adapters declare this (`link-llg` has
+    /// none). NOTHING APPLIES IT YET: `conversion` and `source_unit` are likewise
+    /// never read, so UltraLog currently displays raw log units throughout.
+    /// Deserializing it here stops the corpus losing the data; wiring it into the
+    /// parsers changes displayed values and needs its own change.
     #[serde(default, alias = "toCanonical")]
     pub to_canonical: Option<UnitConversion>,
     /// Searchable tags
@@ -468,6 +468,12 @@ pub struct SignalSpec {
     /// Maximum physical value
     #[serde(default)]
     pub max: Option<f64>,
+    /// Linear conversion from this signal's `unit` to the canonical unit for its channel
+    /// id: `canonical = raw * scale + offset`. Five BMW signals declare it (ambient
+    /// pressure in mbar, two mass figures). Same mandate and same unapplied state as
+    /// [`ChannelSpec::to_canonical`].
+    #[serde(default, alias = "toCanonical")]
+    pub to_canonical: Option<UnitConversion>,
     /// Reference to an enum definition for discrete values
     #[serde(default, alias = "enumRef")]
     pub enum_ref: Option<String>,

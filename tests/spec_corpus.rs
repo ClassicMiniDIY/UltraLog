@@ -10,6 +10,22 @@
 //! shipped message IDs that match no real bus, and eight canonical IDs carried mutually
 //! incompatible units. Every one of those is mechanically detectable.
 //!
+//! Upstream ran two layers: the zod schemas in `server/schemas/{adapter,protocol}.ts`,
+//! and the hand-written registry checks. Deserializing into `AdapterSpec` / `ProtocolSpec`
+//! stands in for most of the schema layer, but the serde types are deliberately permissive
+//! — `#[serde(other)]` enum fallbacks, `#[serde(default)]`, plain `Vec` and `String` where
+//! zod had bounds and enums — so the bounds zod enforced are re-stated explicitly below:
+//! non-empty collections, the `csv`/`binary` and `little`/`big` enums, CAN frame and signal
+//! length ranges, and the signal fields zod made mandatory. Without them an adapter with
+//! `extensions: []` (dead: matches no file) or `source_names: []` (dead: normalises
+//! nothing) passed silently, and an out-of-range `message.length` widened the frame enough
+//! to defeat the overflow check below it.
+//!
+//! Still unenforced, because the Rust types make them unreachable rather than merely
+//! unchecked: `type: literal('protocol')` and the `website` URL format. `byte_order` and
+//! `magic_bytes` are enforced more strictly here than upstream — `ByteOrder` has no
+//! `#[serde(other)]`, and `Option<Vec<u8>>` rejects a byte above 255.
+//!
 //! NOT ported: the version-bump check. Upstream it compared each spec against
 //! `origin/main` and required a version bump plus a matching changelog entry, because
 //! external consumers pinned versions over an API. There is no API and no external
@@ -68,11 +84,18 @@ fn walk_yaml(dir: &Path) -> Vec<PathBuf> {
     out
 }
 
+/// Corpus-relative path, always with `/` separators. `Path::display()` yields `\` on
+/// Windows, and `every_corpus_file_is_embedded` substring-matches this against the
+/// forward-slash paths in `registry.rs`'s `include_str!` calls — so without the
+/// normalisation that test reports every spec as unembedded on a Windows checkout. CI
+/// only runs tests on Linux, so it would have failed for a contributor, not for us.
 fn rel(path: &Path) -> String {
     path.strip_prefix(corpus_root())
         .unwrap_or(path)
-        .display()
-        .to_string()
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn load(path: &Path) -> Value {
@@ -188,6 +211,41 @@ impl Registry {
 /// the typed struct: the serde types fall back to `Unknown` and drop fields they do not
 /// model, so a check against them cannot see a category that is well-formed but wrong.
 fn check_adapter(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
+    // Bounds zod enforced that the serde types do not (see the module comment).
+    if seq(raw, "channels").is_empty() {
+        rep.err(file, "declares no channels");
+    }
+    match get(raw, "file_format") {
+        None => rep.err(file, "has no 'file_format'"),
+        Some(ff) => {
+            if seq(ff, "extensions").is_empty() {
+                rep.err(
+                    file,
+                    "file_format.extensions is empty — this adapter can never match a file",
+                );
+            }
+            match as_str(get(ff, "type")) {
+                Some("csv") | Some("binary") => {}
+                other => rep.err(
+                    file,
+                    format!(
+                        "file_format.type is {:?}, must be 'csv' or 'binary'",
+                        other.unwrap_or("<missing>")
+                    ),
+                ),
+            }
+            if let Some(e) = as_str(get(ff, "endianness"))
+                && e != "little"
+                && e != "big"
+            {
+                rep.err(
+                    file,
+                    format!("file_format.endianness is '{e}', must be 'little' or 'big'"),
+                );
+            }
+        }
+    }
+
     let mut seen = HashSet::new();
     for ch in seq(raw, "channels") {
         let Some(id) = as_str(get(ch, "id")) else {
@@ -196,6 +254,16 @@ fn check_adapter(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
         };
         if !seen.insert(id.to_string()) {
             rep.err(file, format!("duplicate channel id '{id}'"));
+        }
+
+        if seq(ch, "source_names").is_empty() {
+            rep.err(
+                file,
+                format!(
+                    "channel '{id}' has no source_names — it can never normalise \
+                     a column, so it is dead weight"
+                ),
+            );
         }
 
         let Some(canon_id) = reg.resolve(id) else {
@@ -304,6 +372,23 @@ fn check_protocol(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
     let max_id: u64 = if extended { 0x1FFF_FFFF } else { 0x7FF };
     let id_bits = if extended { 29 } else { 11 };
 
+    // A CAN frame carries at most 8 data bytes; CAN FD raises that to 64. `frame_bits`
+    // below is derived from `length`, so an out-of-range value does not just misdescribe
+    // the frame — it widens it enough that the overflow check can no longer fire.
+    let fd = get(raw, "protocol")
+        .and_then(|p| get(p, "fd_enabled").or_else(|| get(p, "fdEnabled")))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || get(raw, "protocol")
+            .and_then(|p| get(p, "type"))
+            .and_then(Value::as_str)
+            == Some("canfd");
+    let max_frame_bytes: u64 = if fd { 64 } else { 8 };
+
+    if seq(raw, "messages").is_empty() {
+        rep.err(file, "declares no messages");
+    }
+
     let mut seen_ids = HashSet::new();
     for msg in seq(raw, "messages") {
         let Some(id) = message_id(get(msg, "id")) else {
@@ -321,7 +406,25 @@ fn check_protocol(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
             );
         }
 
-        let frame_bits = get(msg, "length").and_then(Value::as_u64).unwrap_or(8) * 8;
+        let declared_len = get(msg, "length").and_then(Value::as_u64);
+        if let Some(len) = declared_len
+            && len > max_frame_bytes
+        {
+            rep.err(
+                file,
+                format!(
+                    "message {hex} declares length {len}, above the {max_frame_bytes}-byte \
+                     maximum for this bus — a frame this wide also disables the \
+                     signal-overflow check"
+                ),
+            );
+        }
+        // Clamp, so one bad length cannot mask overflow in the signals below it.
+        let frame_bits = declared_len.unwrap_or(8).min(max_frame_bytes) * 8;
+
+        if seq(msg, "signals").is_empty() {
+            rep.warn(file, format!("message {hex} declares no signals"));
+        }
 
         // (start, end_inclusive, name, disputed_reason)
         let mut spans: Vec<(u64, u64, String, Option<String>)> = Vec::new();
@@ -338,8 +441,33 @@ fn check_protocol(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
                 );
                 continue;
             };
+            // zod bounded this at 1..=64; nothing in the Rust types does, and `len == 0`
+            // would underflow the span end below.
+            if len == 0 || len > 64 {
+                rep.err(
+                    file,
+                    format!("signal '{name}' in {hex} has length {len}, must be 1..=64"),
+                );
+                continue;
+            }
             if start + len > frame_bits {
                 rep.err(file, format!("signal '{name}' overflows frame {hex}"));
+            }
+            // zod made these mandatory; serde defaults scale to 1.0 and offset to 0.0, so
+            // a spec that omits them silently gets an identity scaling.
+            for field in ["unit", "scale", "offset"] {
+                if get(sig, field).is_none() {
+                    rep.err(
+                        file,
+                        format!("signal '{name}' in {hex} is missing required '{field}'"),
+                    );
+                }
+            }
+            if get(sig, "byte_order").is_none() && get(sig, "byteOrder").is_none() {
+                rep.err(
+                    file,
+                    format!("signal '{name}' in {hex} is missing required 'byte_order'"),
+                );
             }
             let disputed = as_str(get(sig, "disputed")).map(str::to_string);
             spans.push((start, start + len - 1, name.clone(), disputed));
@@ -587,5 +715,36 @@ fn to_canonical_survives_deserialization() {
         declared_in_yaml, parsed_into_type,
         "{declared_in_yaml} channels declare 'to_canonical' but only {parsed_into_type} \
          reached ChannelSpec — the field is being dropped again"
+    );
+
+    // Protocol signals carry it too, which the first pass at this missed entirely.
+    let mut sig_declared = 0usize;
+    let mut sig_parsed = 0usize;
+    for path in walk_yaml(&corpus_root().join("protocols")) {
+        let raw = load(&path);
+        sig_declared += seq(&raw, "messages")
+            .iter()
+            .flat_map(|m| seq(m, "signals"))
+            .filter(|s| get(s, "to_canonical").is_some())
+            .count();
+
+        let spec: ProtocolSpec =
+            serde_norway::from_value(raw).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        sig_parsed += spec
+            .messages
+            .iter()
+            .flat_map(|m| &m.signals)
+            .filter(|s| s.to_canonical.is_some())
+            .count();
+    }
+
+    assert!(
+        sig_declared > 0,
+        "no protocol signal declares 'to_canonical' — the corpus or this test is wrong"
+    );
+    assert_eq!(
+        sig_declared, sig_parsed,
+        "{sig_declared} protocol signals declare 'to_canonical' but only {sig_parsed} \
+         reached SignalSpec — the field is being dropped again"
     );
 }

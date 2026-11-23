@@ -68,15 +68,21 @@ const BMW_E8X_E9X_PROTOCOL_YAML: &str =
 /// single flat map on the lowercased source name, so a name two adapters both claim
 /// resolves to whichever appears LAST here. 54 source names get conflicting display
 /// names across this corpus and 43 resolve to different canonical ids depending on
-/// order — "boost" is `boost` or `mgp`, "knock" is `knock_level` or `knock_level_db`,
-/// "fuel flow" is `fuel_flow` (l/h) or `fuel_flow_mass` (g/s). See CLAUDE.md
-/// "Source-name collisions"; the real fix is a per-adapter namespace.
+/// order — "boost" is `boost` or `mgp`, "knock" is `knock_level`, `knock_level_db` or
+/// `knock_retard`, "fuel flow" is `fuel_flow` (l/h) or `fuel_flow_mass` (g/s). See
+/// CLAUDE.md "Source-name collisions"; the real fix is a per-adapter namespace.
 ///
 /// BMW is deliberately FIRST so that adding it changed no existing mapping: it
 /// contributes its unique names and loses every collision to an adapter that was
 /// already here. Appending it instead silently moved `rpm`'s display name from
 /// "Engine RPM" to BMW's "Engine Speed", which is what `test_normalize_rpm` caught.
 /// Add a new adapter at the FRONT unless you have checked its collisions.
+///
+/// This order governs the EMBEDDED TIER ONLY. `refresh_specs_from_api` rebuilds both
+/// maps from whatever order the API returned, and `load_adapters_with_fallback` prefers
+/// a fresh disk cache over the embedded specs — so on a machine with a populated cache
+/// neither the guarantee above nor `test_normalize_rpm` holds at runtime. Removing those
+/// tiers makes this order the only order.
 static EMBEDDED_ADAPTERS: &[&str] = &[
     BMW_MS4X_ADAPTER_YAML,
     HALTECH_NSP_YAML,
