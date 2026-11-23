@@ -21,7 +21,6 @@ website: 'https://www.linkecu.com'
 branding:
   logo: link-logo.svg
   icon: link-icon.svg
-  banner: link-banner.png
   color_primary: '#CF2E2E'
   color_secondary: '#35074E'
 

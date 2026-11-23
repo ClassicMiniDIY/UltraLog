@@ -289,6 +289,15 @@ why it is vendored and tracked now. `build.rs` downloads nothing.
 embeds every adapter and protocol with `include_str!`; `tests/spec_corpus.rs` fails if one
 of those is not embedded. `channels.yaml` is not embedded — see "Known gaps" below.
 
+**`branding.banner` was dropped from all 8 specs that had it (2026-11-23), and must not come
+back without the files.** The eight `<vendor>-banner.png` images it named never existed: not
+in any commit on any ref of the retired repository, not on disk in any of its checkouts, and
+not in any of the 8 S3 buckets (both large ones enumerated in full). The retired site served
+them from an empty directory, so `/api/assets/banners/*` was already dangling in production.
+`branding.logo` and `branding.icon` are real and stay — those files are in
+`spec/openecu/assets/`. Nothing in `src/` ever read `banner`, and two adapters (BMW,
+MegaSquirt) never declared one, so the key was always optional.
+
 ### Channel Registry Contract
 
 `spec/openecu/channels.yaml` is the canonical channel vocabulary and the **source of

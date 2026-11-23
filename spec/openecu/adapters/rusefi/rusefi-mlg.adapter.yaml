@@ -21,7 +21,6 @@ website: 'https://rusefi.com'
 branding:
   logo: rusefi-logo.png
   icon: rusefi-icon.png
-  banner: rusefi-banner.png
   color_primary: '#B7410E'
   color_secondary: '#2C2C2C'
 

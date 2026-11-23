@@ -18,7 +18,6 @@ website: 'https://www.ecumaster.com'
 branding:
   logo: ecumaster-logo.svg
   icon: ecumaster-icon.svg
-  banner: ecumaster-banner.png
   color_primary: '#8D7507'
   color_secondary: '#020202'
 

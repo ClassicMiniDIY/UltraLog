@@ -20,7 +20,6 @@ website: 'https://speeduino.com'
 branding:
   logo: speeduino-logo.png
   icon: speeduino-icon.png
-  banner: speeduino-banner.png
   color_primary: '#3498DB'
   color_secondary: '#2C3E50'
 
