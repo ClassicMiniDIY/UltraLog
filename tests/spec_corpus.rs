@@ -76,8 +76,7 @@ fn rel(path: &Path) -> String {
 }
 
 fn load(path: &Path) -> Value {
-    let text =
-        fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let text = fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     serde_norway::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
 }
 
@@ -90,7 +89,9 @@ fn as_str(v: Option<&Value>) -> Option<&str> {
 }
 
 fn seq<'a>(v: &'a Value, key: &str) -> &'a [Value] {
-    get(v, key).and_then(|x| x.as_sequence()).map_or(&[], |s| s.as_slice())
+    get(v, key)
+        .and_then(|x| x.as_sequence())
+        .map_or(&[], |s| s.as_slice())
 }
 
 /// A canonical channel, as the registry declares it.
@@ -116,7 +117,9 @@ impl Registry {
         let mut canonical = HashMap::new();
         let mut alias_of = HashMap::new();
         for ch in seq(&raw, "channels") {
-            let Some(id) = as_str(get(ch, "id")) else { continue };
+            let Some(id) = as_str(get(ch, "id")) else {
+                continue;
+            };
             canonical.insert(
                 id.to_string(),
                 Canonical {
@@ -155,7 +158,12 @@ impl Registry {
             !canonical.is_empty(),
             "channels.yaml declared no channels — the registry failed to load"
         );
-        Self { canonical, alias_of, spellings, conversions }
+        Self {
+            canonical,
+            alias_of,
+            spellings,
+            conversions,
+        }
     }
 
     /// The canonical id for `id`, whether `id` is canonical or a deprecated alias.
@@ -219,7 +227,10 @@ fn check_adapter(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
             );
         }
 
-        let declared = as_str(get(ch, "unit")).unwrap_or_default().trim().to_string();
+        let declared = as_str(get(ch, "unit"))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         let unit = reg.norm_unit(&declared);
         if unit != declared {
             rep.warn(
@@ -232,40 +243,45 @@ fn check_adapter(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
         // the file actually contains. What is not allowed is differing in silence: the
         // channel must carry the conversion so a consumer can normalise without
         // knowing the vendor.
-        match get(ch, "to_canonical") {
-            None if unit != canon.unit => {
-                let hint = if reg.conversions.contains(&format!("{unit}->{}", canon.unit)) {
-                    format!(" (a {unit}->{} conversion exists in the registry)", canon.unit)
-                } else {
-                    String::new()
-                };
+        let conv = get(ch, "to_canonical");
+        let matches_canonical = unit == canon.unit;
+
+        if let Some(conv) = conv {
+            if matches_canonical {
+                rep.warn(
+                    file,
+                    format!(
+                        "channel '{id}' declares 'to_canonical' but already uses the canonical unit"
+                    ),
+                );
+            } else if get(conv, "scale").and_then(Value::as_f64).is_none()
+                || get(conv, "offset").and_then(Value::as_f64).is_none()
+            {
                 rep.err(
                     file,
                     format!(
-                        "channel '{id}' is in '{unit}' but canonical is '{}' \
-                         and no 'to_canonical' is declared{hint}",
-                        canon.unit
+                        "channel '{id}' has a malformed 'to_canonical' \
+                         (needs numeric scale and offset)"
                     ),
                 );
             }
-            Some(_) if unit == canon.unit => rep.warn(
+        } else if !matches_canonical {
+            let hint = if reg.conversions.contains(&format!("{unit}->{}", canon.unit)) {
+                format!(
+                    " (a {unit}->{} conversion exists in the registry)",
+                    canon.unit
+                )
+            } else {
+                String::new()
+            };
+            rep.err(
                 file,
-                format!("channel '{id}' declares 'to_canonical' but already uses the canonical unit"),
-            ),
-            Some(conv) => {
-                if get(conv, "scale").and_then(Value::as_f64).is_none()
-                    || get(conv, "offset").and_then(Value::as_f64).is_none()
-                {
-                    rep.err(
-                        file,
-                        format!(
-                            "channel '{id}' has a malformed 'to_canonical' \
-                             (needs numeric scale and offset)"
-                        ),
-                    );
-                }
-            }
-            None => {}
+                format!(
+                    "channel '{id}' is in '{unit}' but canonical is '{}' \
+                     and no 'to_canonical' is declared{hint}",
+                    canon.unit
+                ),
+            );
         }
     }
 }
@@ -299,7 +315,10 @@ fn check_protocol(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
             rep.err(file, format!("duplicate message id {hex}"));
         }
         if id > max_id {
-            rep.err(file, format!("message {hex} exceeds the {id_bits}-bit id range"));
+            rep.err(
+                file,
+                format!("message {hex} exceeds the {id_bits}-bit id range"),
+            );
         }
 
         let frame_bits = get(msg, "length").and_then(Value::as_u64).unwrap_or(8) * 8;
@@ -328,7 +347,9 @@ fn check_protocol(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
             // Every signal must be accounted for: mapped to a canonical id, marked as
             // padding, or explicitly declared vendor-specific. Silence is the failure
             // mode being removed — an unmarked signal is one nobody has looked at.
-            let reserved = get(sig, "reserved").and_then(Value::as_bool).unwrap_or(false);
+            let reserved = get(sig, "reserved")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             let vendor_specific = get(sig, "vendor_specific")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
@@ -366,10 +387,7 @@ fn check_protocol(reg: &Registry, file: &str, raw: &Value, rep: &mut Report) {
         for pair in spans.windows(2) {
             let (prev, cur) = (&pair[0], &pair[1]);
             if cur.0 <= prev.1 {
-                let msg = format!(
-                    "signals '{}' and '{}' overlap in {hex}",
-                    prev.2, cur.2
-                );
+                let msg = format!("signals '{}' and '{}' overlap in {hex}", prev.2, cur.2);
                 // A signal may carry `disputed` when the vendor's own documentation is
                 // self-contradictory. That records the conflict instead of hiding it
                 // behind a guess, so it degrades to a warning rather than failing.
@@ -466,10 +484,9 @@ fn corpus_is_valid() {
 #[test]
 fn every_corpus_file_is_embedded() {
     let root = corpus_root();
-    let registry_src = fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/registry.rs"),
-    )
-    .expect("read registry.rs");
+    let registry_src =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/registry.rs"))
+            .expect("read registry.rs");
 
     let mut missing = Vec::new();
     for path in walk_yaml(&root.join("adapters"))
@@ -489,6 +506,55 @@ fn every_corpus_file_is_embedded() {
     );
 }
 
+/// `SPECIFICATION.md` is generated from `channels.yaml` and the generator
+/// (`generate-spec-doc.ts`) did not survive the OpenECU Alliance retirement — it was Bun
+/// and this is a Rust repo. So the document can no longer be regenerated, only kept in
+/// step by hand, which means it can silently go stale.
+///
+/// This is the guard: the registry's own headline numbers must match what the document
+/// claims, and every canonical id must appear in it. It does not prove the document is
+/// correct, only that nobody added or removed a channel without touching it.
+#[test]
+fn specification_doc_is_not_stale() {
+    let root = corpus_root();
+    let reg = Registry::load();
+    let doc = fs::read_to_string(root.join("SPECIFICATION.md")).expect("read SPECIFICATION.md");
+
+    let raw = load(&root.join("channels.yaml"));
+    let categories: HashSet<&str> = seq(&raw, "channels")
+        .iter()
+        .filter_map(|c| as_str(get(c, "category")))
+        .collect();
+
+    let claim = format!(
+        "{} canonical channels across {} categories",
+        reg.canonical.len(),
+        categories.len()
+    );
+    assert!(
+        doc.contains(&claim),
+        "SPECIFICATION.md does not claim \"{claim}\" — channels.yaml has \
+         {} channels in {} categories, so the document is out of step. There is no \
+         generator any more: update the document by hand.",
+        reg.canonical.len(),
+        categories.len()
+    );
+
+    let undocumented: Vec<&str> = reg
+        .canonical
+        .keys()
+        .map(String::as_str)
+        .filter(|id| !doc.contains(&format!("`{id}`")))
+        .collect();
+    assert!(
+        undocumented.is_empty(),
+        "{} canonical channel id(s) are in channels.yaml but absent from \
+         SPECIFICATION.md: {}",
+        undocumented.len(),
+        undocumented.join(", ")
+    );
+}
+
 /// `to_canonical` carries the unit-conversion mandate and must survive deserialization.
 /// It was dropped silently until it was added to `ChannelSpec`; nothing applies it yet,
 /// so this test guards the data, not the behaviour.
@@ -504,8 +570,8 @@ fn to_canonical_survives_deserialization() {
             .filter(|ch| get(ch, "to_canonical").is_some())
             .count();
 
-        let spec: AdapterSpec = serde_norway::from_value(raw)
-            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let spec: AdapterSpec =
+            serde_norway::from_value(raw).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         parsed_into_type += spec
             .channels
             .iter()

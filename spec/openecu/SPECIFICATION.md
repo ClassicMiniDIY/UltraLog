@@ -2,15 +2,18 @@
 
 **Spec version 1.0 · registry 1.0.0 · updated 2026-08-24**
 
-This is the canonical channel vocabulary for the OpenECU Spec. It is generated
-from [`channels.yaml`](channels.yaml), which is the machine-readable source of
-truth — **edit that file, not this one.**
+This is the canonical channel vocabulary for the OpenECU Spec.
+[`channels.yaml`](channels.yaml) is the machine-readable source of truth.
 
-Regenerate with:
+**There is no generator any more.** This document was generated from
+`channels.yaml` by `generate-spec-doc.ts` in the retired `OpenECUAlliance`
+repository. That script was Bun and this is a Rust repository, so it did not
+come across; UltraLog owns the corpus now (see `CLAUDE.md`, "OpenECU spec
+corpus"). Edit `channels.yaml` first, then update this document by hand to
+match. `cargo test --test spec_corpus` fails if the channel count, the category
+count, or any canonical ID here falls out of step with the registry.
 
-```bash
-bun run generate:spec-doc
-```
+This paragraph is the one hand-written part of the file.
 
 ---
 
