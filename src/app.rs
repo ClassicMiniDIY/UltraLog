@@ -13,7 +13,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
-use crate::adapters;
 use crate::analysis::{AnalysisResult, AnalyzerRegistry};
 use crate::analytics;
 use crate::computed::{ComputedChannel, ComputedChannelLibrary, FormulaEditorState};
@@ -230,9 +229,6 @@ pub struct UltraLogApp {
     pub(crate) user_settings: UserSettings,
     /// Current language selection
     pub(crate) language: Language,
-    // === Spec Refresh ===
-    /// Whether spec refresh from API has been started
-    spec_refresh_started: bool,
     // === MCP Integration ===
     /// IPC server for MCP integration (allows Claude to control the app)
     ipc_server: Option<IpcServer>,
@@ -321,7 +317,6 @@ impl Default for UltraLogApp {
             hidden_widgets: HashSet::new(),
             user_settings: UserSettings::default(),
             language: Language::default(),
-            spec_refresh_started: false,
             ipc_server: None,
             mcp_server: None,
         }
@@ -2340,40 +2335,6 @@ impl UltraLogApp {
     }
 
     // ========================================================================
-    // Spec Refresh (Background)
-    // ========================================================================
-
-    /// Start refreshing adapter/protocol specs from OpenECUAlliance API in background
-    /// This runs once on startup to ensure specs are up to date
-    fn start_spec_refresh(&mut self) {
-        if self.spec_refresh_started || adapters::specs_refreshed() {
-            return;
-        }
-
-        self.spec_refresh_started = true;
-
-        // Spawn background thread to refresh specs from API
-        thread::spawn(|| match adapters::refresh_specs_from_api() {
-            adapters::RefreshResult::Success {
-                adapters_count,
-                protocols_count,
-            } => {
-                tracing::info!(
-                    "Spec refresh complete: {} adapters, {} protocols",
-                    adapters_count,
-                    protocols_count
-                );
-            }
-            adapters::RefreshResult::Failed(e) => {
-                tracing::debug!("Spec refresh from API failed (using cache/embedded): {}", e);
-            }
-            adapters::RefreshResult::AlreadyRefreshed => {
-                tracing::debug!("Specs already refreshed, skipping");
-            }
-        });
-    }
-
-    // ========================================================================
     // Toast Notifications
     // ========================================================================
 
@@ -2705,9 +2666,6 @@ impl eframe::App for UltraLogApp {
 
         // Check for updates on startup (runs once)
         self.check_startup_update();
-
-        // Start spec refresh from API in background (runs once)
-        self.start_spec_refresh();
 
         // Check for completed update operations
         self.check_update_complete();

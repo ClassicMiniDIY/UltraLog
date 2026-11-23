@@ -90,20 +90,18 @@ impl DataWidget for TrackMapWidget {
 }
 
 /// Returns `(lat_channel_index, lon_channel_index)` from the active tab's
-/// log if both GPS channels are present. Resolution prefers the OECUA
+/// log if both GPS channels are present. Resolution prefers the OpenECU
 /// metadata map so any parser whose channel names map to canonical
 /// `gps_latitude` / `gps_longitude` IDs is picked up automatically; falls
 /// back to a small set of well-known column names so detection still works
-/// when the API-refreshed adapter spec drops or renames the GPS entries.
+/// for a log whose columns the corpus does not describe.
 pub fn detect_gps_channels(app: &UltraLogApp) -> Option<(usize, usize)> {
     let tab_idx = app.active_tab?;
     let file_idx = app.tabs[tab_idx].file_index;
     let file = app.files.get(file_idx)?;
-    let spec_generation = crate::adapters::spec_generation();
     let cache = &app.tabs[tab_idx].data_panel_state.track_map.gps_channels;
     if let Some(cached) = cache.get()
         && cached.file_index == file_idx
-        && cached.spec_generation == spec_generation
     {
         return cached.channels;
     }
@@ -111,7 +109,6 @@ pub fn detect_gps_channels(app: &UltraLogApp) -> Option<(usize, usize)> {
     let channels = find_gps_channels(&file.log.channels);
     cache.set(Some(GpsChannelCache {
         file_index: file_idx,
-        spec_generation,
         channels,
     }));
     channels

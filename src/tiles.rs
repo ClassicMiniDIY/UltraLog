@@ -6,8 +6,7 @@
 //! bytes. Decoded PNGs are cached in memory as
 //! `egui::TextureHandle` so subsequent frames don't re-decode.
 //!
-//! Disk cache lives at `{data_dir}/UltraLog/tiles/{provider}/{z}/{x}/{y}.png`,
-//! mirroring the OECUA spec cache layout.
+//! Disk cache lives at `{data_dir}/UltraLog/tiles/{provider}/{z}/{x}/{y}.png`.
 //!
 //! Privacy / bandwidth note: the widget exposes a per-tab toggle and tiles
 //! are off by default. Users opt in explicitly. Both providers' attribution

@@ -20,7 +20,6 @@ website: 'https://www.romraider.com'
 branding:
   logo: romraider-logo.gif
   icon: romraider-icon.gif
-  banner: romraider-banner.png
   color_primary: '#2B579A'
   color_secondary: '#1E3A5F'
 

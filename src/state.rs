@@ -851,10 +851,13 @@ impl Default for TrackMapState {
 }
 
 /// Identity of a cached GPS channel lookup.
+///
+/// This used to carry the adapter-spec generation too, because a background refresh from
+/// `openecualliance.org` could replace the channel metadata mid-session and invalidate a
+/// resolution. The specs are immutable now, so the file index alone identifies the lookup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GpsChannelCache {
     pub file_index: usize,
-    pub spec_generation: u64,
     pub channels: Option<(usize, usize)>,
 }
 

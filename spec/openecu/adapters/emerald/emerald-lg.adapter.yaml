@@ -19,7 +19,6 @@ website: 'https://www.emeraldm3d.co.uk'
 branding:
   logo: emerald-logo.jpg
   icon: emerald-icon.jpg
-  banner: emerald-banner.png
   color_primary: '#50C878'
   color_secondary: '#1A1A1A'
 

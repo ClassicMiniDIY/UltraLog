@@ -21,7 +21,6 @@ website: 'https://www.haltech.com'
 branding:
   logo: haltech-logo.svg
   icon: haltech-icon.svg
-  banner: haltech-banner.png
   color_primary: '#FFBE1A'
   color_secondary: '#1A1A1A'
 
