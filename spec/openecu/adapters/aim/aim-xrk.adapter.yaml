@@ -1,0 +1,798 @@
+# OpenECU Alliance Adapter Specification
+# AiM XRK/DRK Binary Format
+
+openecualliance: '1.0'
+id: aim-xrk
+name: 'AiM XRK/DRK Binary'
+version: '1.1.0'
+vendor: aim
+description: |
+  Binary log files from AiM motorsport data acquisition devices.
+  Supports MXP, MXG, MXL2, EVO5, MyChron5, and similar loggers.
+
+  Format characteristics:
+  - Binary format with "<hCNF" magic header
+  - Channel definitions in <hCHS> sections
+  - Metadata in footer (vehicle, track, etc.)
+  - Data records in )(G blocks containing f32 values
+  - Little-endian byte order for data values
+  - Typical sample rate: 100Hz
+website: 'https://www.aim-sportline.com'
+branding:
+  logo: aim-logo.png
+  icon: aim-icon.png
+  banner: aim-banner.png
+  color_primary: '#E31937'
+  color_secondary: '#1A1A1A'
+
+file_format:
+  type: binary
+  extensions: ['.xrk', '.drk']
+  endianness: little
+  magic_bytes: [0x3C, 0x68, 0x43, 0x4E, 0x46] # "<hCNF"
+  specification_url: 'https://www.aim-sportline.com'
+
+channels:
+  # Engine Core
+  - id: rpm
+    name: 'Engine RPM'
+    description: 'Engine speed from RPM signal'
+    category: engine
+    data_type: float
+    unit: rpm
+    min: 0
+    max: 20000
+    precision: 0
+    source_names:
+      - 'RPM'
+      - 'Engine RPM'
+      - 'Engine Speed'
+      - 'Eng RPM'
+      - 'EngineRPM'
+
+  - id: tps
+    name: 'Throttle Position'
+    description: 'Throttle position sensor'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'TPS'
+      - 'Throttle'
+      - 'Throttle Position'
+      - 'ThrottlePos'
+
+  - id: map
+    name: 'Manifold Pressure'
+    description: 'Manifold absolute pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'MAP'
+      - 'Manifold Pressure'
+      - 'Intake Manifold Pressure'
+
+  - id: boost
+    name: 'Boost Pressure'
+    description: 'Boost pressure (gauge)'
+    category: pressure
+    data_type: float
+    unit: bar
+    # bar -> kpa (canonical)
+    to_canonical:
+      scale: 100
+      offset: 0
+    min: -1
+    max: 4
+    precision: 2
+    source_names:
+      - 'Boost'
+      - 'Boost Pressure'
+      - 'Turbo Pressure'
+
+  # Fuel System
+  - id: lambda
+    name: 'Lambda'
+    description: 'Lambda value from wideband O2'
+    category: fuel
+    data_type: float
+    unit: lambda
+    min: 0.6
+    max: 1.5
+    precision: 3
+    source_names:
+      - 'Lambda'
+      - 'Lambda 1'
+      - 'Wideband Lambda'
+      - 'LM1'
+
+  - id: lambda_2
+    name: 'Lambda 2'
+    description: 'Lambda value from second wideband O2'
+    category: fuel
+    data_type: float
+    unit: lambda
+    min: 0.6
+    max: 1.5
+    precision: 3
+    source_names:
+      - 'Lambda 2'
+      - 'Lambda2'
+      - 'LM2'
+
+  - id: afr
+    name: 'Air-Fuel Ratio'
+    description: 'Measured air-fuel ratio'
+    category: fuel
+    data_type: float
+    unit: afr
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'AFR'
+      - 'Air Fuel Ratio'
+      - 'A/F Ratio'
+
+  - id: fuel_pressure
+    name: 'Fuel Pressure'
+    description: 'Fuel system pressure'
+    category: pressure
+    data_type: float
+    unit: bar
+    # bar -> kpa (canonical)
+    to_canonical:
+      scale: 100
+      offset: 0
+    min: 0
+    max: 10
+    precision: 2
+    source_names:
+      - 'Fuel Pressure'
+      - 'Fuel Press'
+      - 'FuelP'
+
+  - id: fuel_flow
+    name: 'Fuel Flow'
+    description: 'Instantaneous fuel consumption'
+    category: fuel
+    data_type: float
+    unit: l/h
+    min: 0
+    max: 200
+    precision: 1
+    source_names:
+      - 'Fuel Flow'
+      - 'Fuel Consumption'
+      - 'FuelFlow'
+
+  # Temperature Sensors
+  - id: coolant_temp
+    name: 'Water Temperature'
+    description: 'Engine coolant/water temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 150
+    precision: 1
+    source_names:
+      - 'Water Temp'
+      - 'Water Temperature'
+      - 'Coolant Temp'
+      - 'H2O Temp'
+      - 'H2O'
+      - 'ECT'
+
+  - id: oil_temp
+    name: 'Oil Temperature'
+    description: 'Engine oil temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 180
+    precision: 1
+    source_names:
+      - 'Oil Temp'
+      - 'Oil Temperature'
+      - 'Engine Oil Temp'
+
+  - id: iat
+    name: 'Air Temperature'
+    description: 'Intake air temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 100
+    precision: 1
+    source_names:
+      - 'Air Temp'
+      - 'IAT'
+      - 'Intake Air Temp'
+      - 'Ambient'
+
+  - id: exhaust_temp
+    name: 'Exhaust Temperature'
+    description: 'Exhaust gas temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: 0
+    max: 1200
+    precision: 0
+    source_names:
+      - 'EGT'
+      - 'Exhaust Temp'
+      - 'Exhaust Gas Temp'
+      - 'EGT 1'
+
+  - id: exhaust_temp_2
+    name: 'Exhaust Temperature 2'
+    description: 'Second exhaust gas temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: 0
+    max: 1200
+    precision: 0
+    source_names:
+      - 'EGT 2'
+      - 'Exhaust Temp 2'
+
+  - id: exhaust_temp_3
+    name: 'Exhaust Temperature 3'
+    description: 'Third exhaust gas temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: 0
+    max: 1200
+    precision: 0
+    source_names:
+      - 'EGT 3'
+      - 'Exhaust Temp 3'
+
+  - id: exhaust_temp_4
+    name: 'Exhaust Temperature 4'
+    description: 'Fourth exhaust gas temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: 0
+    max: 1200
+    precision: 0
+    source_names:
+      - 'EGT 4'
+      - 'Exhaust Temp 4'
+
+  - id: gearbox_temp
+    name: 'Gearbox Temperature'
+    description: 'Transmission oil temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 180
+    precision: 1
+    source_names:
+      - 'Gearbox Temp'
+      - 'Trans Temp'
+      - 'Transmission Temp'
+
+  # Pressure Sensors
+  - id: oil_pressure
+    name: 'Oil Pressure'
+    description: 'Engine oil pressure'
+    category: pressure
+    data_type: float
+    unit: bar
+    # bar -> kpa (canonical)
+    to_canonical:
+      scale: 100
+      offset: 0
+    min: 0
+    max: 15
+    precision: 2
+    source_names:
+      - 'Oil Pressure'
+      - 'Oil Press'
+      - 'Engine Oil Pressure'
+
+  - id: brake_pressure_front
+    name: 'Brake Pressure Front'
+    description: 'Front brake line pressure'
+    category: pressure
+    data_type: float
+    unit: bar
+    # bar -> kpa (canonical)
+    to_canonical:
+      scale: 100
+      offset: 0
+    min: 0
+    max: 200
+    precision: 1
+    source_names:
+      - 'Brake Front'
+      - 'Brake Pressure Front'
+      - 'Front Brake Pressure'
+      - 'BrakeF'
+
+  - id: brake_pressure_rear
+    name: 'Brake Pressure Rear'
+    description: 'Rear brake line pressure'
+    category: pressure
+    data_type: float
+    unit: bar
+    # bar -> kpa (canonical)
+    to_canonical:
+      scale: 100
+      offset: 0
+    min: 0
+    max: 200
+    precision: 1
+    source_names:
+      - 'Brake Rear'
+      - 'Brake Pressure Rear'
+      - 'Rear Brake Pressure'
+      - 'BrakeR'
+
+  # Electrical
+  - id: battery_voltage
+    name: 'Battery Voltage'
+    description: 'System battery voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 20
+    precision: 2
+    source_names:
+      - 'Battery'
+      - 'Battery Voltage'
+      - 'Batt V'
+      - 'VBatt'
+      - 'ECU Voltage'
+
+  # Speed & Motion
+  - id: vehicle_speed
+    name: 'Vehicle Speed'
+    description: 'Vehicle ground speed from GPS or wheel speed'
+    category: speed
+    data_type: float
+    unit: kph
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'Speed'
+      - 'GPS Speed'
+      - 'Vehicle Speed'
+      - 'Ground Speed'
+      - 'Veh Speed'
+
+  - id: wheel_speed_fl
+    name: 'Wheel Speed FL'
+    description: 'Front left wheel speed'
+    category: speed
+    data_type: float
+    unit: kph
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'Wheel Speed FL'
+      - 'WheelSpd FL'
+      - 'Speed FL'
+      - 'Front Left'
+
+  - id: wheel_speed_fr
+    name: 'Wheel Speed FR'
+    description: 'Front right wheel speed'
+    category: speed
+    data_type: float
+    unit: kph
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'Wheel Speed FR'
+      - 'WheelSpd FR'
+      - 'Speed FR'
+      - 'Front Right'
+
+  - id: wheel_speed_rl
+    name: 'Wheel Speed RL'
+    description: 'Rear left wheel speed'
+    category: speed
+    data_type: float
+    unit: kph
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'Wheel Speed RL'
+      - 'WheelSpd RL'
+      - 'Speed RL'
+      - 'Rear Left'
+
+  - id: wheel_speed_rr
+    name: 'Wheel Speed RR'
+    description: 'Rear right wheel speed'
+    category: speed
+    data_type: float
+    unit: kph
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'Wheel Speed RR'
+      - 'WheelSpd RR'
+      - 'Speed RR'
+      - 'Rear Right'
+
+  - id: gear
+    name: 'Gear Position'
+    description: 'Current transmission gear'
+    category: drivetrain
+    data_type: int
+    unit: gear
+    min: 0
+    max: 8
+    precision: 0
+    source_names:
+      - 'Gear'
+      - 'Gear Position'
+      - 'Current Gear'
+
+  # Accelerometers/IMU
+  - id: g_lateral
+    name: 'Lateral G'
+    description: 'Lateral acceleration (positive = right)'
+    category: acceleration
+    data_type: float
+    unit: g
+    min: -5
+    max: 5
+    precision: 2
+    source_names:
+      - 'G Lat'
+      - 'Lateral G'
+      - 'G Force Lat'
+      - 'Lat G'
+      - 'AccelY'
+
+  - id: g_longitudinal
+    name: 'Longitudinal G'
+    description: 'Longitudinal acceleration (positive = acceleration)'
+    category: acceleration
+    data_type: float
+    unit: g
+    min: -5
+    max: 5
+    precision: 2
+    source_names:
+      - 'G Long'
+      - 'Longitudinal G'
+      - 'G Force Long'
+      - 'Long G'
+      - 'AccelX'
+
+  - id: g_vertical
+    name: 'Vertical G'
+    description: 'Vertical acceleration'
+    category: acceleration
+    data_type: float
+    unit: g
+    min: -5
+    max: 5
+    precision: 2
+    source_names:
+      - 'G Vert'
+      - 'Vertical G'
+      - 'G Force Vert'
+      - 'AccelZ'
+
+  - id: gyro_yaw
+    name: 'Yaw Rate'
+    description: 'Yaw rotation rate'
+    category: rotation
+    data_type: float
+    unit: deg/s
+    min: -500
+    max: 500
+    precision: 1
+    source_names:
+      - 'Yaw'
+      - 'Yaw Rate'
+      - 'GyroZ'
+
+  - id: gyro_pitch
+    name: 'Pitch Rate'
+    description: 'Pitch rotation rate'
+    category: rotation
+    data_type: float
+    unit: deg/s
+    min: -500
+    max: 500
+    precision: 1
+    source_names:
+      - 'Pitch'
+      - 'Pitch Rate'
+      - 'GyroY'
+
+  - id: gyro_roll
+    name: 'Roll Rate'
+    description: 'Roll rotation rate'
+    category: rotation
+    data_type: float
+    unit: deg/s
+    min: -500
+    max: 500
+    precision: 1
+    source_names:
+      - 'Roll'
+      - 'Roll Rate'
+      - 'GyroX'
+
+  # GPS
+  - id: gps_latitude
+    name: 'GPS Latitude'
+    description: 'GPS latitude position'
+    category: position
+    data_type: float
+    unit: degrees
+    min: -90
+    max: 90
+    precision: 6
+    source_names:
+      - 'GPS Lat'
+      - 'Latitude'
+      - 'GPS Latitude'
+      - 'Lat'
+
+  - id: gps_longitude
+    name: 'GPS Longitude'
+    description: 'GPS longitude position'
+    category: position
+    data_type: float
+    unit: degrees
+    min: -180
+    max: 180
+    precision: 6
+    source_names:
+      - 'GPS Long'
+      - 'Longitude'
+      - 'GPS Longitude'
+      - 'Long'
+      - 'Lon'
+
+  - id: gps_altitude
+    name: 'GPS Altitude'
+    description: 'GPS altitude above sea level'
+    category: position
+    data_type: float
+    unit: meters
+    min: -500
+    max: 10000
+    precision: 1
+    source_names:
+      - 'GPS Alt'
+      - 'Altitude'
+      - 'GPS Altitude'
+      - 'Alt'
+
+  - id: gps_heading
+    name: 'GPS Heading'
+    description: 'GPS heading/course'
+    category: position
+    data_type: float
+    unit: degrees
+    min: 0
+    max: 360
+    precision: 1
+    source_names:
+      - 'GPS Heading'
+      - 'Heading'
+      - 'Course'
+      - 'GPS Course'
+
+  - id: gps_satellites
+    name: 'GPS Satellites'
+    description: 'Number of GPS satellites in view'
+    category: system
+    data_type: int
+    unit: count
+    min: 0
+    max: 30
+    precision: 0
+    source_names:
+      - 'GPS Sats'
+      - 'Satellites'
+      - 'GPS Satellites'
+      - 'Sats'
+
+  # Steering
+  - id: steering_angle
+    name: 'Steering Angle'
+    description: 'Steering wheel angle'
+    category: driver_input
+    data_type: float
+    unit: degrees
+    min: -900
+    max: 900
+    precision: 1
+    source_names:
+      - 'Steering'
+      - 'Steering Angle'
+      - 'SteerAngle'
+      - 'Steer'
+
+  # Suspension
+  - id: suspension_fl
+    name: 'Suspension FL'
+    description: 'Front left suspension travel'
+    category: suspension
+    data_type: float
+    unit: millimeters
+    min: 0
+    max: 300
+    precision: 1
+    source_names:
+      - 'Susp FL'
+      - 'Suspension FL'
+      - 'Damper FL'
+
+  - id: suspension_fr
+    name: 'Suspension FR'
+    description: 'Front right suspension travel'
+    category: suspension
+    data_type: float
+    unit: millimeters
+    min: 0
+    max: 300
+    precision: 1
+    source_names:
+      - 'Susp FR'
+      - 'Suspension FR'
+      - 'Damper FR'
+
+  - id: suspension_rl
+    name: 'Suspension RL'
+    description: 'Rear left suspension travel'
+    category: suspension
+    data_type: float
+    unit: millimeters
+    min: 0
+    max: 300
+    precision: 1
+    source_names:
+      - 'Susp RL'
+      - 'Suspension RL'
+      - 'Damper RL'
+
+  - id: suspension_rr
+    name: 'Suspension RR'
+    description: 'Rear right suspension travel'
+    category: suspension
+    data_type: float
+    unit: millimeters
+    min: 0
+    max: 300
+    precision: 1
+    source_names:
+      - 'Susp RR'
+      - 'Suspension RR'
+      - 'Damper RR'
+
+  # Lap Timing
+  - id: lap_number
+    name: 'Lap Number'
+    description: 'Current lap number'
+    category: timing
+    data_type: int
+    unit: lap
+    min: 0
+    max: 1000
+    precision: 0
+    source_names:
+      - 'Lap'
+      - 'Lap Number'
+      - 'LapNum'
+
+  - id: lap_time
+    name: 'Lap Time'
+    description: 'Current lap time'
+    category: timing
+    data_type: float
+    unit: seconds
+    min: 0
+    max: 600
+    precision: 3
+    source_names:
+      - 'Lap Time'
+      - 'LapTime'
+      - 'Current Lap Time'
+
+  - id: best_lap_time
+    name: 'Best Lap Time'
+    description: 'Best lap time in session'
+    category: timing
+    data_type: float
+    unit: seconds
+    min: 0
+    max: 600
+    precision: 3
+    source_names:
+      - 'Best Lap'
+      - 'Best Lap Time'
+      - 'BestLap'
+
+  - id: distance
+    name: 'Distance'
+    description: 'Total distance traveled'
+    category: position
+    data_type: float
+    unit: meters
+    min: 0
+    max: 1000000
+    precision: 0
+    source_names:
+      - 'Distance'
+      - 'Total Distance'
+      - 'Odometer'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  tested_with:
+    - 'AiM MXP'
+    - 'AiM MXG'
+    - 'AiM MXL2'
+    - 'AiM EVO5'
+    - 'AiM MyChron5'
+  known_issues:
+    - 'Channel names and units extracted from binary may vary by device configuration'
+    - 'Data extraction from )(G records may be incomplete for some file variants'
+    - 'For best results on macOS, export to CSV using Race Studio 3'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add bar -> kpa conversions for boost, fuel_pressure, oil_pressure and both
+          brake pressures.'
+        - 'Declare ''to_canonical'' scale/offset on channels whose log unit differs from
+          the canonical unit in specs/channels.yaml. The log unit is unchanged — it
+          still describes the file — but a consumer can now normalise without knowing
+          the vendor.'
+    - version: '1.0.0'
+      date: '2025-01-04'
+      changes:
+        - 'Initial release'
+        - 'Support for motorsport data acquisition channels'
+        - 'GPS, IMU, and lap timing support'
+
+# AiM-specific extensions
+x_aim:
+  supported_devices:
+    - 'MXP'
+    - 'MXG'
+    - 'MXL2'
+    - 'EVO5'
+    - 'MyChron5'
+    - 'Solo2'
+  default_sample_rate_hz: 100
+  data_record_marker: ')(G'
+  channel_section_marker: '<hCHS'
+  metadata_tags:
+    vehicle: '<VEH'
+    campaign: '<CMP'
+    venue_type: '<VTY'

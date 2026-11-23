@@ -1,0 +1,1282 @@
+# OpenECU Alliance Protocol Definition
+# rusEFI CAN Broadcast Protocol
+#
+# Source: https://github.com/rusefi/rusefi/blob/master/firmware/controllers/can/can_verbose.cpp
+# Reference: https://rusefi.com/forum/viewtopic.php?t=1930
+#
+# IMPORTANT NOTES:
+# - Base CAN ID is configurable via verboseCanBaseAddress (default 0x200)
+# - Can use either 11-bit standard or 29-bit extended IDs (configurable)
+# - Message offsets are added to the base address
+# - Temperature values add 40 to allow negative values in unsigned byte
+
+openecualliance: '1.0'
+type: protocol
+
+id: rusefi-broadcast
+name: 'rusEFI CAN Broadcast Protocol'
+version: '1.1.0'
+vendor: rusefi
+description: |
+  CAN broadcast protocol for rusEFI open-source ECU. This protocol broadcasts
+  real-time engine data for integration with data loggers, dashboards, and other
+  CAN-enabled devices.
+
+  The protocol uses a configurable base address (default 0x200) with message
+  offsets added to create the final CAN ID. Supports both 11-bit standard and
+  29-bit extended CAN IDs.
+
+  Temperature values are stored as (value + 40) to allow negative temperatures
+  in unsigned byte storage. Subtract 40 from raw value to get actual temperature
+  in Celsius.
+
+  Scaling constants from rusEFI source:
+  - PACK_ADD_TEMPERATURE: 40 (offset for temperatures)
+  - PACK_MULT_TEMPERATURE: 100 (scale for temperatures)
+  - PACK_MULT_PERCENT: 100 (scale for percentages)
+  - PACK_MULT_PRESSURE: 30 (scale for pressure)
+  - PACK_MULT_ANGLE: 50 (scale for angles)
+  - PACK_MULT_VOLTAGE: 1000 (scale for voltage)
+  - PACK_MULT_MS: 300 (scale for milliseconds)
+  - PACK_MULT_LAMBDA: 10000 (scale for lambda)
+  - PACK_MULT_FUEL_FLOW: 200 (scale for fuel flow)
+
+website: 'https://rusefi.com'
+
+branding:
+  logo: rusefi-logo.png
+  icon: rusefi-icon.png
+  color_primary: '#00AA00'
+  color_secondary: '#1A1A1A'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: false
+  base_address: 0x200
+  base_address_configurable: true
+  base_address_config_name: 'verboseCanBaseAddress'
+
+messages:
+  # ============================================================================
+  # BASE + 0: Status
+  # ============================================================================
+  - id: 0x200
+    name: 'Status'
+    description: 'ECU status, warnings, relay states, and gear'
+    length: 8
+    offset: 0
+    transmitter: ECU
+    signals:
+      - name: 'Warning_Counter'
+        id: warning_count
+        category: system
+        description: 'Running count of warnings'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 65535
+
+      - name: 'Last_Error_Code'
+        id: error_code
+        category: system
+        description: 'Most recent error code'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 65535
+
+      - name: 'Rev_Limit_Active'
+        id: rev_limiter_active
+        category: status
+        description: 'Rev limiter active flag'
+        start_bit: 32
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+      - name: 'Main_Relay'
+        id: main_relay
+        category: status
+        description: 'Main relay state'
+        start_bit: 33
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'Fuel_Pump'
+        id: fuel_pump_relay
+        category: status
+        description: 'Fuel pump relay state'
+        start_bit: 34
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'Check_Engine'
+        id: check_engine_light
+        category: status
+        description: 'Check engine light state'
+        start_bit: 35
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'O2_Heater'
+        id: o2_heater
+        category: status
+        description: 'O2 heater relay state'
+        start_bit: 36
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'Lambda_Protect_Active'
+        id: lambda_protect_active
+        category: status
+        description: 'Lambda protection cut active'
+        start_bit: 37
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Inactive, 1=Active'
+
+      - name: 'Fan_Relay'
+        id: fan_relay_1
+        category: status
+        description: 'Fan relay 1 state'
+        start_bit: 38
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'Fan_Relay_2'
+        id: fan_relay_2
+        category: status
+        description: 'Fan relay 2 state'
+        start_bit: 39
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'Gear'
+        id: gear
+        category: drivetrain
+        description: 'Detected gear position'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 255
+
+      - name: 'Distance_Traveled'
+        id: trip_distance
+        category: position
+        description: 'Distance traveled in 0.1km units'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'km'
+        min: 0
+        max: 6553.5
+
+  # ============================================================================
+  # BASE + 1: Speeds
+  # ============================================================================
+  - id: 0x201
+    name: 'Speeds'
+    description: 'RPM, timing, duty cycles, vehicle speed, ethanol content'
+    length: 8
+    offset: 1
+    transmitter: ECU
+    signals:
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'Engine rotational speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 65535
+
+      - name: 'Ignition_Timing'
+        id: ignition_advance
+        category: ignition
+        description: 'Ignition timing advance'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.02
+        offset: 0
+        unit: 'deg'
+        min: -655
+        max: 655
+        comment: 'scaled_angle: PACK_MULT_ANGLE = 50, so scale = 1/50 = 0.02'
+
+      - name: 'Injector_Duty_Cycle'
+        id: duty_cycle
+        category: fuel
+        description: 'Primary injector duty cycle'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 127.5
+        comment: 'scaled_channel<uint8_t, 2> means divide by 2'
+
+      - name: 'Coil_Duty_Cycle'
+        id: coil_duty_cycle
+        category: engine
+        description: 'Ignition coil duty cycle'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 127.5
+        comment: 'scaled_channel<uint8_t, 2> means divide by 2'
+
+      - name: 'Vehicle_Speed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle ground speed'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 255
+
+      - name: 'Ethanol_Percent'
+        id: flex_ethanol
+        category: fuel
+        description: 'Fuel ethanol content percentage'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+  # ============================================================================
+  # BASE + 2: Pedal and TPS
+  # ============================================================================
+  - id: 0x202
+    name: 'Pedal and TPS'
+    description: 'Accelerator pedal, throttle positions, wastegate position'
+    length: 8
+    offset: 2
+    transmitter: ECU
+    signals:
+      - name: 'Accelerator_Pedal'
+        id: pedal_position
+        category: engine
+        description: 'Accelerator pedal position'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: '%'
+        min: -327.67
+        max: 327.67
+        comment: 'scaled_percent: PACK_MULT_PERCENT = 100, -1 indicates sensor error'
+
+      - name: 'TPS_1'
+        id: tps
+        category: engine
+        description: 'Throttle position sensor 1'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: '%'
+        min: -327.67
+        max: 327.67
+        comment: 'scaled_percent: PACK_MULT_PERCENT = 100, -1 indicates sensor error'
+
+      - name: 'TPS_2'
+        id: tps_2
+        category: engine
+        description: 'Throttle position sensor 2'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: '%'
+        min: -327.67
+        max: 327.67
+        comment: 'scaled_percent: PACK_MULT_PERCENT = 100, -1 indicates sensor error'
+
+      - name: 'Wastegate_Position'
+        id: wastegate_position
+        category: engine
+        description: 'Wastegate position'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: '%'
+        min: -327.67
+        max: 327.67
+        comment: 'scaled_percent: PACK_MULT_PERCENT = 100, -1 indicates sensor error'
+
+  # ============================================================================
+  # BASE + 3: Sensors 1
+  # ============================================================================
+  - id: 0x203
+    name: 'Sensors 1'
+    description: 'MAP, temperatures, MCU temp, fuel level'
+    length: 8
+    offset: 3
+    transmitter: ECU
+    signals:
+      - name: 'MAP'
+        id: map
+        category: pressure
+        description: 'Manifold absolute pressure'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.0333
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 2184.5
+        comment: 'scaled_pressure: PACK_MULT_PRESSURE = 30, so scale = 1/30'
+
+      - name: 'Coolant_Temperature'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: -40
+        unit: 'C'
+        min: -40
+        max: 215
+        comment: 'Raw value + 40 = actual temp. PACK_ADD_TEMPERATURE = 40'
+
+      - name: 'Intake_Air_Temperature'
+        id: iat
+        category: temperature
+        description: 'Intake air temperature'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: -40
+        unit: 'C'
+        min: -40
+        max: 215
+        comment: 'Raw value + 40 = actual temp. PACK_ADD_TEMPERATURE = 40'
+
+      - name: 'Aux_Temperature_1'
+        id: aux_temp_1
+        category: temperature
+        description: 'Auxiliary temperature sensor 1'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: -40
+        unit: 'C'
+        min: -40
+        max: 215
+        comment: 'Raw value + 40 = actual temp. PACK_ADD_TEMPERATURE = 40'
+
+      - name: 'Aux_Temperature_2'
+        id: aux_temp_2
+        category: temperature
+        description: 'Auxiliary temperature sensor 2'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: -40
+        unit: 'C'
+        min: -40
+        max: 215
+        comment: 'Raw value + 40 = actual temp. PACK_ADD_TEMPERATURE = 40'
+
+      - name: 'MCU_Temperature'
+        id: ecu_temp
+        category: system
+        description: 'ECU microcontroller internal temperature'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: -40
+        unit: 'C'
+        min: -40
+        max: 215
+        comment: 'Raw value + 40 = actual temp. PACK_ADD_TEMPERATURE = 40'
+
+      - name: 'Fuel_Level'
+        id: fuel_level
+        category: fuel
+        description: 'Fuel tank level'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 127.5
+        comment: 'scaled_channel<uint8_t, 2> means divide by 2'
+
+  # ============================================================================
+  # BASE + 4: Sensors 2
+  # ============================================================================
+  - id: 0x204
+    name: 'Sensors 2'
+    description: 'Oil pressure, oil temp, fuel temp, battery voltage'
+    length: 8
+    offset: 4
+    transmitter: ECU
+    signals:
+      - name: 'Oil_Pressure'
+        id: oil_pressure
+        category: pressure
+        description: 'Engine oil pressure'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.0333
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 2184.5
+        comment: 'scaled_pressure: PACK_MULT_PRESSURE = 30, -1 indicates sensor error'
+
+      - name: 'Oil_Temperature'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: -40
+        unit: 'C'
+        min: -40
+        max: 215
+        comment: 'Raw value + 40 = actual temp. PACK_ADD_TEMPERATURE = 40'
+
+      - name: 'Fuel_Temperature'
+        id: fuel_temp
+        category: temperature
+        description: 'Fuel temperature'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: -40
+        unit: 'C'
+        min: -40
+        max: 215
+        comment: 'Raw value + 40 = actual temp. PACK_ADD_TEMPERATURE = 40'
+
+      - name: 'Battery_Voltage'
+        id: battery_voltage
+        category: electrical
+        description: 'System battery voltage'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+        min: 0
+        max: 65.535
+        comment: 'scaled_voltage: PACK_MULT_VOLTAGE = 1000'
+
+  # ============================================================================
+  # BASE + 5: Fueling
+  # ============================================================================
+  - id: 0x205
+    name: 'Fueling'
+    description: 'Cylinder air mass, airflow, fuel pulse width, knock count'
+    length: 8
+    offset: 5
+    transmitter: ECU
+    signals:
+      - name: 'Cylinder_Air_Mass'
+        id: cylinder_air_mass
+        category: engine
+        description: 'Air mass in one cylinder'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'g'
+        min: 0
+        max: 65.535
+        comment: 'scaled_channel<uint16_t, 1000>'
+
+      - name: 'Estimated_Airflow'
+        id: maf
+        category: engine
+        description: 'Estimated total engine airflow'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.01
+        offset: 0
+        unit: 'kg/h'
+        min: 0
+        max: 655.35
+        comment: 'scaled_channel<uint16_t, 100>'
+
+      - name: 'Fuel_Pulse_Width'
+        id: pulse_width
+        category: fuel
+        description: 'Injector pulse width (actual last injection)'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.00333
+        offset: 0
+        unit: 'ms'
+        min: 0
+        max: 218.4
+        comment: 'scaled_ms: PACK_MULT_MS = 300'
+
+      - name: 'Knock_Count'
+        id: knock_count
+        category: ignition
+        description: 'Total knock events detected'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 65535
+
+  # ============================================================================
+  # BASE + 6: Fueling 2
+  # ============================================================================
+  - id: 0x206
+    name: 'Fueling 2'
+    description: 'Fuel consumed, fuel flow rate, fuel trims'
+    length: 8
+    offset: 6
+    transmitter: ECU
+    signals:
+      - name: 'Fuel_Consumed'
+        id: fuel_used
+        category: fuel
+        description: 'Total fuel consumed since trip reset'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'g'
+        min: 0
+        max: 65535
+
+      - name: 'Fuel_Flow_Rate'
+        id: fuel_flow
+        category: fuel
+        description: 'Instantaneous fuel flow rate'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.005
+        offset: 0
+        unit: 'g/s'
+        min: 0
+        max: 327.675
+        comment: 'scaled_channel<uint16_t, PACK_MULT_FUEL_FLOW> where PACK_MULT_FUEL_FLOW = 200'
+
+      - name: 'Fuel_Trim_Bank_1'
+        id: fuel_trim_bank_1
+        category: engine
+        description: 'Short term fuel trim bank 1'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: '%'
+        min: -327.67
+        max: 327.67
+        comment: 'scaled_percent: PACK_MULT_PERCENT = 100. Value is (stftCorrection - 1) * 100'
+
+      - name: 'Fuel_Trim_Bank_2'
+        id: fuel_trim_bank_2
+        category: engine
+        description: 'Short term fuel trim bank 2'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: '%'
+        min: -327.67
+        max: 327.67
+        comment: 'scaled_percent: PACK_MULT_PERCENT = 100. Value is (stftCorrection - 1) * 100'
+
+  # ============================================================================
+  # BASE + 7: Fueling 3
+  # ============================================================================
+  - id: 0x207
+    name: 'Fueling 3'
+    description: 'Lambda values and fuel pressures'
+    length: 8
+    offset: 7
+    transmitter: ECU
+    signals:
+      - name: 'Lambda_1'
+        id: lambda
+        category: fuel
+        description: 'Wideband lambda sensor 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.0001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 6.5535
+        comment: 'scaled_channel<uint16_t, 10000>'
+
+      - name: 'Lambda_2'
+        id: lambda_2
+        category: fuel
+        description: 'Wideband lambda sensor 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.0001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 6.5535
+        comment: 'scaled_channel<uint16_t, 10000>'
+
+      - name: 'Fuel_Pressure_Low'
+        id: fuel_pressure
+        category: pressure
+        description: 'Low-side fuel pressure (returnless systems)'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.0333
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 2184.5
+        comment: 'scaled_channel<uint16_t, 30>'
+
+      - name: 'Fuel_Pressure_High'
+        id: fuel_pressure_high
+        category: pressure
+        description: 'High-side fuel pressure (direct injection)'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'bar'
+        min: 0
+        max: 6553.5
+        comment: 'scaled_channel<uint16_t, 10>, value is in bar (kPa/100)'
+
+  # ============================================================================
+  # BASE + 8: Cams (VVT)
+  # ============================================================================
+  - id: 0x208
+    name: 'Cams'
+    description: 'Variable valve timing actual and target positions'
+    length: 8
+    offset: 8
+    transmitter: ECU
+    signals:
+      - name: 'Bank_1_Intake_Actual'
+        id: vvt_intake
+        category: engine
+        description: 'Bank 1 intake cam actual position'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+      - name: 'Bank_1_Intake_Target'
+        id: vvt_intake_target
+        category: engine
+        description: 'Bank 1 intake cam target position'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+      - name: 'Bank_1_Exhaust_Actual'
+        id: vvt_exhaust
+        category: engine
+        description: 'Bank 1 exhaust cam actual position'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+      - name: 'Bank_1_Exhaust_Target'
+        id: vvt_exhaust_target
+        category: engine
+        description: 'Bank 1 exhaust cam target position'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+      - name: 'Bank_2_Intake_Actual'
+        id: vvt_intake_bank2_actual
+        category: engine
+        description: 'Bank 2 intake cam actual position'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+      - name: 'Bank_2_Intake_Target'
+        id: vvt_intake_bank2_target
+        category: engine
+        description: 'Bank 2 intake cam target position'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+      - name: 'Bank_2_Exhaust_Actual'
+        id: vvt_exhaust_bank2_actual
+        category: engine
+        description: 'Bank 2 exhaust cam actual position'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+      - name: 'Bank_2_Exhaust_Target'
+        id: vvt_exhaust_bank2_target
+        category: engine
+        description: 'Bank 2 exhaust cam target position'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'deg'
+        min: -128
+        max: 127
+
+  # ============================================================================
+  # BASE + 9: EGTs (Exhaust Gas Temperatures)
+  # ============================================================================
+  - id: 0x209
+    name: 'EGTs'
+    description: 'Exhaust gas temperatures for cylinders 1-8'
+    length: 8
+    offset: 9
+    transmitter: ECU
+    signals:
+      - name: 'EGT_1'
+        id: egt_1
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 1'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Raw value * 5 = actual temp. Divide by 5 in firmware.'
+
+      - name: 'EGT_2'
+        id: egt_2
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 2'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Raw value * 5 = actual temp. Divide by 5 in firmware.'
+
+      - name: 'EGT_3'
+        id: egt_3
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 3'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Reserved - not currently populated'
+
+      - name: 'EGT_4'
+        id: egt_4
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 4'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Reserved - not currently populated'
+
+      - name: 'EGT_5'
+        id: egt_5
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 5'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Reserved - not currently populated'
+
+      - name: 'EGT_6'
+        id: egt_6
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 6'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Reserved - not currently populated'
+
+      - name: 'EGT_7'
+        id: egt_7
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 7'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Reserved - not currently populated'
+
+      - name: 'EGT_8'
+        id: egt_8
+        category: temperature
+        description: 'Exhaust gas temperature cylinder 8'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5.0
+        offset: 0
+        unit: 'C'
+        min: 0
+        max: 1275
+        comment: 'Reserved - not currently populated'
+
+  # ============================================================================
+  # BASE + 10: Per-Cylinder Knock
+  # ============================================================================
+  - id: 0x20A
+    name: 'Per-Cylinder Knock'
+    description: 'Individual cylinder knock levels for cylinders 1-8'
+    length: 8
+    offset: 10
+    transmitter: ECU
+    signals:
+      - name: 'Knock_Cyl_1'
+        id: knock_level_1
+        category: ignition
+        description: 'Knock level cylinder 1'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+      - name: 'Knock_Cyl_2'
+        id: knock_level_2
+        category: ignition
+        description: 'Knock level cylinder 2'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+      - name: 'Knock_Cyl_3'
+        id: knock_level_3
+        category: ignition
+        description: 'Knock level cylinder 3'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+      - name: 'Knock_Cyl_4'
+        id: knock_level_4
+        category: ignition
+        description: 'Knock level cylinder 4'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+      - name: 'Knock_Cyl_5'
+        id: knock_level_5
+        category: ignition
+        description: 'Knock level cylinder 5'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+      - name: 'Knock_Cyl_6'
+        id: knock_level_6
+        category: ignition
+        description: 'Knock level cylinder 6'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+      - name: 'Knock_Cyl_7'
+        id: knock_level_7
+        category: ignition
+        description: 'Knock level cylinder 7'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+      - name: 'Knock_Cyl_8'
+        id: knock_level_8
+        category: ignition
+        description: 'Knock level cylinder 8'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'dB'
+        min: -128
+        max: 127
+
+  # ============================================================================
+  # BASE + 11: Status 11
+  # ============================================================================
+  - id: 0x20B
+    name: 'Status 11'
+    description: 'Additional status flags including brake pedal state'
+    length: 8
+    offset: 11
+    transmitter: ECU
+    signals:
+      - name: 'Brake_Pedal'
+        id: brake_switch
+        category: status
+        description: 'Brake pedal pressed state'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Released, 1=Pressed'
+
+# Enumerations for special values
+enums:
+  - name: 'GearPosition'
+    description: 'Detected gear position values'
+    values:
+      '0': 'Neutral/Unknown'
+      '1': '1st Gear'
+      '2': '2nd Gear'
+      '3': '3rd Gear'
+      '4': '4th Gear'
+      '5': '5th Gear'
+      '6': '6th Gear'
+      '7': '7th Gear'
+      '255': 'Reverse'
+
+  - name: 'RelayState'
+    description: 'Relay output state'
+    values:
+      '0': 'Off'
+      '1': 'On'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  source_url: 'https://github.com/rusefi/rusefi/blob/master/firmware/controllers/can/can_verbose.cpp'
+  tested_with:
+    - 'rusEFI firmware 2024.xx'
+    - 'rusEFI firmware 2025.xx'
+  compatible_tools:
+    - 'CANalyzer'
+    - 'PCAN-View'
+    - 'SavvyCAN'
+    - 'BusMaster'
+    - 'RaceChrono'
+    - 'TunerStudio'
+  known_issues:
+    - 'Base address is configurable - default 0x200 may differ on some configurations'
+    - 'Extended 29-bit CAN IDs supported via rusefiVerbose29b configuration'
+    - 'Not all messages may be populated depending on ECU hardware capabilities'
+    - 'Temperature values use +40 offset (subtract 40 from raw value)'
+    - 'Some EGT channels (3-8) may not be populated in firmware'
+    - 'Sensor error indicated by -1 value for some scaled_percent fields'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add canonical channel ids and categories to signals, drawn from the registry
+          in specs/channels.yaml. 70 of 70 signals (100%) now carry one, so a CAN
+          measurement can be matched to the same measurement read from a log file.
+          Before this, no protocol signal carried an id at all.'
+        - 'Every signal in this protocol maps to a canonical channel — no
+          vendor-specific or reserved fields remain.'
+    - version: '1.0.0'
+      date: '2025-01-07'
+      changes:
+        - 'Initial release based on rusEFI can_verbose.cpp'
+        - '12 messages covering engine status, speeds, sensors, fueling, VVT, EGT, knock'
+        - 'Scaling factors derived from PACK_MULT_* constants in source'
+        - 'Temperature offset of +40 documented (PACK_ADD_TEMPERATURE)'
+
+# rusEFI-specific extensions
+x_rusefi:
+  firmware_source: 'https://github.com/rusefi/rusefi'
+  verbose_can_file: 'firmware/controllers/can/can_verbose.cpp'
+  scaling_constants:
+    PACK_ADD_TEMPERATURE: 40
+    PACK_MULT_AFR: 1000
+    PACK_MULT_ANGLE: 50
+    PACK_MULT_FUEL_FLOW: 200
+    PACK_MULT_FUEL_MASS: 100
+    PACK_MULT_HIGH_PRESSURE: 10
+    PACK_MULT_LAMBDA: 10000
+    PACK_MULT_MS: 300
+    PACK_MULT_PERCENT: 100
+    PACK_MULT_PRESSURE: 30
+    PACK_MULT_TEMPERATURE: 100
+    PACK_MULT_VOLTAGE: 1000
+  configuration_options:
+    verboseCanBaseAddress: 'Base CAN ID for verbose broadcast (default 0x200)'
+    rusefiVerbose29b: 'Use 29-bit extended CAN IDs instead of 11-bit'
+    canBroadcastUseChannelTwo: 'Use CAN bus 2 instead of CAN bus 1'
+  protocol_notes: |
+    rusEFI verbose CAN broadcast sends 12 messages at a configurable base address.
+    Each message offset (0-11) is added to the base address to form the final CAN ID.
+
+    The protocol is designed for data logging and dashboard integration.
+    All multi-byte values use little-endian byte order.
+
+    Temperature values are stored as (celsius + 40) to allow negative temperatures
+    in unsigned byte storage. The receiving device should subtract 40 from the
+    raw value to get the actual temperature in Celsius.
+
+    For sensor error conditions, some fields (particularly those using scaled_percent)
+    will contain -1 (0xFFFF when interpreted as signed int16) when the sensor
+    is not available or has an error.

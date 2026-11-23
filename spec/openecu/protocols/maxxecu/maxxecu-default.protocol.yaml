@@ -1,0 +1,1836 @@
+# OpenECU Alliance Protocol Definition
+# MaxxECU Default CAN Output Protocol
+#
+# Source: MaxxECU webhelp, "MaxxECU Default CAN output"
+# https://www.maxxecu.com/webhelp/can-default_maxxecu_protocol.html
+# Vendor protocol version 1.3 (2020-09-29); includes all of version 1.2 (2014-12-05).
+#
+# IMPORTANT NOTES:
+# - CAN baud rate is 500 kbit/s with 11-bit IDs. This is fixed by the vendor
+#   documentation and is NOT the same as MaxxECU's Expansion Module base
+#   address (0x600), which is a different feature on a different bus config.
+# - Message IDs are fixed at 0x520-0x528 (FAST, 50 Hz) and 0x530-0x542
+#   (SLOW, 10 Hz). The default output protocol has no configurable base address.
+# - Little endian (least significant byte first).
+# - Every message is 8 bytes. Most carry four 16-bit values.
+# - All MaxxECUs have a built-in termination resistor on CAN 1. MaxxECU PRO's
+#   secondary bus (CAN 2) does not.
+# - Loom: twisted pink/grey. Pink = CAN L, grey = CAN H.
+
+openecualliance: '1.0'
+type: protocol
+
+id: maxxecu-default
+name: 'MaxxECU Default CAN Protocol'
+version: '2.1.0'
+vendor: maxxecu
+description: |
+  Default CAN output protocol for MaxxECU engine management systems, as
+  published in the MaxxECU webhelp (vendor protocol version 1.3).
+
+  Uses 11-bit identifiers at 500 kbit/s with little-endian encoding. Messages
+  are fixed at 0x520-0x528 (50 Hz) and 0x530-0x542 (10 Hz); there is no
+  configurable base address for this protocol. Enabling it adds roughly 13%
+  CAN bus load.
+
+  Supports MaxxECU RACE, STREET, MINI, SPORT and PRO. Individual messages
+  require specific firmware versions, recorded per message below.
+
+website: 'https://www.maxxecu.com/webhelp/can-default_maxxecu_protocol.html'
+
+branding:
+  logo: maxxecu-logo.jpg
+  icon: maxxecu-icon.jpg
+  color_primary: '#0066CC'
+  color_secondary: '#FFFFFF'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: false
+  base_address_configurable: false
+
+messages:
+
+  # ==========================================================================
+  # 0x520 - Engine Core (FAST1, 50Hz)
+  # ==========================================================================
+  - id: 0x520
+    name: 'Engine Core'
+    description: 'Engine speed, throttle, manifold pressure and average lambda'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST1'
+    min_firmware: '1.67'
+    signals:
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'RPM'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 32767.0
+
+      - name: 'Throttle_Position_Pedal'
+        id: tps
+        category: engine
+        description: 'Throttle position/pedal'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'MAP'
+        id: map
+        category: pressure
+        description: 'MAP'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3276.7
+
+      - name: 'Lambda'
+        id: lambda
+        category: fuel
+        description: 'Lambda'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 32.767
+        comment: 'Average lambda'
+
+  # ==========================================================================
+  # 0x521 - Lambda and Ignition (FAST2, 50Hz)
+  # ==========================================================================
+  - id: 0x521
+    name: 'Lambda and Ignition'
+    description: 'Per-bank lambda, ignition angle and ignition cut'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST2'
+    min_firmware: '1.67'
+    signals:
+      - name: 'Lambda_A'
+        id: lambda
+        category: fuel
+        description: 'Lambda A'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 32.767
+        comment: 'Lambda cylinder bank A'
+
+      - name: 'Lambda_B'
+        id: lambda_2
+        category: fuel
+        description: 'Lambda B'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 32.767
+        comment: 'Lambda cylinder bank B'
+
+      - name: 'Ignition_Angle'
+        id: ignition_advance
+        category: ignition
+        description: 'Ignition angle'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Ignition_Cut'
+        id: spark_cut
+        category: ignition
+        description: 'Ignition cut'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: '%'
+        min: -32768.0
+        max: 32767.0
+        comment: 'Percent of ignition event being cut (for rev-limit etc)'
+
+  # ==========================================================================
+  # 0x522 - Fuel and Vehicle Speed (FAST3, 50Hz)
+  # ==========================================================================
+  - id: 0x522
+    name: 'Fuel and Vehicle Speed'
+    description: 'Primary injector pulsewidth and duty, fuel cut, vehicle speed'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST3'
+    min_firmware: '1.67'
+    signals:
+      - name: 'Fuel_Pulsewidth_Primary'
+        id: pulse_width
+        category: fuel
+        description: 'Fuel pulsewidth primary'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: 'ms'
+        min: -327.68
+        max: 327.67
+
+      - name: 'Fuel_Duty_Primary'
+        id: duty_cycle
+        category: fuel
+        description: 'Fuel duty primary'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Can be over 100%.'
+
+      - name: 'Fuel_Cut'
+        id: fuel_cut
+        category: fuel
+        description: 'Fuel cut'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: '%'
+        min: -32768.0
+        max: 32767.0
+        comment: 'Percent of fuel event being cut (for rev-limit etc)'
+
+      - name: 'Vehicle_Speed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle Speed'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 3276.7
+        comment: 'Speed signal for display purpose'
+
+  # ==========================================================================
+  # 0x523 - Traction Control Wheel Speeds (FAST4, 50Hz)
+  # ==========================================================================
+  - id: 0x523
+    name: 'Traction Control Wheel Speeds'
+    description: 'Driven and undriven wheel speeds, actual and target slip'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST4'
+    min_firmware: '1.67'
+    signals:
+      - name: 'Undriven_Wheels_Avg_Spd'
+        id: wheel_speed_undriven
+        category: speed
+        description: 'Undriven wheels avg spd'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 3276.7
+        comment: 'Zero when traction ctrl. system not used'
+
+      - name: 'Driven_Wheels_Avg_Spd'
+        id: wheel_speed_driven
+        category: speed
+        description: 'Driven wheels avg spd'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'km/h'
+        min: 0
+        max: 3276.7
+        comment: 'Zero when traction ctrl. system not used'
+
+      - name: 'Wheel_Slip'
+        id: traction_slip
+        category: traction
+        description: 'Wheel slip'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Zero when traction ctrl. system not used'
+
+      - name: 'Target_Slip'
+        id: traction_slip_target
+        category: engine
+        description: 'Target slip'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Zero when traction ctrl. system not used'
+
+  # ==========================================================================
+  # 0x524 - Traction Limit, Lambda Correction and Firmware (FAST5, 50Hz)
+  # ==========================================================================
+  - id: 0x524
+    name: 'Traction Limit, Lambda Correction and Firmware'
+    description: 'Traction power limit, per-bank short-term lambda correction, ECU firmware version'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST5'
+    min_firmware: '1.67'
+    signals:
+      - name: 'Traction_Ctrl_Power_Limit'
+        id: traction_cut
+        category: traction
+        description: 'Traction Ctrl Power limit'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Zero when traction ctrl. system not used'
+
+      - name: 'Lambda_Corr_A'
+        id: ego_correction_1
+        category: correction
+        description: 'Lambda corr A'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Short term lambda-correction applied to bank A cylinders'
+
+      - name: 'Lambda_Corr_B'
+        id: ego_correction_2
+        category: correction
+        description: 'Lambda corr B'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Short term lambda-correction applied to bank B cylinders'
+
+      - name: 'Firmware_Version'
+        id: firmware_version
+        category: system
+        description: 'Firmware version'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.001
+        offset: 0
+        unit: ''
+        min: -32.768
+        max: 32.767
+        comment: 'Current ECU firmware version'
+
+  # ==========================================================================
+  # 0x525 - User Channels 9-12 (FAST6, 50Hz)
+  # ==========================================================================
+  - id: 0x525
+    name: 'User Channels 9-12'
+    description: 'Four user-assignable channels sourced in MTune'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST6'
+    min_firmware: '1.135'
+    signals:
+      - name: 'User_Channel_9'
+        id: user_channel_9
+        category: electrical
+        description: 'User channel 9'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_10'
+        id: user_channel_10
+        category: electrical
+        description: 'User channel 10'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_11'
+        id: user_channel_11
+        category: electrical
+        description: 'User channel 11'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_12'
+        id: user_channel_12
+        category: electrical
+        description: 'User channel 12'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+  # ==========================================================================
+  # 0x526 - Status Flags and Rev Limit (FAST7, 50Hz)
+  # ==========================================================================
+  - id: 0x526
+    name: 'Status Flags and Rev Limit'
+    description: 'Limiter, cut and pedal status bits plus the active rev-limit RPM. Bytes 2-3 and 6-7 are reserved'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST7'
+    min_firmware: '1.135'
+    signals:
+      - name: 'Shiftcut_Active'
+        id: flat_shift_active
+        category: status
+        description: 'Shiftcut active'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Rev_Limit_Active'
+        id: rev_limiter_active
+        category: status
+        description: 'Rev-limit active'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Anti_Lag_Active'
+        id: antilag_active
+        category: status
+        description: 'Anti-lag active'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Launch_Control_Active'
+        id: launch_control_active
+        category: status
+        description: 'Launch control active'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Traction_Power_Limiter_Active'
+        id: traction_control_active
+        category: status
+        description: 'Traction power limiter active'
+        start_bit: 4
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Throttle_Blip_Active'
+        id: throttle_blip_active
+        category: status
+        description: 'Throttle blip active'
+        start_bit: 5
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'AC_Idle_Up_Active'
+        id: ac_request
+        category: status
+        description: 'AC/idle up active'
+        start_bit: 6
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Knock_Detected'
+        id: knock_detected
+        category: status
+        description: 'Knock detected'
+        start_bit: 7
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+        comment: 'Visible for 250msec after a detected knock.'
+
+      - name: 'Brake_Pedal_Active'
+        id: brake_switch
+        category: status
+        description: 'Brake pedal active'
+        start_bit: 8
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Clutch_Pedal_Active'
+        id: clutch_switch
+        category: status
+        description: 'Clutch pedal active'
+        start_bit: 9
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Speed_Limit_Active'
+        id: speed_limiter_active
+        category: status
+        description: 'Speed limit active'
+        start_bit: 10
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'GP_Limiter_Active'
+        vendor_specific: true
+        description: 'GP limiter active'
+        start_bit: 11
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'User_Cut_Active'
+        vendor_specific: true
+        description: 'User cut active'
+        start_bit: 12
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'ECU_Is_Logging'
+        id: logging_active
+        category: status
+        description: 'ECU is logging'
+        start_bit: 13
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Nitrous_Active'
+        id: nitrous_stage_1_active
+        category: status
+        description: 'Nitrous active'
+        start_bit: 14
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 1
+
+      - name: 'Rev_Limit_RPM'
+        id: rev_limit_rpm
+        category: engine
+        description: 'Rev-limit RPM'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 32767.0
+
+  # ==========================================================================
+  # 0x527 - Acceleration and Lambda Target (FAST8, 50Hz)
+  # ==========================================================================
+  - id: 0x527
+    name: 'Acceleration and Lambda Target'
+    description: 'Three-axis acceleration and the target lambda'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST8'
+    min_firmware: '1.135'
+    signals:
+      - name: 'Acceleration_Forward'
+        id: g_longitudinal
+        category: acceleration
+        description: 'Acceleration Forward'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: 'G'
+        min: -327.68
+        max: 327.67
+
+      - name: 'Acceleration_Right'
+        id: g_lateral
+        category: acceleration
+        description: 'Acceleration Right'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: 'G'
+        min: -327.68
+        max: 327.67
+
+      - name: 'Acceleration_Up'
+        id: g_vertical
+        category: acceleration
+        description: 'Acceleration Up'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: 'G'
+        min: -327.68
+        max: 327.67
+
+      - name: 'Lambda_Target'
+        id: lambda_target
+        category: fuel
+        description: 'Lambda target'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.001
+        offset: 0
+        unit: 'lambda'
+        min: 0
+        max: 32.767
+
+  # ==========================================================================
+  # 0x528 - Knock (FAST9, 50Hz)
+  # ==========================================================================
+  - id: 0x528
+    name: 'Knock'
+    description: 'Peak knock level, knock correction, knock count and last knocking cylinder'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    vendor_message_name: 'FAST9'
+    min_firmware: '1.135'
+    signals:
+      - name: 'Knocklevel_All_Peak'
+        id: knock_level
+        category: ignition
+        description: 'Knocklevel All peak'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: -32768.0
+        max: 32767.0
+
+      - name: 'Knock_Correction'
+        id: knock_retard
+        category: correction
+        description: 'Knock correction'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Knock_Count'
+        id: knock_count
+        category: ignition
+        description: 'Knock count'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 32767.0
+
+      - name: 'Last_Knock_Cylinder'
+        id: knock_cylinder
+        category: system
+        description: 'Last knock cylinder'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: -32768.0
+        max: 32767.0
+
+  # ==========================================================================
+  # 0x530 - Battery and Environment (SLOW1, 10Hz)
+  # ==========================================================================
+  - id: 0x530
+    name: 'Battery and Environment'
+    description: 'Battery voltage, barometric pressure, intake air and coolant temperature'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW1'
+    min_firmware: '1.67'
+    signals:
+      - name: 'Battery_Voltage'
+        id: battery_voltage
+        category: electrical
+        description: 'Battery voltage'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.01
+        offset: 0
+        unit: 'V'
+        min: 0
+        max: 327.67
+
+      - name: 'Baro_Pressure'
+        id: barometric_pressure
+        category: pressure
+        description: 'Baro pressure'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3276.7
+
+      - name: 'Intake_Air_Temp'
+        id: iat
+        category: temperature
+        description: 'Intake air temp'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Coolant_Temp'
+        id: coolant_temp
+        category: temperature
+        description: 'Coolant temp'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -3276.8
+        max: 3276.7
+
+  # ==========================================================================
+  # 0x531 - Fuel Trim, Ethanol and EGT 1 (SLOW2, 10Hz)
+  # ==========================================================================
+  - id: 0x531
+    name: 'Fuel Trim, Ethanol and EGT 1'
+    description: 'Total fuel trim, ethanol concentration, total ignition compensation, first EGT'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW2'
+    min_firmware: '1.67'
+    signals:
+      - name: 'Total_Fuel_Trim'
+        id: fuel_trim
+        category: correction
+        description: 'Total fuel trim'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Total amount of adjustment applied to the fuel pulse, excluding acceleration enrichment'
+
+      - name: 'Ethanol_Concentration'
+        id: flex_ethanol
+        category: fuel
+        description: 'Ethanol concentration'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Outputs 85% when no sensor is used, or in case of a sensor error.'
+
+      - name: 'Total_Ignition_Comp'
+        id: ignition_compensation
+        category: ignition
+        description: 'Total ignition comp'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Total amount of adjustment applied to the ignition angle (in degrees)'
+
+      - name: 'EGT_1'
+        id: egt_1
+        category: temperature
+        description: 'EGT 1'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+        comment: 'Exhaust gas temperature. All values are sent, even for unconfigured sensors'
+
+  # ==========================================================================
+  # 0x532 - EGT 2-5 (SLOW3, 10Hz)
+  # ==========================================================================
+  - id: 0x532
+    name: 'EGT 2-5'
+    description: 'Exhaust gas temperature sensors 2 through 5'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW3'
+    min_firmware: '1.67'
+    signals:
+      - name: 'EGT_2'
+        id: egt_2
+        category: temperature
+        description: 'EGT 2'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+      - name: 'EGT_3'
+        id: egt_3
+        category: temperature
+        description: 'EGT 3'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+      - name: 'EGT_4'
+        id: egt_4
+        category: temperature
+        description: 'EGT 4'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+      - name: 'EGT_5'
+        id: egt_5
+        category: temperature
+        description: 'EGT 5'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+  # ==========================================================================
+  # 0x533 - EGT 6-8 and Highest (SLOW4, 10Hz)
+  # ==========================================================================
+  - id: 0x533
+    name: 'EGT 6-8 and Highest'
+    description: 'Exhaust gas temperature sensors 6 through 8 and the highest reading'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW4'
+    min_firmware: '1.67'
+    signals:
+      - name: 'EGT_6'
+        id: egt_6
+        category: temperature
+        description: 'EGT 6'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+      - name: 'EGT_7'
+        id: egt_7
+        category: temperature
+        description: 'EGT 7'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+      - name: 'EGT_8'
+        id: egt_8
+        category: temperature
+        description: 'EGT 8'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+      - name: 'EGT_Highest'
+        id: egt_highest
+        category: temperature
+        description: 'EGT Highest'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+
+  # ==========================================================================
+  # 0x534 - Diagnostics (SLOW5, 10Hz)
+  # ==========================================================================
+  - id: 0x534
+    name: 'Diagnostics'
+    description: 'EGT spread, ECU CPU temperature, active error count and lost sync count'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW5'
+    min_firmware: '1.67'
+    signals:
+      - name: 'EGT_Difference'
+        id: egt_spread
+        category: temperature
+        description: 'EGT Difference'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+        comment: 'Difference between the highest and lowest EGT sensor.'
+
+      - name: 'CPU_Temp'
+        id: ecu_temp
+        category: system
+        description: 'CPU temp'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'C'
+        min: -32768.0
+        max: 32767.0
+        comment: 'ECU temperature.'
+
+      - name: 'Error_Code_Count'
+        id: error_count
+        category: system
+        description: 'Error code count'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 32767.0
+        comment: 'The number of current active error codes.'
+
+      - name: 'Lost_Sync_Count'
+        id: sync_loss_count
+        category: system
+        description: 'Lost sync count'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0
+        max: 32767.0
+        comment: 'Number of times the ECU has detected errors in the engine position sensors.'
+
+  # ==========================================================================
+  # 0x535 - User Analog Inputs 1-4 (SLOW6, 10Hz)
+  # ==========================================================================
+  - id: 0x535
+    name: 'User Analog Inputs 1-4'
+    description: 'Four user-assignable analog inputs'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW6'
+    min_firmware: '1.79'
+    signals:
+      - name: 'User_Analog_Input_1'
+        id: analog_input_1
+        category: electrical
+        description: 'User analog input 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'User_Analog_Input_2'
+        id: analog_input_2
+        category: electrical
+        description: 'User analog input 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'User_Analog_Input_3'
+        id: analog_input_3
+        category: electrical
+        description: 'User analog input 3'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'User_Analog_Input_4'
+        id: analog_input_4
+        category: electrical
+        description: 'User analog input 4'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+
+  # ==========================================================================
+  # 0x536 - Gear, Boost Solenoid and Oil (SLOW7, 10Hz)
+  # ==========================================================================
+  - id: 0x536
+    name: 'Gear, Boost Solenoid and Oil'
+    description: 'Calculated gear, boost solenoid duty, oil pressure and temperature'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW7'
+    min_firmware: '1.79'
+    signals:
+      - name: 'Gear'
+        id: gear
+        category: drivetrain
+        description: 'Gear'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: -32768.0
+        max: 32767.0
+        comment: 'Calculated manual transmission gear or commanded gear'
+
+      - name: 'Boost_Solenoid_Duty'
+        id: boost_duty
+        category: pressure
+        description: 'Boost solenoid duty'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Oil_Pressure'
+        id: oil_pressure
+        category: pressure
+        description: 'Oil pressure'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3276.7
+        comment: 'Updated (V1.2 did not transmit anything here)'
+
+      - name: 'Oil_Temp'
+        id: oil_temp
+        category: temperature
+        description: 'Oil temp'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -3276.8
+        max: 3276.7
+        comment: 'Updated (V1.2 did not transmit anything here)'
+
+  # ==========================================================================
+  # 0x537 - Pressures (SLOW8, 10Hz)
+  # ==========================================================================
+  - id: 0x537
+    name: 'Pressures'
+    description: 'Fuel, wastegate and coolant pressure plus the boost target'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW8'
+    min_firmware: '1.135'
+    signals:
+      - name: 'Fuel_Pressure_1'
+        id: fuel_pressure
+        category: pressure
+        description: 'Fuel Pressure 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3276.7
+
+      - name: 'Wastegate_Pressure'
+        id: wastegate_pressure
+        category: pressure
+        description: 'Wastegate pressure'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3276.7
+
+      - name: 'Coolant_Pressure'
+        id: coolant_pressure
+        category: pressure
+        description: 'Coolant pressure'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3276.7
+
+      - name: 'Boost_Target'
+        id: boost_target
+        category: pressure
+        description: 'Boost target'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 3276.7
+
+  # ==========================================================================
+  # 0x538 - User Channels 1-4 (SLOW9, 10Hz)
+  # ==========================================================================
+  - id: 0x538
+    name: 'User Channels 1-4'
+    description: 'Four user-assignable channels sourced in MTune'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW9'
+    min_firmware: '1.135'
+    signals:
+      - name: 'User_Channel_1'
+        id: user_channel_1
+        category: electrical
+        description: 'User channel 1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_2'
+        id: user_channel_2
+        category: electrical
+        description: 'User channel 2'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_3'
+        id: user_channel_3
+        category: electrical
+        description: 'User channel 3'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_4'
+        id: user_channel_4
+        category: electrical
+        description: 'User channel 4'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+  # ==========================================================================
+  # 0x539 - User Channels 5-8 (SLOW10, 10Hz)
+  # ==========================================================================
+  - id: 0x539
+    name: 'User Channels 5-8'
+    description: 'Four user-assignable channels sourced in MTune'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW10'
+    min_firmware: '1.135'
+    signals:
+      - name: 'User_Channel_5'
+        id: user_channel_5
+        category: electrical
+        description: 'User channel 5'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_6'
+        id: user_channel_6
+        category: electrical
+        description: 'User channel 6'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_7'
+        id: user_channel_7
+        category: electrical
+        description: 'User channel 7'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+      - name: 'User_Channel_8'
+        id: user_channel_8
+        category: electrical
+        description: 'User channel 8'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: -3276.8
+        max: 3276.7
+        comment: 'User selectable source sensor in MTune.'
+
+  # ==========================================================================
+  # 0x540 - Tune Selection and Fluid Temps (SLOW11, 10Hz)
+  # ==========================================================================
+  - id: 0x540
+    name: 'Tune Selection and Fluid Temps'
+    description: 'Active boost table and tune selector, virtual fuel tank, transmission and differential temperature'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW11'
+    min_firmware: '1.135'
+    signals:
+      - name: 'Active_Boost_Table'
+        id: active_boost_table
+        category: system
+        description: 'Active boost table'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0.0
+        max: 255.0
+
+      - name: 'Active_Tune_Selector'
+        id: active_tune
+        category: system
+        description: 'Active Tune selector'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        min: 0.0
+        max: 255.0
+
+      - name: 'Virtual_Fuel_Tank'
+        id: fuel_level
+        category: fuel
+        description: 'Virtual fuel tank'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'L'
+        min: 0
+        max: 3276.7
+
+      - name: 'Transmission_Temp'
+        id: gearbox_temp
+        category: temperature
+        description: 'Transmission temp'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'Differential_Temp'
+        id: differential_temp
+        category: temperature
+        description: 'Differential temp'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'C'
+        min: -3276.8
+        max: 3276.7
+
+  # ==========================================================================
+  # 0x541 - VVT Cam Positions (SLOW12, 10Hz)
+  # ==========================================================================
+  - id: 0x541
+    name: 'VVT Cam Positions'
+    description: 'Intake and exhaust cam positions for both banks'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW12'
+    min_firmware: '1.135'
+    signals:
+      - name: 'VVT_Intake_Cam_1_Position'
+        id: vvt_intake
+        category: engine
+        description: 'VVT intake cam 1 position'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'VVT_Exhaust_Cam_1_Position'
+        id: vvt_exhaust
+        category: engine
+        description: 'VVT exhaust cam 1 position'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'VVT_Intake_Cam_2_Position'
+        id: vvt_intake_bank2_actual
+        category: engine
+        description: 'VVT intake cam 2 position'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'VVT_Exhaust_Cam_2_Position'
+        id: vvt_exhaust_bank2_actual
+        category: engine
+        description: 'VVT exhaust cam 2 position'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+  # ==========================================================================
+  # 0x542 - VVT Targets and Error Codes (SLOW13, 10Hz)
+  # ==========================================================================
+  - id: 0x542
+    name: 'VVT Targets and Error Codes'
+    description: 'Intake and exhaust cam target positions and the rotating ECU error code. Bytes 6-7 are reserved'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    vendor_message_name: 'SLOW13'
+    min_firmware: '1.135'
+    signals:
+      - name: 'VVT_Intake_Cam_Target_Position'
+        id: vvt_intake_target
+        category: engine
+        description: 'VVT intake cam target position'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'VVT_Exhaust_Cam_Target_Position'
+        id: vvt_exhaust_target
+        category: engine
+        description: 'VVT exhaust cam target position'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        min: -3276.8
+        max: 3276.7
+
+      - name: 'ECU_Errors_Codes'
+        id: error_code
+        category: system
+        description: 'ECU errors code(s)'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: ''
+        min: 0.0
+        max: 6553.5
+        comment: 'Rotates all stored error codes; 0x0000 when none stored. The vendor table prints scale 0.1 for this field, which cannot apply to an enumerated code — treated as unscaled here.'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  source_url: 'https://www.maxxecu.com/webhelp/can-default_maxxecu_protocol.html'
+  vendor_protocol_version: '1.3 (2020-09-29)'
+  tested_with:
+    - 'MaxxECU RACE'
+    - 'MaxxECU STREET'
+    - 'MaxxECU MINI'
+    - 'MaxxECU SPORT'
+    - 'MaxxECU PRO'
+  compatible_tools:
+    - 'MTune'
+    - 'AiM data loggers'
+    - 'RaceChrono'
+    - 'SavvyCAN'
+    - 'PCAN-View'
+    - 'BusMaster'
+  known_issues:
+    - 'Message IDs are fixed. The 0x600 base address in MaxxECU documentation
+      belongs to the Expansion Module setup, not to this protocol.'
+    - 'Messages 0x525-0x528 and 0x537-0x542 require firmware 1.135 or newer;
+      0x535 requires 1.79 or newer; the ECU error code field in 0x542 requires
+      1.149 or newer. Older firmware simply does not transmit them.'
+    - 'Vendor protocol v1.3 uses 0x536 bytes 2-3, which were SPARE in v1.2.
+      Vendor note: "Default V1.3 0x540 collides with the VAG DSG" — use v1.2
+      on DSG applications.'
+    - 'Traction control channels in 0x523 and 0x524 read zero when the traction
+      control system is not in use.'
+    - 'Ethanol concentration in 0x531 outputs 85% when no sensor is fitted or
+      the sensor has failed.'
+    - 'All eight EGT values are transmitted even for unconfigured sensors.'
+  changelog:
+    - version: '2.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add canonical channel ids and categories to signals, drawn from the registry
+          in specs/channels.yaml. 98 of 100 signals (98%) now carry one, so a CAN
+          measurement can be matched to the same measurement read from a log file.
+          Before this, no protocol signal carried an id at all.'
+        - 'Account for the rest explicitly instead of leaving them silent: 2 marked
+          vendor_specific (a real measurement with no canonical equivalent) and 0
+          marked reserved (padding or diagnostic transport framing, which carry no
+          measurement).'
+    - version: '2.0.0'
+      date: '2026-08-24'
+      changes:
+        - 'BREAKING: correct the CAN IDs. 1.0.0 declared 25 messages at
+          0x600-0x618, which do not exist in this protocol. The documented IDs
+          are 0x520-0x528 and 0x530-0x542.'
+        - 'BREAKING: correct the baud rate from 1 Mbit/s to 500 kbit/s, per the
+          vendor webhelp ("Can baud rate: 500kbit, 11-bit ID") and AiM MaxxECU
+          CAN 1.05 ("CAN1 Bitrate as 500kbit").'
+        - 'Rebuild every message and signal directly from the vendor table:
+          22 messages, 100 signals, with vendor byte offsets, scales and units.'
+        - 'Add per-message minimum firmware versions and the vendor message
+          names (FAST1-FAST9, SLOW1-SLOW13).'
+        - 'Remove the claim that the base address is configurable — it is not
+          for this protocol.'
+    - version: '1.0.0'
+      date: '2026-01-07'
+      changes:
+        - 'Initial release. Message IDs, baud rate and message layout did not
+          match the vendor documentation; superseded by 2.0.0.'
+
+# MaxxECU-specific notes
+x_maxxecu:
+  bus:
+    baudrate: 500000
+    id_length: 11
+    byte_order: little_endian
+    bus_load: '~13% additional load when enabled (vendor protocol v1.3)'
+    termination: 'Built-in on CAN 1 for all models. MaxxECU PRO CAN 2 has none.
+      External 120 ohm termination recommended over 1 m of bus.'
+    wiring: 'Twisted pink/grey. Pink = CAN L, grey = CAN H.'
+  message_groups:
+    fast: '0x520-0x528 at 50 Hz'
+    slow: '0x530-0x542 at 10 Hz'
+  enabling: 'MTune -> CAN -> enable the MaxxECU output protocol.'
+  dbc: 'MaxxECU publishes DBC files in the download section of maxxecu.com.'

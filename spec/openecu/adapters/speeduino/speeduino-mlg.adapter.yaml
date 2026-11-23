@@ -1,0 +1,1044 @@
+# OpenECU Alliance Adapter Specification
+# Speeduino MegaLogViewer (.mlg) Binary Format
+
+openecualliance: '1.0'
+id: speeduino-mlg
+name: 'Speeduino MLG Binary'
+version: '1.2.0'
+vendor: speeduino
+description: |
+  Binary log files from Speeduino open-source ECU in MegaLogViewer format.
+
+  Format characteristics:
+  - Binary format with "MLVLG" magic header
+  - Self-describing: channel definitions embedded in file
+  - Each channel has name, unit, scale, and transform
+  - Values: (raw_value + transform) * scale
+  - Big-endian byte order
+  - Timestamp wraps at 65535ms (~65.5 seconds)
+website: 'https://speeduino.com'
+branding:
+  logo: speeduino-logo.png
+  icon: speeduino-icon.png
+  banner: speeduino-banner.png
+  color_primary: '#3498DB'
+  color_secondary: '#2C3E50'
+
+file_format:
+  type: binary
+  extensions: ['.mlg']
+  endianness: big
+  magic_bytes: [0x4D, 0x4C, 0x56, 0x4C, 0x47] # "MLVLG"
+  specification_url: 'https://github.com/speeduino/speeduino'
+
+channels:
+
+  # Correction
+  - id: accel_enrichment
+    name: 'Acceleration Enrichment'
+    description: 'Transient fuel enrichment'
+    category: correction
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 200
+    precision: 0
+    source_names:
+      - 'Accel'
+      - 'AE'
+      - 'Accel Enrich'
+      - 'Correction_AccelEnrich'
+
+  - id: barometric_correction
+    name: 'Barometric Correction'
+    description: 'Altitude/barometric fuel correction'
+    category: correction
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'Correction_Baro'
+
+  - id: ego_correction
+    name: 'EGO Correction'
+    description: 'Closed-loop O2 correction'
+    category: correction
+    data_type: float
+    unit: 'percent'
+    min: -25
+    max: 25
+    precision: 1
+    source_names:
+      - 'EGO Correction'
+      - 'EGO Corr'
+      - 'O2 Correction'
+      - 'Correction_AFR'
+
+  - id: gamma_enrichment
+    name: 'Gamma Enrichment'
+    description: 'Total fuel correction multiplier'
+    category: correction
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 200
+    precision: 0
+    source_names:
+      - 'Gamma'
+      - 'Total Enrich'
+      - 'Correction_Total'
+
+  - id: iat_correction
+    name: 'IAT Correction'
+    description: 'Intake air temperature fuel correction'
+    category: correction
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'Correction_IAT'
+
+  - id: knock_retard
+    name: 'Knock Retard'
+    description: 'Timing retard from knock detection'
+    category: correction
+    data_type: float
+    unit: 'degrees'
+    source_names:
+      - 'Knock Retard'
+
+  - id: warmup_enrichment
+    name: 'Warmup Enrichment'
+    description: 'Cold engine fuel enrichment'
+    category: correction
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 200
+    precision: 0
+    source_names:
+      - 'WUE'
+      - 'Warmup Enrich'
+      - 'Correction_Warmup'
+
+
+  # Drivetrain
+  - id: gear
+    name: 'Gear Position'
+    description: 'Current gear'
+    category: drivetrain
+    data_type: int
+    unit: 'gear'
+    source_names:
+      - 'Gear'
+
+
+  # Electrical
+  - id: battery_voltage
+    name: 'Battery Voltage'
+    description: 'System voltage'
+    category: electrical
+    data_type: float
+    unit: 'volts'
+    min: 0
+    max: 20
+    precision: 2
+    source_names:
+      - 'Battery'
+      - 'Batt V'
+      - 'Battery Voltage'
+      - 'Battery V'
+
+
+  # Engine
+  - id: ase_enrichment
+    name: 'After-Start Enrichment'
+    description: 'Fuel enrichment applied for a period after starting.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'Correction_ASE'
+
+  - id: engine_protection_rpm
+    name: 'Engine Protection RPM Limit'
+    description: 'RPM limit currently imposed by engine protection.'
+    category: engine
+    data_type: float
+    unit: 'rpm'
+    source_names:
+      - 'Engine Prot. RPM'
+
+  - id: fan_duty
+    name: 'Fan Duty'
+    description: 'Cooling fan duty cycle.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'FAN Duty'
+
+  - id: flex_fuel_correction
+    name: 'Flex Fuel Correction'
+    description: 'Fuel correction from the flex fuel sensor.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'Correction_Flex'
+
+  - id: fuel_temp_correction
+    name: 'Fuel Temperature Correction'
+    description: 'Fuel correction for fuel temperature.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'Correction_FuelTemp'
+
+  - id: idle_load
+    name: 'Idle Load'
+    description: 'Idle air control position'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'Idle Load'
+      - 'IAC'
+      - 'IAC Position'
+      - 'IAC value'
+
+  - id: idle_rpm_delta
+    name: 'Idle RPM Delta'
+    description: 'Difference between idle target and actual RPM.'
+    category: engine
+    data_type: float
+    unit: 'rpm'
+    source_names:
+      - 'Idle RPM Delta'
+
+  - id: idle_target_rpm
+    name: 'Idle Target RPM'
+    description: 'Target idle speed'
+    category: engine
+    data_type: float
+    unit: 'rpm'
+    source_names:
+      - 'Idle Target RPM'
+
+  - id: ignition_load
+    name: 'Ignition Load'
+    description: 'Load axis used for the ignition table.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'IgnitionLoad'
+
+  - id: injector_duty_staged
+    name: 'Injector Duty (Staged)'
+    description: 'Duty cycle of the staged (secondary) injectors.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'Duty Cycle (Staging)'
+
+  - id: rpm
+    name: 'Engine RPM'
+    description: 'Engine speed'
+    category: engine
+    data_type: float
+    unit: 'rpm'
+    min: 0
+    max: 15000
+    precision: 0
+    source_names:
+      - 'RPM'
+      - 'Engine Speed'
+
+  - id: rpm_rate
+    name: 'RPM Rate'
+    description: 'Rate of change of engine speed.'
+    category: engine
+    data_type: float
+    unit: 'rpm/s'
+    source_names:
+      - 'rpm/s'
+
+  - id: tps
+    name: 'Throttle Position'
+    description: 'Throttle position sensor'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'TPS'
+      - 'Throttle'
+      - 'TPS ADC'
+
+  - id: tps_rate
+    name: 'Throttle Rate'
+    description: 'Rate of change of throttle position.'
+    category: engine
+    data_type: float
+    unit: 'percent/s'
+    source_names:
+      - 'TPS DOT'
+
+  - id: ve_1
+    name: 'VE Table 1'
+    description: 'Volumetric efficiency from table 1.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'VE1'
+
+  - id: ve_2
+    name: 'VE Table 2'
+    description: 'Volumetric efficiency from table 2.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'VE2'
+
+  - id: vvt_intake
+    name: 'VVT Intake Position'
+    description: 'Variable valve timing intake cam position'
+    category: engine
+    data_type: float
+    unit: 'degrees'
+    source_names:
+      - 'VVT1 Angle'
+
+  - id: vvt_intake_bank2_actual
+    name: 'VVT Intake Bank 2 Actual'
+    description: 'Measured intake cam position, bank 2.'
+    category: engine
+    data_type: float
+    unit: 'degrees'
+    source_names:
+      - 'VVT2 Angle'
+
+  - id: vvt_intake_bank2_duty
+    name: 'VVT Intake Bank 2 Duty'
+    description: 'Intake cam solenoid duty cycle, bank 2.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'VVT2 Duty'
+
+  - id: vvt_intake_bank2_target
+    name: 'VVT Intake Bank 2 Target'
+    description: 'Commanded intake cam position, bank 2.'
+    category: engine
+    data_type: float
+    unit: 'degrees'
+    source_names:
+      - 'VVT2 Target Angle'
+
+  - id: vvt_intake_duty
+    name: 'VVT Intake Duty'
+    description: 'Intake cam solenoid duty cycle.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'VVT1 Duty'
+
+  - id: vvt_intake_target
+    name: 'VVT Intake Target'
+    description: 'Target intake cam position'
+    category: engine
+    data_type: float
+    unit: 'degrees'
+    source_names:
+      - 'VVT1 Target Angle'
+
+  - id: water_injection_duty
+    name: 'Water Injection Duty'
+    description: 'Water/methanol injection solenoid duty cycle.'
+    category: engine
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'WMI Duty Cycle'
+
+
+  # Fuel
+  - id: afr
+    name: 'Air-Fuel Ratio'
+    description: 'Measured AFR from O2 sensor'
+    category: fuel
+    data_type: float
+    unit: 'afr'
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'AFR'
+      - 'O2'
+      - 'AFR Primary'
+
+  - id: afr_2
+    name: 'AFR Bank 2'
+    description: 'Air-fuel ratio from bank 2 / sensor 2'
+    category: fuel
+    data_type: float
+    unit: 'afr'
+    source_names:
+      - 'AFR2'
+
+  - id: afr_target
+    name: 'AFR Target'
+    description: 'Target AFR from tune'
+    category: fuel
+    data_type: float
+    unit: 'afr'
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'AFR Target'
+      - 'Target AFR'
+      - 'AFR Tgt'
+
+  - id: duty_cycle
+    name: 'Injector Duty Cycle'
+    description: 'Injector duty cycle'
+    category: fuel
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'Duty'
+      - 'Injector Duty'
+      - 'Duty Cycle'
+
+  - id: dwell_actual
+    name: 'Dwell (Measured)'
+    description: 'Measured coil dwell, as opposed to commanded.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'Dwell (Measured)'
+
+  - id: engine_protection_afr
+    name: 'Engine Protection AFR Limit'
+    description: 'AFR threshold used by engine protection.'
+    category: fuel
+    data_type: float
+    unit: 'afr'
+    source_names:
+      - 'Engine Prot. AFR'
+
+  - id: flex_ethanol
+    name: 'Ethanol Content'
+    description: 'Ethanol content from the flex fuel sensor.'
+    category: fuel
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'Eth %'
+
+  - id: fuel_load
+    name: 'Fuel Load'
+    description: 'Load axis used for the fuel table.'
+    category: fuel
+    data_type: float
+    unit: 'percent'
+    source_names:
+      - 'FuelLoad'
+
+  - id: injector_open_time
+    name: 'Injector Open Time'
+    description: 'Injector dead time / opening delay.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'Injector Open Time'
+
+  - id: lambda
+    name: 'Lambda'
+    description: 'Lambda value from wideband O2'
+    category: fuel
+    data_type: float
+    unit: 'lambda'
+    source_names:
+      - 'Lambda'
+
+  - id: lambda_target
+    name: 'Lambda Target'
+    description: 'Target lambda from ECU tuning'
+    category: fuel
+    data_type: float
+    unit: 'lambda'
+    source_names:
+      - 'Lambda Target'
+
+  - id: pulse_width
+    name: 'Injector Pulse Width'
+    description: 'Injector pulse width'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    min: 0
+    max: 50
+    precision: 2
+    source_names:
+      - 'PW'
+      - 'Pulse Width'
+      - 'PW1'
+
+  - id: pulse_width_2
+    name: 'Pulse Width 2'
+    description: 'Injector pulse width for stage or bank 2.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'PW2'
+
+  - id: pulse_width_3
+    name: 'Pulse Width 3'
+    description: 'Injector pulse width for stage or bank 3.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'PW3'
+
+  - id: pulse_width_4
+    name: 'Pulse Width 4'
+    description: 'Injector pulse width for stage or bank 4.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'PW4'
+
+  - id: pulse_width_5
+    name: 'Pulse Width 5'
+    description: 'Injector pulse width for stage or bank 5.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'PW5'
+
+  - id: pulse_width_6
+    name: 'Pulse Width 6'
+    description: 'Injector pulse width for stage or bank 6.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'PW6'
+
+  - id: pulse_width_7
+    name: 'Pulse Width 7'
+    description: 'Injector pulse width for stage or bank 7.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'PW7'
+
+  - id: pulse_width_8
+    name: 'Pulse Width 8'
+    description: 'Injector pulse width for stage or bank 8.'
+    category: fuel
+    data_type: float
+    unit: 'milliseconds'
+    source_names:
+      - 'PW8'
+
+  - id: ve
+    name: 'VE'
+    description: 'Volumetric Efficiency from VE table'
+    category: fuel
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 200
+    precision: 1
+    source_names:
+      - 'VE'
+      - 'VE1'
+      - 'VE Current'
+      - 'VE (Current)'
+
+
+  # Ignition
+  - id: dwell
+    name: 'Dwell'
+    description: 'Coil dwell time'
+    category: ignition
+    data_type: float
+    unit: 'milliseconds'
+    min: 0
+    max: 10
+    precision: 2
+    source_names:
+      - 'Dwell'
+      - 'Dwell Time'
+
+  - id: ignition_advance
+    name: 'Ignition Advance'
+    description: 'Spark timing advance'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    min: -20
+    max: 60
+    precision: 1
+    source_names:
+      - 'Advance'
+      - 'Spark Advance'
+      - 'Timing'
+      - 'Advance (Current)'
+
+  - id: ignition_advance_cyl_1
+    name: 'Ignition Advance Cylinder 1'
+    description: 'Per-cylinder ignition advance for cylinder 1.'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    source_names:
+      - 'Advance 1'
+
+  - id: ignition_advance_cyl_2
+    name: 'Ignition Advance Cylinder 2'
+    description: 'Per-cylinder ignition advance for cylinder 2.'
+    category: ignition
+    data_type: float
+    unit: 'degrees'
+    source_names:
+      - 'Advance 2'
+
+  - id: knock_count
+    name: 'Knock Count'
+    description: 'Number of knock events detected'
+    category: ignition
+    data_type: int
+    unit: 'count'
+    source_names:
+      - 'Current Knock Events'
+
+
+  # Pressure
+  - id: barometric_pressure
+    name: 'Barometric Pressure'
+    description: 'Atmospheric pressure'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    source_names:
+      - 'Baro Pressure'
+
+  - id: boost_duty
+    name: 'Boost Duty'
+    description: 'Boost solenoid duty cycle'
+    category: pressure
+    data_type: float
+    unit: 'percent'
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'Boost Duty'
+      - 'VVT Duty'
+
+  - id: boost_target
+    name: 'Boost Target'
+    description: 'Target boost from boost control'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    min: 0
+    max: 300
+    precision: 0
+    source_names:
+      - 'Boost Target'
+      - 'Target Boost'
+
+  - id: engine_protection_map
+    name: 'Engine Protection MAP Limit'
+    description: 'Manifold pressure limit imposed by engine protection.'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    source_names:
+      - 'Engine Prot. MAP'
+
+  - id: engine_protection_oil
+    name: 'Engine Protection Oil Limit'
+    description: 'Oil pressure threshold used by engine protection.'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    source_names:
+      - 'Engine Prot. Oil Pressure'
+
+  - id: exhaust_manifold_pressure
+    name: 'Exhaust Manifold Pressure'
+    description: 'Pressure in the exhaust manifold.'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    source_names:
+      - 'EMAP'
+
+  - id: flex_boost_correction
+    name: 'Flex Boost Correction'
+    description: 'Boost target adjustment from ethanol content.'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    source_names:
+      - 'Boost Flex Adjust'
+
+  - id: fuel_pressure
+    name: 'Fuel Pressure'
+    description: 'Fuel rail pressure'
+    category: pressure
+    data_type: float
+    unit: 'psi'
+    # psi -> kpa (canonical)
+    to_canonical:
+      scale: 6.89475729
+      offset: 0
+    source_names:
+      - 'Fuel Pressure'
+
+  - id: map
+    name: 'Manifold Pressure'
+    description: 'Manifold absolute pressure'
+    category: pressure
+    data_type: float
+    unit: 'kpa'
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'MAP'
+      - 'Manifold Pressure'
+
+  - id: map_rate
+    name: 'MAP Rate'
+    description: 'Rate of change of manifold pressure.'
+    category: pressure
+    data_type: float
+    unit: 'kpa/s'
+    source_names:
+      - 'MAP DOT'
+
+  - id: oil_pressure
+    name: 'Oil Pressure'
+    description: 'Engine oil pressure'
+    category: pressure
+    data_type: float
+    unit: 'psi'
+    # psi -> kpa (canonical)
+    to_canonical:
+      scale: 6.89475729
+      offset: 0
+    source_names:
+      - 'Oil Pressure'
+
+
+  # Speed
+  - id: vehicle_speed
+    name: 'Vehicle Speed'
+    description: 'Vehicle ground speed'
+    category: speed
+    data_type: float
+    unit: 'kph'
+    source_names:
+      - 'Wheel Speed (kph)'
+
+
+  # Status
+  - id: boost_cut_active
+    name: 'Boost Cut Active'
+    description: 'Overboost cut is active.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Boost cut'
+
+  - id: clutch_switch
+    name: 'Clutch Switch'
+    description: 'Clutch pedal switch state.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Clutch'
+
+  - id: fan_relay_1
+    name: 'Fan Relay 1'
+    description: 'Cooling fan relay 1 state.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Fan'
+
+  - id: fuel_staging_active
+    name: 'Fuel Staging Active'
+    description: 'Staged (secondary) injectors are firing.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Fuel Staging'
+
+  - id: idle_control_active
+    name: 'Idle Control Active'
+    description: 'Closed-loop idle control is active.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Idle Control'
+
+  - id: knock_detected
+    name: 'Knock Detected'
+    description: 'Knock was detected on the most recent event.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Knock Detected'
+
+  - id: launch_control_active
+    name: 'Launch Control Active'
+    description: 'Launch control is engaged.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Hard Launch'
+
+  - id: nitrous_stage_1_active
+    name: 'Nitrous Stage 1 Active'
+    description: 'Nitrous stage 1 is flowing.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Nitrous'
+
+  - id: overrun_active
+    name: 'Overrun Cut Active'
+    description: 'Deceleration fuel cut-off is active.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'DFCO'
+
+  - id: rev_limiter_active
+    name: 'Rev Limiter Active'
+    description: 'RPM limiter is cutting.'
+    category: status
+    data_type: bool
+    unit: ''
+    source_names:
+      - 'Hard Limiter'
+
+
+  # System
+  - id: ecu_temp
+    name: 'ECU Temperature'
+    description: 'ECU internal temperature'
+    category: system
+    data_type: float
+    unit: 'celsius'
+    source_names:
+      - 'System Temperature'
+
+  - id: error_code
+    name: 'Error Code'
+    description: 'Active error/fault code'
+    category: system
+    data_type: int
+    unit: 'code'
+    source_names:
+      - 'Error ID'
+
+  - id: error_count
+    name: 'Active Error Count'
+    description: 'Number of currently active error codes.'
+    category: system
+    data_type: int
+    unit: 'count'
+    source_names:
+      - 'Error #'
+
+  - id: free_ram
+    name: 'Free RAM'
+    description: 'Available memory'
+    category: system
+    data_type: float
+    unit: 'bytes'
+    min: 0
+    max: 10000
+    precision: 0
+    source_names:
+      - 'freeRAM'
+      - 'Free RAM'
+
+  - id: loops_per_second
+    name: 'Loops Per Second'
+    description: 'ECU loop rate'
+    category: system
+    data_type: float
+    unit: 'hz'
+    min: 0
+    max: 10000
+    precision: 0
+    source_names:
+      - 'loopsPerSecond'
+      - 'Loops'
+      - 'Loops/s'
+
+  - id: sync_level
+    name: 'Sync Level'
+    description: 'Crank/cam synchronisation level.'
+    category: system
+    data_type: int
+    unit: 'count'
+    source_names:
+      - 'Sync status'
+
+  - id: sync_loss_count
+    name: 'Sync Loss Count'
+    description: 'Times the ECU lost engine position sync.'
+    category: system
+    data_type: int
+    unit: 'count'
+    source_names:
+      - 'Sync Loss #'
+
+  - id: time
+    name: 'Time'
+    description: 'Log timestamp in seconds'
+    category: system
+    data_type: float
+    unit: 'seconds'
+    source_names:
+      - 'Time'
+
+  - id: uptime
+    name: 'ECU Uptime'
+    description: 'Seconds since the ECU powered on.'
+    category: system
+    data_type: float
+    unit: 'seconds'
+    source_names:
+      - 'SecL'
+
+
+  # Temperature
+  - id: coolant_temp
+    name: 'Coolant Temperature'
+    description: 'Engine coolant temperature'
+    category: temperature
+    data_type: float
+    unit: 'celsius'
+    min: -40
+    max: 150
+    precision: 1
+    source_names:
+      - 'CLT'
+      - 'Coolant'
+      - 'Coolant Temp'
+
+  - id: engine_protection_coolant
+    name: 'Engine Protection Coolant Limit'
+    description: 'Coolant temperature threshold used by engine protection.'
+    category: temperature
+    data_type: float
+    unit: 'celsius'
+    source_names:
+      - 'Engine Prot. CLT'
+
+  - id: fuel_temp
+    name: 'Fuel Temperature'
+    description: 'Fuel temperature'
+    category: temperature
+    data_type: float
+    unit: 'celsius'
+    source_names:
+      - 'Fuel Temp'
+
+  - id: iat
+    name: 'Intake Air Temperature'
+    description: 'Intake air temperature'
+    category: temperature
+    data_type: float
+    unit: 'celsius'
+    min: -40
+    max: 100
+    precision: 1
+    source_names:
+      - 'IAT'
+      - 'Intake Temp'
+      - 'Air Temp'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  tested_with:
+    - 'Speeduino 0.4.x'
+    - 'Speeduino 202xxx firmware'
+  known_issues:
+    - 'Timestamp wraps at ~65.5 seconds'
+    - 'Channel names/units defined in firmware'
+  changelog:
+    - version: '1.2.0'
+      date: '2026-08-24'
+      changes:
+        - 'Rebuild the channel list from the [Datalog] section of the official
+          speeduino.ini (signature "speeduino 202504-dev"), which is the authoritative
+          list of columns a Speeduino log actually contains. 22 channels -> 92.'
+        - 'Adds knock (retard, detected, event count), VVT1 and VVT2 angle/target/duty,
+          boost target and duty, fuel and oil pressure, the full engine-protection set,
+          fuel staging, flex fuel, EMAP, fuel and ignition load, sync status and loss
+          counter, gear, wheel speed, WMI, fan duty and all eight injector pulse
+          widths.'
+        - 'Deliberately excluded under the curated-coverage rule: raw bit registers
+          (status1-5, engine), the internal loop counter, and unit-variant duplicates
+          of channels already present (map_psi, vssMPH).'
+        - 'Existing source_names are preserved and merged with the vendor labels, so
+          column aliases that already worked keep working.'
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Move boost_duty to the ''pressure'' category to match the registry.'
+    - version: '1.0.0'
+      date: '2025-01-04'
+      changes:
+        - 'Initial release'
+        - 'Core Speeduino channels'
+
+# Speeduino-specific extensions
+x_speeduino:
+  mlg_version: [1, 2]
+  field_definition_size_v1: 55
+  field_definition_size_v2: 89
+  value_formula: '(raw + transform) * scale'

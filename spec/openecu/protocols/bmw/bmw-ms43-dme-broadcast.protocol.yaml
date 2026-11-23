@@ -1,0 +1,872 @@
+# OpenECU Alliance Protocol Definition
+# BMW Siemens MS43 DME CAN Broadcast (E46 / E39 chassis)
+#
+# Documentation source: MS4X Wiki, "Siemens MS43 CAN Bus"
+#   https://www.ms4x.net/index.php?title=Siemens_MS43_CAN_Bus
+#
+# IMPORTANT NOTES:
+# - The E46/E39 powertrain bus runs at 500 kbit/s with 11-bit identifiers.
+# - The MS43 DME transmits four frames: DME1 0x316, DME2 0x329, DME3 0x338
+#   (Alpina Roadster only) and DME4 0x545. Everything else on the bus comes
+#   from other modules and is out of scope for this file.
+# - The MS43 also RECEIVES 0x43F (EGS1), 0x613/0x615 (instrument cluster),
+#   0x153/0x1F3 (ASC traction control), 0x43D (AMT) and 0x1F5 (steering angle).
+#   Those are documented as consumed message boxes only; their payloads are not
+#   published by the source and are therefore not described here.
+# - Every torque value on this bus is a PERCENTAGE of C_TQ_STND, the calibrated
+#   standard torque constant in the binary. It is not Nm and cannot be converted
+#   to Nm without reading C_TQ_STND out of the specific ECU calibration, so
+#   those signals carry no canonical id and are marked vendor_specific.
+
+openecualliance: '1.0'
+type: protocol
+
+id: bmw-ms43-dme-broadcast
+name: 'BMW Siemens MS43 DME CAN Broadcast'
+version: '1.0.0'
+vendor: bmw
+description: |
+  Factory CAN broadcast frames transmitted by the Siemens MS43 engine control
+  unit fitted to the BMW M54 engine (E46 3-series, E39 5-series, E53 X5,
+  Z3/Z4, roughly 2001-2006).
+
+  MS43 is the successor to MS42 and is the most widely reverse-engineered of
+  the Siemens BMW DMEs, largely through the MS4X project. Unlike MS42, the
+  MS43 documentation carries explicit scaling factors for the torque and
+  engine-speed fields, so this file is the more reliable of the two.
+
+  Four frames are transmitted, all on the 500 kbit/s powertrain bus:
+    0x316 DME1 - engine speed, torque model, error flags        (10 ms)
+    0x329 DME2 - coolant temperature, ambient pressure, pedal   (10 ms)
+    0x338 DME3 - sport button state, Alpina Roadster only       (1000 ms)
+    0x545 DME4 - oil temperature, fuel consumption, tell-tales  (10 ms)
+
+  Torque fields are percentages of the calibration constant C_TQ_STND, not Nm.
+  See the header comment in the YAML for why they are not mapped to canonical
+  torque channels.
+
+website: 'https://www.ms4x.net'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: false
+
+messages:
+  # ==========================================================================
+  # DME1 0x316 - engine speed and the torque model
+  # ==========================================================================
+  - id: 0x316
+    name: 'DME1'
+    description: 'Engine speed, indexed/indicated/loss torque and DME error flags'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: DME1
+    signals:
+      - name: 'LV_SWI_IGK'
+        description: 'Ignition key voltage state (terminal 15)'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'terminal 15 off detected'
+          '1': 'terminal 15 on detected'
+
+      - name: 'LV_F_N_ENG'
+        description: 'Crankshaft sensor error state'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no CRK error present'
+          '1': 'CRK error present'
+
+      - name: 'LV_ACK_TCS'
+        description: 'Traction control (ASC1) message acknowledge'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'ASC1 not received within 500 ms, or it contains a plausibility error'
+          '1': 'ASC1 received within 500 ms with no plausibility error'
+
+      - name: 'LV_ERR_GC'
+        description: 'Gear change error state'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'gear change not or only partly possible'
+          '1': 'gear change possible'
+
+      - name: 'SF_TQD'
+        description: 'Charge intervention state'
+        start_bit: 4
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'intervention can be performed completely, or no ASC requirement'
+          '1': 'intervention incomplete - ignition retard limit reached'
+          '2': 'intervention incomplete - charge actuators fully closed'
+          '3': 'limited vehicle dynamics active (MTC/ISA error)'
+
+      - name: 'Reserved B0.6'
+        start_bit: 6
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LV_F_SUB_TQI'
+        description: 'Mass airflow meter error state'
+        start_bit: 7
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'MAF ok'
+          '1': 'MAF error present'
+
+      - name: 'TQI_TQR_CAN'
+        description: >-
+          Indexed engine torque as a percentage of C_TQ_STND, including
+          ASR/MSR/ETCU/LIM/AMT/gear intervention
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+        comment: 'Percent of the calibration constant C_TQ_STND, not Nm'
+
+      - name: 'N_ENG'
+        id: rpm
+        category: engine
+        description: 'Engine speed'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.15625
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 10240
+        comment: 'y = ((MSB * 256) + LSB) * 0.15625'
+
+      - name: 'TQI_CAN'
+        description: >-
+          Indicated engine torque as a percentage of C_TQ_STND, from pedal
+          value, speed, air mass, intake and coolant temperature, ignition
+          angle and purge control
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+
+      - name: 'TQ_LOSS_CAN'
+        description: >-
+          Engine torque loss as a percentage of C_TQ_STND, from engine
+          friction, the AC compressor and electrical consumers
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+
+      - name: 'Reserved B6.0-5'
+        start_bit: 48
+        length: 6
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'ERR_AMT_CAN'
+        description: 'Automated manual transmission error state'
+        start_bit: 54
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'TQI_MAF_CAN'
+        description: >-
+          Theoretical engine torque after charge intervention as a percentage
+          of C_TQ_STND, from mass airflow and ignition angle
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+
+  # ==========================================================================
+  # DME2 0x329 - temperature, ambient pressure, pedal and driver switches
+  # ==========================================================================
+  - id: 0x329
+    name: 'DME2'
+    description: 'Coolant temperature, ambient pressure, accelerator pedal and driver switch states'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: DME2
+    signals:
+      - name: 'MUX_INFO'
+        description: 'Multiplexed payload selected by MUX_CODE'
+        start_bit: 0
+        length: 6
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: >-
+          MUX_CODE 0 carries CAN_LEVEL (always 0x11 on MS43), 2 carries
+          OBD_STEUER (gearbox diagnosis state) and 3 carries MD_NORM,
+          C_TQ_STND rescaled from 0-1023 Nm to 0-1008 Nm in 16 Nm steps
+
+      - name: 'MUX_CODE'
+        description: 'Selects which value MUX_INFO carries in this frame'
+        start_bit: 6
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'CAN_LEVEL'
+          '2': 'OBD_STEUER'
+          '3': 'MD_NORM'
+
+      - name: 'TEMP_ENG'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.75
+        offset: -48
+        unit: 'celsius'
+        min: -48
+        max: 142.5
+        comment: 'y = x * 0.75 - 48. Init value 0xFF'
+
+      - name: 'AMP_CAN'
+        id: barometric_pressure
+        category: pressure
+        description: 'Ambient (barometric) pressure'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 2
+        offset: 598
+        unit: 'mbar'
+        min: 600
+        max: 1106
+        to_canonical:
+          scale: 0.1
+          offset: 0
+        comment: 'y = x * 2 + 598 mbar (hPa). 0x00 is the init value and 0xFF is the error value'
+
+      - name: 'LV_SWI_CLU'
+        id: clutch_switch
+        category: status
+        description: 'Clutch switch state'
+        start_bit: 24
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        values:
+          '0': 'released'
+          '1': 'depressed'
+
+      - name: 'LV_LEVEL_IS'
+        description: 'Idle regulator state'
+        start_bit: 25
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'idle above threshold'
+          '1': 'idle below threshold'
+
+      - name: 'LV_ACK_CRU_AD_ECU'
+        description: 'Acknowledge of the ACC1 message'
+        start_bit: 26
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'not acknowledged'
+          '1': 'acknowledged'
+
+      - name: 'LV_ERU_CAN'
+        id: engine_running
+        category: status
+        description: 'Engine running state'
+        start_bit: 27
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        values:
+          '0': 'engine stopped'
+          '1': 'engine running'
+
+      - name: 'B3.4 unknown'
+        description: 'Purpose not established by the source documentation'
+        start_bit: 28
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: 'The MS4X wiki lists this bit as "(STATE_CRU_CAN)???" - unresolved, not padding'
+
+      - name: 'STATE_MSW_CAN'
+        description: 'Cruise control stalk button state'
+        start_bit: 29
+        length: 3
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no button pressed (init)'
+          '1': 'set / acceleration (tip-up)'
+          '2': 'deceleration (tip-down)'
+          '3': 'resume'
+          '4': 'deactivate'
+          '7': 'error condition'
+
+      - name: 'TPS_VIRT_CRU_CAN'
+        description: 'Virtual cruise control throttle demand'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.6
+        vendor_specific: true
+
+      - name: 'TPS_CAN'
+        id: pedal_position
+        category: engine
+        description: 'Accelerator pedal position as a percentage of PVS_MAX'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.390625
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 99.2
+        comment: 'y = x / 2.56. 0xFF is the pedal value sensor error code'
+
+      - name: 'LV_BS'
+        id: brake_switch
+        category: status
+        description: 'Brake switch state'
+        start_bit: 48
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        values:
+          '0': 'brake not actuated'
+          '1': 'brake actuated'
+
+      - name: 'LV_ERR_BS'
+        description: 'Brake switch system fault'
+        start_bit: 49
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'brake switch system ok'
+          '1': 'brake switch system faulty'
+
+      - name: 'LV_KD_CAN'
+        description: 'Kick down state'
+        start_bit: 50
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'kick down not active'
+          '1': 'kick down active'
+
+      - name: 'STATE_CRU_CAN'
+        description: 'Cruise control state'
+        start_bit: 51
+        length: 3
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'cruise inactive'
+          '1': 'active, constant drive (or tip-up / tip-down)'
+          '3': 'active, resume'
+          '5': 'active, set / acceleration'
+          '7': 'active, deceleration'
+
+      - name: 'REQ_SHIFTLOCK'
+        description: 'Shift lock request'
+        start_bit: 54
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no actuation active'
+          '3': 'ISA, MTC or N_SP_IS actuation active'
+
+      - name: 'Reserved B7'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # DME3 0x338 - Alpina Roadster only
+  # ==========================================================================
+  - id: 0x338
+    name: 'DME3'
+    description: 'Sport button state. Transmitted on the Alpina Roadster only'
+    length: 8
+    interval_ms: 1000
+    transmitter: DME
+    vendor_message_name: DME3
+    signals:
+      - name: 'Reserved B0-B1'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'STATE_SOF_CAN'
+        description: 'Sport button status'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: 'Init value 0x01. Sent every 1000 ms and on state change'
+        values:
+          '0': 'sport button on (requested by SMG)'
+          '1': 'sport button off'
+          '2': 'sport button on'
+          '3': 'sport button error'
+
+      - name: 'Reserved B3-B7'
+        start_bit: 24
+        length: 40
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # DME4 0x545 - oil temperature, fuel consumption and cluster tell-tales
+  # ==========================================================================
+  - id: 0x545
+    name: 'DME4'
+    description: 'Oil temperature, fuel consumption counter, oil level and instrument cluster tell-tales'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: DME4
+    signals:
+      - name: 'Reserved B0.0'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LV_MIL'
+        id: check_engine_light
+        category: status
+        description: 'Malfunction indicator lamp (check engine light)'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+
+      - name: 'Reserved B0.2'
+        start_bit: 2
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LV_MAIN_SWI_CRU'
+        description: 'Cruise control main switch state'
+        start_bit: 3
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'LV_ETC_DIAG'
+        description: 'EML (electronic throttle) warning lamp'
+        start_bit: 4
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B0.5'
+        start_bit: 5
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LV_FUC_CAN'
+        description: 'Fuel tank cap warning lamp'
+        start_bit: 6
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B0.7'
+        start_bit: 7
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'FCO'
+        description: 'Fuel consumption counter sent to the instrument cluster'
+        start_bit: 8
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: >-
+          The MS4X wiki documents the LSB/MSB byte order but publishes no
+          scaling factor or unit, so the raw counter is exposed unscaled
+
+      - name: 'Oil level - consumption'
+        description: 'Oil level indicator LED, oil consumption'
+        start_bit: 24
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Oil level - loss'
+        description: 'Oil level indicator LED, oil loss'
+        start_bit: 25
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Oil level - sensor malfunction'
+        description: 'Oil level indicator LED, sensor malfunction'
+        start_bit: 26
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'LV_TEMP_ENG'
+        id: overheat_warning
+        category: status
+        description: 'Coolant overheating warning lamp'
+        start_bit: 27
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+
+      - name: 'Warm-up LEDs'
+        description: 'M-cluster warm-up LED bar'
+        start_bit: 28
+        length: 3
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Upshift indicator'
+        id: shift_light
+        category: status
+        description: 'Upshift indicator lamp'
+        start_bit: 31
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+
+      - name: 'TOIL_CAN'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature'
+        start_bit: 32
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: -48
+        unit: 'celsius'
+        min: -48
+        max: 206
+        comment: 'y = x - 48'
+
+      - name: 'Battery charge lamp'
+        description: 'Battery charge warning lamp. Alpina Roadster only'
+        start_bit: 40
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B5.1-7'
+        start_bit: 41
+        length: 7
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Oil level'
+        description: 'Measured engine oil level relative to nominal. MSS54HP clusters only'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: -15.8
+        unit: 'liters'
+        min: -3.0
+        max: 3.2
+        vendor_specific: true
+        comment: >-
+          y = (x - 158) / 10. A delta from the nominal fill, not an absolute
+          quantity, so it does not map to a canonical level channel
+
+      - name: 'Tyre pressure state'
+        description: 'Tyre pressure warning state. MSS54 clusters only'
+        start_bit: 56
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B7.1-6'
+        start_bit: 57
+        length: 6
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Oil pressure low'
+        id: low_oil_pressure_warning
+        category: status
+        description: 'Engine oil pressure low warning'
+        start_bit: 63
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'CC-BY-SA-4.0'
+  source_url: 'https://www.ms4x.net/index.php?title=Siemens_MS43_CAN_Bus'
+  tested_with:
+    - 'BMW M54B30 (E46 330i, E39 530i)'
+    - 'BMW M54B25 / M54B22'
+  compatible_tools:
+    - 'TunerPro RT'
+    - 'RomRaider (via the community MS43 logger definition)'
+  known_issues:
+    - >-
+      Torque signals are percentages of the calibration constant C_TQ_STND, not
+      Nm. Converting them requires reading C_TQ_STND from the specific binary,
+      so they are published unmapped rather than mislabelled as torque in Nm.
+    - >-
+      The FCO fuel consumption counter has no published scaling factor. It is
+      exposed as a raw 16-bit counter.
+    - >-
+      Frames received by the DME (0x43F EGS1, 0x613/0x615 instrument cluster,
+      0x153/0x1F3 ASC, 0x43D AMT, 0x1F5 steering angle) are named by the source
+      but their payloads are not documented, so they are not described here.
+  changelog:
+    - version: '1.0.0'
+      date: '2026-08-25'
+      changes:
+        - 'Initial MS43 DME broadcast definition: DME1 0x316, DME2 0x329, DME3 0x338, DME4 0x545'

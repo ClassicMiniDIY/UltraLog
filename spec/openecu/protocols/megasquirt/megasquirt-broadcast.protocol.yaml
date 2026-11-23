@@ -1,0 +1,1501 @@
+# OpenECU Alliance Protocol Definition
+# Megasquirt ECU CAN Broadcast Protocol
+#
+# Sources:
+# - http://www.megamanual.com/com/CAN.htm
+# - https://wiki.autosportlabs.com/Megasquirt_CAN
+# - https://github.com/mantonakakis1/MegaCAN (Arduino library)
+#
+# IMPORTANT NOTES:
+# - Base CAN ID is configurable in TunerStudio (default 1520/0x5F0)
+# - Message IDs are sequential offsets from the base ID
+# - Data is big-endian (MSB first)
+# - Protocol supports MS2, MS3, and MS3-Pro
+
+openecualliance: '1.0'
+type: protocol
+
+id: megasquirt-broadcast
+name: 'Megasquirt CAN Broadcast Protocol'
+version: '1.1.0'
+vendor: megasquirt
+description: |
+  CAN broadcast protocol for Megasquirt ECUs (MS2, MS3, MS3-Pro).
+  This protocol outputs real-time engine data for integration with data loggers,
+  dashboards, and other CAN-enabled devices.
+
+  Protocol uses 11-bit identifiers at 500kb/s with big-endian encoding.
+  The base CAN ID is configurable in TunerStudio (default 1520/0x5F0).
+  Each subsequent message ID is base+0, base+1, base+2, etc.
+
+  Temperature values are in Fahrenheit * 10 (divide by 10 for degrees F).
+  Some implementations use 0.1 degree resolution.
+
+website: 'http://www.megamanual.com/com/CAN.htm'
+
+branding:
+  logo: megasquirt-logo.png
+  icon: megasquirt-icon.png
+  color_primary: '#CC0000'
+  color_secondary: '#222222'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: false
+  base_id: 0x5F0
+  comment: 'Base ID is configurable in TunerStudio. Message IDs are base+offset.'
+
+messages:
+  # ============================================================================
+  # GROUP 0 (Base ID + 0) - Core Engine Data
+  # ============================================================================
+
+  - id: 0x5F0
+    name: 'Engine Data 1'
+    description: 'RPM, MAP, TPS, AFR'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'RPM'
+        id: rpm
+        category: engine
+        description: 'Engine rotational speed'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 65535
+
+      - name: 'MAP'
+        id: map
+        category: pressure
+        description: 'Manifold absolute pressure'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        min: 0
+        max: 655.35
+        comment: 'Value in tenths of kPa (y = x/10)'
+
+      - name: 'TPS'
+        id: tps
+        category: engine
+        description: 'Throttle position sensor'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'AFR'
+        id: afr
+        category: fuel
+        description: 'Air-fuel ratio (AFR1)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'AFR'
+        min: 0
+        max: 25.5
+        comment: 'Stoichiometric is ~14.7 for gasoline'
+
+  # ============================================================================
+  # GROUP 1 (Base ID + 1) - Injection and Timing
+  # ============================================================================
+
+  - id: 0x5F1
+    name: 'Engine Data 2'
+    description: 'Coolant temp, air temp, advance, battery voltage'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Coolant_Temperature'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+        comment: 'Temperature in tenths of degrees Fahrenheit (y = x/10)'
+
+      - name: 'Air_Temperature'
+        id: iat
+        category: temperature
+        description: 'Intake air temperature'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+        comment: 'Temperature in tenths of degrees Fahrenheit (y = x/10)'
+
+      - name: 'Ignition_Advance'
+        id: ignition_advance
+        category: ignition
+        description: 'Ignition timing advance'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        comment: 'Degrees BTDC in tenths (y = x/10)'
+
+      - name: 'Battery_Voltage'
+        id: battery_voltage
+        category: electrical
+        description: 'System battery voltage'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'V'
+        comment: 'Voltage in tenths (y = x/10)'
+
+  # ============================================================================
+  # GROUP 2 (Base ID + 2) - Fuel Corrections
+  # ============================================================================
+
+  - id: 0x5F2
+    name: 'Fuel Data'
+    description: 'Pulse width, VE, gamma enrichment, AFR target'
+    length: 8
+    interval_ms: 20
+    transmitter: ECU
+    signals:
+      - name: 'Pulse_Width_1'
+        id: pulse_width
+        category: fuel
+        description: 'Injector pulse width bank 1'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+        comment: 'Pulse width in microseconds (y = x/1000)'
+
+      - name: 'VE'
+        id: ve
+        category: fuel
+        description: 'Volumetric efficiency'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: 'VE from table lookup'
+
+      - name: 'Gamma_Enrichment'
+        id: gamma_enrichment
+        category: correction
+        description: 'Gamma enrichment correction'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: 'Total enrichment corrections'
+
+      - name: 'AFR_Target'
+        id: afr_target
+        category: fuel
+        description: 'Target air-fuel ratio'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'AFR'
+        comment: 'Target AFR from table'
+
+  # ============================================================================
+  # GROUP 3 (Base ID + 3) - Closed Loop and Duty Cycle
+  # ============================================================================
+
+  - id: 0x5F3
+    name: 'Fuel Corrections'
+    description: 'EGO correction, closed loop status, duty cycle'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'EGO_Correction_1'
+        id: ego_correction_1
+        category: correction
+        description: 'EGO/O2 sensor correction bank 1'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: '100% = no correction'
+
+      - name: 'EGO_Correction_2'
+        id: ego_correction_2
+        category: correction
+        description: 'EGO/O2 sensor correction bank 2'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: '100% = no correction'
+
+      - name: 'Injector_Duty_Cycle'
+        id: duty_cycle
+        category: fuel
+        description: 'Injector duty cycle'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        min: 0
+        max: 100
+
+      - name: 'Idle_Duty_Cycle'
+        vendor_specific: true
+        description: 'Idle air control duty cycle'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: 'IAC valve position/duty'
+
+  # ============================================================================
+  # GROUP 4 (Base ID + 4) - Boost and Launch Control
+  # ============================================================================
+
+  - id: 0x5F4
+    name: 'Boost Control'
+    description: 'Boost target, boost duty, barometric pressure, MAF'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Boost_Target'
+        id: boost_target
+        category: pressure
+        description: 'Boost controller target pressure'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+
+      - name: 'Boost_Duty_Cycle'
+        id: boost_duty
+        category: pressure
+        description: 'Boost control solenoid duty cycle'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+
+      - name: 'Barometric_Pressure'
+        id: barometric_pressure
+        category: pressure
+        description: 'Barometric/atmospheric pressure'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'kPa'
+        comment: 'Baro sensor reading'
+
+      - name: 'MAF'
+        id: maf
+        category: engine
+        description: 'Mass airflow sensor reading'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'g/s'
+
+  # ============================================================================
+  # GROUP 5 (Base ID + 5) - Knock and Status
+  # ============================================================================
+
+  - id: 0x5F5
+    name: 'Knock and Status'
+    description: 'Knock retard, knock count, engine status, speed'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Knock_Retard'
+        id: knock_retard
+        category: correction
+        description: 'Knock-induced timing retard'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'Knock_Count'
+        id: knock_count
+        category: ignition
+        description: 'Total knock events detected'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Engine_Status'
+        vendor_specific: true
+        description: 'Engine status flags'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: 'Bitmask: cranking, running, warmup, etc.'
+
+      - name: 'Vehicle_Speed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle speed'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'mph'
+        comment: 'Speed in tenths of MPH'
+
+  # ============================================================================
+  # GROUP 6 (Base ID + 6) - Sequential Injection
+  # ============================================================================
+
+  - id: 0x5F6
+    name: 'Sequential Injection'
+    description: 'Pulse widths for cylinders 1-4'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Pulse_Width_Cyl_1'
+        vendor_specific: true
+        description: 'Pulse width cylinder 1'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_Cyl_2'
+        vendor_specific: true
+        description: 'Pulse width cylinder 2'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_Cyl_3'
+        vendor_specific: true
+        description: 'Pulse width cylinder 3'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_Cyl_4'
+        vendor_specific: true
+        description: 'Pulse width cylinder 4'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+  # ============================================================================
+  # GROUP 7 (Base ID + 7) - Sequential Injection Continued
+  # ============================================================================
+
+  - id: 0x5F7
+    name: 'Sequential Injection 2'
+    description: 'Pulse widths for cylinders 5-8'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Pulse_Width_Cyl_5'
+        vendor_specific: true
+        description: 'Pulse width cylinder 5'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_Cyl_6'
+        vendor_specific: true
+        description: 'Pulse width cylinder 6'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_Cyl_7'
+        vendor_specific: true
+        description: 'Pulse width cylinder 7'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+      - name: 'Pulse_Width_Cyl_8'
+        vendor_specific: true
+        description: 'Pulse width cylinder 8'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'ms'
+
+  # ============================================================================
+  # GROUP 8 (Base ID + 8) - Ignition Timing Per Cylinder
+  # ============================================================================
+
+  - id: 0x5F8
+    name: 'Ignition Timing 1'
+    description: 'Ignition advance for cylinders 1-4'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Advance_Cyl_1'
+        id: ignition_advance_cyl_1
+        category: ignition
+        description: 'Ignition advance cylinder 1'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'Advance_Cyl_2'
+        id: ignition_advance_cyl_2
+        category: ignition
+        description: 'Ignition advance cylinder 2'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'Advance_Cyl_3'
+        id: ignition_advance_cyl_3
+        category: ignition
+        description: 'Ignition advance cylinder 3'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'Advance_Cyl_4'
+        id: ignition_advance_cyl_4
+        category: ignition
+        description: 'Ignition advance cylinder 4'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+  # ============================================================================
+  # GROUP 9 (Base ID + 9) - Ignition Timing Continued
+  # ============================================================================
+
+  - id: 0x5F9
+    name: 'Ignition Timing 2'
+    description: 'Ignition advance for cylinders 5-8'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Advance_Cyl_5'
+        id: ignition_advance_cyl_5
+        category: ignition
+        description: 'Ignition advance cylinder 5'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'Advance_Cyl_6'
+        id: ignition_advance_cyl_6
+        category: ignition
+        description: 'Ignition advance cylinder 6'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'Advance_Cyl_7'
+        id: ignition_advance_cyl_7
+        category: ignition
+        description: 'Ignition advance cylinder 7'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'Advance_Cyl_8'
+        id: ignition_advance_cyl_8
+        category: ignition
+        description: 'Ignition advance cylinder 8'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+  # ============================================================================
+  # GROUP 10 (Base ID + 10) - EGT Sensors 1-4
+  # ============================================================================
+
+  - id: 0x5FA
+    name: 'EGT Sensors 1-4'
+    description: 'Exhaust gas temperatures 1-4'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'EGT_1'
+        id: egt_1
+        category: temperature
+        description: 'EGT sensor 1'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+        comment: 'Temperature in tenths of degrees Fahrenheit'
+
+      - name: 'EGT_2'
+        id: egt_2
+        category: temperature
+        description: 'EGT sensor 2'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'EGT_3'
+        id: egt_3
+        category: temperature
+        description: 'EGT sensor 3'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'EGT_4'
+        id: egt_4
+        category: temperature
+        description: 'EGT sensor 4'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+  # ============================================================================
+  # GROUP 11 (Base ID + 11) - EGT Sensors 5-8
+  # ============================================================================
+
+  - id: 0x5FB
+    name: 'EGT Sensors 5-8'
+    description: 'Exhaust gas temperatures 5-8'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'EGT_5'
+        id: egt_5
+        category: temperature
+        description: 'EGT sensor 5'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'EGT_6'
+        id: egt_6
+        category: temperature
+        description: 'EGT sensor 6'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'EGT_7'
+        id: egt_7
+        category: temperature
+        description: 'EGT sensor 7'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'EGT_8'
+        id: egt_8
+        category: temperature
+        description: 'EGT sensor 8'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+  # ============================================================================
+  # GROUP 12 (Base ID + 12) - Fuel Pressure and Sensors
+  # ============================================================================
+
+  - id: 0x5FC
+    name: 'Pressures and Sensors'
+    description: 'Fuel pressure, oil pressure, wideband, ethanol'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Fuel_Pressure'
+        id: fuel_pressure
+        category: pressure
+        description: 'Fuel rail pressure'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'psi'
+        comment: 'Fuel pressure in tenths of PSI'
+
+      - name: 'Oil_Pressure'
+        id: oil_pressure
+        category: pressure
+        description: 'Engine oil pressure'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'psi'
+
+      - name: 'AFR_2'
+        id: afr_2
+        category: fuel
+        description: 'Air-fuel ratio (wideband 2)'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'AFR'
+
+      - name: 'Ethanol_Content'
+        id: flex_ethanol
+        category: fuel
+        description: 'Flex fuel ethanol content'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: '%'
+        comment: '0-100% ethanol content'
+
+  # ============================================================================
+  # GROUP 13 (Base ID + 13) - VVT and Cam Control
+  # ============================================================================
+
+  - id: 0x5FD
+    name: 'VVT and Cam'
+    description: 'Variable valve timing angles and targets'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'VVT_Intake_Angle'
+        id: vvt_intake
+        category: engine
+        description: 'Intake cam position'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'VVT_Intake_Target'
+        id: vvt_intake_target
+        category: engine
+        description: 'Intake cam target'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'VVT_Exhaust_Angle'
+        id: vvt_exhaust
+        category: engine
+        description: 'Exhaust cam position'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+      - name: 'VVT_Exhaust_Target'
+        id: vvt_exhaust_target
+        category: engine
+        description: 'Exhaust cam target'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+
+  # ============================================================================
+  # GROUP 14 (Base ID + 14) - Nitrous and Launch Control
+  # ============================================================================
+
+  - id: 0x5FE
+    name: 'Nitrous and Launch'
+    description: 'Nitrous status, launch control, boost cut'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Nitrous_Stage_1_Active'
+        id: nitrous_stage_1_active
+        category: status
+        description: 'Nitrous stage 1 status'
+        start_bit: 0
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=On'
+
+      - name: 'Nitrous_Stage_2_Active'
+        id: nitrous_stage_2_active
+        category: status
+        description: 'Nitrous stage 2 status'
+        start_bit: 8
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Launch_Control_Active'
+        id: launch_control_active
+        category: status
+        description: 'Launch control status'
+        start_bit: 16
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Armed, 2=Active'
+
+      - name: 'Flat_Shift_Active'
+        id: flat_shift_active
+        category: status
+        description: 'Flat shift/no-lift shift status'
+        start_bit: 24
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Rev_Limit_Active'
+        id: rev_limiter_active
+        category: status
+        description: 'Rev limiter status'
+        start_bit: 32
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Off, 1=Fuel Cut, 2=Spark Cut, 3=Both'
+
+      - name: 'Boost_Cut_Active'
+        id: boost_cut_active
+        category: status
+        description: 'Boost cut status'
+        start_bit: 40
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+      - name: 'Gear'
+        id: gear
+        category: drivetrain
+        description: 'Current gear position'
+        start_bit: 48
+        length: 8
+        byte_order: big_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: ''
+        comment: '0=Neutral, negative=Reverse'
+
+      - name: 'TC_Active'
+        id: traction_control_active
+        category: status
+        description: 'Traction control active'
+        start_bit: 56
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+  # ============================================================================
+  # GROUP 15 (Base ID + 15) - Fuel Load and Timing Corrections
+  # ============================================================================
+
+  - id: 0x5FF
+    name: 'Load and Corrections'
+    description: 'Fuel load, timing corrections, dwell'
+    length: 8
+    interval_ms: 50
+    transmitter: ECU
+    signals:
+      - name: 'Fuel_Load'
+        id: fuel_load
+        category: fuel
+        description: 'Fuel load percentage'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: '%'
+
+      - name: 'Timing_Correction'
+        vendor_specific: true
+        description: 'Total timing correction'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        comment: 'Sum of all timing corrections'
+
+      - name: 'Dwell'
+        id: dwell
+        category: ignition
+        description: 'Ignition coil dwell time'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'ms'
+
+      - name: 'MAF_Voltage'
+        id: maf_voltage
+        category: electrical
+        description: 'MAF sensor raw voltage'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.001
+        offset: 0
+        unit: 'V'
+
+  # ============================================================================
+  # ADDITIONAL MESSAGES - Extended Data (MS3/MS3-Pro)
+  # ============================================================================
+
+  # GROUP 16 (Base ID + 16) - Analog Inputs
+  - id: 0x600
+    name: 'Analog Inputs 1'
+    description: 'Generic analog inputs 1-4'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Analog_Input_1'
+        id: analog_input_1
+        category: electrical
+        description: 'Analog input 1 (ADC)'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+        comment: 'Raw ADC value (5V/4096 scale)'
+
+      - name: 'Analog_Input_2'
+        id: analog_input_2
+        category: electrical
+        description: 'Analog input 2 (ADC)'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_3'
+        id: analog_input_3
+        category: electrical
+        description: 'Analog input 3 (ADC)'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_4'
+        id: analog_input_4
+        category: electrical
+        description: 'Analog input 4 (ADC)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+
+  # GROUP 17 (Base ID + 17) - More Analog Inputs
+  - id: 0x601
+    name: 'Analog Inputs 2'
+    description: 'Generic analog inputs 5-8'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Analog_Input_5'
+        id: analog_input_5
+        category: electrical
+        description: 'Analog input 5 (ADC)'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_6'
+        id: analog_input_6
+        category: electrical
+        description: 'Analog input 6 (ADC)'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_7'
+        id: analog_input_7
+        category: electrical
+        description: 'Analog input 7 (ADC)'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+
+      - name: 'Analog_Input_8'
+        id: analog_input_8
+        category: electrical
+        description: 'Analog input 8 (ADC)'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.00122
+        offset: 0
+        unit: 'V'
+
+  # GROUP 18 (Base ID + 18) - Fuel Consumption
+  - id: 0x602
+    name: 'Fuel Consumption'
+    description: 'Fuel consumption and flow data'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Fuel_Flow_Rate'
+        id: fuel_flow
+        category: fuel
+        description: 'Current fuel flow rate'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'cc/min'
+
+      - name: 'Fuel_Economy'
+        id: fuel_economy
+        category: fuel
+        description: 'Instantaneous fuel economy'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'mpg'
+
+      - name: 'Total_Fuel_Used'
+        id: fuel_used
+        category: fuel
+        description: 'Total fuel consumed'
+        start_bit: 32
+        length: 32
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 'cc'
+
+  # GROUP 19 (Base ID + 19) - Odometer and Runtime
+  - id: 0x603
+    name: 'Odometer and Runtime'
+    description: 'Trip data and engine runtime'
+    length: 8
+    interval_ms: 200
+    transmitter: ECU
+    signals:
+      - name: 'Odometer'
+        vendor_specific: true
+        description: 'Total distance traveled'
+        start_bit: 0
+        length: 32
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'mi'
+        comment: 'Distance in tenths of miles'
+
+      - name: 'Engine_Runtime'
+        vendor_specific: true
+        description: 'Total engine runtime'
+        start_bit: 32
+        length: 32
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: 's'
+
+  # GROUP 20 (Base ID + 20) - Oil Temperature and Extra Temperatures
+  - id: 0x604
+    name: 'Extra Temperatures'
+    description: 'Oil temp, trans temp, diff temp, fuel temp'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'Oil_Temperature'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'Transmission_Temperature'
+        vendor_specific: true
+        description: 'Transmission fluid temperature'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'Differential_Temperature'
+        vendor_specific: true
+        description: 'Differential temperature'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+      - name: 'Fuel_Temperature'
+        id: fuel_temp
+        category: temperature
+        description: 'Fuel temperature'
+        start_bit: 48
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 0.1
+        offset: 0
+        unit: 'degF'
+
+  # GROUP 21 (Base ID + 21) - GPS Data
+  - id: 0x605
+    name: 'GPS Data'
+    description: 'GPS speed and heading'
+    length: 8
+    interval_ms: 100
+    transmitter: ECU
+    signals:
+      - name: 'GPS_Speed'
+        id: gps_speed
+        category: speed
+        description: 'GPS-derived vehicle speed'
+        start_bit: 0
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'mph'
+
+      - name: 'GPS_Heading'
+        id: gps_heading
+        category: position
+        description: 'GPS heading'
+        start_bit: 16
+        length: 16
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 0.1
+        offset: 0
+        unit: 'deg'
+        comment: '0-359.9 degrees from north'
+
+      - name: 'GPS_Altitude'
+        id: gps_altitude
+        category: position
+        description: 'GPS altitude'
+        start_bit: 32
+        length: 16
+        byte_order: big_endian
+        data_type: signed
+        scale: 1.0
+        offset: 0
+        unit: 'ft'
+
+      - name: 'GPS_Satellites'
+        id: gps_satellites
+        category: system
+        description: 'Number of GPS satellites'
+        start_bit: 48
+        length: 8
+        byte_order: big_endian
+        data_type: unsigned
+        scale: 1.0
+        offset: 0
+        unit: ''
+
+# Enumerations for special values
+enums:
+  - name: 'EngineStatus'
+    description: 'Engine status bitmask values'
+    values:
+      '0x0001': 'Running'
+      '0x0002': 'Cranking'
+      '0x0004': 'After Start Enrichment'
+      '0x0008': 'Warmup'
+      '0x0010': 'Accel Enrichment'
+      '0x0020': 'Decel Enleanment'
+      '0x0040': 'Idle'
+      '0x0080': 'Alpha-N Mode'
+      '0x0100': 'Closed Loop'
+      '0x0200': 'Launch Control'
+      '0x0400': 'Traction Control'
+      '0x0800': 'Overrun Fuel Cut'
+
+  - name: 'RevLimitType'
+    description: 'Rev limiter cut method'
+    values:
+      '0': 'Off'
+      '1': 'Fuel Cut'
+      '2': 'Spark Cut'
+      '3': 'Fuel and Spark Cut'
+
+  - name: 'LaunchControlState'
+    description: 'Launch control states'
+    values:
+      '0': 'Off'
+      '1': 'Armed'
+      '2': 'Active'
+
+  - name: 'GearPosition'
+    description: 'Gear position values'
+    values:
+      '-1': 'Reverse'
+      '0': 'Neutral'
+      '1': '1st Gear'
+      '2': '2nd Gear'
+      '3': '3rd Gear'
+      '4': '4th Gear'
+      '5': '5th Gear'
+      '6': '6th Gear'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  source_url: 'http://www.megamanual.com/com/CAN.htm'
+  tested_with:
+    - 'Megasquirt-II'
+    - 'Megasquirt-III'
+    - 'MS3-Pro'
+    - 'MSPNP'
+    - 'MSPNP2'
+  compatible_tools:
+    - 'TunerStudio MS'
+    - 'MegaLogViewer'
+    - 'CANalyzer'
+    - 'PCAN-View'
+    - 'SavvyCAN'
+    - 'BusMaster'
+    - 'RaceChrono'
+  known_issues:
+    - 'Base CAN ID is configurable (default 1520/0x5F0)'
+    - 'Not all messages available on all hardware versions'
+    - 'MS2 has fewer available channels than MS3'
+    - 'Temperature units are Fahrenheit by default'
+    - 'Broadcast must be enabled in TunerStudio CAN settings'
+    - 'Some signals may require firmware updates for support'
+  changelog:
+    - version: '1.1.0'
+      date: '2026-08-24'
+      changes:
+        - 'Add canonical channel ids and categories to signals, drawn from the registry
+          in specs/channels.yaml. 74 of 89 signals (83%) now carry one, so a CAN
+          measurement can be matched to the same measurement read from a log file.
+          Before this, no protocol signal carried an id at all.'
+        - 'Account for the rest explicitly instead of leaving them silent: 15 marked
+          vendor_specific (a real measurement with no canonical equivalent) and 0
+          marked reserved (padding or diagnostic transport framing, which carry no
+          measurement).'
+    - version: '1.0.0'
+      date: '2026-01-07'
+      changes:
+        - 'Initial release'
+        - 'Core engine data messages (RPM, MAP, TPS, AFR)'
+        - 'Temperature sensors (coolant, air, oil, EGT 1-8)'
+        - 'Fuel injection data (pulse width, VE, duty cycle)'
+        - 'Ignition timing (per-cylinder support)'
+        - 'Boost control signals'
+        - 'Knock detection signals'
+        - 'Sequential injection for 8 cylinders'
+        - 'VVT/cam position signals'
+        - 'Nitrous and launch control status'
+        - 'Analog inputs (1-8)'
+        - 'Fuel consumption data'
+        - 'GPS data support'
+
+# Megasquirt-specific notes
+x_megasquirt:
+  protocol_notes: |
+    Megasquirt CAN broadcast protocol is a configurable output protocol
+    that sends real-time engine data over CAN bus.
+
+    Important characteristics:
+    - 11-bit CAN identifiers
+    - 500 kbit/s baud rate (configurable)
+    - Big-endian data encoding
+    - Base CAN ID configurable in TunerStudio (default 0x5F0/1520)
+    - Message IDs are sequential: base+0, base+1, base+2, etc.
+    - Temperatures default to Fahrenheit * 10
+    - Pressures typically in PSI or kPa depending on configuration
+
+    To enable CAN broadcast:
+    1. Open TunerStudio
+    2. Go to Communications > CAN Bus/Testmodes
+    3. Enable "CAN Broadcast"
+    4. Set base CAN ID (default 1520)
+    5. Select which message groups to transmit
+    6. Set broadcast interval
+
+    Different Megasquirt versions have different capabilities:
+    - MS2: Basic channels, limited sequential injection
+    - MS3: Full sequential, VVT, more inputs
+    - MS3-Pro: All features plus enhanced boost control
+
+  configuration:
+    tuning_software: 'TunerStudio MS'
+    firmware_versions:
+      ms2_extra: '3.4.x+'
+      ms3: '1.6.x+'
+      ms3_pro: '1.6.x+'
+    can_settings_path: 'Communications > CAN Bus/Testmodes'

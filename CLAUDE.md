@@ -276,12 +276,96 @@ The adapter system integrates with the **OpenECU Alliance** specification ecosys
   - Cache clearing and age inspection utilities
 
 - **`registry.rs`** - Spec registry with multi-tier fallback:
-  - **Embedded specs** - Compile-time YAML files from `spec/OECUASpecs/` git submodule
+  - **Embedded specs** - Compile-time YAML files from `spec/openecu/`, vendored in this repo (see "OpenECU spec corpus")
   - **Cache layer** - Loads from disk cache if fresh (< 24 hours old)
   - **API refresh** - Background thread fetches updates on app startup (non-blocking)
   - **Normalization maps** - Builds source_name → display_name mappings for field normalization
   - **Metadata lookup** - Provides channel metadata (category, unit, min/max, precision)
   - Thread-safe `RwLock` for dynamic spec updates without restart
+
+## OpenECU spec corpus (`spec/openecu/`) — load-bearing
+
+UltraLog owns this corpus. It moved here when the OpenECU Alliance site was retired
+(2026-11-22); `oecua.org`, its REST API and the `ClassicMiniDIY/OpenECUAlliance` and
+`ClassicMiniDIY/OECUASpecs` repositories are gone or archived. **There is no upstream.**
+Nothing fetches these files and nothing validates them but this repo.
+
+It was previously downloaded by `build.rs` into a gitignored `spec/OECUASpecs/`, so a
+clean clone could not build without network access to an archived repository. That is
+why it is vendored and tracked now. `build.rs` downloads nothing.
+
+10 log adapters, 12 CAN broadcast protocols, 466 canonical channels. `registry.rs`
+embeds every file with `include_str!`; `tests/spec_corpus.rs` fails if a file in
+`spec/openecu` is not embedded.
+
+### Channel Registry Contract
+
+`spec/openecu/channels.yaml` is the canonical channel vocabulary and the **source of
+truth**. `spec/openecu/SPECIFICATION.md` is generated from it — never hand-edit the
+Markdown. The generator (`generate-spec-doc.ts`) did not come across; regenerating the
+document means porting it or editing both in step.
+
+- **An adapter channel's `unit` describes the log file, not the ideal.** If the vendor
+  writes psi, the adapter says `psi`. Rewriting it to look canonical makes the spec lie
+  about the file it is describing.
+- **The conversion mandate lives in the registry.** When a channel's log unit differs
+  from the canonical one, the channel declares `to_canonical: {scale, offset}` and a
+  consumer computes `canonical = raw * scale + offset`.
+- **Two ID pairs were split, not converted**: `fuel_flow` (l/h) vs `fuel_flow_mass`
+  (g/s), and `knock_level` (volts) vs `knock_level_db` (decibels). Mass and volume flow
+  are not inter-convertible without fuel density, and a dB scale is not linear in volts.
+  Do not "unify" these.
+- **20 aliases resolve but are deprecated** (`baro` → `barometric_pressure`,
+  `dbw_position` → `etb_position`, ...). New adapter channels use the canonical ID.
+- **A signal may carry `disputed: '<reason>'`** when the vendor's own documentation is
+  self-contradictory. The validator downgrades that signal's overlap error to a warning.
+  Use it to record a conflict, never to silence one you could resolve. Currently used
+  once: Haltech `0x477 Cut_Percentage`.
+- **BMW is the only OEM vendor in the corpus** (MS42, MS43, MS4x, E8x/E9x). Its specs
+  come from community reverse engineering — the MS4X wiki and the E8x/E9x DBC merge
+  project — not from a manufacturer document. Several signals carry `disputed` notes
+  recording what the source itself flags as unverified. **Do not quietly resolve those.**
+
+### Validation
+
+`cargo test --test spec_corpus` checks every adapter and protocol against the registry
+and against the serde types that consume it. It is a port of the OpenECU Alliance's
+`validate-specs.ts`, which gated that repo's deploy. It catches unknown channel IDs,
+category mismatches, missing conversions, unit misspellings, implausible CAN baud rates,
+duplicate or out-of-range CAN IDs, overlapping signals, and signals that overflow their
+frame.
+
+It is not decoration — on its first run upstream it found two real bugs nothing else
+had: a signal overflowing the rusEFI status frame and an overlap in Haltech `0x477`.
+Current state: **0 errors, 27 warnings** (deprecated aliases, two redundant
+`to_canonical` declarations, and the one disputed Haltech overlap).
+
+The upstream version also required a version bump plus a matching changelog entry for
+any spec changed against `origin/main`, because external consumers pinned versions over
+the API. That check was not ported: there is no API and no external consumer, and the
+corpus now changes in the same commit as the code that reads it.
+
+### Two known gaps, both pre-existing
+
+**Nothing applies unit conversions.** 36 channels across every adapter declare
+`to_canonical`, and `ChannelSpec::to_canonical` now deserializes it — but no parser
+reads it, and `conversion` and `source_unit` have never been read either. UltraLog
+displays raw log units throughout. `tests/spec_corpus.rs` guards the data against being
+dropped again; wiring it into the parsers changes displayed values across nine adapters
+and needs its own change, verified against real logs.
+
+**Source-name collisions resolve by array order.** `build_normalization_map` and
+`build_metadata_map` key one flat map on the lowercased `source_names` entry, so a name
+two adapters both claim resolves to whichever appears LAST in `EMBEDDED_ADAPTERS`. In
+this corpus **54 source names get conflicting display names and 43 resolve to different
+canonical ids**: `"boost"` is `boost` or `mgp`; `"knock"` is `knock_level`,
+`knock_level_db` or `knock_retard`; `"fuel flow"` is `fuel_flow` or `fuel_flow_mass` —
+the two pairs the registry contract says must never be unified. The same column name
+genuinely means different things in different vendors' logs, so the flat namespace is
+wrong: normalization needs a per-adapter namespace keyed on the adapter actually matched
+to the file. Until then `EMBEDDED_ADAPTERS` order is load-bearing and documented at its
+definition; BMW sits first so that adding it changed no existing mapping. Only one of
+the 54 collisions had a test (`test_normalize_rpm`), which is how this surfaced.
 
 ### Analysis System (src/analysis/)
 
@@ -631,9 +715,9 @@ preferences convert them.
   Soft labels). The rest are original guesses. ID 1 is the K6 lambda input in mV (not TPS),
   41 is TPS, 31 is the 0-15 load site (not injector duty). Confirm an ID against an EM Soft
   screenshot before renaming it. A rename must also go into the `source_names` of
-  `adapters/emerald/emerald-lg.adapter.yaml` in the ClassicMiniDIY/OECUASpecs repo (fetched
-  by `build.rs` into the gitignored `spec/OECUASpecs/`); spec normalization matches on those
-  names. Its `internal_id` field documents the IDs but UltraLog does not read it.
+  `spec/openecu/adapters/emerald/emerald-lg.adapter.yaml` in this repo; spec normalization
+  matches on those names. Its `internal_id` field documents the IDs but UltraLog does not
+  read it.
 - **MAP scaling depends on `[ValU]`** - the second `[ValU]` value is the logger's pressure unit:
   `1` stores MAP in whole kPa, `2` in mbar. Hardcoding either one makes the other log read 10x
   wrong. Unknown codes keep the mbar scaling.
@@ -662,7 +746,7 @@ preferences convert them.
 
 1. **App initialization** - `registry.rs` loads adapter/protocol specs via fallback chain:
    - If cache is fresh (< 24 hours old) → load from disk cache
-   - Else → load embedded YAML specs from `spec/OECUASpecs/`
+   - Else → load embedded YAML specs from `spec/openecu/`
    - Background thread spawned to fetch latest specs from OpenECU Alliance API
 2. **Background refresh** - Non-blocking API fetch updates cache and registry for next startup
 3. **Normalization maps built** - Extract `source_names` from adapter specs to build field name mappings

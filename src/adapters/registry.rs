@@ -14,49 +14,71 @@ use super::api;
 use super::cache;
 use super::types::{AdapterSpec, ChannelCategory, ChannelSpec, ProtocolSpec};
 
-// Embed adapter YAML files at compile time
-// These are downloaded from the OpenECU Alliance repository by build.rs
+// Embed adapter YAML files at compile time from the vendored corpus in spec/openecu.
+// UltraLog owns that corpus; see CLAUDE.md "OpenECU spec corpus".
 const HALTECH_NSP_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/haltech/haltech-nsp.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/haltech/haltech-nsp.adapter.yaml");
 const ECUMASTER_EMU_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/ecumaster/ecumaster-emu-csv.adapter.yaml");
-const LINK_LLG_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/link/link-llg.adapter.yaml");
-const AIM_XRK_YAML: &str = include_str!("../../spec/OECUASpecs/adapters/aim/aim-xrk.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/ecumaster/ecumaster-emu-csv.adapter.yaml");
+const LINK_LLG_YAML: &str = include_str!("../../spec/openecu/adapters/link/link-llg.adapter.yaml");
+const AIM_XRK_YAML: &str = include_str!("../../spec/openecu/adapters/aim/aim-xrk.adapter.yaml");
 const ROMRAIDER_CSV_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/romraider/romraider-csv.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/romraider/romraider-csv.adapter.yaml");
 const SPEEDUINO_MLG_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/speeduino/speeduino-mlg.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/speeduino/speeduino-mlg.adapter.yaml");
 const RUSEFI_MLG_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/rusefi/rusefi-mlg.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/rusefi/rusefi-mlg.adapter.yaml");
 const EMERALD_LG_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/emerald/emerald-lg.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/emerald/emerald-lg.adapter.yaml");
 const MEGASQUIRT_ADAPTER_YAML: &str =
-    include_str!("../../spec/OECUASpecs/adapters/megasquirt/megasquirt-tunerstudio.adapter.yaml");
+    include_str!("../../spec/openecu/adapters/megasquirt/megasquirt-tunerstudio.adapter.yaml");
+const BMW_MS4X_ADAPTER_YAML: &str =
+    include_str!("../../spec/openecu/adapters/bmw/bmw-ms4x-romraider-csv.adapter.yaml");
 
 // Embed protocol YAML files at compile time
 // These define CAN bus message structures for real-time data streaming
 const HALTECH_ELITE_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/haltech/haltech-elite-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/haltech/haltech-elite-broadcast.protocol.yaml");
 const ECUMASTER_EMU_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/ecumaster/ecumaster-emu-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/ecumaster/ecumaster-emu-broadcast.protocol.yaml");
 const SPEEDUINO_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/speeduino/speeduino-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/speeduino/speeduino-broadcast.protocol.yaml");
 const RUSEFI_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/rusefi/rusefi-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/rusefi/rusefi-broadcast.protocol.yaml");
 const AEM_INFINITY_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/aem/aem-infinity-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/aem/aem-infinity-broadcast.protocol.yaml");
 const MEGASQUIRT_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/megasquirt/megasquirt-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/megasquirt/megasquirt-broadcast.protocol.yaml");
 const MAXXECU_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/maxxecu/maxxecu-default.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/maxxecu/maxxecu-default.protocol.yaml");
 const SYVECS_S7_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/syvecs/syvecs-s7-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/syvecs/syvecs-s7-broadcast.protocol.yaml");
 const EMTRON_PROTOCOL_YAML: &str =
-    include_str!("../../spec/OECUASpecs/protocols/emtron/emtron-broadcast.protocol.yaml");
+    include_str!("../../spec/openecu/protocols/emtron/emtron-broadcast.protocol.yaml");
+const BMW_MS42_PROTOCOL_YAML: &str =
+    include_str!("../../spec/openecu/protocols/bmw/bmw-ms42-dme-broadcast.protocol.yaml");
+const BMW_MS43_PROTOCOL_YAML: &str =
+    include_str!("../../spec/openecu/protocols/bmw/bmw-ms43-dme-broadcast.protocol.yaml");
+const BMW_E8X_E9X_PROTOCOL_YAML: &str =
+    include_str!("../../spec/openecu/protocols/bmw/bmw-e8x-e9x-powertrain.protocol.yaml");
 
-/// All embedded adapter YAML strings
+/// All embedded adapter YAML strings.
+///
+/// ORDER IS LOAD-BEARING. `build_normalization_map` and `build_metadata_map` key a
+/// single flat map on the lowercased source name, so a name two adapters both claim
+/// resolves to whichever appears LAST here. 54 source names get conflicting display
+/// names across this corpus and 43 resolve to different canonical ids depending on
+/// order — "boost" is `boost` or `mgp`, "knock" is `knock_level` or `knock_level_db`,
+/// "fuel flow" is `fuel_flow` (l/h) or `fuel_flow_mass` (g/s). See CLAUDE.md
+/// "Source-name collisions"; the real fix is a per-adapter namespace.
+///
+/// BMW is deliberately FIRST so that adding it changed no existing mapping: it
+/// contributes its unique names and loses every collision to an adapter that was
+/// already here. Appending it instead silently moved `rpm`'s display name from
+/// "Engine RPM" to BMW's "Engine Speed", which is what `test_normalize_rpm` caught.
+/// Add a new adapter at the FRONT unless you have checked its collisions.
 static EMBEDDED_ADAPTERS: &[&str] = &[
+    BMW_MS4X_ADAPTER_YAML,
     HALTECH_NSP_YAML,
     ECUMASTER_EMU_YAML,
     LINK_LLG_YAML,
@@ -79,6 +101,9 @@ static EMBEDDED_PROTOCOLS: &[&str] = &[
     MAXXECU_PROTOCOL_YAML,
     SYVECS_S7_PROTOCOL_YAML,
     EMTRON_PROTOCOL_YAML,
+    BMW_MS42_PROTOCOL_YAML,
+    BMW_MS43_PROTOCOL_YAML,
+    BMW_E8X_E9X_PROTOCOL_YAML,
 ];
 
 /// Parse embedded adapter YAML strings

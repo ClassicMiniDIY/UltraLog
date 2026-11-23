@@ -1,0 +1,1771 @@
+# OpenECU Alliance Protocol Definition
+# BMW E8x / E9x Powertrain CAN (curated subset)
+#
+# Documentation source: "E90 and E8x DBC mega merge project" (MIT)
+#   https://github.com/maseg535/E90-and-e8x-DBC-mega-merge-project
+#   https://maseg535.github.io/E90-and-e8x-DBC-mega-merge-project/can_ids_reference.html
+# which itself merges dzid26/opendbc-BMW-E8x-E9x, nberlette/canbus,
+# HeinrichG-V12/E65_ReverseEngineering, loopybunny.co.uk/CarPC and the
+# MK60e5 development DBC, then extends them with HIL bench captures.
+#
+# SCOPE:
+# The upstream DBC carries 386 messages, most of them body and comfort traffic
+# (doors, windows, wipers, iDrive, lighting). This file is the powertrain and
+# vehicle-dynamics subset - the frames a data logger or dash actually wants -
+# and deliberately stops there. Adapter and protocol coverage in this repo is
+# curated, not full parity with the source.
+#
+# BIT NUMBERING:
+# Signals the DBC encodes as Motorola/big-endian are all contained inside a
+# single byte, where big-endian and little-endian decode identically. They are
+# republished here in flat LSB-first numbering (start_bit = DBC start - length
+# + 1) so that every start_bit in this file means the same thing.
+#
+# UNITS:
+# Ambient pressure is published in mbar (== hPa) with a to_canonical conversion
+# to kPa. Longitudinal and lateral acceleration are published in m/s2 with a
+# to_canonical conversion to g. See the Channel Registry contract in CLAUDE.md.
+
+openecualliance: '1.0'
+type: protocol
+
+id: bmw-e8x-e9x-powertrain
+name: 'BMW E8x / E9x Powertrain CAN'
+version: '1.0.0'
+vendor: bmw
+description: |
+  Powertrain and vehicle-dynamics CAN frames for the BMW E8x (1-series) and
+  E9x (3-series) platforms, roughly 2005-2013, covering N43/N46/N47/N52/N54
+  and related engines.
+
+  Eighteen frames from six transmitting modules:
+    DME   - torque model, pedal and engine speed, coolant and oil temperature,
+            idle target, cruise setpoint, oil level, battery voltage
+    EGS   - gearbox torque request, ATF temperature, gear ratio, output shaft
+            speed, selector position
+    DSC   - vehicle speed, longitudinal/lateral acceleration, yaw rate,
+            wheel speeds, steering angle
+    CAS   - terminal and key status
+    Kombi - ambient temperature
+    Gate1 - raw tank level sensors, handbrake contact
+
+  Several decodes in the source are marked by its own authors as unconfirmed.
+  Those signals carry a `disputed` note here rather than being published as if
+  they were settled - most importantly the 0x0CE wheel-speed scaling, which the
+  source explicitly says must not be used until validated.
+
+website: 'https://github.com/maseg535/E90-and-e8x-DBC-mega-merge-project'
+
+protocol:
+  type: can
+  baudrate: 500000
+  extended_id: false
+
+messages:
+  # ==========================================================================
+  # 0x0A8 DME - engine torque, brake and clutch status
+  # ==========================================================================
+  - id: 0x0A8
+    name: 'EngineAndBrake'
+    description: 'Actual and theoretical engine torque, brake and clutch status, module receipt states'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: EngineAndBrake
+    signals:
+      - name: 'Checksum_0xa8'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Counter_0xa8'
+        start_bit: 8
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'TORQ_AVL'
+        id: torque_actual
+        category: engine
+        description: 'Actual engine torque without inertia - combustion torque'
+        start_bit: 12
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        min: -1024
+        max: 1023.5
+
+      - name: 'ST_TORQ_AVL'
+        description: 'Torque intervention execution status'
+        start_bit: 24
+        length: 4
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'intervention request executed'
+          '1': 'ignition intervention request not executed'
+          '2': 'injection intervention request not executed'
+          '3': 'ignition and injection intervention requests not executed'
+          '15': 'signal invalid'
+
+      - name: 'TORQ_AVL_DMEE'
+        id: torque_theoretical
+        category: engine
+        description: 'Theoretical engine torque, without inertia and without shifting interventions'
+        start_bit: 28
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        min: -1024
+        max: 1023.5
+
+      - name: 'ST_SW_CLT'
+        description: 'Clutch switch status'
+        start_bit: 40
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'ST_RTIR'
+        start_bit: 42
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'ST_DMEA_SWO'
+        description: 'DME / ACC motronic switch-off status'
+        start_bit: 44
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'RCPT_ACC_SWO_SYS_DME'
+        description: 'Receipt of the ACC switch-off request by the DME'
+        start_bit: 46
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'ST_RCPT_ENG_ACC'
+        description: 'Receipt status of the ACC torque request'
+        start_bit: 48
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'status okay'
+          '1': 'plausibility/activity error'
+          '2': 'timeout error'
+
+      - name: 'ST_RCPT_ENG_ARS'
+        description: 'Receipt status of the ARS torque request'
+        start_bit: 50
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'status okay'
+          '1': 'plausibility/activity error'
+          '2': 'timeout error'
+
+      - name: 'ST_RCPT_ENG_DSC'
+        description: 'Receipt status of the DSC torque request'
+        start_bit: 52
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'status okay'
+          '1': 'plausibility/activity error'
+          '2': 'timeout error'
+
+      - name: 'ST_RCPT_ENG_EGS'
+        description: 'Receipt status of the EGS torque request'
+        start_bit: 54
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'status okay'
+          '1': 'plausibility/activity error'
+          '2': 'timeout error'
+
+      - name: 'ST_OBD_CTFN_GRB'
+        description: 'Gearbox OBD component function status'
+        start_bit: 56
+        length: 5
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'BrakePressed'
+        id: brake_switch
+        category: status
+        description: 'Brake pedal pressed by the driver, or hill hold engaged'
+        start_bit: 61
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+
+      - name: 'BrakeActive'
+        description: 'Brake system actively decelerating the vehicle'
+        start_bit: 62
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'BrakeStatusInvalid'
+        description: 'Brake status signal invalid'
+        start_bit: 63
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+  # ==========================================================================
+  # 0x0A9 DME - torque limits and reserves
+  # ==========================================================================
+  - id: 0x0A9
+    name: 'Torque2'
+    description: 'Minimum, maximum and reserve engine torque available to other modules'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: Torque2
+    signals:
+      - name: 'Checksum_0xa9'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Counter_0xa9'
+        start_bit: 8
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'ST_SW_LEV_RPM'
+        start_bit: 12
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'ST_INFS'
+        start_bit: 14
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'TORQ_AVL_MIN'
+        description: 'Minimum engine torque currently available'
+        start_bit: 16
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        vendor_specific: true
+
+      - name: 'TORQ_AVL_MAX'
+        description: 'Maximum engine torque currently available'
+        start_bit: 28
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        vendor_specific: true
+
+      - name: 'TORQ_AVL_SPAR_NEG'
+        description: 'Negative torque reserve'
+        start_bit: 40
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        vendor_specific: true
+
+      - name: 'TORQ_AVL_SPAR_POS'
+        description: 'Positive torque reserve'
+        start_bit: 52
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        vendor_specific: true
+
+  # ==========================================================================
+  # 0x0AA DME - accelerator pedal and engine speed
+  # ==========================================================================
+  - id: 0x0AA
+    name: 'AccPedal'
+    description: 'Accelerator pedal position, engine speed and pedal-related status flags'
+    length: 8
+    interval_ms: 10
+    transmitter: DME
+    vendor_message_name: AccPedal
+    signals:
+      - name: 'Checksum_0xaa'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Counter_0xaa'
+        start_bit: 8
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Reserved B1.4-7'
+        start_bit: 12
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'AcceleratorPedalPercentage'
+        id: pedal_position
+        category: engine
+        description: 'Accelerator pedal position'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.04
+        offset: 0
+        unit: 'percent'
+        min: 0
+        max: 100
+        disputed: 'The source DBC annotates this factor "ToDo Factor to be adjusted"'
+
+      - name: 'EngineSpeed'
+        id: rpm
+        category: engine
+        description: 'Engine speed'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.25
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 8000
+
+      - name: 'Reserved B6.0-1'
+        start_bit: 48
+        length: 2
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'ThrottleActive'
+        description: 'Throttle active. Set under cruise control during engine braking'
+        start_bit: 50
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B6.3'
+        start_bit: 51
+        length: 1
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'AcceleratorPedalPressed'
+        description: 'Set only when the driver is physically pressing the pedal'
+        start_bit: 52
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'KickDownPressed'
+        description: 'Kick-down switch pressed'
+        start_bit: 53
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'CruisePedalActive'
+        start_bit: 54
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'CruisePedalInactive'
+        start_bit: 55
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B7'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x0B5 EGS - gearbox torque request and ATF temperature
+  # ==========================================================================
+  - id: 0x0B5
+    name: 'TorqueRequestEGS'
+    description: 'Gearbox torque request to the DME, gearbox OBD status and ATF temperature'
+    length: 8
+    interval_ms: 10
+    transmitter: EGS
+    vendor_message_name: Torque_request_EGS
+    signals:
+      - name: 'Checksum_0xb5'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Counter_0xb5'
+        start_bit: 8
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'TORQ_TAR_EGS'
+        id: torque_requested
+        category: engine
+        description: 'Gearbox torque target (fast path)'
+        start_bit: 12
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+
+      - name: 'TORQ_TAR_ADJR_POS_EGS'
+        description: 'Positive adjustment to the gearbox torque target'
+        start_bit: 24
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        vendor_specific: true
+
+      - name: 'Reserved B4.4-5'
+        start_bit: 36
+        length: 2
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'ST_OTMP_GRB'
+        description: 'Gearbox overtemperature status'
+        start_bit: 38
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no request'
+          '1': 'cooling request, stage 1'
+          '2': 'cooling request, stage 2'
+          '3': 'signal invalid'
+
+      - name: 'ST_OBD_GRB'
+        description: 'Gearbox OBD status'
+        start_bit: 40
+        length: 4
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'MIL off'
+          '4': 'MIL on'
+          '8': 'MIL flashing'
+          '12': 'idle'
+          '14': 'init value'
+          '15': 'signal invalid'
+
+      - name: 'ST_OBD_ERR_GRB'
+        description: 'Gearbox OBD error present'
+        start_bit: 44
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no OBD error'
+          '1': 'OBD error'
+          '2': 'signal invalid'
+
+      - name: 'ST_LIM_STORQ'
+        description: 'Starting torque limitation status'
+        start_bit: 46
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'no intervention'
+          '1': 'intervention'
+
+      - name: 'TORQ_DRAW_GRB'
+        description: 'Torque converter draw torque'
+        start_bit: 48
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: 0
+        unit: 'nm'
+        vendor_specific: true
+        comment: '0xFF marks the signal invalid'
+
+      - name: 'TEMP_GRB'
+        id: gearbox_temp
+        category: temperature
+        description: 'Gearbox / ATF oil temperature'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: -40
+        unit: 'celsius'
+        min: -40
+        max: 215
+        comment: >-
+          y = x - 40. Matches OBD-II PID 0x6C. ZF 6HP19 normal operating range
+          is 60-90 C. The source corrected this from a signed +40 encoding and
+          notes it is confirmed via OBD-II but not on its own HIL bench, which
+          has no EGS to transmit 0x0B5.
+
+  # ==========================================================================
+  # 0x0BA EGS - gear, ratio and output shaft speed
+  # ==========================================================================
+  - id: 0x0BA
+    name: 'TransmissionData'
+    description: 'Target gear, shift-in-progress flag, gear ratio and output shaft speed'
+    length: 8
+    interval_ms: 20
+    transmitter: EGS
+    vendor_message_name: TransmissionData
+    signals:
+      - name: 'GearTar'
+        id: desired_gear
+        category: drivetrain
+        description: 'Target gear'
+        start_bit: 0
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: -4
+        unit: 'gear'
+
+      - name: 'Shifting'
+        description: 'Shift in progress'
+        start_bit: 4
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B0.5-7'
+        start_bit: 5
+        length: 3
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'GearRatio'
+        id: gear_ratio
+        category: drivetrain
+        description: 'Current gearbox ratio'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.05
+        offset: 0
+        unit: 'ratio'
+        min: 0
+        max: 12.75
+
+      - name: 'Reserved B2'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'OutputShaftSpeed'
+        id: driveshaft_rpm
+        category: engine
+        description: 'Gearbox output shaft speed'
+        start_bit: 24
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.125
+        offset: 0
+        unit: 'rpm'
+
+      - name: 'Checksum_0xba'
+        start_bit: 40
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Counter_0xba'
+        start_bit: 48
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Reserved B6.4-B7'
+        start_bit: 52
+        length: 12
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x0C4 DSC - steering wheel angle
+  # ==========================================================================
+  - id: 0x0C4
+    name: 'SteeringWheelAngle'
+    description: 'Steering wheel position and rotational rate'
+    length: 7
+    interval_ms: 10
+    transmitter: DSC
+    vendor_message_name: SteeringWheelAngle
+    signals:
+      - name: 'SteeringPosition'
+        id: steering_angle
+        category: driver_input
+        description: 'Steering wheel position'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.04395
+        offset: 0
+        unit: 'degrees'
+        min: -600
+        max: 600
+
+      - name: 'Reserved B2'
+        start_bit: 16
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'SteeringSpeed'
+        description: 'Steering wheel rotational rate'
+        start_bit: 24
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.04395
+        offset: 0
+        unit: 'deg/s'
+        vendor_specific: true
+
+      - name: 'Reserved B5-B6'
+        start_bit: 40
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x0CE DSC - wheel speeds. SCALING UNCONFIRMED, see the disputed notes.
+  # ==========================================================================
+  - id: 0x0CE
+    name: 'WheelSpeeds'
+    description: >-
+      Per-wheel ABS ring pulse counts. The source publishes a 0.0625 km/h
+      factor but explicitly marks it unvalidated.
+    length: 8
+    interval_ms: 100
+    transmitter: DSC
+    vendor_message_name: WheelSpeeds
+    signals:
+      - name: 'Wheel_FL'
+        id: wheel_speed_fl
+        category: speed
+        description: 'Front left wheel speed'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.0625
+        offset: 0
+        unit: 'kph'
+        disputed: >-
+          The source states this factor is UNCONFIRMED and must not be used
+          until validated. Its own HIL captures suggest the raw value is an ABS
+          pulse count per 100 ms frame with a non-zero standstill floor
+          (~338 counts at idle), not a direct speed.
+
+      - name: 'Wheel_FR'
+        id: wheel_speed_fr
+        category: speed
+        description: 'Front right wheel speed'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.0625
+        offset: 0
+        unit: 'kph'
+        disputed: 'The source states this factor is UNCONFIRMED and must not be used until validated'
+
+      - name: 'Wheel_RL'
+        id: wheel_speed_rl
+        category: speed
+        description: 'Rear left wheel speed'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.0625
+        offset: 0
+        unit: 'kph'
+        disputed: 'The source states this factor is UNCONFIRMED and must not be used until validated'
+
+      - name: 'Wheel_RR'
+        id: wheel_speed_rr
+        category: speed
+        description: 'Rear right wheel speed'
+        start_bit: 48
+        length: 16
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.0625
+        offset: 0
+        unit: 'kph'
+        disputed: 'The source states this factor is UNCONFIRMED and must not be used until validated'
+
+  # ==========================================================================
+  # 0x130 CAS - terminal and key status
+  # ==========================================================================
+  - id: 0x130
+    name: 'TerminalStatus'
+    description: 'Ignition terminal states, key validity and key count'
+    length: 5
+    interval_ms: 100
+    transmitter: CAS
+    vendor_message_name: TerminalStatus
+    signals:
+      - name: 'ST_KL_R'
+        description: 'Terminal R state'
+        start_bit: 0
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'ST_KL_15'
+        description: 'Terminal 15 (ignition on) state'
+        start_bit: 2
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'ST_KL_50'
+        description: 'Terminal 50 (cranking) state'
+        start_bit: 4
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'ST_KEY_VLD'
+        description: 'Key validity'
+        start_bit: 6
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'NO_KEY'
+        description: 'Key slot number'
+        start_bit: 8
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B1.4-B2.5'
+        start_bit: 12
+        length: 10
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'IgnitionOff'
+        description: 'Ignition off (terminal 15 de-energised)'
+        start_bit: 22
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'AccOn'
+        description: 'Accessory position active'
+        start_bit: 23
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B3.0-5'
+        start_bit: 24
+        length: 6
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'ST_KL15_HW'
+        description: 'Hardware terminal 15 state'
+        start_bit: 30
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Counter_0x130'
+        start_bit: 32
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Checksum_0x130'
+        start_bit: 36
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x175 DME - engine speed for the instrument cluster
+  # ==========================================================================
+  - id: 0x175
+    name: 'DisplayMotorData'
+    description: 'Engine speed sent to the instrument cluster and head unit'
+    length: 3
+    interval_ms: 100
+    transmitter: DME
+    vendor_message_name: Display_motor_data
+    signals:
+      - name: 'Counter_0x175'
+        start_bit: 0
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+        comment: 'Rolling counter, 0x00 to 0x0E'
+
+      - name: 'Reserved B0.4-7'
+        start_bit: 4
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'EngineSpeed'
+        id: rpm
+        category: engine
+        description: 'Engine speed for cluster display'
+        start_bit: 8
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.15625
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 10240
+        comment: >-
+          Byte 2 alone gives RPM at 40 rpm resolution (B2 * 40); the full 16-bit
+          little-endian word across bytes 1-2 carries the finer value, which is
+          the same 0.15625 rpm/bit encoding the Siemens MS4x DMEs use. Source
+          HIL calibration points: B2=0x15 -> ~840 rpm idle, B2=0x2A -> ~1680 rpm,
+          B2=0x38 -> ~2240 rpm.
+
+  # ==========================================================================
+  # 0x1A0 DSC - vehicle speed and inertial data
+  # ==========================================================================
+  - id: 0x1A0
+    name: 'Speed'
+    description: 'Vehicle speed, direction of travel, longitudinal and lateral acceleration, yaw rate'
+    length: 8
+    interval_ms: 20
+    transmitter: DSC
+    vendor_message_name: Speed
+    signals:
+      - name: 'VehicleSpeed'
+        id: vehicle_speed
+        category: speed
+        description: 'Vehicle speed'
+        start_bit: 0
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.103
+        offset: 0
+        unit: 'kph'
+
+      - name: 'MovingForward'
+        start_bit: 12
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'MovingReverse'
+        start_bit: 13
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B1.6-7'
+        start_bit: 14
+        length: 2
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'LongAcc'
+        id: g_longitudinal
+        category: acceleration
+        description: 'Longitudinal acceleration'
+        start_bit: 16
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.025
+        offset: 0
+        unit: 'm/s2'
+        to_canonical:
+          scale: 0.101971621
+          offset: 0
+
+      - name: 'LatlAcc'
+        id: g_lateral
+        category: acceleration
+        description: 'Lateral acceleration'
+        start_bit: 28
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.025
+        offset: 0
+        unit: 'm/s2'
+        to_canonical:
+          scale: 0.101971621
+          offset: 0
+
+      - name: 'YawRate'
+        id: gyro_yaw
+        category: rotation
+        description: 'Yaw rate'
+        start_bit: 40
+        length: 12
+        byte_order: little_endian
+        data_type: signed
+        scale: 0.05
+        offset: 0
+        unit: 'deg/s'
+
+      - name: 'Counter_0x1a0'
+        start_bit: 52
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'Checksum_0x1a0'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x1D0 DME - engine temperatures, ambient pressure and idle target
+  # ==========================================================================
+  - id: 0x1D0
+    name: 'EngineData'
+    description: 'Coolant and oil temperature, engine run state, ambient pressure and idle target speed'
+    length: 8
+    interval_ms: 100
+    transmitter: DME
+    vendor_message_name: EngineData
+    signals:
+      - name: 'TEMP_ENG'
+        id: coolant_temp
+        category: temperature
+        description: 'Engine coolant temperature'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: -48
+        unit: 'celsius'
+        min: -48
+        max: 207
+        comment: >-
+          y = x - 48. Source HIL confirmation on N47: 0x3E = 14 C cold start,
+          0x62 = 50 C after 10 minutes, 0x88 = 88 C at operating temperature.
+
+      - name: 'TEMP_EOI'
+        id: oil_temp
+        category: temperature
+        description: 'Engine oil temperature'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: -48
+        unit: 'celsius'
+        min: -48
+        max: 207
+        comment: >-
+          y = x - 48. Valid on petrol engines (N43, N52, N54). NOT available on
+          the N47 diesel, which returns 0xFF permanently after start - discard
+          that value rather than reporting 207 C, and read OBD-II PID 0x5C or
+          PT-CAN instead.
+
+      - name: 'Counter_0x1d0'
+        start_bit: 16
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'ST_ENG_RUN'
+        id: engine_running
+        category: status
+        description: 'Engine run state'
+        start_bit: 20
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        values:
+          '0': 'engine off'
+          '1': 'engine starting'
+          '2': 'engine running'
+          '3': 'signal invalid'
+
+      - name: 'ST_SW_WAUP'
+        description: 'Engine warm-up state'
+        start_bit: 22
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'warming up'
+          '1': 'engine warm'
+          '2': 'EGS forced switching active'
+          '3': 'signal invalid'
+
+      - name: 'AIP_ENG'
+        id: barometric_pressure
+        category: pressure
+        description: 'Ambient (barometric) pressure'
+        start_bit: 24
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 2
+        offset: 598
+        unit: 'mbar'
+        min: 600
+        max: 1106
+        to_canonical:
+          scale: 0.1
+          offset: 0
+
+      - name: 'IJV_FU'
+        description: 'Fuel injection quantity related field'
+        start_bit: 32
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: -48
+        unit: ''
+        vendor_specific: true
+        comment: >-
+          The source DBC labels this field degC with the same -48 offset as the
+          two temperature bytes, which is implausible for a 16-bit field named
+          IJV_FU. The scaling is republished as-is with the unit dropped rather
+          than guessing at a correction.
+
+      - name: 'CTR_SLCK'
+        description: 'Shift lock control request'
+        start_bit: 48
+        length: 2
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '0': 'not allowed'
+          '1': 'no shiftlock requirement'
+          '2': 'shiftlock required'
+          '3': 'signal invalid'
+
+      - name: 'Reserved B6.2-7'
+        start_bit: 50
+        length: 6
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'RPM_IDLG_TAR'
+        id: idle_target_rpm
+        category: engine
+        description: 'Target idle speed'
+        start_bit: 56
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 5
+        offset: 0
+        unit: 'rpm'
+        min: 0
+        max: 1270
+
+  # ==========================================================================
+  # 0x200 DME - cruise control status
+  # ==========================================================================
+  - id: 0x200
+    name: 'CruiseControlStatus'
+    description: 'Cruise control setpoint speed and active/inactive flags'
+    length: 8
+    interval_ms: 100
+    transmitter: DME
+    vendor_message_name: CruiseControlStatus
+    signals:
+      - name: 'CruiseControlSetpointSpeed'
+        id: cruise_target_speed
+        category: speed
+        description: 'Cruise control setpoint speed'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.402335
+        offset: 0
+        unit: 'kph'
+
+      - name: 'Reserved B1.0-3'
+        start_bit: 8
+        length: 4
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+      - name: 'CruiseControlInactiveFlag'
+        start_bit: 12
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'CruiseControlActiveFlag'
+        start_bit: 13
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: 'Spelled CruiseCoontrolActiveFlag in the source DBC'
+
+      - name: 'Reserved B1.6-B7'
+        start_bit: 14
+        length: 50
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x2CA Kombi - ambient temperature
+  # ==========================================================================
+  - id: 0x2CA
+    name: 'OutsideTemperature'
+    description: 'Outside ambient temperature as displayed by the instrument cluster'
+    length: 8
+    interval_ms: 1000
+    transmitter: Kombi
+    vendor_message_name: Outside_temperature
+    signals:
+      - name: 'OutsideTemp'
+        id: ambient_temp
+        category: temperature
+        description: 'Outside ambient temperature'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.5
+        offset: -40
+        unit: 'celsius'
+        min: -40
+        max: 87.5
+        comment: 'y = (x - 80) / 2. Byte 1 is 0xFF'
+
+      - name: 'Reserved B1-B7'
+        start_bit: 8
+        length: 56
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x304 EGS - gear selector and engaged gear
+  # ==========================================================================
+  - id: 0x304
+    name: 'GearStatus'
+    description: 'Selector position and engaged gear, ZF 6HP19 six-speed automatic'
+    length: 8
+    interval_ms: 100
+    transmitter: EGS
+    vendor_message_name: Status_Gang
+    signals:
+      - name: 'GearDisplay'
+        description: 'Selector position or engaged gear, as a code'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: >-
+          A code, not a numeric gear, so it does not map onto the canonical
+          gear channel. Encoding is identical in Drive and in manual Sport
+          mode. Paddle shifts are hardwired to the EGS and do not appear on
+          CAN. Source: speed-correlated HIL captures.
+        values:
+          '193': 'gear 1, sport/stall state'
+          '194': 'reverse'
+          '195': 'park to reverse transient'
+          '197': 'gear 1'
+          '198': 'gear 2'
+          '199': 'gear 3'
+          '200': 'gear 4'
+          '201': 'gear 5'
+          '202': 'gear 6'
+          '209': 'neutral'
+          '225': 'reverse to park transient'
+          '227': 'park'
+
+      - name: 'Reserved B1-B7'
+        start_bit: 8
+        length: 56
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x349 Gate1 - raw tank level sensors
+  # ==========================================================================
+  - id: 0x349
+    name: 'FuelLevelRaw'
+    description: 'Raw left and right fuel tank float sensor readings'
+    length: 8
+    interval_ms: 1000
+    transmitter: Gate1
+    vendor_message_name: Raw_data_level_tank
+    signals:
+      - name: 'FuelSensorLeft'
+        description: 'Left tank float volume'
+        start_bit: 0
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.006249
+        offset: 0
+        unit: 'liters'
+        min: 0
+        max: 62.5
+        vendor_specific: true
+        comment: >-
+          A per-float raw volume, not a tank percentage, so it does not map to
+          the canonical fuel_level channel
+
+      - name: 'FuelSensorRight'
+        description: 'Right tank float volume'
+        start_bit: 16
+        length: 16
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.006249
+        offset: 0
+        unit: 'liters'
+        min: 0
+        max: 62.5
+        vendor_specific: true
+
+      - name: 'Reserved B4-B7'
+        start_bit: 32
+        length: 32
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x34F Gate1 - handbrake lever contact
+  # ==========================================================================
+  - id: 0x34F
+    name: 'HandbrakeStatus'
+    description: 'Handbrake lever contact state'
+    length: 2
+    interval_ms: 1000
+    transmitter: Gate1
+    vendor_message_name: Status_contact_handbrake
+    signals:
+      - name: 'Handbrake_pushed_down'
+        description: 'Handbrake lever down (released)'
+        start_bit: 0
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        comment: 'Exactly one of the two bits is set at a time: 0xFE engaged, 0xFD released'
+
+      - name: 'Handbrake_pulled_up'
+        description: 'Handbrake lever up (engaged)'
+        start_bit: 1
+        length: 1
+        byte_order: little_endian
+        data_type: bool
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+
+      - name: 'Reserved B0.2-B1'
+        start_bit: 2
+        length: 14
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+  # ==========================================================================
+  # 0x381 DME - engine oil level response
+  # ==========================================================================
+  - id: 0x381
+    name: 'EngineOilLevel'
+    description: 'Oil level measurement state and general status, sent in response to a head unit request'
+    length: 2
+    transmitter: DME
+    vendor_message_name: EngineOilLevel
+    signals:
+      - name: 'OilLevel_MeasState'
+        description: 'Oil level measurement state / value code'
+        start_bit: 0
+        length: 8
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '18': 'level below minimum'
+          '37': 'level at minimum'
+          '56': 'level between minimum and ok'
+          '83': 'level ok'
+          '105': 'level between ok and maximum'
+          '120': 'no measurement possible'
+          '121': 'measurement in progress'
+          '122': 'oil level check ok'
+          '123': 'measurement ok'
+          '124': 'ignition off, no measurement possible'
+          '125': 'oil level ok, precise measurement in progress'
+          '126': 'oil level ok'
+          '128': 'accurate measurement in progress, about one minute'
+          '133': 'level at maximum'
+          '149': 'overfilled'
+          '255': 'signal invalid'
+
+      - name: 'OilLevel_Status'
+        description: 'Oil level general status'
+        start_bit: 8
+        length: 8
+        byte_order: little_endian
+        data_type: enum
+        scale: 1
+        offset: 0
+        unit: ''
+        vendor_specific: true
+        values:
+          '240': 'all ok'
+          '241': 'overfilled'
+          '242': 'refill 1.0 litre'
+          '244': 'service required'
+          '255': 'signal invalid'
+
+  # ==========================================================================
+  # 0x3B4 DME - battery voltage
+  # ==========================================================================
+  - id: 0x3B4
+    name: 'PowerBatteryVoltage'
+    description: 'Vehicle battery voltage measured by the DME'
+    length: 8
+    interval_ms: 1000
+    transmitter: DME
+    vendor_message_name: PowerBatteryVoltage
+    signals:
+      - name: 'BatteryVoltage'
+        id: battery_voltage
+        category: electrical
+        description: 'Battery voltage'
+        start_bit: 0
+        length: 12
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 0.015
+        offset: 0
+        unit: 'volts'
+        min: 0
+        max: 61.4
+
+      - name: 'Reserved B1.4-B7'
+        start_bit: 12
+        length: 52
+        byte_order: little_endian
+        data_type: unsigned
+        scale: 1
+        offset: 0
+        unit: ''
+        reserved: true
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  source_url: 'https://github.com/maseg535/E90-and-e8x-DBC-mega-merge-project'
+  repository: 'https://github.com/maseg535/E90-and-e8x-DBC-mega-merge-project'
+  tested_with:
+    - 'BMW N47D20O1 (E90/E87 diesel) - source HIL bench captures'
+    - 'ZF 6HP19 six-speed automatic'
+  compatible_tools:
+    - 'Any DBC-capable CAN tool'
+  known_issues:
+    - >-
+      0x0CE wheel speeds: the source publishes a 0.0625 km/h factor and then
+      states it is unconfirmed and must not be used until validated. Its own
+      captures suggest the raw values are ABS pulse counts per 100 ms frame
+      with a non-zero standstill floor, not a direct speed.
+    - >-
+      0x0AA AcceleratorPedalPercentage carries the source annotation "ToDo
+      Factor to be adjusted".
+    - >-
+      0x1D0 TEMP_EOI (oil temperature) is unavailable on the N47 diesel, which
+      returns 0xFF permanently after start. That decodes to 207 C and must be
+      discarded rather than reported.
+    - >-
+      0x1D0 IJV_FU is labelled degC by the source with a -48 offset, which is
+      implausible for a 16-bit field with that name. The unit is dropped here.
+    - >-
+      0x0B5 is transmitted by the EGS, so it is absent from any capture taken
+      on a bench without a gearbox controller. The source could not confirm
+      TEMP_GRB on its own HIL rig for that reason.
+    - >-
+      This file is a curated powertrain subset. The upstream DBC also carries
+      body, comfort and infotainment traffic that is out of scope here.
+  changelog:
+    - version: '1.0.0'
+      date: '2026-08-25'
+      changes:
+        - 'Initial E8x/E9x powertrain definition: 18 frames from DME, EGS, DSC, CAS, Kombi and Gate1'
+        - 'Unconfirmed source decodes recorded with disputed notes rather than published as settled'

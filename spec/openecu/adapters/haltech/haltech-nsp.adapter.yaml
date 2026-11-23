@@ -1,0 +1,634 @@
+# OpenECU Alliance Adapter Specification
+# Haltech NSP CSV Export Format
+
+openecualliance: '1.0'
+id: haltech-nsp
+name: 'Haltech NSP CSV Export'
+version: '2.0.0'
+vendor: haltech
+description: |
+  Parses CSV files exported from Haltech NSP (NSP = Nexus/Elite Software Platform).
+  Supports all Haltech ECU models including Elite, Nexus R3/R5, and IC-7 series.
+
+  File structure:
+  - Header section with key:value metadata
+  - Channel definitions (Channel, ID, Type, DisplayMaxMin)
+  - Data rows starting with HH:MM:SS.mmm timestamps
+
+  Note: Raw values require conversion based on the Type field. This adapter
+  assumes applications will apply conversions or data is pre-converted.
+website: 'https://www.haltech.com'
+branding:
+  logo: haltech-logo.svg
+  icon: haltech-icon.svg
+  banner: haltech-banner.png
+  color_primary: '#FFBE1A'
+  color_secondary: '#1A1A1A'
+
+file_format:
+  type: csv
+  extensions: ['.csv']
+  encoding: utf-8
+  delimiter: ','
+  header_row: -1 # No traditional header row; channel names from metadata
+  data_start_row: -1 # Variable; starts after channel definitions
+  # Note: timestamp is first column in HH:MM:SS.mmm format (custom, not standard)
+
+channels:
+  # Engine Core
+  - id: rpm
+    name: 'Engine RPM'
+    description: 'Engine crankshaft rotational speed'
+    category: engine
+    data_type: float
+    unit: rpm
+    min: 0
+    max: 20000
+    precision: 0
+    source_names:
+      - 'Engine Speed'
+      - 'Engine RPM'
+      - 'RPM'
+      - 'Eng Speed'
+
+  - id: tps
+    name: 'Throttle Position'
+    description: 'Throttle position sensor reading as percentage'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'TPS'
+      - 'Throttle Position'
+      - 'TPS Main'
+      - 'Throttle'
+      - 'TPS Pct'
+      - 'TPS 1'
+
+  - id: tps_2
+    name: 'Throttle Position 2'
+    description: 'Secondary throttle position sensor'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'TPS 2'
+      - 'TPS Sub'
+      - 'TPS Secondary'
+
+  - id: map
+    name: 'Manifold Pressure'
+    description: 'Manifold absolute pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'Manifold Pressure'
+      - 'MAP'
+      - 'Inlet Manifold Pressure'
+
+  - id: boost
+    name: 'Boost Pressure'
+    description: 'Boost pressure (gauge, relative to atmospheric)'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: -100
+    max: 300
+    precision: 1
+    source_names:
+      - 'Boost'
+      - 'Boost Pressure'
+      - 'Boost Gauge'
+
+  - id: barometric
+    name: 'Barometric Pressure'
+    description: 'Atmospheric/barometric pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 80
+    max: 110
+    precision: 1
+    source_names:
+      - 'Barometric Pressure'
+      - 'Baro'
+      - 'Atmospheric Pressure'
+
+  # Fuel System
+  - id: afr
+    name: 'Air Fuel Ratio'
+    description: 'Measured air-fuel ratio from wideband O2'
+    category: fuel
+    data_type: float
+    unit: afr
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'AFR'
+      - 'Air Fuel Ratio'
+      - 'Wideband'
+      - 'O2 AFR'
+
+  - id: afr_1
+    name: 'AFR Bank 1'
+    description: 'Air-fuel ratio from bank 1 / sensor 1'
+    category: fuel
+    data_type: float
+    unit: afr
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'AFR 1'
+      - 'AFR Bank 1'
+      - 'Wideband 1'
+      - 'WB2 AFR 1'
+
+  - id: afr_2
+    name: 'AFR Bank 2'
+    description: 'Air-fuel ratio from bank 2 / sensor 2'
+    category: fuel
+    data_type: float
+    unit: afr
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'AFR 2'
+      - 'AFR Bank 2'
+      - 'Wideband 2'
+      - 'WB2 AFR 2'
+
+  - id: lambda
+    name: 'Lambda'
+    description: 'Lambda value (AFR / stoichiometric ratio)'
+    category: fuel
+    data_type: float
+    unit: lambda
+    min: 0.6
+    max: 1.5
+    precision: 3
+    source_names:
+      - 'Lambda'
+      - 'Lambda 1'
+      - 'Lambda Target'
+
+  - id: afr_target
+    name: 'AFR Target'
+    description: 'Target air-fuel ratio from ECU tuning'
+    category: fuel
+    data_type: float
+    unit: afr
+    min: 10
+    max: 20
+    precision: 2
+    source_names:
+      - 'AFR Target'
+      - 'Target AFR'
+      - 'AFR Tgt'
+      - 'Lambda Target'
+
+  - id: fuel_pressure
+    name: 'Fuel Pressure'
+    description: 'Fuel rail pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 1000
+    precision: 0
+    source_names:
+      - 'Fuel Pressure'
+      - 'Fuel Press'
+      - 'Fuel Rail Pressure'
+
+  - id: duty_cycle
+    name: 'Injector Duty Cycle'
+    description: 'Fuel injector duty cycle'
+    category: fuel
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'Injector Duty'
+      - 'Injector Duty Cycle'
+      - 'Duty Cycle'
+      - 'Fuel Duty'
+
+  - id: pulse_width
+    name: 'Injector Pulse Width'
+    description: 'Fuel injector pulse width'
+    category: fuel
+    data_type: float
+    unit: milliseconds
+    min: 0
+    max: 50
+    precision: 2
+    source_names:
+      - 'Injector PW'
+      - 'Pulse Width'
+      - 'Injection Time'
+      - 'Fuel PW'
+
+  - id: fuel_flow
+    name: 'Fuel Flow Rate'
+    description: 'Instantaneous fuel flow rate'
+    category: fuel
+    data_type: float
+    unit: cc/min
+    # cc/min -> l/h (canonical)
+    to_canonical:
+      scale: 0.06
+      offset: 0
+    min: 0
+    max: 10000
+    precision: 0
+    source_names:
+      - 'Fuel Flow'
+      - 'Fuel Flow Rate'
+      - 'Flow Rate'
+
+  # Ignition System
+  - id: ignition_advance
+    name: 'Ignition Advance'
+    description: 'Spark timing advance in degrees BTDC'
+    category: ignition
+    data_type: float
+    unit: degrees
+    min: -20
+    max: 60
+    precision: 1
+    source_names:
+      - 'Ignition Angle'
+      - 'Ignition Advance'
+      - 'Timing'
+      - 'Spark Advance'
+      - 'Ign Angle'
+
+  - id: dwell
+    name: 'Ignition Dwell'
+    description: 'Coil dwell time'
+    category: ignition
+    data_type: float
+    unit: milliseconds
+    min: 0
+    max: 10
+    precision: 2
+    source_names:
+      - 'Dwell'
+      - 'Dwell Time'
+      - 'Coil Dwell'
+
+  - id: knock_level_db
+    name: 'Knock Level'
+    description: 'Knock sensor signal level'
+    category: ignition
+    data_type: float
+    unit: decibels
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'Knock Level'
+      - 'Knock'
+      - 'Knock dB'
+      - 'Knock Signal'
+
+  - id: knock_retard
+    name: 'Knock Retard'
+    description: 'Timing retard applied due to knock detection'
+    category: correction
+    data_type: float
+    unit: degrees
+    min: 0
+    max: 20
+    precision: 1
+    source_names:
+      - 'Knock Retard'
+      - 'Knock Timing Retard'
+      - 'Knock Correction'
+
+  # Temperature Sensors
+  - id: coolant_temp
+    name: 'Coolant Temperature'
+    description: 'Engine coolant temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 150
+    precision: 1
+    source_names:
+      - 'Coolant'
+      - 'Coolant Temp'
+      - 'Engine Coolant'
+      - 'Eng Coolant'
+      - 'ECT'
+
+  - id: iat
+    name: 'Intake Air Temperature'
+    description: 'Intake air temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 100
+    precision: 1
+    source_names:
+      - 'IAT'
+      - 'Intake Air Temp'
+      - 'Air Temp'
+      - 'Inlet Air Temp'
+
+  - id: oil_temp
+    name: 'Oil Temperature'
+    description: 'Engine oil temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: -40
+    max: 180
+    precision: 1
+    source_names:
+      - 'Oil Temp'
+      - 'Oil Temperature'
+      - 'Engine Oil Temp'
+
+  - id: egt
+    name: 'Exhaust Gas Temperature'
+    description: 'Exhaust gas temperature'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: 0
+    max: 1200
+    precision: 0
+    source_names:
+      - 'EGT'
+      - 'Exhaust Temp'
+      - 'Exhaust Gas Temp'
+
+  - id: egt_1
+    name: 'EGT Cylinder 1'
+    description: 'Exhaust gas temperature for cylinder 1'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: 0
+    max: 1200
+    precision: 0
+    source_names:
+      - 'EGT 1'
+      - 'EGT Cyl 1'
+
+  - id: egt_2
+    name: 'EGT Cylinder 2'
+    description: 'Exhaust gas temperature for cylinder 2'
+    category: temperature
+    data_type: float
+    unit: celsius
+    min: 0
+    max: 1200
+    precision: 0
+    source_names:
+      - 'EGT 2'
+      - 'EGT Cyl 2'
+
+  # Pressure Sensors
+  - id: oil_pressure
+    name: 'Oil Pressure'
+    description: 'Engine oil pressure'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 1000
+    precision: 0
+    source_names:
+      - 'Oil Pressure'
+      - 'Oil Press'
+      - 'Engine Oil Pressure'
+
+  # Electrical
+  - id: battery_voltage
+    name: 'Battery Voltage'
+    description: 'System/battery voltage'
+    category: electrical
+    data_type: float
+    unit: volts
+    min: 0
+    max: 20
+    precision: 2
+    source_names:
+      - 'Battery Voltage'
+      - 'Battery'
+      - 'Bat Volts'
+      - 'Voltage'
+      - 'ECU Voltage'
+
+  # Speed & Drivetrain
+  - id: vehicle_speed
+    name: 'Vehicle Speed'
+    description: 'Vehicle ground speed'
+    category: speed
+    data_type: float
+    unit: kph
+    min: 0
+    max: 400
+    precision: 1
+    source_names:
+      - 'Vehicle Speed'
+      - 'Speed'
+      - 'Ground Speed'
+      - 'Wheel Speed'
+
+  - id: gear
+    name: 'Gear Position'
+    description: 'Current gear selection'
+    category: drivetrain
+    data_type: int
+    unit: gear
+    min: 0
+    max: 8
+    precision: 0
+    source_names:
+      - 'Gear'
+      - 'Gear Position'
+      - 'Current Gear'
+
+  # Corrections & Trims
+  - id: ego_correction
+    name: 'EGO Correction'
+    description: 'Closed-loop fuel correction from O2 feedback'
+    category: correction
+    data_type: float
+    unit: percent
+    min: -25
+    max: 25
+    precision: 1
+    source_names:
+      - 'EGO Correction'
+      - 'O2 Correction'
+      - 'CL Correction'
+      - 'Fuel Trim'
+
+  - id: ego_correction_1
+    name: 'EGO Correction Bank 1'
+    description: 'EGO correction for bank 1'
+    category: correction
+    data_type: float
+    unit: percent
+    min: -25
+    max: 25
+    precision: 1
+    source_names:
+      - 'EGO Correction 1'
+      - 'EGO Cor 1'
+      - 'Bank 1 Trim'
+
+  - id: ego_correction_2
+    name: 'EGO Correction Bank 2'
+    description: 'EGO correction for bank 2'
+    category: correction
+    data_type: float
+    unit: percent
+    min: -25
+    max: 25
+    precision: 1
+    source_names:
+      - 'EGO Correction 2'
+      - 'EGO Cor 2'
+      - 'Bank 2 Trim'
+
+  # Boost Control
+  - id: wastegate_duty
+    name: 'Wastegate Duty Cycle'
+    description: 'Wastegate solenoid duty cycle'
+    category: engine
+    data_type: float
+    unit: percent
+    min: 0
+    max: 100
+    precision: 1
+    source_names:
+      - 'Wastegate Duty'
+      - 'WG Duty'
+      - 'Boost Duty'
+      - 'Wastegate DC'
+
+  - id: boost_target
+    name: 'Boost Target'
+    description: 'Target boost pressure from boost control'
+    category: pressure
+    data_type: float
+    unit: kpa
+    min: 0
+    max: 300
+    precision: 0
+    source_names:
+      - 'Boost Target'
+      - 'Target Boost'
+      - 'Boost Tgt'
+
+  # System
+  - id: time
+    name: 'Time'
+    description: 'Log timestamp'
+    category: system
+    data_type: float
+    unit: seconds
+    precision: 3
+    source_names:
+      - 'Time'
+      - 'Timestamp'
+    tags: ['system', 'time']
+
+  # Accelerometer / Motion (if equipped)
+  - id: accel_x
+    name: 'Acceleration X'
+    description: 'Lateral acceleration'
+    category: custom
+    data_type: float
+    unit: g
+    min: -3
+    max: 3
+    precision: 2
+    source_names:
+      - 'Accel X'
+      - 'Lateral G'
+      - 'G Force X'
+
+  - id: accel_y
+    name: 'Acceleration Y'
+    description: 'Longitudinal acceleration'
+    category: custom
+    data_type: float
+    unit: g
+    min: -3
+    max: 3
+    precision: 2
+    source_names:
+      - 'Accel Y'
+      - 'Long G'
+      - 'G Force Y'
+
+metadata:
+  author: 'OpenECU Alliance'
+  license: 'MIT'
+  repository: 'https://github.com/openecualliance/adapters'
+  tested_with:
+    - 'Haltech Elite 2500'
+    - 'Haltech Nexus R5'
+    - 'Haltech IC-7'
+  known_issues:
+    - 'Timestamp format varies between NSP versions'
+    - 'Some older logs may not include all channel types'
+    - 'Raw values require conversion based on channel Type field'
+  changelog:
+    - version: '2.0.0'
+      date: '2026-08-24'
+      changes:
+        - 'BREAKING: rename knock_level to knock_level_db. This log reports knock on a
+          logarithmic dB scale, which is not linearly convertible to the canonical
+          voltage form, so it is a distinct channel rather than a unit conversion.'
+        - 'Add cc/min -> l/h conversion for fuel_flow.'
+        - 'Declare ''to_canonical'' scale/offset on channels whose log unit differs from
+          the canonical unit in specs/channels.yaml. The log unit is unchanged — it
+          still describes the file — but a consumer can now normalise without knowing
+          the vendor.'
+    - version: '1.0.0'
+      date: '2025-01-04'
+      changes:
+        - 'Initial release'
+        - 'Support for core engine, fuel, ignition, and temperature channels'
+
+# Haltech-specific extensions
+x_haltech:
+  file_marker: '%DataLog%'
+  timestamp_format: 'HH:MM:SS.mmm'
+  metadata_fields:
+    - 'DataLogVersion'
+    - 'Software'
+    - 'SoftwareVersion'
+    - 'DownloadDateTime'
+    - 'Log Source'
+    - 'Log Number'
+    - 'Log'
+  channel_definition_fields:
+    - 'Channel'
+    - 'ID'
+    - 'Type'
+    - 'DisplayMaxMin'
