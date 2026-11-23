@@ -229,8 +229,6 @@ pub struct UltraLogApp {
     pub(crate) user_settings: UserSettings,
     /// Current language selection
     pub(crate) language: Language,
-    // === Spec Refresh ===
-    /// Whether spec refresh from API has been started
     // === MCP Integration ===
     /// IPC server for MCP integration (allows Claude to control the app)
     ipc_server: Option<IpcServer>,
@@ -2668,8 +2666,6 @@ impl eframe::App for UltraLogApp {
 
         // Check for updates on startup (runs once)
         self.check_startup_update();
-
-        // Start spec refresh from API in background (runs once)
 
         // Check for completed update operations
         self.check_update_complete();

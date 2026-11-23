@@ -29,11 +29,8 @@ This document describes how UltraLog uses the OpenECU adapter and protocol speci
 
 - [x] Protocol specs embedded at compile time via `include_str!`
 - [x] Protocol type definitions (ProtocolSpec, MessageSpec, SignalSpec)
-- [x] 9 protocol specs integrated (Haltech, ECUMaster, Speeduino, rusEFI, AEM, Megasquirt, MaxxECU, Syvecs, Emtron)
+- [x] 12 protocol specs integrated (Haltech, ECUMaster, Speeduino, rusEFI, AEM, MegaSquirt, MaxxECU, Syvecs, Emtron, BMW MS42, BMW MS43, BMW E8x/E9x)
 - [x] Protocol registry API (get_protocols, get_protocol_by_id, find_protocols_by_vendor)
-- [x] **API client for fetching protocol specs**
-- [x] **Local disk cache for protocols**
-- [x] **Background API refresh for protocols**
 - [ ] CAN bus message encoder/decoder
 - [ ] Real-time CAN streaming support
 - [ ] DBC file export from protocol specs
@@ -55,7 +52,9 @@ This document describes how UltraLog uses the OpenECU adapter and protocol speci
 │  │  - romraider.rs     │ metadata│  - romraider-csv        │   │
 │  │  - speeduino.rs     │         │  - speeduino-mlg        │   │
 │  │  - emerald.rs       │         │  - rusefi-mlg           │   │
-│  └─────────────────────┘         │  - emerald-lg           │   │
+│  │  - megasquirt.rs    │         │  - emerald-lg           │   │
+│  │  - bmw.rs           │         │  - megasquirt-tunerst.  │   │
+│  └─────────────────────┘         │  - bmw-ms4x-romraider   │   │
 │                                  └─────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────────┤
 │  src/normalize.rs                                               │
@@ -172,16 +171,15 @@ static ADAPTER_SPECS: LazyLock<Vec<AdapterSpec>> = LazyLock::new(parse_embedded_
 fails to deserialize rather than panicking in a user's session. `cargo test --test spec_corpus`
 is what refuses to let a bad spec reach a release.
 
-### 4. Normalization Map Building
+### 3. Normalization Map Building
 
-A reverse lookup map is built from all adapter `source_names` (dynamically updated on API refresh):
+A reverse lookup map is built once from all adapter `source_names`:
 
 ```rust
 // src/adapters/registry.rs
 
-// RwLock allows dynamic updates when API refresh completes
-static SPEC_NORMALIZATION_MAP: LazyLock<RwLock<HashMap<String, String>>> =
-    LazyLock::new(|| RwLock::new(build_normalization_map(&ADAPTER_SPECS.read().unwrap())));
+static SPEC_NORMALIZATION_MAP: LazyLock<HashMap<String, String>> =
+    LazyLock::new(|| build_normalization_map(&ADAPTER_SPECS));
 
 fn build_normalization_map(adapters: &[AdapterSpec]) -> HashMap<String, String> {
     let mut map = HashMap::new();
@@ -196,16 +194,12 @@ fn build_normalization_map(adapters: &[AdapterSpec]) -> HashMap<String, String> 
 }
 ```
 
-When API refresh completes, the map is rebuilt:
+`map.insert` means **last adapter wins** for a source name two adapters both claim, so
+`EMBEDDED_ADAPTERS` order decides it. 54 names collide and 43 resolve to different canonical
+ids — see CLAUDE.md, "Source-name collisions". Nothing rebuilds this map; there is no writer
+in the crate.
 
-```rust
-// After successful API fetch
-if let Ok(mut norm_lock) = SPEC_NORMALIZATION_MAP.write() {
-    *norm_lock = build_normalization_map(&new_adapters);
-}
-```
-
-### 5. Normalization Integration
+### 4. Normalization Integration
 
 The `normalize.rs` module uses spec normalization as a fallback:
 
@@ -226,7 +220,7 @@ pub fn normalize_channel_name_with_custom(
 }
 ```
 
-### 6. Channel Metadata Access
+### 5. Channel Metadata Access
 
 The `Channel` type provides methods that fall back to spec metadata:
 
@@ -393,6 +387,7 @@ use ultralog::adapters::{
     ByteOrder,
     SignalDataType,
     EnumSpec,
+    UnitConversion,          // to_canonical's {scale, offset} — deserialized, never applied
 };
 ```
 
@@ -465,7 +460,10 @@ impl AdapterRegistry {
 }
 ```
 
-**Note:** The OpenECU Alliance API integration (implemented) provides runtime spec updates from the official repository. User directory loading would be for custom/experimental adapters not yet in the official specs.
+**Note:** there is no longer any runtime spec update path — the corpus is compiled in and
+this repository is its only source. That removes the original reason for deferring this: a
+user directory is now the *only* way to try an adapter without a rebuild, which makes it a
+stronger candidate than it was, not a weaker one.
 
 ### Generic CSV Parser
 
@@ -487,15 +485,23 @@ impl Parseable for GenericCsvParser {
 
 ### Unit Conversion from Specs
 
-Use `source_unit` and `conversion` fields for automatic conversion:
+The corpus already declares this and nothing reads it. A channel whose log unit differs from
+the canonical one in `channels.yaml` carries `to_canonical`, and `ChannelSpec::to_canonical`
+deserializes it:
 
 ```yaml
 channels:
-  - id: coolant_temp
-    unit: celsius
-    source_unit: fahrenheit
-    conversion: "(x - 32) * 5/9"
+  - id: fuel_flow
+    unit: cc/min # what the log actually contains — never rewritten to look canonical
+    to_canonical: # canonical = raw * scale + offset
+      scale: 0.06
+      offset: 0
 ```
+
+30 adapter channels and 5 BMW protocol signals declare it. `conversion` and `source_unit`
+exist on `ChannelSpec` too and have never been read either, so UltraLog displays raw log
+units throughout. Applying it changes displayed values across nine adapters and wants
+checking against real logs.
 
 ## Open Questions
 

@@ -251,7 +251,7 @@ src/
 
 ### Adapter System (src/adapters/)
 
-The adapter system reads the **OpenECU spec corpus** that this repository owns (see "OpenECU spec corpus"). The specs are compiled in and immutable for the life of the process: there is no network call, no disk cache and no refresh. Until 2026-11-22 there were three tiers — a background fetch from `openecualliance.org`, a 24-hour disk cache, then the embedded corpus — and `api.rs`, `cache.rs`, `RefreshResult`, `refresh_specs_from_api`, `specs_refreshed`, `spec_generation` and `get_spec_source` are all gone with them.
+The adapter system reads the **OpenECU spec corpus** that this repository owns (see "OpenECU spec corpus"). The specs are compiled in and immutable for the life of the process: there is no network call, no disk cache and no refresh. Until 2026-11-23 there were three tiers — a background fetch from `openecualliance.org`, a 24-hour disk cache, then the embedded corpus — and `api.rs`, `cache.rs`, `RefreshResult`, `refresh_specs_from_api`, `specs_refreshed`, `spec_generation` and `get_spec_source` are all gone with them.
 
 **Why they went, beyond tidiness.** The Alliance was retired and its domain will lapse. Any response that deserialized into `Vec<AdapterSpec>` was written to the disk cache and then shadowed the embedded corpus for 24 hours on every start — so once the name was free, whoever registered it could have overridden the specs on users' machines. The fetch was also unconditional at startup, against a host that no longer answers.
 

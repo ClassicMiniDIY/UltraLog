@@ -72,8 +72,6 @@ printpdf = "0.12"
 skrifa = "0.44"
 vello_cpu = { version = "0.2", default-features = false, features = ["std", "u8_pipeline"] }
 
-# Error handling
-
 # Internationalization
 rust-i18n = "4.2"
 
