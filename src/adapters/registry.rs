@@ -1,17 +1,20 @@
 //! Adapter registry for loading and managing OpenECU Alliance adapter specifications.
 //!
 //! This module provides functionality to:
-//! - Load adapter YAML files with fallback chain: API -> cache -> embedded
+//! - Parse the adapter and protocol YAML embedded from `spec/openecu`
 //! - Build normalization maps from channel source_names
 //! - Look up channel metadata by source name
-//! - Support background refresh of specs from the API
+//!
+//! The specs are immutable for the life of the process. Until the OpenECU Alliance was
+//! retired this was a three-tier chain — a background fetch from `openecualliance.org`, a
+//! 24-hour disk cache, then the embedded corpus — and the first two could replace the specs
+//! at runtime, which is why everything here was behind `RwLock`s with a generation counter.
+//! UltraLog owns the corpus now (see CLAUDE.md, "OpenECU spec corpus"), so the embedded tier
+//! is the only tier and no lock, atomic or cache-invalidation hook is needed.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{LazyLock, RwLock};
+use std::sync::LazyLock;
 
-use super::api;
-use super::cache;
 use super::types::{AdapterSpec, ChannelCategory, ChannelSpec, ProtocolSpec};
 
 // Embed adapter YAML files at compile time from the vendored corpus in spec/openecu.
@@ -78,11 +81,10 @@ const BMW_E8X_E9X_PROTOCOL_YAML: &str =
 /// "Engine RPM" to BMW's "Engine Speed", which is what `test_normalize_rpm` caught.
 /// Add a new adapter at the FRONT unless you have checked its collisions.
 ///
-/// This order governs the EMBEDDED TIER ONLY. `refresh_specs_from_api` rebuilds both
-/// maps from whatever order the API returned, and `load_adapters_with_fallback` prefers
-/// a fresh disk cache over the embedded specs — so on a machine with a populated cache
-/// neither the guarantee above nor `test_normalize_rpm` holds at runtime. Removing those
-/// tiers makes this order the only order.
+/// This order is now the ONLY order. While the API and disk-cache tiers existed they could
+/// replace the specs at runtime in whatever sequence they arrived, so neither the guarantee
+/// above nor `test_normalize_rpm` held on a machine with a populated cache. Both tiers are
+/// gone, so what the test asserts is what ships.
 static EMBEDDED_ADAPTERS: &[&str] = &[
     BMW_MS4X_ADAPTER_YAML,
     HALTECH_NSP_YAML,
@@ -140,54 +142,11 @@ fn parse_embedded_protocols() -> Vec<ProtocolSpec> {
         .collect()
 }
 
-/// Load adapters with fallback chain: cache -> embedded
-/// API fetch is done in background to avoid blocking startup
-fn load_adapters_with_fallback() -> Vec<AdapterSpec> {
-    // 1. Try loading from cache first (fast, non-blocking)
-    if !cache::is_cache_stale()
-        && let Some(cached) = cache::load_cached_adapters()
-    {
-        tracing::info!("Loaded {} adapters from cache", cached.len());
-        return cached;
-    }
+/// The embedded adapter specifications, parsed once.
+static ADAPTER_SPECS: LazyLock<Vec<AdapterSpec>> = LazyLock::new(parse_embedded_adapters);
 
-    // 2. Fall back to embedded specs (always available)
-    tracing::info!("Using embedded adapter specs");
-    parse_embedded_adapters()
-}
-
-/// Load protocols with fallback chain: cache -> embedded
-/// API fetch is done in background to avoid blocking startup
-fn load_protocols_with_fallback() -> Vec<ProtocolSpec> {
-    // 1. Try loading from cache first (fast, non-blocking)
-    if !cache::is_cache_stale()
-        && let Some(cached) = cache::load_cached_protocols()
-    {
-        tracing::info!("Loaded {} protocols from cache", cached.len());
-        return cached;
-    }
-
-    // 2. Fall back to embedded specs (always available)
-    tracing::info!("Using embedded protocol specs");
-    parse_embedded_protocols()
-}
-
-/// Tracks whether specs have been refreshed from API
-static SPECS_REFRESHED: AtomicBool = AtomicBool::new(false);
-
-/// Monotonic version of the adapter-derived lookup maps. Consumers can use
-/// this to invalidate caches when a background refresh replaces the specs.
-static SPEC_GENERATION: AtomicU64 = AtomicU64::new(0);
-
-/// Dynamically updatable adapter specifications
-/// Initial load uses cache/embedded, background refresh updates from API
-static ADAPTER_SPECS: LazyLock<RwLock<Vec<AdapterSpec>>> =
-    LazyLock::new(|| RwLock::new(load_adapters_with_fallback()));
-
-/// Dynamically updatable protocol specifications
-/// Initial load uses cache/embedded, background refresh updates from API
-static PROTOCOL_SPECS: LazyLock<RwLock<Vec<ProtocolSpec>>> =
-    LazyLock::new(|| RwLock::new(load_protocols_with_fallback()));
+/// The embedded protocol specifications, parsed once.
+static PROTOCOL_SPECS: LazyLock<Vec<ProtocolSpec>> = LazyLock::new(parse_embedded_protocols);
 
 /// Channel metadata lookup by source name (lowercase)
 #[derive(Debug, Clone)]
@@ -211,21 +170,12 @@ pub struct ChannelMetadata {
 }
 
 /// Normalization map: source name (lowercase) -> canonical display name
-/// Uses RwLock to allow dynamic updates from API refresh
-static SPEC_NORMALIZATION_MAP: LazyLock<RwLock<HashMap<String, String>>> = LazyLock::new(|| {
-    RwLock::new(build_normalization_map(
-        &ADAPTER_SPECS.read().unwrap_or_else(|e| e.into_inner()),
-    ))
-});
+static SPEC_NORMALIZATION_MAP: LazyLock<HashMap<String, String>> =
+    LazyLock::new(|| build_normalization_map(&ADAPTER_SPECS));
 
 /// Channel metadata lookup: source name (lowercase) -> full metadata
-/// Uses RwLock to allow dynamic updates from API refresh
-static CHANNEL_METADATA_MAP: LazyLock<RwLock<HashMap<String, ChannelMetadata>>> =
-    LazyLock::new(|| {
-        RwLock::new(build_metadata_map(
-            &ADAPTER_SPECS.read().unwrap_or_else(|e| e.into_inner()),
-        ))
-    });
+static CHANNEL_METADATA_MAP: LazyLock<HashMap<String, ChannelMetadata>> =
+    LazyLock::new(|| build_metadata_map(&ADAPTER_SPECS));
 
 /// Build normalization map from adapter specs
 fn build_normalization_map(adapters: &[AdapterSpec]) -> HashMap<String, String> {
@@ -264,33 +214,27 @@ fn build_metadata_map(adapters: &[AdapterSpec]) -> HashMap<String, ChannelMetada
     map
 }
 
-/// Read adapter specs, recovering from poisoned locks via `into_inner()`.
-fn read_adapter_specs() -> std::sync::RwLockReadGuard<'static, Vec<AdapterSpec>> {
-    ADAPTER_SPECS.read().unwrap_or_else(|e| e.into_inner())
+// These were lock guards while a background refresh could replace the specs. They are plain
+// borrows now; the call sites are unchanged because `&Vec`/`&HashMap` deref the same way.
+fn read_adapter_specs() -> &'static [AdapterSpec] {
+    &ADAPTER_SPECS
 }
 
-/// Read protocol specs, recovering from poisoned locks.
-fn read_protocol_specs() -> std::sync::RwLockReadGuard<'static, Vec<ProtocolSpec>> {
-    PROTOCOL_SPECS.read().unwrap_or_else(|e| e.into_inner())
+fn read_protocol_specs() -> &'static [ProtocolSpec] {
+    &PROTOCOL_SPECS
 }
 
-/// Read normalization map, recovering from poisoned locks.
-fn read_normalization_map() -> std::sync::RwLockReadGuard<'static, HashMap<String, String>> {
-    SPEC_NORMALIZATION_MAP
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
+fn read_normalization_map() -> &'static HashMap<String, String> {
+    &SPEC_NORMALIZATION_MAP
 }
 
-/// Read metadata map, recovering from poisoned locks.
-fn read_metadata_map() -> std::sync::RwLockReadGuard<'static, HashMap<String, ChannelMetadata>> {
-    CHANNEL_METADATA_MAP
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
+fn read_metadata_map() -> &'static HashMap<String, ChannelMetadata> {
+    &CHANNEL_METADATA_MAP
 }
 
 /// Get all loaded adapter specifications
 pub fn get_adapters() -> Vec<AdapterSpec> {
-    read_adapter_specs().clone()
+    read_adapter_specs().to_vec()
 }
 
 /// Get adapter by ID
@@ -379,7 +323,7 @@ pub fn get_channels_by_category(category: ChannelCategory) -> Vec<ChannelSpec> {
 
 /// Get all loaded protocol specifications
 pub fn get_protocols() -> Vec<ProtocolSpec> {
-    read_protocol_specs().clone()
+    read_protocol_specs().to_vec()
 }
 
 /// Get protocol by ID
@@ -395,142 +339,6 @@ pub fn find_protocols_by_vendor(vendor: &str) -> Vec<ProtocolSpec> {
         .filter(|p| p.vendor.to_lowercase() == vendor_lower)
         .cloned()
         .collect()
-}
-
-// ============================================================================
-// Background Refresh Functions
-// ============================================================================
-
-/// Result of a spec refresh operation
-#[derive(Debug, Clone)]
-pub enum RefreshResult {
-    /// Successfully refreshed from API
-    Success {
-        adapters_count: usize,
-        protocols_count: usize,
-    },
-    /// Failed to refresh (using cached/embedded data)
-    Failed(String),
-    /// Already refreshed, skipped
-    AlreadyRefreshed,
-}
-
-/// Refresh specs from the API and update the registry
-/// This function is designed to be called from a background thread
-pub fn refresh_specs_from_api() -> RefreshResult {
-    // Check if already refreshed to avoid redundant API calls
-    if SPECS_REFRESHED.load(Ordering::SeqCst) {
-        return RefreshResult::AlreadyRefreshed;
-    }
-
-    tracing::info!("Refreshing specs from OpenECUAlliance API...");
-
-    // Fetch adapters from API
-    let adapters_result = api::fetch_all_adapters();
-    let protocols_result = api::fetch_all_protocols();
-
-    // Update adapters if fetched successfully
-    let adapters_count = match adapters_result {
-        Ok(adapters) => {
-            let count = adapters.len();
-            if let Err(e) = cache::save_adapters_to_cache(&adapters) {
-                tracing::warn!("Failed to cache adapters: {}", e);
-            }
-            if let Ok(mut lock) = ADAPTER_SPECS.write() {
-                *lock = adapters;
-            }
-            // Rebuild derived maps from new adapter specs
-            if let Ok(specs) = ADAPTER_SPECS.read() {
-                if let Ok(mut norm_lock) = SPEC_NORMALIZATION_MAP.write() {
-                    *norm_lock = build_normalization_map(&specs);
-                }
-                if let Ok(mut meta_lock) = CHANNEL_METADATA_MAP.write() {
-                    *meta_lock = build_metadata_map(&specs);
-                }
-            }
-            SPEC_GENERATION.fetch_add(1, Ordering::SeqCst);
-            Some(count)
-        }
-        Err(e) => {
-            tracing::warn!("Failed to fetch adapters from API: {}", e);
-            None
-        }
-    };
-
-    // Update protocols if fetched successfully
-    let protocols_count = match protocols_result {
-        Ok(protocols) => {
-            let count = protocols.len();
-            if let Err(e) = cache::save_protocols_to_cache(&protocols) {
-                tracing::warn!("Failed to cache protocols: {}", e);
-            }
-            if let Ok(mut lock) = PROTOCOL_SPECS.write() {
-                *lock = protocols;
-            }
-            Some(count)
-        }
-        Err(e) => {
-            tracing::warn!("Failed to fetch protocols from API: {}", e);
-            None
-        }
-    };
-
-    match (adapters_count, protocols_count) {
-        (Some(ac), Some(pc)) => {
-            SPECS_REFRESHED.store(true, Ordering::SeqCst);
-            tracing::info!(
-                "Successfully refreshed {} adapters and {} protocols from API",
-                ac,
-                pc
-            );
-            RefreshResult::Success {
-                adapters_count: ac,
-                protocols_count: pc,
-            }
-        }
-        (Some(ac), None) => {
-            tracing::info!(
-                "Partially refreshed: {} adapters updated, protocols failed",
-                ac
-            );
-            RefreshResult::Success {
-                adapters_count: ac,
-                protocols_count: 0,
-            }
-        }
-        (None, Some(pc)) => {
-            tracing::info!(
-                "Partially refreshed: adapters failed, {} protocols updated",
-                pc
-            );
-            RefreshResult::Success {
-                adapters_count: 0,
-                protocols_count: pc,
-            }
-        }
-        (None, None) => RefreshResult::Failed("Both adapter and protocol fetch failed".to_string()),
-    }
-}
-
-/// Check if specs have been refreshed from API
-pub fn specs_refreshed() -> bool {
-    SPECS_REFRESHED.load(Ordering::SeqCst)
-}
-
-/// Return the version of the adapter-derived lookup maps.
-pub fn spec_generation() -> u64 {
-    SPEC_GENERATION.load(Ordering::SeqCst)
-}
-
-/// Get the current spec source (for display purposes)
-pub fn get_spec_source() -> &'static str {
-    if SPECS_REFRESHED.load(Ordering::SeqCst) {
-        "API (refreshed)"
-    } else if !cache::is_cache_stale() && cache::load_cached_adapters().is_some() {
-        "Cache"
-    } else {
-        "Embedded"
-    }
 }
 
 #[cfg(test)]
@@ -621,16 +429,6 @@ mod tests {
         assert!(
             !speeduino_protocols.is_empty(),
             "Should find Speeduino protocols"
-        );
-    }
-
-    #[test]
-    fn test_get_spec_source() {
-        // Initially should be "Embedded" or "Cache" depending on environment
-        let source = get_spec_source();
-        assert!(
-            source == "Embedded" || source == "Cache" || source == "API (refreshed)",
-            "Spec source should be valid"
         );
     }
 

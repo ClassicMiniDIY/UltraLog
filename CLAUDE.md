@@ -102,9 +102,7 @@ src/
 ├── adapters/
 │   ├── mod.rs        # Adapter module exports
 │   ├── types.rs      # OpenECU Alliance spec types (AdapterSpec, ProtocolSpec, etc.)
-│   ├── api.rs        # API client for fetching specs from openecualliance.org
-│   ├── cache.rs      # Local disk cache at {app_data_dir}/UltraLog/oecua_specs/
-│   └── registry.rs   # Spec registry with fallback chain (cache -> embedded -> API)
+│   └── registry.rs   # Spec registry over the embedded corpus (no network, no cache)
 ├── analysis/
 │   ├── mod.rs         # Analyzer trait + shared analysis framework
 │   ├── afr.rs         # AFR/Lambda analysis (fuel trim drift CUSUM, rich/lean zones)
@@ -253,7 +251,11 @@ src/
 
 ### Adapter System (src/adapters/)
 
-The adapter system integrates with the **OpenECU Alliance** specification ecosystem, providing runtime access to adapter and protocol definitions with automatic updates.
+The adapter system reads the **OpenECU spec corpus** that this repository owns (see "OpenECU spec corpus"). The specs are compiled in and immutable for the life of the process: there is no network call, no disk cache and no refresh. Until 2026-11-22 there were three tiers — a background fetch from `openecualliance.org`, a 24-hour disk cache, then the embedded corpus — and `api.rs`, `cache.rs`, `RefreshResult`, `refresh_specs_from_api`, `specs_refreshed`, `spec_generation` and `get_spec_source` are all gone with them.
+
+**Why they went, beyond tidiness.** The Alliance was retired and its domain will lapse. Any response that deserialized into `Vec<AdapterSpec>` was written to the disk cache and then shadowed the embedded corpus for 24 hours on every start — so once the name was free, whoever registered it could have overridden the specs on users' machines. The fetch was also unconditional at startup, against a host that no longer answers.
+
+**A leftover on disk.** Installs that ran an older build may still have `{app_data_dir}/UltraLog/oecua_specs/`. Nothing reads or writes it now; it is a few hundred KB of orphaned JSON and no code removes it.
 
 - **`types.rs`** - OpenECU Alliance spec types:
   - `AdapterSpec` - Log file format adapter definitions with channel specifications
@@ -262,26 +264,11 @@ The adapter system integrates with the **OpenECU Alliance** specification ecosys
   - `MessageSpec`, `SignalSpec` - CAN message and signal definitions
   - `ChannelCategory` - Categorization enum (Engine, Fuel, Ignition, etc.)
 
-- **`api.rs`** - OpenECU Alliance API client:
-  - Fetches specs from `https://openecualliance.org/api/`
-  - Endpoints: `/api/adapters`, `/api/adapters/{vendor}/{id}`, `/api/protocols`, `/api/protocols/{vendor}/{id}`
-  - HTTP client using `ureq` with custom user agent
-  - Error handling for network and parsing failures
-
-- **`cache.rs`** - Local disk cache:
-  - Cache location: `{app_data_dir}/UltraLog/oecua_specs/adapters/` and `.../protocols/`
-  - Cache metadata tracks last fetch timestamp, version, and counts
-  - 24-hour staleness threshold (configurable)
-  - Individual JSON files per adapter/protocol (e.g., `haltech-haltech-nsp.json`)
-  - Cache clearing and age inspection utilities
-
-- **`registry.rs`** - Spec registry with multi-tier fallback:
-  - **Embedded specs** - Compile-time YAML files from `spec/openecu/`, vendored in this repo (see "OpenECU spec corpus")
-  - **Cache layer** - Loads from disk cache if fresh (< 24 hours old)
-  - **API refresh** - Background thread fetches updates on app startup (non-blocking)
+- **`registry.rs`** - Spec registry over the embedded corpus:
+  - **Embedded specs** - Compile-time YAML from `spec/openecu/` via `include_str!`, parsed once into `LazyLock<Vec<_>>`
   - **Normalization maps** - Builds source_name → display_name mappings for field normalization
   - **Metadata lookup** - Provides channel metadata (category, unit, min/max, precision)
-  - Thread-safe `RwLock` for dynamic spec updates without restart
+  - No locks and no generation counter: nothing can replace the specs at runtime, so `EMBEDDED_ADAPTERS` order is the only order and `test_normalize_rpm` asserts what actually ships
 
 ## OpenECU spec corpus (`spec/openecu/`) — load-bearing
 
@@ -290,14 +277,9 @@ UltraLog owns this corpus. It moved here when the OpenECU Alliance site was reti
 `ClassicMiniDIY/OECUASpecs` repositories are gone or archived. **There is no upstream.**
 Nothing validates these files but this repo.
 
-**The app has not stopped fetching, though.** `src/adapters/api.rs` still hardcodes
-`https://openecualliance.org` and `src/app.rs` still spawns `refresh_specs_from_api()`
-unconditionally at startup. A dead host degrades gracefully — error, `warn!`, fall back to
-cache or embedded — but the exposure after the domain lapses is worse than a failed fetch:
-any response that deserializes into `Vec<AdapterSpec>` is written to the on-disk cache and
-then **shadows this vendored corpus for 24 hours on every start**. Whoever ends up
-answering for that name can override the corpus. Removing the API and cache tiers is the
-next step of the retirement and should not wait.
+**Nothing fetches it any more either.** The API client and the disk cache were removed on
+2026-11-23; see "Adapter System" for what went and why. The app makes no network call for
+spec data.
 
 It was previously downloaded by `build.rs` into a gitignored `spec/OECUASpecs/`, so a
 clean clone could not build without network access to an archived repository. That is
@@ -777,12 +759,9 @@ preferences convert them.
 
 **Startup and Spec Loading:**
 
-1. **App initialization** - `registry.rs` loads adapter/protocol specs via fallback chain:
-   - If cache is fresh (< 24 hours old) → load from disk cache
-   - Else → load embedded YAML specs from `spec/openecu/`
-   - Background thread spawned to fetch latest specs from OpenECU Alliance API
-2. **Background refresh** - Non-blocking API fetch updates cache and registry for next startup
-3. **Normalization maps built** - Extract `source_names` from adapter specs to build field name mappings
+1. **App initialization** - `registry.rs` parses the YAML embedded from `spec/openecu/` on first
+   access. No network, no cache, no background thread.
+2. **Normalization maps built** - Extract `source_names` from adapter specs to build field name mappings
 
 **File Loading and Visualization:**
 
@@ -794,15 +773,19 @@ preferences convert them.
 6. Chart renders downsampled data from cache, limited to 2000 points per channel using LTTB algorithm
 7. Unit conversions applied at display time based on `unit_preferences`
 
-**Adapter Spec Fallback Chain:**
+**Adapter Spec Loading:**
 
 ```text
-1. Startup (fast, non-blocking):
-   Cache (< 24h old) → Embedded YAML → Background API fetch
-
-2. Background API fetch (async):
-   OpenECU Alliance API → Update cache → Rebuild normalization maps → Ready for next startup
+spec/openecu/*.yaml  --include_str!-->  EMBEDDED_ADAPTERS / EMBEDDED_PROTOCOLS
+                                              |
+                                        parsed once (LazyLock)
+                                              |
+                              ADAPTER_SPECS, PROTOCOL_SPECS, and the
+                              normalization and metadata maps built from them
 ```
+
+One tier, resolved at compile time. There is no fallback because there is nothing to fall back
+from.
 
 ### Settings Persistence Contract
 
